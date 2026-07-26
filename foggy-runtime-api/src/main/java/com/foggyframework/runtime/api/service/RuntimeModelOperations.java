@@ -21,6 +21,12 @@ import com.foggyframework.dataset.model.lifecycle.refresh.CatalogRefreshTrigger;
 import com.foggyframework.dataset.model.semantic.domain.SemanticMetadataRequest;
 import com.foggyframework.dataset.model.semantic.domain.SemanticMetadataResponse;
 import com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.model.semantic.permission.ModelPermissionException;
+import com.foggyframework.dataset.model.semantic.permission.ModelPermissionService;
+import com.foggyframework.dataset.model.semantic.permission.PermissionAction;
+import com.foggyframework.dataset.model.semantic.permission.PermissionDecision;
+import com.foggyframework.dataset.model.semantic.permission.PermissionEvaluationSession;
+import com.foggyframework.dataset.model.semantic.permission.RequestIdentity;
 import com.foggyframework.dataset.model.semantic.service.SemanticModelCatalogService;
 import com.foggyframework.dataset.model.semantic.service.SemanticServiceV3;
 import com.foggyframework.dataset.model.spi.QueryModelLoader;
@@ -71,6 +77,10 @@ public class RuntimeModelOperations {
     private final DatasetProperties datasetProperties;
     private final CatalogSnapshotStore catalogSnapshotStore;
     private final CatalogRefreshCoordinator catalogRefreshCoordinator;
+    @Autowired(required = false)
+    private QueryModelLoader permissionQueryModelLoader;
+    @Autowired(required = false)
+    private ModelPermissionService modelPermissionService;
 
     @Deprecated(since = "9.3.5", forRemoval = false)
     public RuntimeModelOperations(
@@ -161,12 +171,20 @@ public class RuntimeModelOperations {
     }
 
     public Map<String, Object> listModels(Map<String, String> query, String namespace) {
+        return listModels(query, namespace, null);
+    }
+
+    public Map<String, Object> listModels(
+            Map<String, String> query,
+            String namespace,
+            String authorization
+    ) {
         Map<String, Object> options = new LinkedHashMap<>(query);
         String bodyNamespace = stringValue(options.remove("namespace"));
         return catalogService.buildCatalogResponse(
                 options,
                 resolveNamespace(namespace, bodyNamespace),
-                null
+                authorization
         );
     }
 
@@ -174,6 +192,15 @@ public class RuntimeModelOperations {
             String model,
             ModelDescribeRequest request,
             String namespace
+    ) {
+        return describeModel(model, request, namespace, null);
+    }
+
+    public ModelDescribeResponse describeModel(
+            String model,
+            ModelDescribeRequest request,
+            String namespace,
+            String authorization
     ) {
         String normalizedModel = blankToNull(model);
         if (normalizedModel == null) {
@@ -194,10 +221,17 @@ public class RuntimeModelOperations {
 
         String effectiveNamespace = resolveNamespace(
                 namespace, request != null ? request.namespace() : null);
+        authorizeModel(
+                normalizedModel,
+                effectiveNamespace,
+                authorization,
+                PermissionAction.DESCRIBE
+        );
         SemanticMetadataResponse metadata = semanticServiceV3.getMetadata(
                 metadataRequest,
                 format,
-                SemanticRequestContext.ofNamespace(effectiveNamespace)
+                SemanticRequestContext.of(effectiveNamespace, authorization)
+                        .withPermissionAction(PermissionAction.DESCRIBE)
         );
 
         if (metadata == null || isModelMissing(normalizedModel, metadata)) {
@@ -223,6 +257,42 @@ public class RuntimeModelOperations {
                 metadata.getContent(),
                 data
         );
+    }
+
+    private void authorizeModel(
+            String model,
+            String namespace,
+            String authorization,
+            PermissionAction action
+    ) {
+        if (permissionQueryModelLoader == null || modelPermissionService == null) {
+            return;
+        }
+        try {
+            var queryModel = permissionQueryModelLoader.getJdbcQueryModel(model, namespace);
+            if (queryModel == null) {
+                throw ModelPermissionException.denied();
+            }
+            PermissionDecision decision = modelPermissionService.evaluate(
+                    queryModel,
+                    namespace,
+                    action,
+                    RequestIdentity.fromAuthorization(authorization),
+                    new PermissionEvaluationSession()
+            );
+            if (!decision.isAllow()) {
+                throw ModelPermissionException.denied();
+            }
+        } catch (ModelPermissionException denied) {
+            throw failure(
+                    denied.getCode(),
+                    "models.describe",
+                    denied.getMessage(),
+                    model,
+                    "Verify data-plane authorization and retry.",
+                    false
+            );
+        }
     }
 
     private java.util.Optional<ModelProvenance.ModelSource> modelSource(

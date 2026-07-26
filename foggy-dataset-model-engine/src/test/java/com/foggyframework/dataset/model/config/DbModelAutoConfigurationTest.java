@@ -3,6 +3,8 @@ package com.foggyframework.dataset.model.config;
 import com.foggyframework.dataset.model.engine.formula.SqlFormulaService;
 import com.foggyframework.dataset.model.plugins.query_execution.QueryExecutionStepExecutor;
 import com.foggyframework.dataset.model.plugins.result_set_filter.DataSetResultFilterManager;
+import com.foggyframework.dataset.model.semantic.permission.AuthorizationSignatureService;
+import com.foggyframework.dataset.model.semantic.permission.ModelPermissionService;
 import com.foggyframework.dataset.model.semantic.port.ComposeExecutionPort;
 import com.foggyframework.dataset.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.model.spi.TableModelLoaderManager;
@@ -69,6 +71,15 @@ class DbModelAutoConfigurationTest {
     void testComposeExecutionPortRegistered() {
         ComposeExecutionPort port = applicationContext.getBean(ComposeExecutionPort.class);
         assertNotNull(port, "ComposeExecutionPort should be registered");
+    }
+
+    @Test
+    @DisplayName("权限决策与签名服务 Bean 已注册")
+    void testPermissionServicesRegistered() {
+        assertNotNull(applicationContext.getBean(ModelPermissionService.class),
+                "ModelPermissionService should be registered");
+        assertNotNull(applicationContext.getBean(AuthorizationSignatureService.class),
+                "AuthorizationSignatureService should be registered");
     }
 
     @Test

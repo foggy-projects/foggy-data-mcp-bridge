@@ -5,6 +5,7 @@ import com.foggyframework.dataset.model.def.access.DbAccessDef;
 import com.foggyframework.dataset.model.def.column.DbColumnGroupDef;
 import com.foggyframework.dataset.model.def.order.OrderDef;
 import com.foggyframework.dataset.model.def.permission.FieldPermissionsDef;
+import com.foggyframework.dataset.model.def.permission.ModelPermissionsDef;
 import com.foggyframework.dataset.model.engine.query_model.QueryModelSupport;
 import com.foggyframework.dataset.model.semantic.member.permission.QmMemberPermissionDef;
 import com.foggyframework.dataset.model.proxy.TableModelProxy;
@@ -55,9 +56,19 @@ public class DbQueryModelDef extends DbDefSupport {
      */
     FieldPermissionsDef fieldPermissions;
 
+    /**
+     * Query-model action authorization. Omitted/public declarations preserve
+     * the existing open-model behavior.
+     */
+    ModelPermissionsDef modelPermissions;
+
     public void apply(QueryModelSupport queryModelSupport) {
         super.apply(queryModelSupport);
+        if (modelPermissions != null) {
+            modelPermissions.resolvedMode();
+        }
         queryModelSupport.setFieldPermissions(fieldPermissions);
+        queryModelSupport.setModelPermissions(modelPermissions);
     }
 
 }

@@ -8,7 +8,6 @@ import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
@@ -28,8 +27,6 @@ public class RuntimeApiAuthInterceptor implements HandlerInterceptor {
     public static final String AUTH_CODE_HEADER = "X-Foggy-Runtime-Code";
 
     private static final String PHASE = "runtime.auth";
-    private static final String BEARER_PREFIX = "Bearer ";
-
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
     private final FoggyRuntimeApiProperties properties;
     private final RuntimeApiResponseFactory responses;
@@ -68,7 +65,7 @@ public class RuntimeApiAuthInterceptor implements HandlerInterceptor {
                     HttpServletResponse.SC_UNAUTHORIZED,
                     "RUNTIME_AUTH_REQUIRED",
                     "Runtime API management operation requires a valid auth code.",
-                    "Pass the auth code through X-Foggy-Runtime-Code or Authorization: Bearer."
+                    "Pass the management auth code through X-Foggy-Runtime-Code."
             );
             return false;
         }
@@ -102,7 +99,8 @@ public class RuntimeApiAuthInterceptor implements HandlerInterceptor {
             case RuntimeApiRoutes.Full.NAMESPACE_DATASOURCE -> "PUT".equals(method);
             case RuntimeApiRoutes.Full.RESOURCES_SAVE,
                  RuntimeApiRoutes.Full.MODELS_VALIDATE,
-                 RuntimeApiRoutes.Full.MODELS_REFRESH -> "POST".equals(method);
+                 RuntimeApiRoutes.Full.MODELS_REFRESH,
+                 RuntimeApiRoutes.Full.FSSCRIPT_EXECUTE -> "POST".equals(method);
             case RuntimeApiRoutes.Full.LEGACY_BUNDLE_ADD,
                  RuntimeApiRoutes.Full.LEGACY_BUNDLE_REMOVE -> "POST".equals(method) || "DELETE".equals(method);
             default -> false;
@@ -139,7 +137,8 @@ public class RuntimeApiAuthInterceptor implements HandlerInterceptor {
         }
         if (RuntimeApiRoutes.Full.RESOURCES_SAVE.equals(path)
                 || RuntimeApiRoutes.Full.MODELS_VALIDATE.equals(path)
-                || RuntimeApiRoutes.Full.MODELS_REFRESH.equals(path)) {
+                || RuntimeApiRoutes.Full.MODELS_REFRESH.equals(path)
+                || RuntimeApiRoutes.Full.FSSCRIPT_EXECUTE.equals(path)) {
             return "POST".equals(method);
         }
         if (RuntimeApiRoutes.Full.LEGACY_BUNDLE_ADD.equals(path)) {
@@ -152,16 +151,7 @@ public class RuntimeApiAuthInterceptor implements HandlerInterceptor {
     }
 
     private String extractSubmittedCode(HttpServletRequest request) {
-        String headerCode = request.getHeader(AUTH_CODE_HEADER);
-        if (StringUtils.hasText(headerCode)) {
-            return headerCode;
-        }
-        String authorization = request.getHeader(HttpHeaders.AUTHORIZATION);
-        if (StringUtils.hasText(authorization)
-                && authorization.regionMatches(true, 0, BEARER_PREFIX, 0, BEARER_PREFIX.length())) {
-            return authorization.substring(BEARER_PREFIX.length());
-        }
-        return null;
+        return request.getHeader(AUTH_CODE_HEADER);
     }
 
     private boolean authCodeMatches(String submittedCode) {

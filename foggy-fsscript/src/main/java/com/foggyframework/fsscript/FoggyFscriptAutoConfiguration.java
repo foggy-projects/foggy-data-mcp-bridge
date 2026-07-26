@@ -1,5 +1,6 @@
 package com.foggyframework.fsscript;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.fsscript.exp.DefaultExpFactory;
 import com.foggyframework.fsscript.exp.FunTable;
@@ -11,20 +12,23 @@ import com.foggyframework.fsscript.loadder.RootFsscriptLoader;
 import com.foggyframework.fsscript.lifecycle.CommittedSourceRevisionRegistry;
 import com.foggyframework.fsscript.parser.spi.ExpFactory;
 import com.foggyframework.fsscript.spring.cloud.GetFunDef;
+import com.foggyframework.fsscript.spring.cloud.FsscriptHttpClient;
 import com.foggyframework.fsscript.spring.cloud.PostFunDef;
 import com.foggyframework.fsscript.utils.ExpUtils;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.PropertySource;
-import org.springframework.web.client.RestTemplate;
 
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineFactory;
+import java.time.Duration;
 
 
 @Configuration
@@ -56,7 +60,26 @@ public class FoggyFscriptAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnClass(RestTemplate.class)
+    @ConditionalOnClass(ObjectMapper.class)
+    @ConditionalOnMissingBean(FsscriptHttpClient.class)
+    public FsscriptHttpClient fsscriptHttpClient(
+            ObjectProvider<ObjectMapper> objectMapperProvider,
+            @Value("${foggy.fsscript.http.connect-timeout-ms:3000}") long connectTimeoutMs,
+            @Value("${foggy.fsscript.http.request-timeout-ms:5000}") long requestTimeoutMs,
+            @Value("${foggy.fsscript.http.max-response-bytes:1048576}") int maxResponseBytes,
+            @Value("${foggy.fsscript.http.max-redirects:5}") int maxRedirects
+    ) {
+        return new FsscriptHttpClient(
+                objectMapperProvider.getIfAvailable(ObjectMapper::new),
+                Duration.ofMillis(connectTimeoutMs),
+                Duration.ofMillis(requestTimeoutMs),
+                maxResponseBytes,
+                maxRedirects
+        );
+    }
+
+    @Bean
+    @ConditionalOnClass(FsscriptHttpClient.class)
     public PostFunDef postFunDef(FunTable funTable) {
         PostFunDef postFunDef = new PostFunDef();
         funTable.append(postFunDef);
@@ -64,7 +87,7 @@ public class FoggyFscriptAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnClass(RestTemplate.class)
+    @ConditionalOnClass(FsscriptHttpClient.class)
     public GetFunDef getFunDef(FunTable funTable) {
         GetFunDef getFunDef = new GetFunDef();
         funTable.append(getFunDef);

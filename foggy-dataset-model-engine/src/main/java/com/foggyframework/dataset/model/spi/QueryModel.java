@@ -4,6 +4,7 @@ import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.core.Decorate;
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.model.def.permission.FieldPermissionsDef;
+import com.foggyframework.dataset.model.def.permission.ModelPermissionsDef;
 import com.foggyframework.dataset.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.model.engine.join.JoinGraph;
@@ -157,6 +158,14 @@ public interface QueryModel extends Decorate, DbObject {
      */
     @Nullable
     default FieldPermissionsDef getFieldPermissions() {
+        return null;
+    }
+
+    /**
+     * Query-model action authorization declaration.
+     */
+    @Nullable
+    default ModelPermissionsDef getModelPermissions() {
         return null;
     }
 

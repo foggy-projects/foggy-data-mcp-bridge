@@ -5,6 +5,7 @@ import com.foggyframework.dataset.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.model.engine.query.JdbcQuery;
+import com.foggyframework.dataset.model.semantic.permission.PermissionPredicate;
 import com.foggyframework.dataset.model.spi.*;
 import com.foggyframework.dataset.model.spi.preagg.TimeGranularity;
 import com.foggyframework.dataset.model.spi.support.AggregationDbColumn;
@@ -51,7 +52,21 @@ public class PreAggQueryRequirementBuilder {
     public PreAggQueryRequirement build(DbQueryRequestDef queryRequest,
                                          JdbcQuery jdbcQuery,
                                          JdbcQueryModel queryModel) {
-        return buildInternal(queryRequest, jdbcQuery, queryModel, false);
+        return build(queryRequest, jdbcQuery, queryModel, List.of(), true);
+    }
+
+    public PreAggQueryRequirement build(
+            DbQueryRequestDef queryRequest,
+            JdbcQuery jdbcQuery,
+            JdbcQueryModel queryModel,
+            List<PermissionPredicate> securityPredicates,
+            boolean securityContextCacheable
+    ) {
+        PreAggQueryRequirement requirement =
+                buildInternal(queryRequest, jdbcQuery, queryModel, false);
+        applySecurityRequirements(
+                requirement, securityPredicates, securityContextCacheable);
+        return requirement;
     }
 
     /**
@@ -64,7 +79,22 @@ public class PreAggQueryRequirementBuilder {
     public PreAggQueryRequirement buildFinalStage(DbQueryRequestDef queryRequest,
                                                    JdbcQuery jdbcQuery,
                                                    JdbcQueryModel queryModel) {
-        return buildInternal(queryRequest, jdbcQuery, queryModel, true);
+        return buildFinalStage(
+                queryRequest, jdbcQuery, queryModel, List.of(), true);
+    }
+
+    public PreAggQueryRequirement buildFinalStage(
+            DbQueryRequestDef queryRequest,
+            JdbcQuery jdbcQuery,
+            JdbcQueryModel queryModel,
+            List<PermissionPredicate> securityPredicates,
+            boolean securityContextCacheable
+    ) {
+        PreAggQueryRequirement requirement =
+                buildInternal(queryRequest, jdbcQuery, queryModel, true);
+        applySecurityRequirements(
+                requirement, securityPredicates, securityContextCacheable);
+        return requirement;
     }
 
     /**
@@ -75,12 +105,47 @@ public class PreAggQueryRequirementBuilder {
     public PreAggQueryRequirement buildAggregate(DbQueryRequestDef queryRequest,
                                                   JdbcQuery jdbcQuery,
                                                   JdbcQueryModel queryModel) {
+        return buildAggregate(
+                queryRequest, jdbcQuery, queryModel, List.of(), true);
+    }
+
+    public PreAggQueryRequirement buildAggregate(
+            DbQueryRequestDef queryRequest,
+            JdbcQuery jdbcQuery,
+            JdbcQueryModel queryModel,
+            List<PermissionPredicate> securityPredicates,
+            boolean securityContextCacheable
+    ) {
         PreAggQueryRequirement requirement =
                 buildInternal(queryRequest, jdbcQuery, queryModel, false);
         // The matcher uses this flag as its aggregate-optimization
         // applicability gate even when the original request is ungrouped.
         requirement.setHasGroupBy(true);
+        applySecurityRequirements(
+                requirement, securityPredicates, securityContextCacheable);
         return requirement;
+    }
+
+    private void applySecurityRequirements(
+            PreAggQueryRequirement requirement,
+            List<PermissionPredicate> securityPredicates,
+            boolean securityContextCacheable
+    ) {
+        requirement.setSecurityContextCacheable(securityContextCacheable);
+        if (securityPredicates == null || securityPredicates.isEmpty()) {
+            requirement.setSecurityPredicates(List.of());
+            return;
+        }
+        List<PermissionPredicate> snapshot = List.copyOf(securityPredicates);
+        requirement.setSecurityPredicates(snapshot);
+        for (PermissionPredicate predicate : snapshot) {
+            if (predicate == null) {
+                continue;
+            }
+            for (String field : predicate.getReferencedFields()) {
+                requirement.addSliceColumn(field);
+            }
+        }
     }
 
     private PreAggQueryRequirement buildInternal(DbQueryRequestDef queryRequest,

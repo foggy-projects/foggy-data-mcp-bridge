@@ -91,6 +91,12 @@ public class PreAggregationMatcher {
                 }
                 continue;
             }
+            String securityFailure = requirement.securityFailureReason(preAgg);
+            if (securityFailure != null) {
+                log.debug("Skipping pre-aggregation '{}': {}",
+                        preAgg.getName(), securityFailure);
+                continue;
+            }
 
             // An incremental materialization must carry one valid DATE
             // exclusive boundary. Null, future, and foreign-domain values

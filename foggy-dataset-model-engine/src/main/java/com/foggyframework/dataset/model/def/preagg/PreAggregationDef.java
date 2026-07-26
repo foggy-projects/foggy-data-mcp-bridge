@@ -57,6 +57,13 @@ import java.util.Map;
 public class PreAggregationDef {
 
     /**
+     * Materialization permission scope. Existing definitions default to
+     * GLOBAL. SECURITY_SCOPED is reserved until its physical identity,
+     * refresh and routing contracts are implemented end to end.
+     */
+    private String buildMode = "GLOBAL";
+
+    /**
      * 预聚合名称（在模型内唯一）
      */
     private String name;

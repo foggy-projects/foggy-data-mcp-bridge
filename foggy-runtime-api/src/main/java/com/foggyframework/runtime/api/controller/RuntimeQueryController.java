@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.HttpHeaders;
 
 @RestController
 @RequestMapping(RuntimeApiRoutes.API_V1)
@@ -46,24 +47,27 @@ public class RuntimeQueryController {
     public RuntimeEnvelope<SemanticQueryResponse> validateQuery(
             @PathVariable String model,
             @RequestBody(required = false) JsonNode body,
-            @RequestHeader(value = "X-NS", required = false) String namespace
+            @RequestHeader(value = "X-NS", required = false) String namespace,
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization
     ) {
-        return query(model, body, namespace, "validate", "query.validate");
+        return query(model, body, namespace, authorization, "validate", "query.validate");
     }
 
     @PostMapping(RuntimeApiRoutes.V1.QUERY_EXECUTE)
     public RuntimeEnvelope<SemanticQueryResponse> executeQuery(
             @PathVariable String model,
             @RequestBody(required = false) JsonNode body,
-            @RequestHeader(value = "X-NS", required = false) String namespace
+            @RequestHeader(value = "X-NS", required = false) String namespace,
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization
     ) {
-        return query(model, body, namespace, "execute", "query.execute");
+        return query(model, body, namespace, authorization, "execute", "query.execute");
     }
 
     private RuntimeEnvelope<SemanticQueryResponse> query(
             String model,
             JsonNode body,
             String headerNamespace,
+            String authorization,
             String mode,
             String phase
     ) {
@@ -90,7 +94,14 @@ public class RuntimeQueryController {
                     normalizedModel,
                     request,
                     mode,
-                    SemanticRequestContext.ofNamespace(resolveNamespace(headerNamespace, bodyNamespace(body)))
+                    SemanticRequestContext.of(
+                            resolveNamespace(headerNamespace, bodyNamespace(body)),
+                            authorization
+                    ).withPermissionAction(
+                            "validate".equals(mode)
+                                    ? com.foggyframework.dataset.model.semantic.permission.PermissionAction.VALIDATE
+                                    : com.foggyframework.dataset.model.semantic.permission.PermissionAction.EXECUTE
+                    )
             );
             if ("query.validate".equals(phase)) {
                 String blockingWarning = firstBlockingValidationWarning(response);

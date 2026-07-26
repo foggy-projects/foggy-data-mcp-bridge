@@ -6,6 +6,7 @@ import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.model.def.permission.FieldPermissionsDef;
+import com.foggyframework.dataset.model.def.permission.ModelPermissionsDef;
 import com.foggyframework.dataset.model.def.order.OrderDef;
 import com.foggyframework.dataset.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
@@ -102,6 +103,11 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
      * QM-level dynamic field permissions. This layer may only narrow TM/runtime permissions.
      */
     protected FieldPermissionsDef fieldPermissions;
+
+    /**
+     * QM-level action authorization declaration.
+     */
+    protected ModelPermissionsDef modelPermissions;
 
     /**
      * QM 预定义的计算字段（formula 项）

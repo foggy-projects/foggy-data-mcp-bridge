@@ -169,10 +169,7 @@ class RuntimeApiAuthCodeGateTest {
     }
 
     @Test
-    void shouldAllowProtectedMutationWithBearerAuthCode() {
-        when(systemBundlesContext.containBundle("runtime-bearer-demo")).thenReturn(false);
-        when(systemBundlesContext.addExternalBundle("runtime-bearer-demo", "dev", ".", false)).thenReturn(true);
-
+    void shouldNotTreatBusinessAuthorizationAsManagementAuthCode() {
         ResponseEntity<JsonNode> response = restTemplate.exchange(
                 url(RuntimeApiRoutes.Full.BUNDLES),
                 HttpMethod.POST,
@@ -183,10 +180,12 @@ class RuntimeApiAuthCodeGateTest {
                 JsonNode.class
         );
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().path("success").asBoolean()).isTrue();
-        verify(systemBundlesContext).addExternalBundle("runtime-bearer-demo", "dev", ".", false);
+        assertThat(response.getBody().path("success").asBoolean()).isFalse();
+        assertThat(response.getBody().path("error").path("code").asText()).isEqualTo("RUNTIME_AUTH_REQUIRED");
+        verify(systemBundlesContext, never())
+                .addExternalBundle(eq("runtime-bearer-demo"), eq("dev"), eq("."), anyBoolean());
     }
 
     @Test
@@ -223,6 +222,7 @@ class RuntimeApiAuthCodeGateTest {
         assertRejectedByInterceptor("POST", RuntimeApiRoutes.Full.RESOURCES_SAVE);
         assertRejectedByInterceptor("POST", RuntimeApiRoutes.Full.MODELS_VALIDATE);
         assertRejectedByInterceptor("POST", RuntimeApiRoutes.Full.MODELS_REFRESH);
+        assertRejectedByInterceptor("POST", RuntimeApiRoutes.Full.FSSCRIPT_EXECUTE);
         assertRejectedByInterceptor("POST", RuntimeApiRoutes.Full.LEGACY_BUNDLE_ADD);
         assertRejectedByInterceptor("DELETE", route(RuntimeApiRoutes.Full.LEGACY_BUNDLE_REMOVE, "bundleName", "demo"));
     }
@@ -244,7 +244,6 @@ class RuntimeApiAuthCodeGateTest {
         assertAllowedByInterceptor("POST", RuntimeApiRoutes.Full.COMPOSE_VALIDATE);
         assertAllowedByInterceptor("POST", RuntimeApiRoutes.Full.COMPOSE_PREVIEW);
         assertAllowedByInterceptor("POST", RuntimeApiRoutes.Full.COMPOSE_EXECUTE);
-        assertAllowedByInterceptor("POST", RuntimeApiRoutes.Full.FSSCRIPT_EXECUTE);
     }
 
     private String url(String path) {

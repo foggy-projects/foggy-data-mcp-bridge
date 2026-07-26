@@ -8,6 +8,7 @@ import com.foggyframework.dataset.model.def.preagg.PreAggregationDef;
 import com.foggyframework.dataset.model.spi.DbAggregation;
 import com.foggyframework.dataset.model.spi.QueryObject;
 import com.foggyframework.dataset.model.spi.preagg.PreAggregation;
+import com.foggyframework.dataset.model.spi.preagg.PreAggregationBuildMode;
 import com.foggyframework.dataset.model.spi.preagg.TimeGranularity;
 import lombok.Getter;
 import lombok.Setter;
@@ -43,6 +44,7 @@ public class PreAggregationImpl implements PreAggregation {
     private final PreAggRefreshDef refreshConfig;
     private final boolean enabled;
     private final QueryObject queryObject;
+    private final PreAggregationBuildMode buildMode;
 
     // ==================== 混合查询支持 ====================
 
@@ -65,6 +67,12 @@ public class PreAggregationImpl implements PreAggregation {
      * @param queryObject 预聚合表的 QueryObject
      */
     public PreAggregationImpl(PreAggregationDef def, QueryObject queryObject) {
+        this.buildMode = PreAggregationBuildMode.parse(def.getBuildMode());
+        if (this.buildMode == PreAggregationBuildMode.SECURITY_SCOPED) {
+            throw new IllegalArgumentException(
+                    "SECURITY_SCOPED pre-aggregation is not supported until scoped "
+                            + "materialization, refresh and routing are implemented");
+        }
         this.name = def.getName();
         this.caption = def.getCaption();
         this.tableName = def.getTableName();

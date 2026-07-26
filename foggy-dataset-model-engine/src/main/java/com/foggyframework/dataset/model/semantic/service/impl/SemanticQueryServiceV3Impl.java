@@ -36,6 +36,8 @@ import com.foggyframework.dataset.model.semantic.memorygrid.MemoryGridEngine;
 import com.foggyframework.dataset.model.semantic.memorygrid.MemoryGridExecutionResult;
 import com.foggyframework.dataset.model.semantic.memorygrid.MemoryGridRequest;
 import com.foggyframework.dataset.model.semantic.memorygrid.MemoryGridValidation;
+import com.foggyframework.dataset.model.semantic.permission.AuthorizationSignatureService;
+import com.foggyframework.dataset.model.semantic.permission.ModelPermissionService;
 import com.foggyframework.dataset.model.semantic.service.DimensionMemberLoader;
 import com.foggyframework.dataset.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.model.semantic.support.DslCteDslRequestMapper;
@@ -106,6 +108,12 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
     @Resource
     private DimensionMemberLoader dimensionMemberLoader;
 
+    @Resource
+    private ModelPermissionService modelPermissionService;
+
+    @Resource
+    private AuthorizationSignatureService authorizationSignatureService;
+
     private MemoryGridEngine memoryGridEngine;
 
     private PivotOuterCacheModelIdentityProvider pivotOuterCacheModelIdentityProvider =
@@ -146,7 +154,8 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                     pivotPipeline = new com.foggyframework.dataset.model.engine.pivot.PivotPipeline(
                             this, new com.foggyframework.dataset.model.engine.pivot.CardinalityBreaker(),
                             queryModelLoader, queryFacade, outerCacheOptions,
-                            pivotOuterCacheModelIdentityProvider, safePivotOuterCacheProvider());
+                            pivotOuterCacheModelIdentityProvider, safePivotOuterCacheProvider(),
+                            modelPermissionService, authorizationSignatureService);
                 }
             }
         }
@@ -439,6 +448,11 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         resultContext.setQueryType(ModelResultContext.QueryType.SEMANTIC);
         if (context != null) {
             resultContext.setSecurityContext(context.getSecurityContext());
+            resultContext.setRequestIdentity(context.getRequestIdentity());
+            resultContext.setPermissionSession(context.getPermissionSession());
+            if (context.getPermissionAction() != null) {
+                resultContext.setPermissionAction(context.getPermissionAction());
+            }
             resultContext.setNamespace(context.getNamespace());
             resultContext.setFieldAccess(context.getFieldAccess());
             resultContext.setDeniedColumns(context.getDeniedColumns());
@@ -976,6 +990,8 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                         .userId(securityContext != null && securityContext.getUserId() != null ? securityContext.getUserId() : "system")
                         .deptId(securityContext != null ? securityContext.getDeptId() : null)
                         .tenantId(securityContext != null ? securityContext.getTenantId() : null)
+                        .roles(securityContext != null ? securityContext.getRoles() : null)
+                        .authorizationHint(requestContext.getAuthorization())
                         .build();
         com.foggyframework.dataset.model.engine.compose.context.ComposeQueryContext composeContext =
                 com.foggyframework.dataset.model.engine.compose.context.ComposeQueryContext.builder()
@@ -1030,6 +1046,8 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                 queryModel,
                 context.warnings);
         ModelResultContext resultContext = buildSemanticResultContext(jdbcRequest, request, requestContext);
+        resultContext.setPermissionAction(
+                com.foggyframework.dataset.model.semantic.permission.PermissionAction.VALIDATE);
         queryFacade.buildSqlOnly(resultContext);
 
         if (resultContext.getExtData() != null && resultContext.getExtData().containsKey("engineWarnings")) {

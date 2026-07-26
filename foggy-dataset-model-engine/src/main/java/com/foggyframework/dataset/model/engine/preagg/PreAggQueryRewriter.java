@@ -1816,7 +1816,11 @@ public class PreAggQueryRewriter {
 
         int dollarIndex = field.indexOf('$');
         if (dollarIndex <= 0) {
-            return null;
+            if (!preAgg.hasDimension(field)
+                    || !preAgg.hasMaterializedDimensionProperty(field, "id")) {
+                return null;
+            }
+            return mapFieldToPreAggColumn(preAgg, field + "$id");
         }
 
         String dimName = field.substring(0, dollarIndex);

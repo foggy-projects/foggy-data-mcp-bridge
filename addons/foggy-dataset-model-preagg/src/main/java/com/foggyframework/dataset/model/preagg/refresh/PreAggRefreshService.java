@@ -4,6 +4,7 @@ import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.model.def.preagg.PreAggRefreshDef;
 import com.foggyframework.dataset.model.spi.TableModel;
 import com.foggyframework.dataset.model.spi.preagg.PreAggregation;
+import com.foggyframework.dataset.model.spi.preagg.PreAggregationBuildMode;
 import com.foggyframework.dataset.utils.DbUtils;
 import lombok.extern.slf4j.Slf4j;
 
@@ -72,6 +73,20 @@ public class PreAggRefreshService {
             return PreAggRefreshResult.failure("UNKNOWN",
                     "Refresh context is required", null, java.time.LocalDateTime.now());
         }
+        if (preAgg == null || (preAgg.getBuildMode() != null
+                && preAgg.getBuildMode() != PreAggregationBuildMode.GLOBAL)) {
+            return PreAggRefreshResult.failure("UNKNOWN",
+                    "Only GLOBAL pre-aggregation refresh is supported", null,
+                    context.getStartTime() != null
+                            ? context.getStartTime() : java.time.LocalDateTime.now());
+        }
+        if (containsRequestPermissionSnapshot(context)) {
+            return PreAggRefreshResult.failure(preAgg.getName(),
+                    "GLOBAL pre-aggregation refresh must not consume request permission state",
+                    null,
+                    context.getStartTime() != null
+                            ? context.getStartTime() : java.time.LocalDateTime.now());
+        }
         if (context.getDialect() == null) {
             try {
                 FDialect dialect = DbUtils.getDialect(dataSource);
@@ -120,6 +135,17 @@ public class PreAggRefreshService {
             }
             return result;
         }
+    }
+
+    private boolean containsRequestPermissionSnapshot(PreAggRefreshContext context) {
+        if (context.getExtData() == null || context.getExtData().isEmpty()) {
+            return false;
+        }
+        return context.getExtData().containsKey("authorization")
+                || context.getExtData().containsKey("requestIdentity")
+                || context.getExtData().containsKey("permissionDecision")
+                || context.getExtData().containsKey("authorizationSignature")
+                || context.getExtData().containsKey("systemSlice");
     }
 
     /**

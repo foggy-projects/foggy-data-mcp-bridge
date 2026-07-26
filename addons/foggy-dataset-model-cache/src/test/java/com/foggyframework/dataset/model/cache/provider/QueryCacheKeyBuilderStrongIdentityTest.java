@@ -11,6 +11,7 @@ import com.foggyframework.dataset.model.lifecycle.identity.DatasourceBindingGene
 import com.foggyframework.dataset.model.lifecycle.identity.DatasourceBindingIdentity;
 import com.foggyframework.dataset.model.lifecycle.identity.SourceRevision;
 import com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext;
+import com.foggyframework.dataset.model.semantic.permission.AuthorizationSignature;
 import com.foggyframework.dataset.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.model.spi.QueryModel;
 import org.junit.jupiter.api.BeforeEach;
@@ -314,6 +315,8 @@ class QueryCacheKeyBuilderStrongIdentityTest {
                 .tenantId("cache-tenant")
                 .roles(List.of("reader"))
                 .build());
+        context.setAuthorizationSignature(
+                new AuthorizationSignature("PUBLIC:test", true, null));
         return context;
     }
 

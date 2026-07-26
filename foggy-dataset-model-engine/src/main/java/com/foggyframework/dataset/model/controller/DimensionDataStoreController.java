@@ -24,8 +24,11 @@ public class DimensionDataStoreController {
     @PostMapping("queryDimensionData")
     @ApiModelProperty("建议使用queryDimensionDataV2替代,URL上带上模型名称,更有利于缓存,第一层权限过滤等")
     @Deprecated
-    public RX<PagingResultImpl<DbDataItem>> queryDimensionData(@RequestBody PagingRequest<DimensionDataQueryForm> form) {
-        PagingResultImpl<DbDataItem> v = jdbcService.queryDimensionData(form);
+    public RX<PagingResultImpl<DbDataItem>> queryDimensionData(
+            @RequestBody PagingRequest<DimensionDataQueryForm> form,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestHeader(value = "X-NS", required = false) String namespace) {
+        PagingResultImpl<DbDataItem> v = jdbcService.queryDimensionData(form, authorization, namespace);
 
         return RX.success(v);
     }
@@ -34,10 +37,12 @@ public class DimensionDataStoreController {
     public RX<PagingResultImpl<DbDataItem>> queryDimensionDataV2(
 //            @RequestBody PagingRequest<DimensionDataQueryForm> form,
             @ApiParam(value = "模型", required = true) @PathVariable String model,
-            @ApiParam(value = "维度", required = true) @PathVariable String dimension) {
+            @ApiParam(value = "维度", required = true) @PathVariable String dimension,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestHeader(value = "X-NS", required = false) String namespace) {
 
         PagingRequest<DimensionDataQueryForm> form = PagingRequest.buildPagingRequest(new DimensionDataQueryForm(model, dimension));
-        PagingResultImpl<DbDataItem> v = jdbcService.queryDimensionData(form);
+        PagingResultImpl<DbDataItem> v = jdbcService.queryDimensionData(form, authorization, namespace);
 
         return RX.success(v);
     }

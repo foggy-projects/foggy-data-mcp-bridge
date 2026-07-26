@@ -10,6 +10,7 @@ import com.foggyframework.dataset.model.engine.expression.SqlFragment;
 import com.foggyframework.dataset.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.model.semantic.domain.DeniedPhysicalColumn;
+import com.foggyframework.dataset.model.semantic.permission.AuthorizationSignature;
 import com.foggyframework.dataset.model.spi.support.CalculatedDbColumn;
 import org.junit.jupiter.api.*;
 
@@ -340,7 +341,7 @@ class QueryFingerprintBuilderTest {
 
     @Test
     @Order(12)
-    @DisplayName("build - fieldAccess、deniedColumns、systemSlice 均进入安全指纹")
+    @DisplayName("build - 最终授权签名绑定 fieldAccess、deniedColumns、systemSlice")
     void testBuild_EffectiveSecurityPolicyChangesFingerprint() {
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("TestModel");
@@ -350,6 +351,7 @@ class QueryFingerprintBuilderTest {
         QueryFingerprint unrestricted = builder.build(base);
 
         base.setFieldAccess(new LinkedHashSet<>(Collections.singletonList("id")));
+        base.setAuthorizationSignature(protectedSignature("field-limited"));
         QueryFingerprint fieldLimited = builder.build(base);
         assertNotEquals(unrestricted.toCacheKey(), fieldLimited.toCacheKey(),
                 "fieldAccess 变化必须改变指纹");
@@ -357,6 +359,7 @@ class QueryFingerprintBuilderTest {
         base.setFieldAccess(null);
         base.setDeniedColumns(Collections.singletonList(
                 new DeniedPhysicalColumn("public", "test", "secret")));
+        base.setAuthorizationSignature(protectedSignature("physical-column-denied"));
         QueryFingerprint physicalColumnDenied = builder.build(base);
         assertNotEquals(unrestricted.toCacheKey(), physicalColumnDenied.toCacheKey(),
                 "deniedColumns 变化必须改变指纹");
@@ -367,18 +370,21 @@ class QueryFingerprintBuilderTest {
         systemFilter.setOp("=");
         systemFilter.setValue("tenant-a");
         base.setSystemSlice(Collections.singletonList(systemFilter));
+        base.setAuthorizationSignature(protectedSignature("tenant-a"));
         QueryFingerprint systemFiltered = builder.build(base);
         assertNotEquals(unrestricted.toCacheKey(), systemFiltered.toCacheKey(),
                 "systemSlice 变化必须改变指纹");
 
         base.setDeniedColumns(Collections.singletonList(null));
         base.setSystemSlice(null);
+        base.setAuthorizationSignature(protectedSignature("null-denied-entry"));
         QueryFingerprint nullDeniedEntry = builder.build(base);
         assertTrue(nullDeniedEntry.isCacheable(), "显式 null denied entry 必须有稳定身份");
         assertNotEquals(unrestricted.toCacheKey(), nullDeniedEntry.toCacheKey());
 
         base.setDeniedColumns(null);
         base.setSystemSlice(Collections.singletonList(null));
+        base.setAuthorizationSignature(protectedSignature("null-system-slice"));
         QueryFingerprint nullSystemSlice = builder.build(base);
         assertTrue(nullSystemSlice.isCacheable(), "显式 null system slice 必须有稳定身份");
         assertNotEquals(unrestricted.toCacheKey(), nullSystemSlice.toCacheKey());
@@ -387,6 +393,7 @@ class QueryFingerprintBuilderTest {
                 condition("tenant_id", "tenant-a"),
                 condition("department_id", "department-a")));
         base.setSystemSlice(Collections.singletonList(policyGroup));
+        base.setAuthorizationSignature(protectedSignature("grouped-system-slice"));
         QueryFingerprint groupedSystemSlice = builder.build(base);
         assertTrue(groupedSystemSlice.isCacheable());
         assertNotEquals(unrestricted.toCacheKey(), groupedSystemSlice.toCacheKey(),
@@ -394,6 +401,7 @@ class QueryFingerprintBuilderTest {
 
         base.setSystemSlice(Collections.singletonList(
                 new SliceRequestDef("tenant_id", "=", new Object())));
+        base.setAuthorizationSignature(null);
         QueryFingerprint unsupportedPolicy = builder.build(base);
         assertTrue(unsupportedPolicy.isHasIncompleteSecurityPolicy());
         assertFalse(unsupportedPolicy.isCacheable(), "无法稳定编码的权限值必须 fail closed");
@@ -407,6 +415,7 @@ class QueryFingerprintBuilderTest {
         queryRequest.setQueryModel("TestModel");
         ModelResultContext context = createContext(queryRequest);
         context.setSecurityContext(null);
+        context.setAuthorizationSignature(null);
 
         QueryFingerprint fingerprint = builder.build(context);
 
@@ -424,6 +433,7 @@ class QueryFingerprintBuilderTest {
         queryRequest.setQueryModel("TestModel");
         ModelResultContext context = createContext(queryRequest);
         context.setSecurityContext(new ModelResultContext.SecurityContext());
+        context.setAuthorizationSignature(null);
 
         QueryFingerprint fingerprint = builder.build(context);
 
@@ -437,19 +447,27 @@ class QueryFingerprintBuilderTest {
                 ModelResultContext.SecurityContext.builder().deptId("department-only").build(),
                 ModelResultContext.SecurityContext.builder().roles(Arrays.asList(" ", "auditor")).build(),
                 ModelResultContext.SecurityContext.builder().attributes(Map.of("scope", "finance")).build());
+        int identityIndex = 0;
         for (ModelResultContext.SecurityContext identity : explicitIdentities) {
             ModelResultContext explicit = createContext(queryRequest);
             explicit.setSecurityContext(identity);
-            QueryFingerprint explicitFingerprint = builder.build(explicit);
-            assertFalse(explicitFingerprint.isHasIncompleteSecurityPolicy(),
-                    "任一显式身份维度都应形成完整安全指纹");
-            assertTrue(explicitFingerprint.isCacheable());
+            explicit.setAuthorizationSignature(null);
+            QueryFingerprint unsignedFingerprint = builder.build(explicit);
+            assertTrue(unsignedFingerprint.isHasIncompleteSecurityPolicy(),
+                    "原始身份字段不能替代引擎计算的最终授权签名");
+            assertFalse(unsignedFingerprint.isCacheable());
+
+            explicit.setAuthorizationSignature(protectedSignature("explicit-" + identityIndex++));
+            QueryFingerprint signedFingerprint = builder.build(explicit);
+            assertFalse(signedFingerprint.isHasIncompleteSecurityPolicy());
+            assertTrue(signedFingerprint.isCacheable());
         }
 
         ModelResultContext blankRoles = createContext(queryRequest);
         blankRoles.setSecurityContext(ModelResultContext.SecurityContext.builder()
                 .roles(Arrays.asList(null, " ", ""))
                 .build());
+        blankRoles.setAuthorizationSignature(null);
         assertTrue(builder.build(blankRoles).isHasIncompleteSecurityPolicy(),
                 "全为空白的角色列表不是显式身份");
 
@@ -457,6 +475,7 @@ class QueryFingerprintBuilderTest {
         emptyAttributes.setSecurityContext(ModelResultContext.SecurityContext.builder()
                 .attributes(Collections.emptyMap())
                 .build());
+        emptyAttributes.setAuthorizationSignature(null);
         assertTrue(builder.build(emptyAttributes).isHasIncompleteSecurityPolicy(),
                 "空 attributes 不是显式身份");
     }
@@ -567,6 +586,12 @@ class QueryFingerprintBuilderTest {
                 .tenantId("test-tenant")
                 .roles(Arrays.asList("reader", "analyst"))
                 .build());
+        context.setAuthorizationSignature(
+                new AuthorizationSignature("PUBLIC:test", true, null));
         return context;
+    }
+
+    private AuthorizationSignature protectedSignature(String value) {
+        return new AuthorizationSignature("AUTH:" + value, false, null);
     }
 }

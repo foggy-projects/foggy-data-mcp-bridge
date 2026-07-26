@@ -1,11 +1,11 @@
 package com.foggyframework.dataset.model.engine.pivot;
 
 import com.foggyframework.dataset.model.def.query.request.CalculatedFieldDef;
-import com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.model.semantic.domain.pivot.PivotMetricItem;
 import com.foggyframework.dataset.model.semantic.domain.pivot.PivotRequest;
+import com.foggyframework.dataset.model.semantic.permission.AuthorizationSignature;
 import com.foggyframework.dataset.model.spi.QueryModel;
 import com.foggyframework.dataset.model.spi.TableModel;
 
@@ -13,6 +13,7 @@ import java.lang.reflect.Array;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HexFormat;
@@ -36,6 +37,12 @@ final class PivotOuterCacheTelemetry {
             "supplementary_identity_provider_failed";
     static final String SUPPLEMENTARY_IDENTITY_PROVIDER_FAILED_STATUS =
             "supplementary_provider_failed";
+    static final String MISSING_AUTHORIZATION_SIGNATURE_REASON =
+            "missing_authorization_signature";
+    static final String EXPIRED_AUTHORIZATION_SIGNATURE_REASON =
+            "expired_authorization_signature";
+    static final String PROTECTED_PERMISSION_OUTER_CACHE_UNSUPPORTED_REASON =
+            "protected_permission_outer_cache_unsupported";
 
     private static final List<String> VOLATILE_EXPR_MARKERS = List.of(
             "now(",
@@ -57,7 +64,8 @@ final class PivotOuterCacheTelemetry {
                                SemanticRequestContext context,
                                boolean treeMode,
                                boolean cascadeRequest) {
-        return evaluate(model, null, request, context, treeMode, cascadeRequest, TELEMETRY_STAGE);
+        return evaluate(model, null, request, context, treeMode, cascadeRequest, TELEMETRY_STAGE,
+                ModelIdentity.empty(), null);
     }
 
     static Evaluation evaluate(String model,
@@ -68,7 +76,7 @@ final class PivotOuterCacheTelemetry {
                                boolean cascadeRequest,
                                String eligibilityStage) {
         return evaluate(model, queryModel, request, context, treeMode, cascadeRequest, eligibilityStage,
-                ModelIdentity.empty());
+                ModelIdentity.empty(), null);
     }
 
     static Evaluation evaluate(String model,
@@ -79,6 +87,19 @@ final class PivotOuterCacheTelemetry {
                                boolean cascadeRequest,
                                String eligibilityStage,
                                ModelIdentity modelIdentity) {
+        return evaluate(model, queryModel, request, context, treeMode, cascadeRequest,
+                eligibilityStage, modelIdentity, null);
+    }
+
+    static Evaluation evaluate(String model,
+                               QueryModel queryModel,
+                               SemanticQueryRequest request,
+                               SemanticRequestContext context,
+                               boolean treeMode,
+                               boolean cascadeRequest,
+                               String eligibilityStage,
+                               ModelIdentity modelIdentity,
+                               AuthorizationSignature authorizationSignature) {
         ModelIdentity safeIdentity = ModelIdentity.normalize(modelIdentity);
         PivotRequest pivot = request != null ? request.getPivot() : null;
         String shapeClass = shapeClass(pivot, treeMode, cascadeRequest);
@@ -90,9 +111,11 @@ final class PivotOuterCacheTelemetry {
         // compatibility reason.
         String reason = requestRefusal != null
                 ? requestRefusal
-                : safeIdentity.identityRefusalReason();
+                : safeIdentity.identityRefusalReason() != null
+                ? safeIdentity.identityRefusalReason()
+                : authorizationRefusalReason(authorizationSignature);
         String keyHash = keyHash(model, queryModel, request, context, shapeClass, eligibilityStage,
-                safeIdentity);
+                safeIdentity, authorizationSignature);
         return new Evaluation(
                 keyHash,
                 shapeClass,
@@ -103,6 +126,19 @@ final class PivotOuterCacheTelemetry {
                 safeIdentity.manualTokenPresent(),
                 safeIdentity.supplementaryProviderFailed(),
                 safeIdentity.supplementaryProviderFailureClass());
+    }
+
+    private static String authorizationRefusalReason(AuthorizationSignature signature) {
+        if (signature == null) {
+            return MISSING_AUTHORIZATION_SIGNATURE_REASON;
+        }
+        if (!signature.isUsableAt(Instant.now())) {
+            return EXPIRED_AUTHORIZATION_SIGNATURE_REASON;
+        }
+        if (!signature.publicIdentity()) {
+            return PROTECTED_PERMISSION_OUTER_CACHE_UNSUPPORTED_REASON;
+        }
+        return null;
     }
 
     private static String refusalReason(SemanticQueryRequest request,
@@ -198,11 +234,14 @@ final class PivotOuterCacheTelemetry {
                                   SemanticRequestContext context,
                                   String shapeClass,
                                   String eligibilityStage,
-                                  ModelIdentity modelIdentity) {
-        StringBuilder key = new StringBuilder("pivot-outer-cache-key-v2");
+                                  ModelIdentity modelIdentity,
+                                  AuthorizationSignature authorizationSignature) {
+        StringBuilder key = new StringBuilder("pivot-outer-cache-key-v3");
         append(key, "stage", normalizeToken(eligibilityStage));
         append(key, "model", normalizeToken(model));
         append(key, "modelIdentity", modelIdentity.stableValue());
+        append(key, "authorizationSignature",
+                authorizationSignature != null ? authorizationSignature.value() : "");
         append(key, "queryModel", queryModelValue(queryModel));
         append(key, "shape", normalizeToken(shapeClass));
         append(key, "namespace", context != null ? normalizeToken(context.getNamespace()) : "");
@@ -211,10 +250,9 @@ final class PivotOuterCacheTelemetry {
         append(key, "calculatedFields", stableValue(request != null ? request.getCalculatedFields() : null));
         append(key, "extData", stableValue(request != null ? request.getExtData() : null));
         append(key, "systemSlice", stableValue(context != null ? context.getSystemSlice() : null));
-        append(key, "security", securityValue(context != null ? context.getSecurityContext() : null));
         append(key, "fieldAccess", stableValue(context != null ? context.getFieldAccess() : null));
         append(key, "deniedColumns", stableValue(context != null ? context.getDeniedColumns() : null));
-        return "v2:" + sha256(key.toString());
+        return "v3:" + sha256(key.toString());
     }
 
     private static String queryModelValue(QueryModel queryModel) {
@@ -243,20 +281,6 @@ final class PivotOuterCacheTelemetry {
         StringBuilder value = new StringBuilder("table-model-v2");
         append(value, "class", tableModel.getClass().getName());
         append(value, "name", normalizeToken(tableModel.getName()));
-        return value.toString();
-    }
-
-    private static String securityValue(ModelResultContext.SecurityContext securityContext) {
-        if (securityContext == null) {
-            return "N";
-        }
-        StringBuilder value = new StringBuilder("security-v2");
-        append(value, "authorization", normalizeToken(securityContext.getAuthorization()));
-        append(value, "userId", normalizeToken(securityContext.getUserId()));
-        append(value, "roles", stableValue(securityContext.getRoles()));
-        append(value, "tenantId", normalizeToken(securityContext.getTenantId()));
-        append(value, "deptId", normalizeToken(securityContext.getDeptId()));
-        append(value, "attributes", stableValue(securityContext.getAttributes()));
         return value.toString();
     }
 
@@ -380,7 +404,7 @@ final class PivotOuterCacheTelemetry {
                     || identityHash == null
                     || !identityHash.matches("[0-9a-f]{64}")
                     || keyHash == null
-                    || !keyHash.matches("v2:[0-9a-f]{64}");
+                    || !keyHash.matches("v3:[0-9a-f]{64}");
         }
     }
 

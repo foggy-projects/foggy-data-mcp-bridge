@@ -2,6 +2,7 @@ package com.foggyframework.dataset.model.engine.pivot;
 
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.model.def.permission.ModelPermissionsDef;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogResolution;
 import com.foggyframework.dataset.model.lifecycle.identity.CatalogGeneration;
 import com.foggyframework.dataset.model.lifecycle.identity.CatalogIdentity;
@@ -14,11 +15,13 @@ import com.foggyframework.dataset.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.model.semantic.domain.pivot.AxisField;
 import com.foggyframework.dataset.model.semantic.domain.pivot.PivotRequest;
+import com.foggyframework.dataset.model.semantic.permission.ModelPermissionException;
 import com.foggyframework.dataset.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.model.semantic.service.impl.SemanticQueryServiceV3Impl;
 import com.foggyframework.dataset.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.model.spi.QueryModel;
 import com.foggyframework.dataset.model.spi.QueryModelLoader;
+import com.foggyframework.fsscript.exp.FsscriptFunction;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -134,6 +137,41 @@ class PivotPipelineCatalogIdentityTest {
         assertFalse(hasDiagnostic(response, "pivot.cache.lookup"));
         assertFalse(String.valueOf(identity).contains("sensitive-provider-token"));
         assertFalse(String.valueOf(identity).contains("manual-sensitive-token"));
+    }
+
+    @Test
+    void modelPermissionDenialHappensBeforeOuterCacheLookup() {
+        QueryModel model = queryModel(MODEL);
+        ModelPermissionsDef permissions = new ModelPermissionsDef();
+        permissions.setMode("resolver");
+        FsscriptFunction resolver = mock(FsscriptFunction.class);
+        when(resolver.threadSafeAccept(any())).thenReturn(Map.of("allow", false));
+        permissions.setResolver(resolver);
+        when(model.getModelPermissions()).thenReturn(permissions);
+        CatalogResolution<QueryModel> resolution =
+                resolution(model, NAMESPACE, "catalog-a", true, true);
+        QueryModelLoader loader = mock(QueryModelLoader.class);
+        when(loader.resolveJdbcQueryModel(MODEL, NAMESPACE)).thenReturn(resolution);
+        PivotOuterCacheProvider cache = enabledMissCache();
+        SemanticQueryServiceV3 service = emptySemanticService();
+        PivotPipeline pipeline = pipeline(
+                service,
+                loader,
+                cache,
+                PivotOuterCacheModelIdentityProvider.empty(),
+                new PivotPipeline.OuterCacheOptions(true, 60_000L, 16));
+
+        ModelPermissionException failure = assertThrows(
+                ModelPermissionException.class,
+                () -> pipeline.execute(
+                        MODEL,
+                        request(),
+                        SemanticRequestContext.of(NAMESPACE, "opaque-authorization")));
+
+        assertEquals("MODEL_ACCESS_DENIED", failure.getCode());
+        verify(cache, never()).lookup(anyString(), anyLong());
+        verify(cache, never()).store(anyString(), any(), anyLong(), any(), any());
+        verify(service, never()).queryModel(anyString(), any(), anyString(), any());
     }
 
     @Test

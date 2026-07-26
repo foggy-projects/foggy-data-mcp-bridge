@@ -12,6 +12,7 @@ import com.foggyframework.dataset.model.lifecycle.identity.DatasourceBindingIden
 import com.foggyframework.dataset.model.lifecycle.identity.SourceRevision;
 import com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext.QueryCacheConfig;
+import com.foggyframework.dataset.model.semantic.permission.AuthorizationSignature;
 import com.foggyframework.dataset.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.model.spi.QueryCacheProvider;
 import com.foggyframework.dataset.model.spi.QueryModel;
@@ -328,6 +329,8 @@ class CaffeineQueryCacheProviderTest {
         ModelResultContext limitedAccess = createContext("TestModel", queryModel, "tenant-a");
         fullAccess.setFieldAccess(new LinkedHashSet<>(Arrays.asList("id", "name")));
         limitedAccess.setFieldAccess(Collections.singleton("id"));
+        limitedAccess.setAuthorizationSignature(
+                new AuthorizationSignature("PUBLIC:limited-fields", true, null));
 
         cacheProvider.writeL2Cache(
                 "TestModel", "SELECT * FROM test", Collections.emptyList(), createTestResult(), fullAccess);
@@ -338,7 +341,7 @@ class CaffeineQueryCacheProviderTest {
 
     @Test
     @Order(10)
-    @DisplayName("L2 缓存 - authorization 不同必须隔离")
+    @DisplayName("L2 缓存 - 最终授权签名不同必须隔离")
     void testL2Cache_DifferentAuthorization_NoHit() {
         JdbcQueryModel queryModel = createResolvedModel("TestModel");
         ModelResultContext firstUser = createContext("TestModel", queryModel, "tenant-a");
@@ -349,6 +352,8 @@ class CaffeineQueryCacheProviderTest {
                 .tenantId("test-tenant")
                 .roles(Arrays.asList("reader", "analyst"))
                 .build());
+        secondUser.setAuthorizationSignature(
+                new AuthorizationSignature("PUBLIC:another", true, null));
 
         cacheProvider.writeL2Cache(
                 "TestModel", "SELECT * FROM test", Collections.emptyList(), createTestResult(), firstUser);
@@ -418,12 +423,14 @@ class CaffeineQueryCacheProviderTest {
 
     @Test
     @Order(15)
-    @DisplayName("L2 缓存 - 缺少安全上下文或模型身份时 fail closed")
+    @DisplayName("L2 缓存 - 缺少最终授权签名或模型身份时 fail closed")
     void testL2Cache_MissingIdentity_NoCaching() {
         ModelResultContext missingSecurity = createContext("TestModel");
         missingSecurity.setSecurityContext(null);
+        missingSecurity.setAuthorizationSignature(null);
         ModelResultContext emptySecurity = createContext("TestModel");
         emptySecurity.setSecurityContext(new ModelResultContext.SecurityContext());
+        emptySecurity.setAuthorizationSignature(null);
         ModelResultContext missingModel = createContext("TestModel");
         missingModel.setQueryModel(null);
 
@@ -612,15 +619,15 @@ class CaffeineQueryCacheProviderTest {
 
     @Test
     @Order(30)
-    @DisplayName("L1 缓存 - 需要 authorization")
+    @DisplayName("L1 缓存 - 需要最终授权签名")
     void testL1Cache_RequiresAuthorization() {
         ModelResultContext context = createContext("TestModel");
         context.setCacheConfig(QueryCacheConfig.enableL1());
-        // 不设置 authorization
+        context.setAuthorizationSignature(null);
 
         PagingResultImpl result = cacheProvider.checkL1Cache(context, null);
 
-        assertNull(result, "没有 authorization 应该返回 null");
+        assertNull(result, "没有最终授权签名应该返回 null");
         assertNull(cacheProvider.checkL1Cache(null, "Bearer token"),
                 "缺少上下文时必须 fail closed");
 
@@ -670,6 +677,8 @@ class CaffeineQueryCacheProviderTest {
         ModelResultContext limitedAccess = createContext("TestModel", queryModel, "tenant-a");
         fullAccess.setFieldAccess(new LinkedHashSet<>(Arrays.asList("id", "name")));
         limitedAccess.setFieldAccess(Collections.singleton("id"));
+        limitedAccess.setAuthorizationSignature(
+                new AuthorizationSignature("PUBLIC:limited-fields", true, null));
 
         cacheProvider.writeL1Cache(fullAccess, "Bearer same-token", createTestResult());
 
@@ -678,13 +687,17 @@ class CaffeineQueryCacheProviderTest {
 
     @Test
     @Order(32)
-    @DisplayName("L1 缓存 - authorization 不同必须隔离")
+    @DisplayName("L1 缓存 - 最终授权签名不同必须隔离")
     void testL1Cache_DifferentAuthorization_NoHit() {
         JdbcQueryModel queryModel = createResolvedModel("TestModel");
         ModelResultContext context = createContext("TestModel", queryModel, "tenant-a");
+        context.setAuthorizationSignature(
+                new AuthorizationSignature("PUBLIC:first", true, null));
 
         cacheProvider.writeL1Cache(context, "Bearer first-token", createTestResult());
 
+        context.setAuthorizationSignature(
+                new AuthorizationSignature("PUBLIC:second", true, null));
         assertNull(cacheProvider.checkL1Cache(context, "Bearer second-token"));
     }
 
@@ -694,6 +707,7 @@ class CaffeineQueryCacheProviderTest {
     void testL1Cache_MissingSecurityContext_NoCaching() {
         ModelResultContext context = createContext("TestModel");
         context.setSecurityContext(null);
+        context.setAuthorizationSignature(null);
 
         cacheProvider.writeL1Cache(context, "Bearer test-token", createTestResult());
 
@@ -767,6 +781,8 @@ class CaffeineQueryCacheProviderTest {
                 .tenantId("test-tenant")
                 .roles(Arrays.asList("reader", "analyst"))
                 .build());
+        context.setAuthorizationSignature(
+                new AuthorizationSignature("PUBLIC:test", true, null));
         return context;
     }
 

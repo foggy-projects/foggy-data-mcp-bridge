@@ -193,6 +193,18 @@ public class PreAggRewriteStep implements QueryExecutionStep {
         PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
         boolean hybridEnabled = isHybridQueryEnabled(ctx);
         interceptor.setHybridQueryEnabled(hybridEnabled);
+        ModelResultContext modelContext = ctx.getModelResultContext();
+        if (modelContext != null && modelContext.getPermissionDecision() != null) {
+            boolean signatureAvailable =
+                    modelContext.getPermissionDecision().isPublicDecision()
+                            || (modelContext.getAuthorizationSignature() != null
+                            && modelContext.getAuthorizationSignature()
+                            .isUsableAt(java.time.Instant.now()));
+            interceptor.setPermissionContext(
+                    modelContext.getPermissionDecision().getRowPredicates(),
+                    signatureAvailable
+            );
+        }
         return interceptor;
     }
 

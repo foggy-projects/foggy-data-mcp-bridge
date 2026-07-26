@@ -3,7 +3,6 @@ package com.foggyframework.dataset.model.cache.provider;
 import com.foggyframework.dataset.model.cache.config.QueryCacheProperties;
 import com.foggyframework.dataset.model.cache.fingerprint.QueryFingerprint;
 import com.foggyframework.dataset.model.cache.fingerprint.QueryFingerprintBuilder;
-import com.foggyframework.dataset.model.cache.fingerprint.SecurityPolicyFingerprint;
 import com.foggyframework.dataset.model.cache.fingerprint.StableCanonicalEncoder;
 import com.foggyframework.dataset.model.lifecycle.identity.CatalogIdentity;
 import com.foggyframework.dataset.model.lifecycle.identity.DatasourceBindingIdentity;
@@ -22,7 +21,7 @@ import java.util.Optional;
  */
 final class QueryCacheKeyBuilder {
 
-    private static final String KEY_VERSION = "v3";
+    private static final String KEY_VERSION = "v4";
 
     private final QueryFingerprintBuilder fingerprintBuilder;
     private final QueryCacheProperties properties;
@@ -41,7 +40,8 @@ final class QueryCacheKeyBuilder {
     }
 
     String buildL1CacheKey(ModelResultContext context, String authorization) {
-        if (isBlank(authorization)) {
+        String authorizationSignature = authorizationSignature(context);
+        if (authorizationSignature == null) {
             return null;
         }
         try {
@@ -52,19 +52,17 @@ final class QueryCacheKeyBuilder {
             Optional<CacheScope> scope = resolveScope(
                     context,
                     fingerprint.getModelName(),
-                    fingerprint.getSecurityPolicyHash(),
+                    authorizationSignature,
                     CacheLayer.L1);
-            Optional<String> encodedAuthorization = StableCanonicalEncoder.encode(authorization);
             String fingerprintKey = fingerprint.toCacheKey();
-            if (scope.isEmpty() || encodedAuthorization.isEmpty() || fingerprintKey == null) {
+            if (scope.isEmpty() || fingerprintKey == null) {
                 return null;
             }
 
             String payload = StableCanonicalEncoder.segment("version", KEY_VERSION)
                     + StableCanonicalEncoder.segment("scope", scope.get().canonical())
                     + StableCanonicalEncoder.segment(
-                            "authorizationHash",
-                            StableCanonicalEncoder.sha256(encodedAuthorization.get()))
+                            "authorizationSignature", authorizationSignature)
                     + StableCanonicalEncoder.segment("fingerprint", fingerprintKey);
             return properties.getKeyPrefix() + "l1:" + fingerprint.getModelName() + ":"
                     + StableCanonicalEncoder.sha256(payload);
@@ -81,12 +79,12 @@ final class QueryCacheKeyBuilder {
             return null;
         }
         try {
-            Optional<SecurityPolicyFingerprint> policy = SecurityPolicyFingerprint.from(context);
-            if (policy.isEmpty()) {
+            String authorizationSignature = authorizationSignature(context);
+            if (authorizationSignature == null) {
                 return null;
             }
             Optional<CacheScope> scope = resolveScope(
-                    context, modelName, policy.get().combinedHash(), CacheLayer.L2);
+                    context, modelName, authorizationSignature, CacheLayer.L2);
             Optional<String> encodedParams = StableCanonicalEncoder.encode(params);
             if (scope.isEmpty() || encodedParams.isEmpty()) {
                 return null;
@@ -94,6 +92,8 @@ final class QueryCacheKeyBuilder {
 
             String payload = StableCanonicalEncoder.segment("version", KEY_VERSION)
                     + StableCanonicalEncoder.segment("scope", scope.get().canonical())
+                    + StableCanonicalEncoder.segment(
+                            "authorizationSignature", authorizationSignature)
                     + StableCanonicalEncoder.segment("sql", sql)
                     + StableCanonicalEncoder.segment("params", encodedParams.get());
             return properties.getKeyPrefix() + "l2:" + modelName + ":"
@@ -194,6 +194,14 @@ final class QueryCacheKeyBuilder {
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private String authorizationSignature(ModelResultContext context) {
+        if (context == null || context.getAuthorizationSignature() == null
+                || !context.getAuthorizationSignature().isUsableAt(java.time.Instant.now())) {
+            return null;
+        }
+        return context.getAuthorizationSignature().value();
     }
 
     private record CacheScope(String canonical) {

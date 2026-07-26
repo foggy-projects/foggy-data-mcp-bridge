@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.HttpHeaders;
 
 import java.util.Map;
 
@@ -42,19 +43,21 @@ public class RuntimeModelsController {
     @GetMapping(RuntimeApiRoutes.V1.MODELS)
     public RuntimeEnvelope<Map<String, Object>> listModels(
             @RequestParam Map<String, String> query,
-            @RequestHeader(value = "X-NS", required = false) String namespace
+            @RequestHeader(value = "X-NS", required = false) String namespace,
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization
     ) {
-        return responses.ok(modelOperations.listModels(query, namespace));
+        return responses.ok(modelOperations.listModels(query, namespace, authorization));
     }
 
     @PostMapping(RuntimeApiRoutes.V1.MODEL_DESCRIBE)
     public RuntimeEnvelope<ModelDescribeResponse> describeModel(
             @PathVariable String model,
             @RequestBody(required = false) ModelDescribeRequest request,
-            @RequestHeader(value = "X-NS", required = false) String namespace
+            @RequestHeader(value = "X-NS", required = false) String namespace,
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization
     ) {
         try {
-            return responses.ok(modelOperations.describeModel(model, request, namespace));
+            return responses.ok(modelOperations.describeModel(model, request, namespace, authorization));
         } catch (RuntimeModelOperationException e) {
             return fail(e);
         }

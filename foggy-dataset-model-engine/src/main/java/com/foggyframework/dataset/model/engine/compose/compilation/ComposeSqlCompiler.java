@@ -5,9 +5,13 @@ import com.foggyframework.dataset.model.engine.compose.authority.AuthorityResolu
 import com.foggyframework.dataset.model.engine.compose.authority.DatasourceIdCollector;
 import com.foggyframework.dataset.model.engine.compose.authority.ModelInfoProvider;
 import com.foggyframework.dataset.model.engine.compose.context.ComposeQueryContext;
+import com.foggyframework.dataset.model.engine.compose.context.Principal;
 import com.foggyframework.dataset.model.engine.compose.normalization.PlanNormalizePipeline;
 import com.foggyframework.dataset.model.engine.compose.plan.QueryPlan;
 import com.foggyframework.dataset.model.engine.compose.security.ModelBinding;
+import com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext;
+import com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.model.semantic.permission.PermissionAction;
 import com.foggyframework.dataset.model.semantic.port.ComposeSemanticPlanningPort;
 import com.foggyframework.dataset.model.semantic.service.SemanticQueryServiceV3;
 
@@ -99,8 +103,27 @@ public final class ComposeSqlCompiler {
 
         String namespace = context == null ? null : context.namespace();
         return ComposePlanner.compileToComposedSql(
-                effectivePlan, bindings, opts.planningPort, namespace, opts.dialect,
+                effectivePlan, bindings, opts.planningPort, namespace,
+                semanticRequestContext(context), opts.dialect,
                 datasourceIds);
+    }
+
+    static SemanticRequestContext semanticRequestContext(ComposeQueryContext context) {
+        if (context == null) {
+            return SemanticRequestContext.empty()
+                    .withPermissionAction(PermissionAction.EXECUTE);
+        }
+        Principal principal = context.principal();
+        ModelResultContext.SecurityContext securityContext =
+                ModelResultContext.SecurityContext.builder()
+                        .authorization(principal.authorizationHint())
+                        .userId(principal.userId())
+                        .roles(principal.roles())
+                        .tenantId(principal.tenantId())
+                        .deptId(principal.deptId())
+                        .build();
+        return SemanticRequestContext.of(context.namespace(), securityContext)
+                .withPermissionAction(PermissionAction.EXECUTE);
     }
 
     /** Convenience overload — one-shot path with defaults. Equivalent to

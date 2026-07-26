@@ -6,6 +6,7 @@ import com.foggyframework.dataset.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.model.spi.TableModel;
 import com.foggyframework.dataset.model.spi.preagg.PreAggregation;
+import com.foggyframework.dataset.model.semantic.permission.PermissionPredicate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 
@@ -52,6 +53,8 @@ public class PreAggregationInterceptor {
      * 是否启用混合查询
      */
     private boolean hybridQueryEnabled = true;
+    private List<PermissionPredicate> securityPredicates = List.of();
+    private boolean securityContextCacheable = true;
 
     public PreAggregationInterceptor(ApplicationContext applicationContext) {
         this.applicationContext = applicationContext;
@@ -67,6 +70,14 @@ public class PreAggregationInterceptor {
     public void setHybridQueryEnabled(boolean enabled) {
         this.hybridQueryEnabled = enabled;
         this.matcher.setHybridQueryEnabled(enabled);
+    }
+
+    public void setPermissionContext(
+            List<PermissionPredicate> predicates,
+            boolean cacheable
+    ) {
+        this.securityPredicates = predicates == null ? List.of() : List.copyOf(predicates);
+        this.securityContextCacheable = cacheable;
     }
 
     /**
@@ -91,7 +102,9 @@ public class PreAggregationInterceptor {
 
         // 2. 从查询中提取需求
         JdbcQuery jdbcQuery = queryEngine.getJdbcQuery();
-        PreAggQueryRequirement requirement = requirementBuilder.build(queryRequest, jdbcQuery, queryModel);
+        PreAggQueryRequirement requirement = requirementBuilder.build(
+                queryRequest, jdbcQuery, queryModel,
+                securityPredicates, securityContextCacheable);
 
         if (log.isDebugEnabled()) {
             log.debug("Query requirement: {}", requirement);
@@ -216,7 +229,9 @@ public class PreAggregationInterceptor {
         }
 
         PreAggQueryRequirement requirement =
-                requirementBuilder.buildFinalStage(queryRequest, jdbcQuery, queryModel);
+                requirementBuilder.buildFinalStage(
+                        queryRequest, jdbcQuery, queryModel,
+                        securityPredicates, securityContextCacheable);
         PreAggregationMatchResult matchResult = matcher.findBestMatch(requirement, configured);
         if (!matchResult.isMatched() || matchResult.isHybridQuery()) {
             return null;
@@ -245,6 +260,8 @@ public class PreAggregationInterceptor {
     private PreAggQueryRequirement buildAggregateRequirement(DbQueryRequestDef queryRequest,
                                                               JdbcQuery jdbcQuery,
                                                               JdbcQueryModel queryModel) {
-        return requirementBuilder.buildAggregate(queryRequest, jdbcQuery, queryModel);
+        return requirementBuilder.buildAggregate(
+                queryRequest, jdbcQuery, queryModel,
+                securityPredicates, securityContextCacheable);
     }
 }

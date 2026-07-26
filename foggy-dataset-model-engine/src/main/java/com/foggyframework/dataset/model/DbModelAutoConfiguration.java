@@ -17,6 +17,8 @@ import com.foggyframework.dataset.model.engine.query_model.QueryModelLoaderImpl;
 import com.foggyframework.dataset.model.engine.compose.security.AuthorityResolver;
 import com.foggyframework.dataset.model.semantic.port.ComposeExecutionPort;
 import com.foggyframework.dataset.model.semantic.port.PivotOuterCacheEvictionPort;
+import com.foggyframework.dataset.model.semantic.permission.AuthorizationSignatureService;
+import com.foggyframework.dataset.model.semantic.permission.ModelPermissionService;
 import com.foggyframework.dataset.model.semantic.service.DefaultComposeExecutionPort;
 import com.foggyframework.dataset.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.model.impl.loader.JdbcTableModelLoaderImpl;
@@ -76,11 +78,13 @@ import java.util.List;
         com.foggyframework.dataset.model.plugins.query_execution.PhysicalColumnPermissionStep.class,
         com.foggyframework.dataset.model.plugins.query_execution.PreAggRewriteStep.class,
         com.foggyframework.dataset.model.plugins.result_set_filter.AggregateMemberFilterRewriteStep.class,
+        com.foggyframework.dataset.model.plugins.result_set_filter.AuthorizationSignatureStep.class,
         com.foggyframework.dataset.model.plugins.result_set_filter.AutoGroupByStep.class,
         com.foggyframework.dataset.model.plugins.result_set_filter.FieldAccessPermissionStep.class,
         com.foggyframework.dataset.model.plugins.result_set_filter.InlineExpressionPreprocessStep.class,
         com.foggyframework.dataset.model.plugins.result_set_filter.L1CacheStep.class,
         com.foggyframework.dataset.model.plugins.result_set_filter.ModelFieldPermissionResolveStep.class,
+        com.foggyframework.dataset.model.plugins.result_set_filter.ModelPermissionEnforcementStep.class,
         com.foggyframework.dataset.model.plugins.result_set_filter.QueryRequestValidationStep.class,
         com.foggyframework.dataset.model.plugins.result_set_filter.SchemaAwareFieldValidationStep.class,
         com.foggyframework.dataset.model.plugins.result_set_filter.SubtotalStep.class,
@@ -106,6 +110,18 @@ import java.util.List;
 })
 @Slf4j
 public class DbModelAutoConfiguration {
+
+    @Bean
+    @ConditionalOnMissingBean
+    public AuthorizationSignatureService authorizationSignatureService() {
+        return new AuthorizationSignatureService();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public ModelPermissionService modelPermissionService() {
+        return new ModelPermissionService();
+    }
 
     @Bean
     public JdbcTableModelLoaderImpl jdbcTableModelLoader(SystemBundlesContext systemBundlesContext, FileFsscriptLoader fileFsscriptLoader) {

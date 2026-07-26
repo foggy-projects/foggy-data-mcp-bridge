@@ -12,6 +12,7 @@ import com.foggyframework.dataset.model.lifecycle.identity.DatasourceBindingIden
 import com.foggyframework.dataset.model.lifecycle.identity.SourceRevision;
 import com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext.QueryCacheConfig;
+import com.foggyframework.dataset.model.semantic.permission.AuthorizationSignature;
 import com.foggyframework.dataset.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.model.spi.QueryCacheProvider;
 import com.foggyframework.dataset.model.spi.QueryModel;
@@ -307,6 +308,8 @@ class RedisQueryCacheProviderTest {
         ModelResultContext base = createContext("TestModel", firstModel, "tenant-a");
         ModelResultContext restricted = createContext("TestModel", firstModel, "tenant-a");
         restricted.setFieldAccess(Collections.singleton("id"));
+        restricted.setAuthorizationSignature(
+                new AuthorizationSignature("PUBLIC:restricted-fields", true, null));
         ModelResultContext refreshed = createContext(
                 "TestModel", createResolvedModel("TestModel"), "tenant-a",
                 "catalog:tenant-a:2", "binding:tenant-a:1", true);
@@ -345,12 +348,14 @@ class RedisQueryCacheProviderTest {
 
     @Test
     @Order(13)
-    @DisplayName("L2 缓存 - 缺少安全上下文或模型身份时不访问 Redis")
+    @DisplayName("L2 缓存 - 缺少最终授权签名或模型身份时不访问 Redis")
     void testL2Cache_MissingIdentity_FailsClosed() {
         ModelResultContext missingSecurity = createContext("TestModel");
         missingSecurity.setSecurityContext(null);
+        missingSecurity.setAuthorizationSignature(null);
         ModelResultContext emptySecurity = createContext("TestModel");
         emptySecurity.setSecurityContext(new ModelResultContext.SecurityContext());
+        emptySecurity.setAuthorizationSignature(null);
         ModelResultContext missingModel = createContext("TestModel");
         missingModel.setQueryModel(null);
 
@@ -498,10 +503,11 @@ class RedisQueryCacheProviderTest {
 
     @Test
     @Order(30)
-    @DisplayName("L1 缓存 - 无 authorization 返回 null")
+    @DisplayName("L1 缓存 - 无最终授权签名返回 null")
     void testL1Cache_NoAuth_ReturnsNull() {
         ModelResultContext context = createContext("TestModel");
         context.setCacheConfig(QueryCacheConfig.enableL1());
+        context.setAuthorizationSignature(null);
 
         PagingResultImpl result = cacheProvider.checkL1Cache(context, null);
 
@@ -511,10 +517,11 @@ class RedisQueryCacheProviderTest {
 
     @Test
     @Order(31)
-    @DisplayName("L1 缓存 - 空 authorization 返回 null")
+    @DisplayName("L1 缓存 - 缺少最终授权签名时不访问缓存")
     void testL1Cache_EmptyAuth_ReturnsNull() {
         ModelResultContext context = createContext("TestModel");
         context.setCacheConfig(QueryCacheConfig.enableL1());
+        context.setAuthorizationSignature(null);
 
         PagingResultImpl result = cacheProvider.checkL1Cache(context, "");
 
@@ -578,6 +585,7 @@ class RedisQueryCacheProviderTest {
     void testL1Cache_MissingSecurityContext_FailsClosed() {
         ModelResultContext context = createContext("TestModel");
         context.setSecurityContext(null);
+        context.setAuthorizationSignature(null);
 
         cacheProvider.writeL1Cache(context, "Bearer token", createTestResult());
         PagingResultImpl cached = cacheProvider.checkL1Cache(context, "Bearer token");
@@ -646,6 +654,8 @@ class RedisQueryCacheProviderTest {
                 .tenantId("test-tenant")
                 .roles(Arrays.asList("reader", "analyst"))
                 .build());
+        context.setAuthorizationSignature(
+                new AuthorizationSignature("PUBLIC:test", true, null));
         CatalogIdentity identity = new CatalogIdentity(
                 namespace,
                 new CatalogGeneration(catalogGeneration),

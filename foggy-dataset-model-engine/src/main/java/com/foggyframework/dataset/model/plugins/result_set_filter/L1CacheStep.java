@@ -70,15 +70,17 @@ public class L1CacheStep implements DataSetResultStep {
             return CONTINUE;
         }
 
-        // 4. 获取授权令牌
-        String authorization = ctx.getAuthorization();
-        if (authorization == null) {
+        // 4. Only the engine-generated final permission identity may key a
+        // shared cache. This also permits explicit PUBLIC reuse.
+        if (ctx.getAuthorizationSignature() == null
+                || !ctx.getAuthorizationSignature().isUsableAt(java.time.Instant.now())) {
             return CONTINUE;
         }
+        String authorizationSignature = ctx.getAuthorizationSignature().value();
 
         // 5. 检查 L1 缓存
         PagingResultImpl cached = safeSnapshot(
-                queryCacheProvider.checkL1Cache(ctx, authorization), "read");
+                queryCacheProvider.checkL1Cache(ctx, authorizationSignature), "read");
         if (cached != null) {
             // 缓存命中
             if (log.isDebugEnabled()) {
@@ -118,10 +120,11 @@ public class L1CacheStep implements DataSetResultStep {
             return CONTINUE;
         }
 
-        String authorization = ctx.getAuthorization();
-        if (authorization == null) {
+        if (ctx.getAuthorizationSignature() == null
+                || !ctx.getAuthorizationSignature().isUsableAt(java.time.Instant.now())) {
             return CONTINUE;
         }
+        String authorizationSignature = ctx.getAuthorizationSignature().value();
 
         // 检查是否已命中（命中则不需要写入）
         ModelResultContext.QueryCacheConfig cacheConfig = ctx.getCacheConfig();
@@ -136,7 +139,7 @@ public class L1CacheStep implements DataSetResultStep {
             if (snapshot == null) {
                 return CONTINUE;
             }
-            queryCacheProvider.writeL1Cache(ctx, authorization, snapshot);
+            queryCacheProvider.writeL1Cache(ctx, authorizationSignature, snapshot);
 
             if (log.isDebugEnabled()) {
                 String modelName = ctx.getRequest() != null && ctx.getRequest().getParam() != null

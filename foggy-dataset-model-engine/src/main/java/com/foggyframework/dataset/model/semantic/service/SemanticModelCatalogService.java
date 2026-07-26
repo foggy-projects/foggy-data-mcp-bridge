@@ -9,6 +9,10 @@ import com.foggyframework.dataset.model.semantic.domain.SemanticMetadataResponse
 import com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.model.semantic.port.SemanticModelCatalogReadPort;
 import com.foggyframework.dataset.model.semantic.support.SemanticQueryPayloadMapper;
+import com.foggyframework.dataset.model.semantic.permission.ModelPermissionService;
+import com.foggyframework.dataset.model.semantic.permission.PermissionAction;
+import com.foggyframework.dataset.model.semantic.permission.PermissionEvaluationSession;
+import com.foggyframework.dataset.model.semantic.permission.RequestIdentity;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogAdmissionBlockedException;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogResolution;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogSnapshot;
@@ -52,6 +56,8 @@ public class SemanticModelCatalogService implements SemanticModelCatalogReadPort
     private final SemanticQueryPayloadMapper payloadMapper;
     private final CatalogSnapshotStore catalogSnapshotStore;
     private final CatalogRefreshCoordinator catalogRefreshCoordinator;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ModelPermissionService modelPermissionService;
 
     /**
      * Immutable namespace catalog projection. A non-null identity means every
@@ -198,6 +204,12 @@ public class SemanticModelCatalogService implements SemanticModelCatalogReadPort
             requestedModelNames = optionalStringList(safeOptions.get("models"));
         }
         List<String> modelNames = selectModelNames(catalogView, requestedModelNames);
+        modelNames = discoverableModels(
+                modelNames,
+                catalogView,
+                namespace,
+                authorization
+        );
 
         int fieldLimit = Math.max(0, intOr(safeOptions.get("fieldLimit"), 10));
         Map<String, Object> metadata = fetchCatalogMetadata(modelNames, namespace, authorization, safeOptions);
@@ -266,6 +278,41 @@ public class SemanticModelCatalogService implements SemanticModelCatalogReadPort
         catalog.put("recommendedNext", "dataset.describe_model_internal");
         catalog.put("items", items);
         return catalog;
+    }
+
+    private List<String> discoverableModels(
+            List<String> modelNames,
+            NamespaceCatalogView catalogView,
+            String namespace,
+            String authorization
+    ) {
+        if (modelPermissionService == null || modelNames.isEmpty()) {
+            return modelNames;
+        }
+        RequestIdentity identity = RequestIdentity.fromAuthorization(authorization);
+        PermissionEvaluationSession session = new PermissionEvaluationSession();
+        List<String> visible = new ArrayList<>();
+        for (String modelName : modelNames) {
+            QueryModel queryModel = catalogView.queryModels().get(modelName);
+            if (queryModel == null) {
+                continue;
+            }
+            try {
+                var decision = modelPermissionService.evaluate(
+                        queryModel,
+                        namespace,
+                        PermissionAction.DISCOVER,
+                        identity,
+                        session
+                );
+                if (decision.isAllow()) {
+                    visible.add(modelName);
+                }
+            } catch (RuntimeException deniedOrInvalid) {
+                log.debug("Model omitted from catalog by permission decision");
+            }
+        }
+        return List.copyOf(visible);
     }
 
     private Optional<ModelProvenance.ModelSource> modelSource(

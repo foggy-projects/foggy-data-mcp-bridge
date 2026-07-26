@@ -59,19 +59,20 @@ class DictionaryDiscoveryServiceImplTest {
     void distinctDiscoveryUsesDistinctRequestWithoutCountOrOrderBy() {
         SemanticQueryServiceV3 queryService = mock(SemanticQueryServiceV3.class);
         DictionaryDiscoveryServiceImpl service = service(queryService);
+        SemanticRequestContext context = SemanticRequestContext.empty();
 
         when(queryService.queryModel(eq("OrderQueryModel"), any(SemanticQueryRequest.class),
-                eq("execute"), eq(SemanticRequestContext.empty()))).thenReturn(response(List.of(
+                eq("execute"), same(context))).thenReturn(response(List.of(
                 Map.of("status", "COMPLETED"),
                 Map.of("status", "PENDING")
         )));
 
         DictionaryDiscoveryResult result = service.discover(
-                "OrderQueryModel", "status", distinct(10, 0), SemanticRequestContext.empty());
+                "OrderQueryModel", "status", distinct(10, 0), context);
 
         ArgumentCaptor<SemanticQueryRequest> captor = ArgumentCaptor.forClass(SemanticQueryRequest.class);
         verify(queryService).queryModel(eq("OrderQueryModel"), captor.capture(),
-                eq("execute"), eq(SemanticRequestContext.empty()));
+                eq("execute"), same(context));
         SemanticQueryRequest request = captor.getValue();
         assertEquals(List.of("status"), request.getColumns());
         assertEquals(Boolean.TRUE, request.getDistinct());

@@ -8,6 +8,7 @@ import com.foggyframework.dataset.model.lifecycle.identity.DatasourceBindingIden
 import com.foggyframework.dataset.model.lifecycle.identity.SourceRevision;
 import com.foggyframework.dataset.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.model.semantic.permission.AuthorizationSignature;
 import com.foggyframework.dataset.model.semantic.domain.pivot.AxisField;
 import com.foggyframework.dataset.model.semantic.domain.pivot.PivotRequest;
 import com.foggyframework.dataset.model.spi.JdbcQueryModel;
@@ -55,7 +56,7 @@ class PivotOuterCacheStrongIdentityTest {
 
         PivotOuterCacheTelemetry.Evaluation evaluation = evaluation(first,
                 PivotOuterCacheModelIdentity.empty(), "", "");
-        assertTrue(evaluation.keyHash().startsWith("v2:"));
+        assertTrue(evaluation.keyHash().startsWith("v3:"));
         assertEquals(67, evaluation.keyHash().length(), "cache key must retain the full SHA-256");
         assertFalse(evaluation.refused());
         assertEquals(first.identityHash(), evaluation.identityHash());
@@ -194,7 +195,8 @@ class PivotOuterCacheStrongIdentityTest {
                 "SalesQM", queryModel("SalesQM"), request(), SemanticRequestContext.ofNamespace("ns-a"),
                 false, false, PivotOuterCacheTelemetry.CACHE_STAGE,
                 PivotOuterCacheTelemetry.ModelIdentity.from(
-                        assessment, providerIdentity, manualBundle, manualFreshness));
+                        assessment, providerIdentity, manualBundle, manualFreshness),
+                new AuthorizationSignature("PUBLIC:test", true, null));
     }
 
     private CatalogResolution<QueryModel> resolution(QueryModel model,

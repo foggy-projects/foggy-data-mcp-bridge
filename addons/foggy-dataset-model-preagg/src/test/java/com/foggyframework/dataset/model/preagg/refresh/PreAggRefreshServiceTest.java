@@ -4,6 +4,7 @@ import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.model.def.preagg.PreAggRefreshDef;
 import com.foggyframework.dataset.model.spi.TableModel;
 import com.foggyframework.dataset.model.spi.preagg.PreAggregation;
+import com.foggyframework.dataset.model.spi.preagg.PreAggregationBuildMode;
 import org.junit.jupiter.api.Test;
 
 import javax.sql.DataSource;
@@ -57,6 +58,45 @@ class PreAggRefreshServiceTest {
         assertEquals(0, incrementalCalls.get(),
                 "caller context must not manufacture incremental authority");
         assertEquals(null, context.getLastWatermark());
+    }
+
+    @Test
+    void globalRefreshRejectsRequestPermissionSnapshot() {
+        PreAggregation preAgg = mock(PreAggregation.class);
+        when(preAgg.getName()).thenReturn("daily_sales");
+        when(preAgg.getBuildMode()).thenReturn(PreAggregationBuildMode.GLOBAL);
+
+        AtomicInteger calls = new AtomicInteger();
+        PreAggRefreshService service = new PreAggRefreshService();
+        service.registerStrategy(countingStrategy("FULL", calls));
+
+        PreAggRefreshContext context = fullContext();
+        context.getExtData().put("authorizationSignature", "must-not-enter-build");
+
+        PreAggRefreshResult result = service.refresh(
+                preAgg, mock(TableModel.class), mock(DataSource.class), context);
+
+        assertFalse(result.isSuccess());
+        assertTrue(result.getErrorMessage().contains("must not consume request permission state"));
+        assertEquals(0, calls.get());
+    }
+
+    @Test
+    void scopedRefreshFailsClosedBeforeStrategySelection() {
+        PreAggregation preAgg = mock(PreAggregation.class);
+        when(preAgg.getName()).thenReturn("scoped_sales");
+        when(preAgg.getBuildMode()).thenReturn(PreAggregationBuildMode.SECURITY_SCOPED);
+
+        AtomicInteger calls = new AtomicInteger();
+        PreAggRefreshService service = new PreAggRefreshService();
+        service.registerStrategy(countingStrategy("FULL", calls));
+
+        PreAggRefreshResult result = service.refresh(
+                preAgg, mock(TableModel.class), mock(DataSource.class), fullContext());
+
+        assertFalse(result.isSuccess());
+        assertTrue(result.getErrorMessage().contains("Only GLOBAL"));
+        assertEquals(0, calls.get());
     }
 
     @Test

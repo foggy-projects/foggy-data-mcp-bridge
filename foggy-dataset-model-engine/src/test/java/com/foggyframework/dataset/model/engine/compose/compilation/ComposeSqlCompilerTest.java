@@ -4,9 +4,11 @@ import com.foggyframework.dataset.model.engine.compose.ComposedSql;
 import com.foggyframework.dataset.model.engine.compose.authority.ModelInfoProvider;
 import com.foggyframework.dataset.model.engine.compose.compilation.CompileTestHelpers.FakeSemanticService;
 import com.foggyframework.dataset.model.engine.compose.context.ComposeQueryContext;
+import com.foggyframework.dataset.model.engine.compose.context.Principal;
 import com.foggyframework.dataset.model.engine.compose.plan.BaseModelPlan;
 import com.foggyframework.dataset.model.engine.compose.plan.DerivedQueryPlan;
 import com.foggyframework.dataset.model.engine.compose.plan.QueryPlan;
+import com.foggyframework.dataset.model.engine.compose.plan.UnionPlan;
 import com.foggyframework.dataset.model.engine.compose.security.ModelBinding;
 import com.foggyframework.dataset.model.semantic.port.ComposeSemanticPlanningPort;
 import com.foggyframework.dataset.model.semantic.port.ComposeSqlGeneration;
@@ -17,6 +19,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -25,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -158,6 +162,55 @@ class ComposeSqlCompilerTest {
         assertNull(opts.semanticService());
         assertEquals(1, sql.getParams().size());
         assertNull(sql.getParams().get(0));
+    }
+
+    @Test
+    @DisplayName("复杂计划的每个叶模型保留 exact Authorization 并共享请求内权限会话")
+    void composeLeavesShareOpaqueIdentityAndPermissionSession() {
+        List<com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext> contexts =
+                new ArrayList<>();
+        ComposeSemanticPlanningPort planningPort = (model, request, context) -> {
+            contexts.add(context);
+            return new ComposeSqlGeneration(
+                    "SELECT id FROM " + model.toLowerCase(),
+                    List.of(),
+                    List.of(),
+                    Map.of());
+        };
+        Map<String, ModelBinding> bindings = Map.of(
+                "OrdersQM", CompileTestHelpers.emptyBinding(),
+                "ArchiveQM", CompileTestHelpers.emptyBinding());
+        String authorization = "Opaque tenant-token value";
+        ComposeQueryContext context = ComposeQueryContext.builder()
+                .principal(Principal.builder()
+                        .userId("user-a")
+                        .roles(List.of("analyst"))
+                        .tenantId("tenant-a")
+                        .authorizationHint(authorization)
+                        .build())
+                .namespace("tenant-a")
+                .authorityResolver(CompileTestHelpers.resolverFor(bindings))
+                .build();
+        QueryPlan plan = UnionPlan.builder()
+                .left(CompileTestHelpers.base("OrdersQM", "id"))
+                .right(CompileTestHelpers.base("ArchiveQM", "id"))
+                .all(true)
+                .build();
+
+        ComposeSqlCompiler.compilePlanToSql(
+                plan,
+                context,
+                ComposeSqlCompiler.CompileOptions.builder()
+                        .planningPort(planningPort)
+                        .bindings(bindings)
+                        .dialect("sqlite")
+                        .build());
+
+        assertEquals(2, contexts.size());
+        assertEquals(authorization, contexts.get(0).getAuthorization());
+        assertEquals(authorization, contexts.get(1).getAuthorization());
+        assertSame(contexts.get(0).getRequestIdentity(), contexts.get(1).getRequestIdentity());
+        assertSame(contexts.get(0).getPermissionSession(), contexts.get(1).getPermissionSession());
     }
 
     @Test

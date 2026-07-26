@@ -22,6 +22,11 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import com.foggyframework.dataset.model.semantic.domain.DeniedPhysicalColumn;
+import com.foggyframework.dataset.model.semantic.permission.PermissionDecision;
+import com.foggyframework.dataset.model.semantic.permission.PermissionEvaluationSession;
+import com.foggyframework.dataset.model.semantic.permission.PermissionAction;
+import com.foggyframework.dataset.model.semantic.permission.RequestIdentity;
+import com.foggyframework.dataset.model.semantic.permission.AuthorizationSignature;
 
 import java.util.HashMap;
 import java.util.List;
@@ -141,6 +146,31 @@ public class ModelResultContext {
      * 安全上下文，用于权限控制
      */
     SecurityContext securityContext;
+
+    /**
+     * Non-null opaque data-plane identity.
+     */
+    RequestIdentity requestIdentity = RequestIdentity.anonymous();
+
+    /**
+     * Request-local immutable permission decisions.
+     */
+    PermissionEvaluationSession permissionSession = new PermissionEvaluationSession();
+
+    /**
+     * Decision for the action currently executing.
+     */
+    PermissionDecision permissionDecision;
+
+    /**
+     * Model action authorized by the query pipeline.
+     */
+    PermissionAction permissionAction = PermissionAction.EXECUTE;
+
+    /**
+     * Engine-generated cache identity for the final effective permission set.
+     */
+    AuthorizationSignature authorizationSignature;
 
     /**
      * 命名空间（用于模型隔离）
@@ -527,7 +557,29 @@ public class ModelResultContext {
                               SecurityContext securityContext) {
         this.request = request;
         this.pagingResult = pagingResult;
+        setSecurityContext(securityContext);
+    }
+
+    public void setSecurityContext(SecurityContext securityContext) {
         this.securityContext = securityContext;
+        this.requestIdentity = RequestIdentity.fromAuthorization(
+                securityContext != null ? securityContext.getAuthorization() : null);
+    }
+
+    public void setRequestIdentity(RequestIdentity requestIdentity) {
+        this.requestIdentity = requestIdentity != null ? requestIdentity : RequestIdentity.anonymous();
+        String authorization = this.requestIdentity.authorization();
+        if (authorization == null) {
+            if (securityContext != null) {
+                securityContext.setAuthorization(null);
+            }
+            return;
+        }
+        if (securityContext == null) {
+            securityContext = SecurityContext.fromAuthorization(authorization);
+        } else {
+            securityContext.setAuthorization(authorization);
+        }
     }
 
     /**
@@ -538,9 +590,6 @@ public class ModelResultContext {
     public String getAuthorization() {
 
         // 从 SecurityContext 获取
-        if (securityContext != null && securityContext.getAuthorization() != null) {
-            return securityContext.getAuthorization();
-        }
-        return null;
+        return requestIdentity != null ? requestIdentity.authorization() : null;
     }
 }

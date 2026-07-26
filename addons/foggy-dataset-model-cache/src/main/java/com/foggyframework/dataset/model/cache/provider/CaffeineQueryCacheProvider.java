@@ -7,13 +7,15 @@ import com.foggyframework.dataset.model.spi.QueryCacheProvider;
 import com.foggyframework.dataset.model.PagingResultImpl;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.Expiry;
 import com.github.benmanes.caffeine.cache.stats.CacheStats;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Caffeine 双层本地缓存提供者
@@ -38,8 +40,8 @@ public class CaffeineQueryCacheProvider implements QueryCacheProvider {
     private static final String L1_PREFIX = "l1:";
     private static final String L2_PREFIX = "l2:";
 
-    private final Cache<String, PagingResultImpl> l1Cache;
-    private final Cache<String, PagingResultImpl> l2Cache;
+    private final Cache<String, CachedResult> l1Cache;
+    private final Cache<String, CachedResult> l2Cache;
     private final QueryCacheKeyBuilder cacheKeyBuilder;
     private final QueryCacheProperties properties;
 
@@ -50,16 +52,16 @@ public class CaffeineQueryCacheProvider implements QueryCacheProvider {
         this.cacheKeyBuilder = new QueryCacheKeyBuilder(fingerprintBuilder, properties);
 
         // 构建 L1 Caffeine 缓存
-        Caffeine<Object, Object> l1Builder = Caffeine.newBuilder()
+        Caffeine<String, CachedResult> l1Builder = Caffeine.newBuilder()
                 .maximumSize(properties.getCaffeine().getMaximumSize() / 2) // L1 和 L2 各一半
                 .initialCapacity(properties.getCaffeine().getInitialCapacity() / 2)
-                .expireAfterWrite(properties.getDefaultTtl().toMillis(), TimeUnit.MILLISECONDS);
+                .expireAfter(new CachedResultExpiry());
 
         // 构建 L2 Caffeine 缓存
-        Caffeine<Object, Object> l2Builder = Caffeine.newBuilder()
+        Caffeine<String, CachedResult> l2Builder = Caffeine.newBuilder()
                 .maximumSize(properties.getCaffeine().getMaximumSize() / 2)
                 .initialCapacity(properties.getCaffeine().getInitialCapacity() / 2)
-                .expireAfterWrite(properties.getDefaultTtl().toMillis(), TimeUnit.MILLISECONDS);
+                .expireAfter(new CachedResultExpiry());
 
         if (properties.getCaffeine().isRecordStats()) {
             l1Builder.recordStats();
@@ -99,12 +101,12 @@ public class CaffeineQueryCacheProvider implements QueryCacheProvider {
         }
 
         // 查询缓存
-        PagingResultImpl cached = l1Cache.getIfPresent(l1Key);
+        CachedResult cached = l1Cache.getIfPresent(l1Key);
         if (cached != null) {
             if (log.isDebugEnabled()) {
                 log.debug("L1 cache HIT: key={}, model={}", l1Key, modelName);
             }
-            return cached;
+            return cached.result();
         }
 
         if (log.isDebugEnabled()) {
@@ -148,7 +150,11 @@ public class CaffeineQueryCacheProvider implements QueryCacheProvider {
             return;
         }
 
-        l1Cache.put(l1Key, result);
+        Duration ttl = calculateTtl(modelName, context);
+        if (ttl == null) {
+            return;
+        }
+        l1Cache.put(l1Key, new CachedResult(result, ttl.toNanos()));
 
         if (log.isDebugEnabled()) {
             log.debug("L1 cache WRITE: key={}, size={}", l1Key, resultSize);
@@ -175,12 +181,12 @@ public class CaffeineQueryCacheProvider implements QueryCacheProvider {
         }
 
         // 查询缓存
-        PagingResultImpl cached = l2Cache.getIfPresent(l2Key);
+        CachedResult cached = l2Cache.getIfPresent(l2Key);
         if (cached != null) {
             if (log.isDebugEnabled()) {
                 log.debug("L2 cache HIT: key={}, model={}", l2Key, modelName);
             }
-            return cached;
+            return cached.result();
         }
 
         if (log.isDebugEnabled()) {
@@ -219,7 +225,11 @@ public class CaffeineQueryCacheProvider implements QueryCacheProvider {
             return;
         }
 
-        l2Cache.put(l2Key, result);
+        Duration ttl = calculateTtl(modelName, context);
+        if (ttl == null) {
+            return;
+        }
+        l2Cache.put(l2Key, new CachedResult(result, ttl.toNanos()));
 
         if (log.isDebugEnabled()) {
             log.debug("L2 cache WRITE: key={}, size={}", l2Key, resultSize);
@@ -292,6 +302,42 @@ public class CaffeineQueryCacheProvider implements QueryCacheProvider {
     @Override
     public int getOrder() {
         return 100;
+    }
+
+    private Duration calculateTtl(String modelName, ModelResultContext context) {
+        if (context == null || context.getAuthorizationSignature() == null) {
+            return null;
+        }
+        Duration configured = properties.getTtlForModel(modelName);
+        Instant expiresAt = context.getAuthorizationSignature().expiresAt();
+        if (expiresAt == null) {
+            return configured;
+        }
+        Duration remaining = Duration.between(Instant.now(), expiresAt);
+        if (remaining.isZero() || remaining.isNegative()) {
+            return null;
+        }
+        return remaining.compareTo(configured) < 0 ? remaining : configured;
+    }
+
+    private record CachedResult(PagingResultImpl result, long ttlNanos) {
+    }
+
+    private static final class CachedResultExpiry implements Expiry<String, CachedResult> {
+        @Override
+        public long expireAfterCreate(String key, CachedResult value, long currentTime) {
+            return value.ttlNanos();
+        }
+
+        @Override
+        public long expireAfterUpdate(String key, CachedResult value, long currentTime, long currentDuration) {
+            return value.ttlNanos();
+        }
+
+        @Override
+        public long expireAfterRead(String key, CachedResult value, long currentTime, long currentDuration) {
+            return currentDuration;
+        }
     }
 
 }

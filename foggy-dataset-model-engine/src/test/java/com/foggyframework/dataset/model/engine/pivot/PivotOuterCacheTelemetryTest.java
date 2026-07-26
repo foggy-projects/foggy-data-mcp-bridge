@@ -10,6 +10,7 @@ import com.foggyframework.dataset.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.model.semantic.domain.pivot.AxisField;
 import com.foggyframework.dataset.model.semantic.domain.pivot.PivotRequest;
+import com.foggyframework.dataset.model.semantic.permission.AuthorizationSignature;
 import com.foggyframework.dataset.model.spi.QueryModel;
 import com.foggyframework.dataset.model.spi.TableModel;
 import org.junit.jupiter.api.DisplayName;
@@ -28,28 +29,55 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PivotOuterCacheTelemetryTest {
 
     @Test
-    @DisplayName("E1b cache key includes security, fieldAccess, and deniedColumns")
-    void testKeyChangesForPermissionContext() {
+    @DisplayName("E1b cache key uses engine authorization signature and excludes raw authorization")
+    void testKeyUsesAuthorizationSignature() {
         QueryModel queryModel = queryModel("FactSalesQueryModel", "FS", "FactSalesTableModel");
         SemanticQueryRequest request = request();
 
         PivotOuterCacheTelemetry.Evaluation userA = evaluate(queryModel, request,
                 context("user-a", Set.of("product$categoryName", "salesAmount"),
-                        List.of(new DeniedPhysicalColumn(null, "fact_sales", "profit_amount"))));
+                        List.of(new DeniedPhysicalColumn(null, "fact_sales", "profit_amount"))),
+                publicSignature("permission-a"));
         PivotOuterCacheTelemetry.Evaluation userB = evaluate(queryModel, request,
                 context("user-b", Set.of("product$categoryName", "salesAmount"),
-                        List.of(new DeniedPhysicalColumn(null, "fact_sales", "profit_amount"))));
-        PivotOuterCacheTelemetry.Evaluation narrowerFieldAccess = evaluate(queryModel, request,
-                context("user-a", Set.of("product$categoryName"),
-                        List.of(new DeniedPhysicalColumn(null, "fact_sales", "profit_amount"))));
-        PivotOuterCacheTelemetry.Evaluation differentDeniedColumn = evaluate(queryModel, request,
+                        List.of(new DeniedPhysicalColumn(null, "fact_sales", "profit_amount"))),
+                publicSignature("permission-a"));
+        PivotOuterCacheTelemetry.Evaluation differentPermission = evaluate(queryModel, request,
                 context("user-a", Set.of("product$categoryName", "salesAmount"),
-                        List.of(new DeniedPhysicalColumn(null, "fact_sales", "sales_amount"))));
+                        List.of(new DeniedPhysicalColumn(null, "fact_sales", "profit_amount"))),
+                publicSignature("permission-b"));
 
-        assertNotEquals(userA.keyHash(), userB.keyHash(), "different users must not share cache keys");
-        assertNotEquals(userA.keyHash(), narrowerFieldAccess.keyHash(), "fieldAccess must affect cache keys");
-        assertNotEquals(userA.keyHash(), differentDeniedColumn.keyHash(), "denied physical columns must affect cache keys");
+        assertEquals(userA.keyHash(), userB.keyHash(),
+                "raw authorization must not affect the outer cache key");
+        assertNotEquals(userA.keyHash(), differentPermission.keyHash(),
+                "different final permission snapshots must not share cache keys");
         assertFalse(userA.refused(), "a complete catalog identity must be cache eligible");
+    }
+
+    @Test
+    @DisplayName("E1b refuses missing and protected authorization signatures")
+    void testRefusesUnsafeAuthorizationSignature() {
+        QueryModel queryModel = queryModel("FactSalesQueryModel", "FS", "FactSalesTableModel");
+        SemanticQueryRequest request = request();
+        SemanticRequestContext context = context(
+                "user-a", Set.of("product$categoryName", "salesAmount"), null);
+        PivotOuterCacheTelemetry.ModelIdentity identity = modelIdentity(queryModel, "", "");
+
+        PivotOuterCacheTelemetry.Evaluation missing = PivotOuterCacheTelemetry.evaluate(
+                "FactSalesQueryModel", queryModel, request, context, false, false,
+                PivotOuterCacheTelemetry.CACHE_STAGE, identity, null);
+        PivotOuterCacheTelemetry.Evaluation protectedDecision = PivotOuterCacheTelemetry.evaluate(
+                "FactSalesQueryModel", queryModel, request, context, false, false,
+                PivotOuterCacheTelemetry.CACHE_STAGE, identity,
+                new AuthorizationSignature(
+                        "AUTH:protected", false, java.time.Instant.now().plusSeconds(60)));
+
+        assertEquals(PivotOuterCacheTelemetry.MISSING_AUTHORIZATION_SIGNATURE_REASON,
+                missing.refusalReason());
+        assertEquals(PivotOuterCacheTelemetry.PROTECTED_PERMISSION_OUTER_CACHE_UNSUPPORTED_REASON,
+                protectedDecision.refusalReason());
+        assertTrue(missing.refused());
+        assertTrue(protectedDecision.refused());
     }
 
     @Test
@@ -118,7 +146,8 @@ class PivotOuterCacheTelemetryTest {
                 false,
                 true,
                 PivotOuterCacheTelemetry.TELEMETRY_STAGE,
-                incompleteIdentity);
+                incompleteIdentity,
+                publicSignature("permission-a"));
 
         assertEquals("cascade_shape", evaluation.refusalReason());
         assertEquals(PivotOuterCacheStrongIdentity.STATUS_INCOMPLETE, evaluation.identityStatus());
@@ -129,15 +158,37 @@ class PivotOuterCacheTelemetryTest {
     private PivotOuterCacheTelemetry.Evaluation evaluate(QueryModel queryModel,
                                                          SemanticQueryRequest request,
                                                          SemanticRequestContext context) {
-        return evaluate(queryModel, request, context, modelIdentity(queryModel, "", ""));
+        return evaluate(queryModel, request, context, publicSignature("permission-default"));
+    }
+
+    private PivotOuterCacheTelemetry.Evaluation evaluate(QueryModel queryModel,
+                                                         SemanticQueryRequest request,
+                                                         SemanticRequestContext context,
+                                                         AuthorizationSignature authorizationSignature) {
+        return evaluate(queryModel, request, context, modelIdentity(queryModel, "", ""),
+                authorizationSignature);
     }
 
     private PivotOuterCacheTelemetry.Evaluation evaluate(QueryModel queryModel,
                                                          SemanticQueryRequest request,
                                                          SemanticRequestContext context,
                                                          PivotOuterCacheTelemetry.ModelIdentity modelIdentity) {
+        return evaluate(queryModel, request, context, modelIdentity,
+                publicSignature("permission-default"));
+    }
+
+    private PivotOuterCacheTelemetry.Evaluation evaluate(QueryModel queryModel,
+                                                         SemanticQueryRequest request,
+                                                         SemanticRequestContext context,
+                                                         PivotOuterCacheTelemetry.ModelIdentity modelIdentity,
+                                                         AuthorizationSignature authorizationSignature) {
         return PivotOuterCacheTelemetry.evaluate("FactSalesQueryModel", queryModel, request, context,
-                false, false, PivotOuterCacheTelemetry.CACHE_STAGE, modelIdentity);
+                false, false, PivotOuterCacheTelemetry.CACHE_STAGE, modelIdentity,
+                authorizationSignature);
+    }
+
+    private AuthorizationSignature publicSignature(String value) {
+        return new AuthorizationSignature("PUBLIC:" + value, true, null);
     }
 
     private PivotOuterCacheTelemetry.ModelIdentity modelIdentity(QueryModel queryModel,

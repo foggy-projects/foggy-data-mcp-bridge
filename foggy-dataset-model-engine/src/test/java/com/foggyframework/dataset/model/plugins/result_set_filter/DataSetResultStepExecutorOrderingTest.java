@@ -3,6 +3,7 @@ package com.foggyframework.dataset.model.plugins.result_set_filter;
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
+import com.foggyframework.dataset.model.semantic.permission.AuthorizationSignature;
 import com.foggyframework.dataset.model.spi.QueryCacheProvider;
 import com.foggyframework.dataset.model.PagingResultImpl;
 import org.junit.jupiter.api.Test;
@@ -212,6 +213,8 @@ class DataSetResultStepExecutorOrderingTest {
                 .authorization("Bearer isolated-token")
                 .build();
         ModelResultContext context = new ModelResultContext(request, null, security);
+        context.setAuthorizationSignature(
+                new AuthorizationSignature("PUBLIC:test", true, null));
         context.setCacheConfig(ModelResultContext.QueryCacheConfig.enableL1());
 
         SliceRequestDef systemSlice = new SliceRequestDef();

@@ -23,6 +23,13 @@ import java.util.Set;
 public interface PreAggregation {
 
     /**
+     * Permission scope used to build this materialization.
+     */
+    default PreAggregationBuildMode getBuildMode() {
+        return PreAggregationBuildMode.GLOBAL;
+    }
+
+    /**
      * 获取预聚合名称
      */
     String getName();

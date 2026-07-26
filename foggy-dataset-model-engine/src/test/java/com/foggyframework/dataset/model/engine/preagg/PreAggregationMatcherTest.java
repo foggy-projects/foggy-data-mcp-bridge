@@ -5,8 +5,10 @@ import com.foggyframework.dataset.model.def.preagg.PreAggFilterDef;
 import com.foggyframework.dataset.model.def.preagg.PreAggRefreshDef;
 import com.foggyframework.dataset.model.def.preagg.PreAggregationDef;
 import com.foggyframework.dataset.model.impl.preagg.PreAggregationImpl;
+import com.foggyframework.dataset.model.semantic.permission.PermissionPredicate;
 import com.foggyframework.dataset.model.spi.DbAggregation;
 import com.foggyframework.dataset.model.spi.preagg.PreAggregation;
+import com.foggyframework.dataset.model.spi.preagg.PreAggregationBuildMode;
 import com.foggyframework.dataset.model.spi.preagg.TimeGranularity;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -520,6 +522,123 @@ class PreAggregationMatcherTest {
                 "a filtered materialization cannot serve an unproven unfiltered query");
     }
 
+    @Test
+    @DisplayName("权限谓词仅在授权签名与物化安全列均可证明时匹配")
+    void securityPredicateRequiresSignatureAndMaterializedIdentity() {
+        PreAggregation complete = createDailyProductPreAgg();
+        PermissionPredicate predicate = PermissionPredicate.provable(
+                PermissionPredicate.Origin.QM_MODEL_PERMISSION,
+                "product",
+                "product",
+                "in",
+                List.of(101L, 102L));
+
+        PreAggQueryRequirement requirement = new PreAggQueryRequirement();
+        requirement.setHasGroupBy(true);
+        requirement.addDimension("product");
+        requirement.addMeasure("salesAmount", DbAggregation.SUM);
+        requirement.setSecurityPredicates(List.of(predicate));
+        requirement.setSecurityContextCacheable(true);
+
+        assertTrue(matcher.findBestMatch(requirement, List.of(complete)).isMatched());
+
+        requirement.setSecurityContextCacheable(false);
+        assertEquals("MISSING_AUTHORIZATION_SIGNATURE",
+                requirement.securityFailureReason(complete));
+        assertFalse(matcher.findBestMatch(requirement, List.of(complete)).isMatched());
+    }
+
+    @Test
+    @DisplayName("缺少安全维度、非法算子与不可证明谓词均 fail closed")
+    void unsafeSecurityPredicatesFailClosed() {
+        PreAggregation missingProductId = createProductPreAgg("salesAmount", "SUM");
+        PreAggQueryRequirement requirement = new PreAggQueryRequirement();
+        requirement.setHasGroupBy(true);
+        requirement.addDimension("product");
+        requirement.addMeasure("salesAmount", DbAggregation.SUM);
+        requirement.setSecurityPredicates(List.of(PermissionPredicate.provable(
+                PermissionPredicate.Origin.TM_BASE_PERMISSION,
+                "product",
+                "product",
+                "=",
+                101L)));
+        assertEquals("MISSING_SECURITY_DIMENSION",
+                requirement.securityFailureReason(missingProductId));
+
+        requirement.setSecurityPredicates(List.of(PermissionPredicate.provable(
+                PermissionPredicate.Origin.QM_MODEL_PERMISSION,
+                "product",
+                "product$id",
+                "not in",
+                List.of(101L))));
+        assertEquals("UNSUPPORTED_SECURITY_OPERATOR",
+                requirement.securityFailureReason(createDailyProductPreAgg()));
+
+        requirement.setSecurityPredicates(List.of(
+                PermissionPredicate.unprovable("product$id", "legacy SQL access")));
+        assertEquals("UNPROVABLE_SECURITY_PREDICATE",
+                requirement.securityFailureReason(createDailyProductPreAgg()));
+    }
+
+    @Test
+    @DisplayName("高优先级候选缺少安全列时继续选择可证明的低优先级候选")
+    void matcherSkipsUnsafeHigherPriorityCandidate() {
+        PreAggregationDef unsafeDef = new PreAggregationDef();
+        unsafeDef.setName("unsafe_high_priority");
+        unsafeDef.setTableName("unsafe_high_priority");
+        unsafeDef.setPriority(100);
+        unsafeDef.setDimensions(List.of("product"));
+        unsafeDef.setMeasures(List.of(createMeasureDef("salesAmount", "SUM")));
+        unsafeDef.setEnabled(true);
+
+        PreAggregationDef safeDef = new PreAggregationDef();
+        safeDef.setName("safe_low_priority");
+        safeDef.setTableName("safe_low_priority");
+        safeDef.setPriority(10);
+        safeDef.setDimensions(List.of("product"));
+        safeDef.setDimensionProperties(Map.of("product", List.of("id")));
+        safeDef.setMeasures(List.of(createMeasureDef("salesAmount", "SUM")));
+        safeDef.setEnabled(true);
+
+        PreAggQueryRequirement requirement = new PreAggQueryRequirement();
+        requirement.setHasGroupBy(true);
+        requirement.addDimension("product");
+        requirement.addMeasure("salesAmount", DbAggregation.SUM);
+        requirement.setSecurityPredicates(List.of(PermissionPredicate.provable(
+                PermissionPredicate.Origin.QM_MODEL_PERMISSION,
+                "product",
+                "product",
+                "=",
+                101L)));
+
+        PreAggregationMatchResult result = matcher.findBestMatch(requirement, List.of(
+                new PreAggregationImpl(unsafeDef, null),
+                new PreAggregationImpl(safeDef, null)));
+
+        assertTrue(result.isMatched());
+        assertEquals("safe_low_priority", result.getPreAggName());
+    }
+
+    @Test
+    @DisplayName("预聚合构建模式默认 GLOBAL，SECURITY_SCOPED 在加载时 fail fast")
+    void scopedBuildModeFailsFast() {
+        PreAggregationDef global = new PreAggregationDef();
+        global.setName("global_sales");
+        global.setTableName("global_sales");
+        global.setEnabled(true);
+        assertEquals(PreAggregationBuildMode.GLOBAL,
+                new PreAggregationImpl(global, null).getBuildMode());
+
+        PreAggregationDef scoped = new PreAggregationDef();
+        scoped.setName("scoped_sales");
+        scoped.setTableName("scoped_sales");
+        scoped.setBuildMode("SECURITY_SCOPED");
+        scoped.setEnabled(true);
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> new PreAggregationImpl(scoped, null));
+        assertTrue(error.getMessage().contains("SECURITY_SCOPED"));
+    }
+
     // ==================== 辅助方法 ====================
 
     /**
@@ -542,7 +661,7 @@ class PreAggregationMatcherTest {
         def.setDimensions(List.of("product", "salesDate"));
         def.setGranularity(Map.of("salesDate", "day"));
         def.setDimensionProperties(Map.of(
-                "product", List.of("category_name", "brand"),
+                "product", List.of("id", "category_name", "brand"),
                 "salesDate", List.of("id")
         ));
         def.setMeasures(List.of(

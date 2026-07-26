@@ -78,6 +78,25 @@ final class PerBaseCompiler {
             String namespace,
             String alias,
             Map<String, ComposeSqlGeneration> governanceCache) {
+        return compileBaseModel(
+                plan,
+                binding,
+                planningPort,
+                namespace,
+                null,
+                alias,
+                governanceCache
+        );
+    }
+
+    static List<CteUnit> compileBaseModel(
+            BaseModelPlan plan,
+            ModelBinding binding,
+            ComposeSemanticPlanningPort planningPort,
+            String namespace,
+            SemanticRequestContext baseRequestContext,
+            String alias,
+            Map<String, ComposeSqlGeneration> governanceCache) {
 
         String cacheKey = plan.model() + ":" + System.identityHashCode(binding)
                 + ":" + PlanHash.planHash(plan);
@@ -88,7 +107,8 @@ final class PerBaseCompiler {
 
         if (buildResult == null) {
             SemanticQueryRequest request = buildRequest(plan);
-            SemanticRequestContext reqContext = buildContext(namespace, binding);
+            SemanticRequestContext reqContext = buildContext(
+                    namespace, baseRequestContext, binding);
             try {
                 buildResult = planningPort.generateComposeSql(plan.model(), request, reqContext);
             } catch (RuntimeException ex) {
@@ -248,13 +268,18 @@ final class PerBaseCompiler {
      *  three-field governance. A {@code null} namespace falls back to
      *  whatever {@link SemanticRequestContext#empty()} does at the host
      *  level. */
-    private static SemanticRequestContext buildContext(String namespace, ModelBinding binding) {
+    private static SemanticRequestContext buildContext(
+            String namespace,
+            SemanticRequestContext baseRequestContext,
+            ModelBinding binding
+    ) {
         Set<String> fieldAccess = binding.fieldAccess() == null
                 ? null
                 : new HashSet<>(binding.fieldAccess());
-        return SemanticRequestContext.of(
-                namespace,
-                /* securityContext */ null,
+        SemanticRequestContext base = baseRequestContext != null
+                ? baseRequestContext
+                : SemanticRequestContext.ofNamespace(namespace);
+        return base.withGovernance(
                 fieldAccess,
                 new ArrayList<>(binding.deniedColumns()),
                 binding.systemSlice().isEmpty() ? null : new ArrayList<>(binding.systemSlice()));

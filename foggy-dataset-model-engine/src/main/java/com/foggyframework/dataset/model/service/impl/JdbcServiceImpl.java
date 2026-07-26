@@ -12,6 +12,9 @@ import com.foggyframework.dataset.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.model.engine.query_model.JdbcQueryModelImpl;
 import com.foggyframework.dataset.model.semantic.member.SyntheticMemberQueryModelDescriptor;
 import com.foggyframework.dataset.model.semantic.member.SyntheticMemberQueryModelResolver;
+import com.foggyframework.dataset.model.semantic.permission.PermissionAction;
+import com.foggyframework.dataset.model.semantic.permission.RequestIdentity;
+import com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.model.service.JdbcService;
 import com.foggyframework.dataset.model.service.AdvancedQueryFacade;
 import com.foggyframework.dataset.model.spi.DbQueryDimension;
@@ -47,12 +50,21 @@ public class JdbcServiceImpl implements JdbcService {
 
     @Override
     public PagingResultImpl<DbDataItem> queryDimensionData(PagingRequest<DimensionDataQueryForm> form) {
+        return queryDimensionData(form, null, null);
+    }
+
+    @Override
+    public PagingResultImpl<DbDataItem> queryDimensionData(
+            PagingRequest<DimensionDataQueryForm> form,
+            String authorization,
+            String namespace
+    ) {
         DimensionDataQueryForm qf = form.getParam();
         SyntheticMemberQueryModelDescriptor descriptor = syntheticMemberQueryModelResolver.resolve(
                 queryModelLoader,
                 qf.getQueryModel(),
                 qf.getDimension(),
-                null
+                namespace
         );
 
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
@@ -66,7 +78,11 @@ public class JdbcServiceImpl implements JdbcService {
         }
 
         PagingRequest<DbQueryRequestDef> memberRequest = form.copy(queryRequest);
-        PagingResultImpl rawResult = queryFacade.queryModelData(memberRequest);
+        ModelResultContext context = new ModelResultContext(memberRequest, null);
+        context.setNamespace(namespace);
+        context.setRequestIdentity(RequestIdentity.fromAuthorization(authorization));
+        context.setPermissionAction(PermissionAction.MEMBER_QUERY);
+        PagingResultImpl rawResult = queryFacade.queryModelResult(context).getPagingResult();
 
         List<DbDataItem> dataItems = new ArrayList<>();
         if (rawResult.getItems() != null) {

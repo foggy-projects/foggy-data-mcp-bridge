@@ -49,14 +49,14 @@ public class QueryFingerprintBuilder {
                 .pageNo(context.getRequest().getPage())
                 .pageSize(context.getRequest().getPageSize());
 
-        Optional<SecurityPolicyFingerprint> securityPolicy = SecurityPolicyFingerprint.from(context);
-        if (securityPolicy.isPresent()) {
-            SecurityPolicyFingerprint policy = securityPolicy.get();
-            builder.fieldAccessHash(policy.fieldAccessHash())
-                    .deniedColumnsHash(policy.deniedColumnsHash())
-                    .systemSliceHash(policy.systemSliceHash())
-                    .securityContextHash(policy.securityContextHash())
-                    .securityPolicyHash(policy.combinedHash());
+        if (context.getAuthorizationSignature() != null
+                && context.getAuthorizationSignature().isUsableAt(java.time.Instant.now())) {
+            String signature = context.getAuthorizationSignature().value();
+            builder.fieldAccessHash(signature)
+                    .deniedColumnsHash(signature)
+                    .systemSliceHash(signature)
+                    .securityContextHash(signature)
+                    .securityPolicyHash(signature);
         } else {
             builder.hasIncompleteSecurityPolicy(true);
         }

@@ -3,6 +3,7 @@ package com.foggyframework.dataset.model.engine.preagg;
 import com.foggyframework.dataset.model.spi.DbAggregation;
 import com.foggyframework.dataset.model.spi.preagg.PreAggregation;
 import com.foggyframework.dataset.model.spi.preagg.TimeGranularity;
+import com.foggyframework.dataset.model.semantic.permission.PermissionPredicate;
 import lombok.Data;
 
 import java.util.*;
@@ -68,6 +69,17 @@ public class PreAggQueryRequirement {
      * </p>
      */
     private Map<String, SliceColumnInfo> sliceColumns = new LinkedHashMap<>();
+
+    /**
+     * Typed row-permission obligations. They are tracked separately from user
+     * slices so candidate rejection can fail closed with a stable reason.
+     */
+    private List<PermissionPredicate> securityPredicates = new ArrayList<>();
+
+    /**
+     * Protected routing requires one engine-generated permission signature.
+     */
+    private boolean securityContextCacheable = true;
 
     /**
      * Slice 列信息
@@ -202,6 +214,9 @@ public class PreAggQueryRequirement {
      * @return 是否满足
      */
     public boolean isSatisfiableBy(PreAggregation preAgg) {
+        if (securityFailureReason(preAgg) != null) {
+            return false;
+        }
         // A permanently filtered materialization is not equivalent to an
         // unfiltered semantic model unless its filter implication can be
         // proven. That proof is not represented in the current requirement,
@@ -280,10 +295,57 @@ public class PreAggQueryRequirement {
                 if (!preAgg.hasMaterializedDimensionProperty(dimName, propName)) {
                     return false;
                 }
+            } else if (!preAgg.hasMaterializedDimensionProperty(dimName, "id")) {
+                return false;
             }
         }
 
         return true;
+    }
+
+    /**
+     * Returns a stable, value-free reason when a candidate cannot reproduce
+     * the effective permission before rollup.
+     */
+    public String securityFailureReason(PreAggregation preAgg) {
+        if (!securityContextCacheable) {
+            return "MISSING_AUTHORIZATION_SIGNATURE";
+        }
+        for (PermissionPredicate predicate : securityPredicates) {
+            if (predicate == null || !predicate.isProvable()) {
+                return "UNPROVABLE_SECURITY_PREDICATE";
+            }
+            if (!isSupportedSecurityOperator(predicate.getOperator())) {
+                return "UNSUPPORTED_SECURITY_OPERATOR";
+            }
+            for (String field : predicate.getReferencedFields()) {
+                if (!isMaterializedSecurityField(preAgg, field)) {
+                    return "MISSING_SECURITY_DIMENSION";
+                }
+            }
+        }
+        return null;
+    }
+
+    private boolean isMaterializedSecurityField(PreAggregation preAgg, String field) {
+        if (preAgg == null || field == null || field.isBlank()) {
+            return false;
+        }
+        int dollarIndex = field.indexOf('$');
+        if (dollarIndex <= 0) {
+            return preAgg.hasDimension(field)
+                    && preAgg.hasMaterializedDimensionProperty(field, "id");
+        }
+        String dimension = field.substring(0, dollarIndex);
+        String property = field.substring(dollarIndex + 1);
+        return !dimension.isBlank() && !property.isBlank()
+                && preAgg.hasMaterializedDimensionProperty(dimension, property);
+    }
+
+    private boolean isSupportedSecurityOperator(String operator) {
+        return Set.of("=", "!=", "<>", ">", ">=", "<", "<=", "in",
+                        "like", "left_like", "right_like", "[)", "[]", "(]", "()")
+                .contains(operator);
     }
 
     /**
@@ -323,6 +385,8 @@ public class PreAggQueryRequirement {
                 ", hasWhereConditions=" + hasWhereConditions +
                 ", hasCustomSqlConditions=" + hasCustomSqlConditions +
                 ", sliceColumns=" + sliceColumns.keySet() +
+                ", securityPredicates=" + securityPredicates.size() +
+                ", securityContextCacheable=" + securityContextCacheable +
                 '}';
     }
 }

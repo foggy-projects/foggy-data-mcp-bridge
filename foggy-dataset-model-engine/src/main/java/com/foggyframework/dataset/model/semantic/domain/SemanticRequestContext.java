@@ -7,9 +7,14 @@ import com.foggyframework.dataset.model.engine.pivot.transport.DomainTransportPl
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogResolution;
 import com.foggyframework.dataset.model.lifecycle.identity.CatalogIdentity;
 import com.foggyframework.dataset.model.spi.QueryModel;
+import com.foggyframework.dataset.model.semantic.permission.PermissionEvaluationSession;
+import com.foggyframework.dataset.model.semantic.permission.PermissionAction;
+import com.foggyframework.dataset.model.semantic.permission.RequestIdentity;
 
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -37,24 +42,33 @@ import java.util.Set;
  */
 public class SemanticRequestContext {
 
-    private static final SemanticRequestContext EMPTY =
-            new SemanticRequestContext(null, null, null, null, null, null, null);
-
     private final String namespace;
     private final ModelResultContext.SecurityContext securityContext;
+    private final RequestIdentity requestIdentity;
+    private final PermissionEvaluationSession permissionSession;
     private final Set<String> fieldAccess;
     private final List<DeniedPhysicalColumn> deniedColumns;
     private final List<SliceRequestDef> systemSlice;
     private final List<DomainTransportPlanSpec> domainTransportPlans;
     private final CatalogResolution<QueryModel> catalogResolution;
+    private PermissionAction permissionAction;
 
     private SemanticRequestContext(String namespace, ModelResultContext.SecurityContext securityContext,
                                    Set<String> fieldAccess, List<DeniedPhysicalColumn> deniedColumns,
                                    List<SliceRequestDef> systemSlice,
                                    List<? extends DomainTransportPlanSpec> domainTransportPlans,
-                                   CatalogResolution<QueryModel> catalogResolution) {
+                                   CatalogResolution<QueryModel> catalogResolution,
+                                   RequestIdentity requestIdentity,
+                                   PermissionEvaluationSession permissionSession) {
         this.namespace = namespace;
         this.securityContext = securityContext;
+        String authorization = securityContext != null ? securityContext.getAuthorization() : null;
+        this.requestIdentity = requestIdentity != null
+                ? requestIdentity
+                : RequestIdentity.fromAuthorization(authorization);
+        this.permissionSession = permissionSession != null
+                ? permissionSession
+                : new PermissionEvaluationSession();
         this.fieldAccess = fieldAccess != null ? Collections.unmodifiableSet(Set.copyOf(fieldAccess)) : null;
         this.deniedColumns = deniedColumns != null ? List.copyOf(deniedColumns) : null;
         this.systemSlice = systemSlice != null ? List.copyOf(systemSlice) : null;
@@ -64,15 +78,14 @@ public class SemanticRequestContext {
 
     /** 空上下文 -- 无命名空间、无安全信息、无列权限限制 */
     public static SemanticRequestContext empty() {
-        return EMPTY;
+        return new SemanticRequestContext(null, null, null, null, null, null, null,
+                RequestIdentity.anonymous(), new PermissionEvaluationSession());
     }
 
     /** 仅命名空间 */
     public static SemanticRequestContext ofNamespace(String namespace) {
-        if (namespace == null) {
-            return EMPTY;
-        }
-        return new SemanticRequestContext(namespace, null, null, null, null, null, null);
+        return new SemanticRequestContext(namespace, null, null, null, null, null, null,
+                RequestIdentity.anonymous(), new PermissionEvaluationSession());
     }
 
     /** 从 authorization 字符串自动构建 SecurityContext */
@@ -81,12 +94,15 @@ public class SemanticRequestContext {
         if (authorization != null && !authorization.isEmpty()) {
             sc = ModelResultContext.SecurityContext.fromAuthorization(authorization);
         }
-        return new SemanticRequestContext(namespace, sc, null, null, null, null, null);
+        RequestIdentity identity = RequestIdentity.fromAuthorization(authorization);
+        return new SemanticRequestContext(namespace, sc, null, null, null, null, null,
+                identity, new PermissionEvaluationSession());
     }
 
     /** 显式传入 SecurityContext */
     public static SemanticRequestContext of(String namespace, ModelResultContext.SecurityContext securityContext) {
-        return new SemanticRequestContext(namespace, securityContext, null, null, null, null, null);
+        return new SemanticRequestContext(namespace, securityContext, null, null, null, null, null,
+                null, new PermissionEvaluationSession());
     }
 
     /**
@@ -99,7 +115,8 @@ public class SemanticRequestContext {
      */
     public static SemanticRequestContext of(String namespace, ModelResultContext.SecurityContext securityContext,
                                             Set<String> fieldAccess) {
-        return new SemanticRequestContext(namespace, securityContext, fieldAccess, null, null, null, null);
+        return new SemanticRequestContext(namespace, securityContext, fieldAccess, null, null, null, null,
+                null, new PermissionEvaluationSession());
     }
 
     /**
@@ -113,7 +130,8 @@ public class SemanticRequestContext {
     public static SemanticRequestContext ofDeniedColumns(String namespace,
                                                          ModelResultContext.SecurityContext securityContext,
                                                          List<DeniedPhysicalColumn> deniedColumns) {
-        return new SemanticRequestContext(namespace, securityContext, null, deniedColumns, null, null, null);
+        return new SemanticRequestContext(namespace, securityContext, null, deniedColumns, null, null, null,
+                null, new PermissionEvaluationSession());
     }
 
     /**
@@ -127,7 +145,8 @@ public class SemanticRequestContext {
      */
     public static SemanticRequestContext of(String namespace, ModelResultContext.SecurityContext securityContext,
                                             Set<String> fieldAccess, List<DeniedPhysicalColumn> deniedColumns) {
-        return new SemanticRequestContext(namespace, securityContext, fieldAccess, deniedColumns, null, null, null);
+        return new SemanticRequestContext(namespace, securityContext, fieldAccess, deniedColumns, null, null, null,
+                null, new PermissionEvaluationSession());
     }
 
     /**
@@ -143,7 +162,8 @@ public class SemanticRequestContext {
     public static SemanticRequestContext of(String namespace, ModelResultContext.SecurityContext securityContext,
                                             Set<String> fieldAccess, List<DeniedPhysicalColumn> deniedColumns,
                                             List<SliceRequestDef> systemSlice) {
-        return new SemanticRequestContext(namespace, securityContext, fieldAccess, deniedColumns, systemSlice, null, null);
+        return new SemanticRequestContext(namespace, securityContext, fieldAccess, deniedColumns, systemSlice, null, null,
+                null, new PermissionEvaluationSession());
     }
 
     public String getNamespace() {
@@ -152,6 +172,81 @@ public class SemanticRequestContext {
 
     public ModelResultContext.SecurityContext getSecurityContext() {
         return securityContext;
+    }
+
+    public RequestIdentity getRequestIdentity() {
+        return requestIdentity;
+    }
+
+    public PermissionEvaluationSession getPermissionSession() {
+        return permissionSession;
+    }
+
+    public PermissionAction getPermissionAction() {
+        return permissionAction;
+    }
+
+    /**
+     * Returns a request-local view for one explicit model action.
+     */
+    public SemanticRequestContext withPermissionAction(PermissionAction action) {
+        Objects.requireNonNull(action, "action");
+        SemanticRequestContext copy = copy();
+        copy.permissionAction = action;
+        return copy;
+    }
+
+    /**
+     * Adds resolver-controlled attributes for downstream field permissions
+     * without changing the opaque request identity.
+     */
+    public SemanticRequestContext withPermissionAttributes(Map<String, Object> attributes) {
+        if (attributes == null || attributes.isEmpty()) {
+            return this;
+        }
+        ModelResultContext.SecurityContext next =
+                ModelResultContext.SecurityContext.fromAuthorization(getAuthorization());
+        if (securityContext != null) {
+            next.setUserId(securityContext.getUserId());
+            next.setRoles(securityContext.getRoles());
+            next.setTenantId(securityContext.getTenantId());
+            next.setDeptId(securityContext.getDeptId());
+        }
+        Map<String, Object> merged = new LinkedHashMap<>();
+        if (securityContext != null && securityContext.getAttributes() != null) {
+            merged.putAll(securityContext.getAttributes());
+        }
+        merged.putAll(attributes);
+        next.setAttributes(Collections.unmodifiableMap(merged));
+        SemanticRequestContext copy = new SemanticRequestContext(
+                namespace, next, fieldAccess, deniedColumns, systemSlice,
+                domainTransportPlans, catalogResolution, requestIdentity, permissionSession);
+        copy.permissionAction = permissionAction;
+        return copy;
+    }
+
+    /**
+     * Returns a per-model governance view while preserving the exact opaque
+     * identity, request-local permission session, namespace, and lifecycle pin.
+     */
+    public SemanticRequestContext withGovernance(
+            Set<String> nextFieldAccess,
+            List<DeniedPhysicalColumn> nextDeniedColumns,
+            List<SliceRequestDef> nextSystemSlice
+    ) {
+        SemanticRequestContext copy = new SemanticRequestContext(
+                namespace,
+                securityContext,
+                nextFieldAccess,
+                nextDeniedColumns,
+                nextSystemSlice,
+                domainTransportPlans,
+                catalogResolution,
+                requestIdentity,
+                permissionSession
+        );
+        copy.permissionAction = permissionAction;
+        return copy;
     }
 
     /**
@@ -234,8 +329,10 @@ public class SemanticRequestContext {
         if (catalogResolution != null) {
             return this;
         }
-        return new SemanticRequestContext(namespace, securityContext, fieldAccess, deniedColumns,
-                systemSlice, domainTransportPlans, resolution);
+        SemanticRequestContext copy = new SemanticRequestContext(namespace, securityContext, fieldAccess, deniedColumns,
+                systemSlice, domainTransportPlans, resolution, requestIdentity, permissionSession);
+        copy.permissionAction = permissionAction;
+        return copy;
     }
 
     /**
@@ -249,8 +346,18 @@ public class SemanticRequestContext {
         List<DomainTransportPlan> plans = domainTransportPlans != null && !domainTransportPlans.isEmpty()
                 ? domainTransportPlans
                 : null;
-        return new SemanticRequestContext(namespace, securityContext, fieldAccess, deniedColumns,
-                systemSlice, plans, catalogResolution);
+        SemanticRequestContext copy = new SemanticRequestContext(namespace, securityContext, fieldAccess, deniedColumns,
+                systemSlice, plans, catalogResolution, requestIdentity, permissionSession);
+        copy.permissionAction = permissionAction;
+        return copy;
+    }
+
+    private SemanticRequestContext copy() {
+        SemanticRequestContext copy = new SemanticRequestContext(
+                namespace, securityContext, fieldAccess, deniedColumns, systemSlice,
+                domainTransportPlans, catalogResolution, requestIdentity, permissionSession);
+        copy.permissionAction = permissionAction;
+        return copy;
     }
 
     private static boolean sameCatalogResolution(CatalogResolution<QueryModel> left,
@@ -264,7 +371,7 @@ public class SemanticRequestContext {
 
     /** 便捷方法：委托给 securityContext.getAuthorization() */
     public String getAuthorization() {
-        return securityContext != null ? securityContext.getAuthorization() : null;
+        return requestIdentity.authorization();
     }
 
     @Override

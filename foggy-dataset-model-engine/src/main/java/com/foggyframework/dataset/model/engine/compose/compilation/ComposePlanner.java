@@ -15,6 +15,8 @@ import com.foggyframework.dataset.model.engine.compose.schema.SchemaDerivation;
 import com.foggyframework.dataset.model.engine.compose.security.ComposePlanAwarePermissionValidator;
 import com.foggyframework.dataset.model.engine.compose.security.ModelBinding;
 import com.foggyframework.dataset.model.engine.compose.security.PlanFieldAccessContext;
+import com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.model.semantic.permission.PermissionAction;
 import com.foggyframework.dataset.model.semantic.port.ComposeSemanticPlanningPort;
 import com.foggyframework.dataset.model.semantic.port.ComposeSqlGeneration;
 
@@ -909,6 +911,7 @@ public final class ComposePlanner {
         final Map<String, ModelBinding> bindings;
         final ComposeSemanticPlanningPort planningPort;
         final String namespace;
+        final SemanticRequestContext requestContext;
         /** Dialect lower-cased once at construction; downstream comparisons
          *  ({@code "sqlite"} SQLite full-outer guard, CTE detection) read this
          *  without re-normalising. */
@@ -965,11 +968,12 @@ public final class ComposePlanner {
         int currentDepth = 0;
 
         CompileState(Map<String, ModelBinding> bindings, ComposeSemanticPlanningPort planningPort,
-                     String namespace, String dialect,
+                     String namespace, SemanticRequestContext requestContext, String dialect,
                      Map<String, Optional<String>> datasourceIds) {
             this.bindings = bindings;
             this.planningPort = planningPort;
             this.namespace = namespace;
+            this.requestContext = requestContext;
             this.dialect = dialect.toLowerCase(Locale.ROOT);
             this.useCte = dialectSupportsCte(this.dialect);
             this.g10Enabled = ComposeFeatureFlags.g10Enabled();
@@ -1009,9 +1013,29 @@ public final class ComposePlanner {
             String namespace,
             String dialect,
             Map<String, Optional<String>> datasourceIds) {
+        return compileToComposedSql(
+                plan,
+                bindings,
+                planningPort,
+                namespace,
+                SemanticRequestContext.ofNamespace(namespace)
+                        .withPermissionAction(PermissionAction.EXECUTE),
+                dialect,
+                datasourceIds
+        );
+    }
+
+    static ComposedSql compileToComposedSql(
+            QueryPlan plan,
+            Map<String, ModelBinding> bindings,
+            ComposeSemanticPlanningPort planningPort,
+            String namespace,
+            SemanticRequestContext requestContext,
+            String dialect,
+            Map<String, Optional<String>> datasourceIds) {
 
         assertDialect(dialect);
-        CompileState state = new CompileState(bindings, planningPort, namespace, dialect,
+        CompileState state = new CompileState(bindings, planningPort, namespace, requestContext, dialect,
                 datasourceIds);
         if (planContainsSliceSubquery(plan)) {
             checkCrossDatasource(plan, state, "slice subquery");
@@ -1228,7 +1252,8 @@ public final class ComposePlanner {
         String alias = state.nextAlias();
         registerPlanAlias(state, plan, alias);
         List<CteUnit> units = PerBaseCompiler.compileBaseModel(
-                perBasePlan, binding, state.planningPort, state.namespace, alias, state.governanceCache);
+                perBasePlan, binding, state.planningPort, state.namespace,
+                state.requestContext, alias, state.governanceCache);
         if (!slicePartition.subquerySlices().isEmpty()) {
             units = injectBaseSubquerySlices(units, slicePartition.subquerySlices(), plan, binding, state);
         }

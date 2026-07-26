@@ -10,8 +10,10 @@ import com.foggyframework.dataset.model.engine.pivot.transport.DomainTransportFi
 import com.foggyframework.dataset.model.engine.pivot.transport.DomainTransportPlan;
 import com.foggyframework.dataset.model.engine.pivot.transport.DomainTransportTuple;
 import com.foggyframework.dataset.model.def.query.request.CalculatedFieldDef;
+import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.model.plugins.query_execution.ManagedRelationOptions;
 import com.foggyframework.dataset.model.plugins.query_execution.ManagedSqlRelation;
+import com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogResolution;
 import com.foggyframework.dataset.model.port.ManagedRelationExecutionPort;
 import com.foggyframework.dataset.model.semantic.domain.SemanticQueryRequest;
@@ -22,6 +24,13 @@ import com.foggyframework.dataset.model.semantic.domain.pivot.MetricFilter;
 import com.foggyframework.dataset.model.semantic.domain.pivot.PivotMetricItem;
 import com.foggyframework.dataset.model.semantic.domain.pivot.PivotOptions;
 import com.foggyframework.dataset.model.semantic.domain.pivot.PivotRequest;
+import com.foggyframework.dataset.model.semantic.permission.AuthorizationSignature;
+import com.foggyframework.dataset.model.semantic.permission.AuthorizationSignatureService;
+import com.foggyframework.dataset.model.semantic.permission.ModelPermissionException;
+import com.foggyframework.dataset.model.semantic.permission.ModelPermissionService;
+import com.foggyframework.dataset.model.semantic.permission.PermissionAction;
+import com.foggyframework.dataset.model.semantic.permission.PermissionDecision;
+import com.foggyframework.dataset.model.semantic.permission.PermissionPredicate;
 import com.foggyframework.dataset.model.semantic.port.PivotRollupExecutionPort;
 import com.foggyframework.dataset.model.spi.DbAggregation;
 import com.foggyframework.dataset.model.spi.QueryModel;
@@ -60,6 +69,8 @@ public class PivotPipeline {
     private final PivotOuterCacheProvider outerResponseCache;
     private final OuterCacheOptions outerCacheOptions;
     private final PivotOuterCacheModelIdentityProvider modelIdentityProvider;
+    private final ModelPermissionService modelPermissionService;
+    private final AuthorizationSignatureService authorizationSignatureService;
 
     public PivotPipeline(PivotRollupExecutionPort pivotRollupExecutionPort) {
         this(pivotRollupExecutionPort, new CardinalityBreaker(), null, null);
@@ -100,6 +111,20 @@ public class PivotPipeline {
                          OuterCacheOptions outerCacheOptions,
                          PivotOuterCacheModelIdentityProvider modelIdentityProvider,
                          PivotOuterCacheProvider outerResponseCache) {
+        this(pivotRollupExecutionPort, cardinalityBreaker, queryModelLoader, queryFacade,
+                outerCacheOptions, modelIdentityProvider, outerResponseCache,
+                new ModelPermissionService(), new AuthorizationSignatureService());
+    }
+
+    public PivotPipeline(PivotRollupExecutionPort pivotRollupExecutionPort,
+                         CardinalityBreaker cardinalityBreaker,
+                         QueryModelLoader queryModelLoader,
+                         ManagedRelationExecutionPort queryFacade,
+                         OuterCacheOptions outerCacheOptions,
+                         PivotOuterCacheModelIdentityProvider modelIdentityProvider,
+                         PivotOuterCacheProvider outerResponseCache,
+                         ModelPermissionService modelPermissionService,
+                         AuthorizationSignatureService authorizationSignatureService) {
         this.pivotRollupExecutionPort = pivotRollupExecutionPort;
         this.cardinalityBreaker = cardinalityBreaker;
         this.queryModelLoader = queryModelLoader;
@@ -113,6 +138,8 @@ public class PivotPipeline {
         this.outerResponseCache = outerResponseCache == null
                 ? new PivotOuterResponseCache(this.outerCacheOptions)
                 : outerResponseCache;
+        this.modelPermissionService = modelPermissionService;
+        this.authorizationSignatureService = authorizationSignatureService;
     }
 
     public record OuterCacheOptions(boolean enabled,
@@ -177,6 +204,11 @@ public class PivotPipeline {
         if (strongIdentityAssessment.pinnable()) {
             context = context.withCatalogResolution(catalogResolution);
         }
+        AuthorizationSignature authorizationSignature = authorizeForOuterCache(
+                queryModel,
+                strongIdentityAssessment.pinnable() ? catalogResolution : null,
+                request,
+                context);
         injectPredefinedCalculatedFields(request, queryModel);
         PivotCascadeRules.validateAdditivity(pivot, queryModel, request.getCalculatedFields());
 
@@ -225,7 +257,8 @@ public class PivotPipeline {
         PivotOuterCacheTelemetry.Evaluation cacheEvaluation = PivotOuterCacheTelemetry.evaluate(
                 model, queryModel, request, context, hierarchyCtx.isTree(), cascadeRequest, cacheEligibilityStage,
                 resolveOuterCacheModelIdentity(
-                        context, model, queryModel, strongIdentityAssessment));
+                        context, model, queryModel, strongIdentityAssessment),
+                authorizationSignature);
         diagnostics.cacheIdentity(cacheEvaluation);
         if (!cacheEvaluation.refused()) {
             diagnostics.cacheLookup(cacheEvaluation.keyHash(), cacheEligibilityStage, cacheEvaluation.shapeClass());
@@ -514,6 +547,110 @@ public class PivotPipeline {
         SemanticQueryResponse response = buildPivotResponse(pivotResult, startTime, baselineRatioEvidence,
                 parentShareEvidence, capabilityContract, diagnostics.snapshot());
         return storeOuterCacheIfEligible(cacheEvaluation, cacheEligibilityStage, diagnostics, response, model, context);
+    }
+
+    private AuthorizationSignature authorizeForOuterCache(
+            QueryModel queryModel,
+            CatalogResolution<QueryModel> catalogResolution,
+            SemanticQueryRequest request,
+            SemanticRequestContext context
+    ) {
+        if (!outerCacheOptions.enabled()
+                || queryModel == null
+                || modelPermissionService == null
+                || authorizationSignatureService == null) {
+            return null;
+        }
+        ModelResultContext permissionContext = new ModelResultContext();
+        if (catalogResolution != null) {
+            permissionContext.pinCatalogResolution(catalogResolution, context.getNamespace());
+        } else {
+            permissionContext.pinUntrackedQueryModel(queryModel);
+        }
+        permissionContext.setNamespace(context.getNamespace());
+        permissionContext.setSecurityContext(copySecurityContext(context.getSecurityContext()));
+        permissionContext.setRequestIdentity(context.getRequestIdentity());
+        permissionContext.setPermissionSession(context.getPermissionSession());
+        permissionContext.setPermissionAction(PermissionAction.EXECUTE);
+        permissionContext.setFieldAccess(context.getFieldAccess());
+        permissionContext.setDeniedColumns(context.getDeniedColumns());
+        permissionContext.setSystemSlice(context.getSystemSlice());
+        if (request != null) {
+            permissionContext.mergeRequestExtData(request.getHints());
+            permissionContext.mergeRequestExtData(request.getExtData());
+        }
+
+        PermissionDecision decision = modelPermissionService.evaluate(
+                queryModel,
+                context.getNamespace(),
+                PermissionAction.EXECUTE,
+                context.getRequestIdentity(),
+                context.getPermissionSession()
+        );
+        if (!decision.isAllow()) {
+            throw ModelPermissionException.denied();
+        }
+        permissionContext.setPermissionDecision(decision);
+        mergePermissionAttributes(permissionContext, decision);
+        mergePermissionPredicates(permissionContext, decision);
+        return authorizationSignatureService.compute(permissionContext).orElse(null);
+    }
+
+    private ModelResultContext.SecurityContext copySecurityContext(
+            ModelResultContext.SecurityContext source
+    ) {
+        if (source == null) {
+            return null;
+        }
+        return ModelResultContext.SecurityContext.builder()
+                .authorization(source.getAuthorization())
+                .userId(source.getUserId())
+                .roles(source.getRoles() == null ? null : List.copyOf(source.getRoles()))
+                .tenantId(source.getTenantId())
+                .deptId(source.getDeptId())
+                .attributes(source.getAttributes() == null
+                        ? null
+                        : Map.copyOf(source.getAttributes()))
+                .build();
+    }
+
+    private void mergePermissionAttributes(
+            ModelResultContext permissionContext,
+            PermissionDecision decision
+    ) {
+        if (decision.getAttributes().isEmpty()) {
+            return;
+        }
+        ModelResultContext.SecurityContext securityContext = permissionContext.getSecurityContext();
+        if (securityContext == null) {
+            securityContext = ModelResultContext.SecurityContext.fromAuthorization(
+                    permissionContext.getAuthorization());
+            permissionContext.setSecurityContext(securityContext);
+            permissionContext.setRequestIdentity(permissionContext.getRequestIdentity());
+        }
+        Map<String, Object> attributes = new LinkedHashMap<>();
+        if (securityContext.getAttributes() != null) {
+            attributes.putAll(securityContext.getAttributes());
+        }
+        attributes.putAll(decision.getAttributes());
+        securityContext.setAttributes(Map.copyOf(attributes));
+    }
+
+    private void mergePermissionPredicates(
+            ModelResultContext permissionContext,
+            PermissionDecision decision
+    ) {
+        if (decision.getRowPredicates().isEmpty()) {
+            return;
+        }
+        List<SliceRequestDef> systemSlice = new ArrayList<>();
+        if (permissionContext.getSystemSlice() != null) {
+            systemSlice.addAll(permissionContext.getSystemSlice());
+        }
+        decision.getRowPredicates().stream()
+                .map(PermissionPredicate::toSlice)
+                .forEach(systemSlice::add);
+        permissionContext.setSystemSlice(List.copyOf(systemSlice));
     }
 
     private void injectPredefinedCalculatedFields(SemanticQueryRequest request, QueryModel queryModel) {
@@ -1501,6 +1638,12 @@ public class PivotPipeline {
         resultContext.setQueryType(com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext.QueryType.SEMANTIC);
         resultContext.setNamespace(reqContext.getNamespace());
         resultContext.setSecurityContext(reqContext.getSecurityContext());
+        resultContext.setRequestIdentity(reqContext.getRequestIdentity());
+        resultContext.setPermissionSession(reqContext.getPermissionSession());
+        resultContext.setPermissionAction(
+                reqContext.getPermissionAction() != null
+                        ? reqContext.getPermissionAction()
+                        : PermissionAction.EXECUTE);
         resultContext.setFieldAccess(reqContext.getFieldAccess());
         resultContext.setDeniedColumns(reqContext.getDeniedColumns());
         resultContext.setSystemSlice(reqContext.getSystemSlice());

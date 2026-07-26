@@ -55,15 +55,23 @@ class SemanticRequestContextTest {
     }
 
     @Test
-    @DisplayName("empty() 返回同一单例实例")
+    @DisplayName("empty() 为每个请求创建独立权限会话")
     void testEmptySingleton() {
-        assertSame(SemanticRequestContext.empty(), SemanticRequestContext.empty());
+        SemanticRequestContext first = SemanticRequestContext.empty();
+        SemanticRequestContext second = SemanticRequestContext.empty();
+
+        assertNotSame(first, second);
+        assertNotSame(first.getPermissionSession(), second.getPermissionSession());
     }
 
     @Test
-    @DisplayName("ofNamespace(null) 返回 empty 单例")
+    @DisplayName("ofNamespace(null) 仍创建独立权限会话")
     void testOfNamespaceNull() {
-        assertSame(SemanticRequestContext.empty(), SemanticRequestContext.ofNamespace(null));
+        SemanticRequestContext empty = SemanticRequestContext.empty();
+        SemanticRequestContext namespaced = SemanticRequestContext.ofNamespace(null);
+
+        assertNotSame(empty, namespaced);
+        assertNotSame(empty.getPermissionSession(), namespaced.getPermissionSession());
     }
 
     @Test

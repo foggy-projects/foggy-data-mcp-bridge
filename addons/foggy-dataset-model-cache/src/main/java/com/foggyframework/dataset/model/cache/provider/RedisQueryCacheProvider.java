@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -147,7 +148,10 @@ public class RedisQueryCacheProvider implements QueryCacheProvider {
         }
 
         // 计算 TTL
-        Duration ttl = calculateTtl(modelName);
+        Duration ttl = calculateTtl(modelName, context);
+        if (ttl == null) {
+            return;
+        }
 
         try {
             redisTemplate.opsForValue().set(l1Key, result, ttl);
@@ -231,7 +235,10 @@ public class RedisQueryCacheProvider implements QueryCacheProvider {
         }
 
         // 计算 TTL
-        Duration ttl = calculateTtl(modelName);
+        Duration ttl = calculateTtl(modelName, context);
+        if (ttl == null) {
+            return;
+        }
 
         try {
             redisTemplate.opsForValue().set(l2Key, result, ttl);
@@ -324,15 +331,26 @@ public class RedisQueryCacheProvider implements QueryCacheProvider {
      * @param modelName 模型名称
      * @return TTL
      */
-    private Duration calculateTtl(String modelName) {
+    private Duration calculateTtl(String modelName, ModelResultContext context) {
         Duration baseTtl = properties.getTtlForModel(modelName);
 
         // 添加随机偏移（防止缓存雪崩）
         if (properties.getRedis().isTtlJitter()) {
             int jitterSeconds = ThreadLocalRandom.current().nextInt(0, properties.getRedis().getTtlJitterMax() + 1);
-            return baseTtl.plusSeconds(jitterSeconds);
+            baseTtl = baseTtl.plusSeconds(jitterSeconds);
         }
 
-        return baseTtl;
+        if (context == null || context.getAuthorizationSignature() == null) {
+            return null;
+        }
+        Instant expiresAt = context.getAuthorizationSignature().expiresAt();
+        if (expiresAt == null) {
+            return baseTtl;
+        }
+        Duration remaining = Duration.between(Instant.now(), expiresAt);
+        if (remaining.isZero() || remaining.isNegative()) {
+            return null;
+        }
+        return remaining.compareTo(baseTtl) < 0 ? remaining : baseTtl;
     }
 }

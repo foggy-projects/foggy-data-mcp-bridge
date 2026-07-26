@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: cross-repository
 version: 9.5.1
 ticket: runtime-internal-permissions-and-preaggregation
-status: APPROVED
+status: READY_FOR_SIGNOFF
 canonical: true
 execution_mode: ultra
 assurance_level: elevated
@@ -159,49 +159,49 @@ open_questions: []
 
 ## Acceptance Criteria
 
-- [ ] AC-1: Runtime models list/describe、query validate/execute 和 member query 均把可选
+- [x] AC-1: Runtime models list/describe、query validate/execute 和 member query 均把可选
   Authorization 原样传入同一类只读权限上下文；无 Header 或空白 Header 时建立 `ANONYMOUS`
   identity，非空 Header 时建立 `OPAQUE_SUBJECT` identity；管理 principal 不自动成为数据权限。
-- [ ] AC-2: QM `modelPermissions` public/resolver 模式能被加载、验证和执行；未配置或显式
+- [x] AC-2: QM `modelPermissions` public/resolver 模式能被加载、验证和执行；未配置或显式
   public 时产生公开决策，resolver 模式即使 token 为 null 也执行，非法返回、超时和异常均
   fail closed。
-- [ ] AC-3: resolver 按 `DISCOVER/DESCRIBE/VALIDATE/EXECUTE/MEMBER_QUERY + resource`
+- [x] AC-3: resolver 按 `DISCOVER/DESCRIBE/VALIDATE/EXECUTE/MEMBER_QUERY + resource`
   返回必填 `allow`；list 只过滤被拒绝模型且不隐藏同 namespace 的公开模型，直接指定模型名
   不能绕过对应动作授权，拒绝错误不枚举受限资源。
-- [ ] AC-4: 同一 `namespace + model + action` 在请求内消费统一、不可变、已验证的
+- [x] AC-4: 同一 `namespace + model + action` 在请求内消费统一、不可变、已验证的
   `permissionDecision`；受控 attributes 进入 `fieldPermissions`，typed row predicates 进入
   权限 AST，decisionId/policyVersion/expiresAt/providerFingerprint 按契约处理，独立请求重新求值。
-- [ ] AC-5: FSScript starter/auto-configuration 提供标准 HTTP Bean；`get/post` 无需客户
+- [x] AC-5: FSScript starter/auto-configuration 提供标准 HTTP Bean；`get/post` 无需客户
   自建 Bean 即可工作，支持约定的新请求结构并兼容旧结构。null Header 被省略，敏感内容不写
   日志，跨 origin 重定向不转发 Authorization。
-- [ ] AC-6: `/api/v1/fsscript/execute` 使用完整 evaluator 时受现有作者/管理凭据保护；
+- [x] AC-6: `/api/v1/fsscript/execute` 使用完整 evaluator 时受现有作者/管理凭据保护；
   缺失或无效管理凭据被拒绝，任意业务 Authorization token 不构成作者授权。
-- [ ] AC-7: TM/QM `fieldPermissions` 对 metadata、查询列、用户计算字段依赖、slice、having、
+- [x] AC-7: TM/QM `fieldPermissions` 对 metadata、查询列、用户计算字段依赖、slice、having、
   groupBy、orderBy 和 join 引用使用同一有效字段集；受限字段不能通过错误建议枚举，本事项不新增
   列 masking 行为。
-- [ ] AC-8: TM 基础行限制和 QM 行限制以 AND 合并；typed predicate AST 记录来源、binding、
+- [x] AC-8: TM 基础行限制和 QM 行限制以 AND 合并；typed predicate AST 记录来源、binding、
   operator、类型、字段依赖和可证明状态；空 `IN` 为恒假，null/类型语义明确，自定义 SQL/无法
   解析表达式标记为不可证明且绝不静默删除。
-- [ ] AC-9: dimension member query 先执行模型动作、字段和行权限；成员来源查询使用同一权限
+- [x] AC-9: dimension member query 先执行模型动作、字段和行权限；成员来源查询使用同一权限
   快照，member cache 绑定 `authorizationSignature` 或在无法稳定签名时禁用共享缓存，两个
   权限身份不能枚举到彼此成员。
-- [ ] AC-10: 预聚合候选包含全部权限字段且粒度、operator、lineage 和度量兼容时可命中并与
+- [x] AC-10: 预聚合候选包含全部权限字段且粒度、operator、lineage 和度量兼容时可命中并与
   源表结果一致；缺字段、不可证明或 Hybrid 策略不一致时跳过当前候选并最终安全回源。现有表按
   `GLOBAL` 处理，不使用用户快照构建；未实现 `SECURITY_SCOPED` 时配置必须 fail fast。
-- [ ] AC-11: FULL、rollup、final-stage、Hybrid、Pivot、Compose、CTE 和 Union 路径对每个
+- [x] AC-11: FULL、rollup、final-stage、Hybrid、Pivot、Compose、CTE 和 Union 路径对每个
   叶子 QM 执行模型、列和行权限，并在叶子 scan 注入行谓词；不得只授权外层模型或在 join/
   aggregate 后补过滤。
-- [ ] AC-12: 引擎计算的 `authorizationSignature` 绑定 action/resource、namespace、catalog
+- [x] AC-12: 引擎计算的 `authorizationSignature` 绑定 action/resource、namespace、catalog
   generation、模型/列/行决策、policyVersion 和 scope；查询、SQL、预聚合路由、metadata 和
   member cache 均不得跨不同权限集合串读，TTL 不超过 `expiresAt`，公开模型使用显式
   `PUBLIC` identity，日志、错误和缓存 key 不暴露原始 token。
-- [ ] AC-13: `foggy-runtime-cli` 保留既有 `--auth-code`、`FOGGY_RUNTIME_API_AUTH_CODE` 和
+- [x] AC-13: `foggy-runtime-cli` 保留既有 `--auth-code`、`FOGGY_RUNTIME_API_AUTH_CODE` 和
   `X-Foggy-Runtime-Code` 行为；新增可选 `--authorization` 与
   `FOGGY_RUNTIME_AUTHORIZATION`，把调用方提供的完整值原样作为数据面 `Authorization`
   发送且不自动补 `Bearer`。两套 Header 可同时存在但不能互相授权；缺少新选项时不发送
   Authorization 并保持旧命令兼容。CLI README/help/tests 明确端点范围，且任何输出、日志、
   命令计划、持久化配置和跨 origin 重定向都不泄漏该值。
-- [ ] AC-14: 所有现有 demo/fixture TM/QM 无文件改写即可 load/validate/refresh/query；未声明
+- [x] AC-14: 所有现有 demo/fixture TM/QM 无文件改写即可 load/validate/refresh/query；未声明
   `modelPermissions` 的 QM 无 token 继续公开，既有 `fieldPermissions`、非空/空 `accesses`、
   `memberPermission/memberPermissions` 和旧 `get/post` 结果保持。无有效行权限时既有预聚合
   行为不因身份机制改变；有行权限且候选不安全时只允许计划回源、结果必须等价。配套
@@ -384,17 +384,79 @@ open_questions: []
 
 ## Implementation Result
 
-> 由 Ultra 执行会话填写。
-
 - implementation_summary:
+  - M0：分离管理 auth-code 与数据面 Authorization，并将完整
+    `/api/v1/fsscript/execute` 纳入管理面保护。
+  - M1-M2：新增 `RequestIdentity`、动作化 `modelPermissions`、不可变权限决策会话、
+    typed row predicates、字段决策桥接，并贯通 models list/describe、validate/execute 与
+    member query。
+  - M3：引擎生成最终 `authorizationSignature`，将 action/resource、catalog generation、
+    模型/列/行决策、策略版本、scope 和 expiry 纳入查询及成员缓存隔离，缺少稳定签名时
+    fail closed。
+  - M4-M5：预聚合增加 `GLOBAL`/`SECURITY_SCOPED` 构建边界和权限 requirement/matcher；
+    Compose、CTE、Pivot、Hybrid 等多阶段路径按叶子权限处理并在不能证明等价时安全回源。
+  - M6：提供受约束的标准 FSScript HTTP client，完成 CLI 双凭据、member 命令、README/help，
+    并同步 analysis 中英文 Skill 与 semantic-query Skill。
 - changed_paths:
+  - bridge:
+    - `foggy-runtime-api/**`
+    - `foggy-fsscript/**`
+    - `foggy-dataset-model-engine/**`
+    - `addons/foggy-dataset-model-cache/**`
+    - `addons/foggy-dataset-model-preagg/**`
+    - `docs/9.5.1/**`
+  - CLI:
+    - `../foggy-runtime-cli/README.md`
+    - `../foggy-runtime-cli/src/foggy_runtime_cli/{client.py,main.py}`
+    - `../foggy-runtime-cli/tests/{test_cli.py,test_client_http.py}`
+  - analysis Skill:
+    - `../foggy-ai-analysis/README.md`
+    - `../foggy-ai-analysis/locales/{en,zh-CN}/SKILL.md`
+    - `../foggy-ai-analysis/locales/{en,zh-CN}/references/{production-permission-next-phase.md,runtime-cli-command-rules.md,tm-qm-configuration.md}`
+  - semantic-query Skill:
+    - `../.codex/skills/foggy-semantic-query/SKILL.md`
+    - `../.codex/skills/foggy-semantic-query/references/{pre-aggregation.md,query-model-dsl.md}`
 - tests_and_results:
+  - `mvn -B -ntp -pl foggy-dataset-model-engine -DskipTests install`：
+    实际执行 Engine 全量单测，3179 tests、0 failures、0 errors、2 skipped。
+  - `mvn -B -ntp -pl foggy-mcp-launcher -Dtest=DataViewerApiSmokeTest,LauncherDefaultRouteIsolationSmokeTest,LauncherExplicitTestRoutesSmokeTest test`：
+    10 tests、全部通过。
+  - `mvn -B -ntp -pl addons/foggy-dataset-model-cache test`：
+    124 tests、全部通过。
+  - Runtime 聚焦命令
+    `mvn -pl foggy-runtime-api -Dtest=RuntimeApiAuthCodeGateTest,RuntimeModelsControllerCompatibilityTest,RuntimeModelOperationsDescribeTest,RuntimeModelValidationIsolationTest test`：
+    15 tests、全部通过。
+  - 权限、签名、预聚合、Compose、Pivot、成员权限聚焦 Engine 命令：
+    121 tests、全部通过；自动配置补充回归 `DbModelAutoConfigurationTest` 12 tests、全部通过。
+  - `mvn -pl foggy-fsscript -Dtest=FsscriptHttpClientTest test`：
+    5 tests、全部通过。
+  - `mvn -pl addons/foggy-dataset-model-preagg -Dtest=PreAggRefreshServiceTest test`：
+    4 tests、全部通过。
+  - `PYTHONPATH=src python3 -m unittest discover -s tests -v`（CLI）：
+    94 tests、全部通过。
+  - analysis en、analysis zh-CN、semantic-query 分别通过 `quick_validate.py`；三个临时 ZIP
+    均通过 `python3 -m zipfile -t` 完整性校验。
 - manual_or_experience_evidence:
+  - CLI 全局 help 同时显示 `--auth-code`、`--authorization` 与 `members`，member 子命令显示
+    `list MODEL DIMENSION`。
+  - 静态敏感信息扫描未发现生产代码记录 Authorization/token；命中仅为测试假值。
+  - bridge、CLI/semantic-query 路径和 analysis Skill 均通过 `git diff --check`
+    （仅存在仓库既有 CRLF 转换警告）。
 - deviations: none
-- residual_risks: none
+- residual_risks:
+  - `SECURITY_SCOPED` 构建仍按批准边界保持未实现并 fail fast；本次只交付安全拒绝，不交付
+    scoped refresh。
+  - 上级仓库存在失效的 Odoo 嵌套 worktree 元数据，导致无路径限定的 `git status/diff`
+    失败；已对本交付所有明确路径完成限定检查，不影响产品测试。
 - reused_evidence:
+  - 复用并扩展既有 Runtime auth、field/access/member、preagg、Compose、Pivot、cache 和
+    demo/fixture 全量测试基线。
 - omitted_validation_and_reason:
-- readiness: READY_FOR_SIGNOFF | NEEDS_REPLAN | BLOCKED
+  - 未运行 release、publish、push、真实客户权限服务、全数据库矩阵及超过 30 分钟的 authority/
+    replay/full-chain；交付契约明确不要求，且 focused/affected/Engine 全量证据未触发升级条件。
+  - 环境无 PowerShell，未执行 PowerShell 包装脚本；改用同源 `quick_validate.py` 与相对路径
+    ZIP 生成/解包完整性校验。
+- readiness: READY_FOR_SIGNOFF
 
 ## References
 

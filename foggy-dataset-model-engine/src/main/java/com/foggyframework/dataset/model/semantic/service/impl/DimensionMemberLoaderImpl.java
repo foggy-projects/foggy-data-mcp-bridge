@@ -8,6 +8,7 @@ import com.foggyframework.dataset.model.common.result.DbDataItem;
 import com.foggyframework.dataset.model.def.dict.DbDictDef;
 import com.foggyframework.dataset.model.def.dict.DbDictItemDef;
 import com.foggyframework.dataset.model.impl.utils.TableQueryObject;
+import com.foggyframework.dataset.model.semantic.permission.AuthorizationSignature;
 import com.foggyframework.dataset.model.semantic.service.DimensionMemberLoader;
 import com.foggyframework.dataset.model.service.JdbcService;
 import com.foggyframework.dataset.model.spi.*;
@@ -21,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.lang.reflect.Field;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -36,6 +38,8 @@ import java.util.stream.Collectors;
 public class DimensionMemberLoaderImpl implements DimensionMemberLoader {
 
     private static final Logger logger = LoggerFactory.getLogger(DimensionMemberLoaderImpl.class);
+    public static final String AUTHORIZATION_SIGNATURE_CONTEXT_KEY =
+            AuthorizationSignature.class.getName();
 
     // 缓存已加载的维度成员数据
     private final Map<String, DimensionMembers> cache = new ConcurrentHashMap<>();
@@ -55,14 +59,24 @@ public class DimensionMemberLoaderImpl implements DimensionMemberLoader {
      * @param jdbcQueryModel
      * @param jdbcDimension
      */
-    private List<DbDataItem> loadDimDataItem(QueryModel jdbcQueryModel, DbQueryDimension jdbcDimension) {
+    private List<DbDataItem> loadDimDataItem(
+            QueryModel jdbcQueryModel,
+            DbQueryDimension jdbcDimension,
+            Map<String, Object> context
+    ) {
 
 
 //构建查询维度用的查询条件
         PagingRequest<DimensionDataQueryForm> queryRequest = PagingRequest.buildPagingRequest(new DimensionDataQueryForm(jdbcQueryModel.getName(), jdbcDimension.getName()));
         queryRequest.setLimit(99999);
         //查询维度数据
-        PagingResultImpl<DbDataItem> v = jdbcService.queryDimensionData(queryRequest);
+        String authorization = context == null ? null : stringValue(context.get("authorization"));
+        String namespace = context == null ? null : stringValue(context.get("namespace"));
+        PagingResultImpl<DbDataItem> v = jdbcService.queryDimensionData(
+                queryRequest,
+                authorization,
+                namespace
+        );
 
 
         return v.getItems();
@@ -164,8 +178,9 @@ public class DimensionMemberLoaderImpl implements DimensionMemberLoader {
      */
     public DimensionMembers loadMembers(String model, String fieldName, Map<String, Object> context) {
         //从上下文得到缓存前缀
-        String cachePrefix = (String) context.get("cachePrefix");
+        String cachePrefix = context == null ? null : (String) context.get("cachePrefix");
         cachePrefix = cachePrefix == null ? "" : cachePrefix;
+        AuthorizationSignature authorizationSignature = authorizationSignature(context);
         /**
          * 首先，我们要判断fieldName是维度还是属性,注意这里的fieldName是不带$caption 或$id后缀的~
          */
@@ -185,9 +200,15 @@ public class DimensionMemberLoaderImpl implements DimensionMemberLoader {
             throw new UnsupportedOperationException("目前只有维度和属性可以加载成员");
         }
 
+        if (authorizationSignature == null || !authorizationSignature.isUsableAt(Instant.now())) {
+            logger.debug("成员查询缺少可用的引擎授权签名，禁用共享缓存: model={}, field={}", model, fieldName);
+            return loadFresh(jdbcQueryModel, jdbcDimension, jdbcProperty, context);
+        }
+        cacheKey = cacheKey + "-auth-" + authorizationSignature.value();
+
         // 检查缓存
         DimensionMembers cached = cache.get(cacheKey);
-        if (cached != null && !isExpired(cached, model)) {
+        if (cached != null && !isExpired(cached, model, authorizationSignature)) {
             logger.debug("使用缓存的成员数据: {}", cacheKey);
             return cached;
         }
@@ -197,7 +218,7 @@ public class DimensionMemberLoaderImpl implements DimensionMemberLoader {
         }
 
         if (jdbcDimension != null) {
-            List<DbDataItem> loadDimDataItem = loadDimDataItem(jdbcQueryModel, jdbcDimension);
+            List<DbDataItem> loadDimDataItem = loadDimDataItem(jdbcQueryModel, jdbcDimension, context);
             //俣计
             cached.merge(loadDimDataItem);
         } else if (jdbcProperty != null) {
@@ -208,6 +229,21 @@ public class DimensionMemberLoaderImpl implements DimensionMemberLoader {
         cached.getModel2LoadAt().put(model, System.currentTimeMillis());
 
         return cached;
+    }
+
+    private DimensionMembers loadFresh(
+            QueryModel jdbcQueryModel,
+            DbQueryDimension jdbcDimension,
+            DbQueryProperty jdbcProperty,
+            Map<String, Object> context
+    ) {
+        DimensionMembers members = DimensionMembers.of();
+        if (jdbcDimension != null) {
+            members.merge(loadDimDataItem(jdbcQueryModel, jdbcDimension, context));
+        } else if (jdbcProperty != null) {
+            members.merge(loadPropertyDataItem(jdbcQueryModel, jdbcProperty));
+        }
+        return members;
     }
 
     @Override
@@ -304,19 +340,45 @@ public class DimensionMemberLoaderImpl implements DimensionMemberLoader {
         return model + ":" + fieldName;
     }
 
-    private boolean isExpired(DimensionMembers members, String model) {
-        // 缓存过期时间：50分钟
-        long expirationTime = 50 * 60 * 1000;
-        
+    private boolean isExpired(
+            DimensionMembers members,
+            String model,
+            AuthorizationSignature authorizationSignature
+    ) {
+        if (!authorizationSignature.isUsableAt(Instant.now())) {
+            return true;
+        }
         // 根据members.model2LoadAt + model判断该模型是否过期
         Long loadTime = members.getModel2LoadAt().get(model);
         if (loadTime == null) {
             // 该模型还没有被加载过，需要加载
             return true;
         }
+
+        // 缓存过期时间：最多 50 分钟，且不能晚于权限快照到期时间
+        long expirationTime = 50 * 60 * 1000;
+        if (authorizationSignature.expiresAt() != null) {
+            long permittedLifetime = authorizationSignature.expiresAt().toEpochMilli() - loadTime;
+            if (permittedLifetime <= 0) {
+                return true;
+            }
+            expirationTime = Math.min(expirationTime, permittedLifetime);
+        }
         
         // 检查是否超过过期时间
         return System.currentTimeMillis() - loadTime > expirationTime;
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? null : String.valueOf(value);
+    }
+
+    private AuthorizationSignature authorizationSignature(Map<String, Object> context) {
+        if (context == null) {
+            return null;
+        }
+        Object value = context.get(AUTHORIZATION_SIGNATURE_CONTEXT_KEY);
+        return value instanceof AuthorizationSignature signature ? signature : null;
     }
 
 }

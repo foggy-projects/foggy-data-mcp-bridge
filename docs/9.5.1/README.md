@@ -2,7 +2,7 @@
 doc_role: version-readme
 version: 9.5.1
 theme: runtime-and-model-governance
-status: IN_PROGRESS
+status: READY_FOR_SIGNOFF
 recorded_at: 2026-07-25
 ---
 
@@ -14,7 +14,7 @@ recorded_at: 2026-07-25
 | Work item | 状态 | 目标 |
 |---|---|---|
 | [Add-on 多 Bundle 生命周期能力迁回 main](workitems/FEATURE-addon-bundle-lifecycle-main-port.md) | ACCEPTED | 补齐同 namespace 多 Bundle 来源、原子 replace/remove 和 Runtime registry 一致性 |
-| [Runtime 内生权限与权限安全预聚合](workitems/FEATURE-runtime-internal-permissions-and-preaggregation.md) | APPROVED | 补齐可选 token、动作化 QM 权限、平台 `get/post`、字段/行权限、预聚合安全回源，并同步 CLI/Skill 与存量兼容 |
+| [Runtime 内生权限与权限安全预聚合](workitems/FEATURE-runtime-internal-permissions-and-preaggregation.md) | READY_FOR_SIGNOFF | 已完成可选 token、动作化 QM 权限、平台 `get/post`、字段/行权限、预聚合安全回源，以及 CLI/Skill 与存量兼容回归 |
 
 ## 当前权限迭代边界
 
@@ -46,4 +46,4 @@ recorded_at: 2026-07-25
 
 - Add-on 多 Bundle 生命周期：已独立签收，记录见
   [acceptance/addon-bundle-lifecycle-main-port-acceptance.md](acceptance/addon-bundle-lifecycle-main-port-acceptance.md)。
-- Runtime 内生权限与权限安全预聚合：`APPROVED`，等待 Ultra 实现与独立签收。
+- Runtime 内生权限与权限安全预聚合：M0-M6 已完成，状态为 `READY_FOR_SIGNOFF`，等待独立签收。

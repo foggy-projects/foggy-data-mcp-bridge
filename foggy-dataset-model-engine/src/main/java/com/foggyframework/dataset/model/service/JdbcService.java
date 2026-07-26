@@ -10,6 +10,14 @@ import com.foggyframework.dataset.model.PagingResultImpl;
 public interface JdbcService {
     PagingResultImpl<DbDataItem> queryDimensionData(PagingRequest<DimensionDataQueryForm> form);
 
+    default PagingResultImpl<DbDataItem> queryDimensionData(
+            PagingRequest<DimensionDataQueryForm> form,
+            String authorization,
+            String namespace
+    ) {
+        return queryDimensionData(form);
+    }
+
     PagingResultImpl queryModelData(PagingRequest<DbQueryRequestDef> form);
 
     DbQueryResult queryModelResult(PagingRequest<DbQueryRequestDef> form);

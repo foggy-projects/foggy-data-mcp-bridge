@@ -118,7 +118,8 @@ public final class ComposeRelationCompiler {
         // ---- 5. Compile plan to ComposedSql ----
         String namespace = context == null ? null : context.namespace();
         ComposedSql composedSql = ComposePlanner.compileToComposedSql(
-                effectivePlan, bindings, opts.planningPort(), namespace, dialect,
+                effectivePlan, bindings, opts.planningPort(), namespace,
+                ComposeSqlCompiler.semanticRequestContext(context), dialect,
                 datasourceIds);
 
         String sql = composedSql.getSql();
