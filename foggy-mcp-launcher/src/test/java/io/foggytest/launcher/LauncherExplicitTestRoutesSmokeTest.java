@@ -56,7 +56,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
                 "foggy.demo.enabled=true",
                 "foggy.test.enabled=true",
                 "foggy.dev-tools.enabled=true",
-                "foggy.chart.storage.local.base-dir=${java.io.tmpdir}/foggy-launcher-smoke-enabled"
+                "foggy.chart.storage.local.directory=${java.io.tmpdir}/foggy-launcher-smoke-enabled"
         })
 @AutoConfigureMockMvc
 @ActiveProfiles("lite")

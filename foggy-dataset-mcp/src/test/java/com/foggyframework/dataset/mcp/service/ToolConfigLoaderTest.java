@@ -23,11 +23,11 @@ class ToolConfigLoaderTest {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Test
-    @DisplayName("getBuiltinDefaults 应返回 12 个内置工具")
-    void testBuiltinDefaults_ShouldReturn12Tools() {
+    @DisplayName("getBuiltinDefaults 应返回 13 个内置工具")
+    void testBuiltinDefaults_ShouldReturn13Tools() {
         List<McpProperties.ToolConfigItem> defaults = ToolConfigLoader.getBuiltinDefaults();
 
-        assertEquals(12, defaults.size());
+        assertEquals(13, defaults.size());
 
         // 验证每个工具都有完整配置
         for (McpProperties.ToolConfigItem tool : defaults) {
@@ -47,7 +47,9 @@ class ToolConfigLoaderTest {
         assertTrue(names.contains("dataset.get_metadata"), "Should contain get_metadata");
         assertTrue(names.contains("dataset.query_model"), "Should contain query_model");
         assertTrue(names.contains("dataset.describe_model_internal"), "Should contain describe_model_internal");
-        assertTrue(names.contains("dataset.export_with_chart"), "Should contain export_with_chart");
+        assertTrue(names.contains("dataset.export_with_xchart"));
+        assertTrue(names.contains("dataset.export_with_echarts"));
+        assertFalse(names.contains("dataset.export_with_chart"));
         assertTrue(names.contains("dataset.inspect_table"), "Should contain inspect_table");
         assertTrue(names.contains("dataset.open_in_viewer"), "Should contain open_in_viewer");
         assertTrue(names.contains("dataset_nl.query"), "Should contain nl.query");
@@ -93,6 +95,34 @@ class ToolConfigLoaderTest {
     }
 
     @Test
+    @DisplayName("双图表导出工具应发布独立描述和 schema")
+    void testChartExportResources_ShouldBeIndependent() throws Exception {
+        assertNotNull(ToolConfigLoaderTest.class.getResource(
+                "/schemas/descriptions/export_with_xchart.md"));
+        assertNotNull(ToolConfigLoaderTest.class.getResource(
+                "/schemas/descriptions/export_with_echarts.md"));
+        assertNotNull(ToolConfigLoaderTest.class.getResource(
+                "/schemas/export_with_xchart_schema.json"));
+        assertNotNull(ToolConfigLoaderTest.class.getResource(
+                "/schemas/export_with_echarts_schema.json"));
+        for (JsonNode schema : List.of(
+                readSchema("/schemas/export_with_xchart_schema.json"),
+                readSchema("/schemas/export_with_echarts_schema.json")
+        )) {
+            JsonNode chartProperties = schema.path("properties")
+                    .path("chart")
+                    .path("properties");
+            assertFalse(chartProperties.has("engine"));
+            assertFalse(chartProperties.has("data"));
+            assertFalse(chartProperties.has("options"));
+        }
+
+        JsonNode generate = readSchema("/schemas/generate_chart_schema.json");
+        assertTrue(generate.path("required").toString().contains("\"data\""));
+        assertEquals(1, generate.path("properties").path("data").path("minItems").asInt());
+    }
+
+    @Test
     @DisplayName("已发布内置工具 schema 中所有 array 都应声明 items")
     void testBuiltinToolSchemas_ArrayTypesShouldDeclareItems() throws Exception {
         List<String> missingItems = new ArrayList<>();
@@ -125,12 +155,12 @@ class ToolConfigLoaderTest {
     }
 
     @Test
-    @DisplayName("getBuiltinDefaults chart.generate 和 inspect_table 默认禁用")
-    void testBuiltinDefaults_ChartAndInspectDisabledByDefault() {
+    @DisplayName("getBuiltinDefaults 仅 inspect_table 默认禁用")
+    void testBuiltinDefaults_OnlyInspectDisabledByDefault() {
         List<McpProperties.ToolConfigItem> defaults = ToolConfigLoader.getBuiltinDefaults();
 
         for (McpProperties.ToolConfigItem tool : defaults) {
-            if ("chart.generate".equals(tool.getName()) || "dataset.inspect_table".equals(tool.getName())) {
+            if ("dataset.inspect_table".equals(tool.getName())) {
                 assertFalse(tool.isEnabled(), tool.getName() + " should be disabled by default");
             } else {
                 assertTrue(tool.isEnabled(), tool.getName() + " should be enabled by default");
@@ -171,7 +201,7 @@ class ToolConfigLoaderTest {
         simulateMerge(props);
 
         // 验证结果
-        assertEquals(12, props.getTools().size(), "Should still have 12 tools after merge");
+        assertEquals(13, props.getTools().size(), "Should still have 13 tools after merge");
 
         // open_in_viewer 应该被禁用
         McpProperties.ToolConfigItem viewer = findTool(props, "dataset.open_in_viewer");
@@ -201,7 +231,7 @@ class ToolConfigLoaderTest {
 
         simulateMerge(props);
 
-        assertEquals(12, props.getTools().size());
+        assertEquals(13, props.getTools().size());
         for (McpProperties.ToolConfigItem tool : props.getTools()) {
             assertNotNull(tool.getDescriptionFile(), "Should have descriptionFile for " + tool.getName());
             assertNotNull(tool.getSchemaFile(), "Should have schemaFile for " + tool.getName());
@@ -240,8 +270,8 @@ class ToolConfigLoaderTest {
 
         simulateMerge(props);
 
-        assertEquals(13, props.getTools().size(), "12 defaults + 1 custom");
-        McpProperties.ToolConfigItem last = props.getTools().get(12);
+        assertEquals(14, props.getTools().size(), "13 defaults + 1 custom");
+        McpProperties.ToolConfigItem last = props.getTools().get(13);
         assertEquals("custom.my_tool", last.getName());
         assertEquals("classpath:/custom/tool.md", last.getDescriptionFile());
     }
@@ -307,6 +337,14 @@ class ToolConfigLoaderTest {
             for (int i = 0; i < node.size(); i++) {
                 collectArraySchemasWithoutItems(node.get(i), path + "[" + i + "]", missingItems);
             }
+        }
+    }
+
+    private JsonNode readSchema(String resourcePath) throws Exception {
+        try (InputStream inputStream =
+                     ToolConfigLoaderTest.class.getResourceAsStream(resourcePath)) {
+            assertNotNull(inputStream, resourcePath);
+            return OBJECT_MAPPER.readTree(inputStream);
         }
     }
 }

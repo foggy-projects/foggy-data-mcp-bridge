@@ -17,7 +17,7 @@ class ResultValidatorTest {
     private final ResultValidator validator = new ResultValidator();
 
     @Test
-    @DisplayName("query case should accept export_with_chart when it uses required query columns")
+    @DisplayName("query case should accept native chart export when it uses required query columns")
     void validateFromAiResponse_shouldAcceptChartExportAsQueryCompatibleTool() {
         EcommerceTestCase testCase = EcommerceTestCase.builder()
                 .id("SORT-001")
@@ -28,8 +28,8 @@ class ResultValidatorTest {
                 .build();
 
         ToolCallCollector.ToolCallRecord call = ToolCallCollector.ToolCallRecord.builder()
-                .toolName("dataset.export_with_chart")
-                .springToolName("dataset_export_with_chart")
+                .toolName("dataset.export_with_xchart")
+                .springToolName("dataset_export_with_xchart")
                 .arguments(Map.of(
                         "model", "FactSalesQueryModel",
                         "payload", Map.of(

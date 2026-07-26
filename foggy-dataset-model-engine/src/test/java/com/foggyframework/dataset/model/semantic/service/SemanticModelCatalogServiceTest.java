@@ -6,6 +6,7 @@ import com.foggyframework.dataset.model.engine.query_model.QueryModelLoaderImpl;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogAdmissionBlockedException;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogBuildView;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogCandidate;
+import com.foggyframework.dataset.model.lifecycle.catalog.CatalogModelKey;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogSnapshot;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogSnapshotStore;
 import com.foggyframework.dataset.model.lifecycle.catalog.ModelProvenance;
@@ -149,6 +150,48 @@ class SemanticModelCatalogServiceTest {
                     assertThat(request.trigger()).isEqualTo(
                             CatalogRefreshTrigger.EXPLICIT_RECOVERY);
                 });
+        verifyNoInteractions(fixture.loader());
+    }
+
+    @Test
+    void modelViewMaterializesOnlyRequestedSubsetWithoutNamespaceRefresh() {
+        CatalogSnapshotStore store = new CatalogSnapshotStore();
+        publishIncomplete(store, "tenant-a", Set.of(
+                "AlphaModel", "BetaModel"));
+        Fixture fixture = fixture(store);
+        when(fixture.coordinator().refresh(any(CatalogRefreshRequest.class)))
+                .thenAnswer(invocation -> {
+                    publishSubset(
+                            store,
+                            "tenant-a",
+                            Set.of("AlphaModel", "BetaModel"),
+                            Map.of("AlphaModel",
+                                    new ModelVersion("Alpha caption", "a1")));
+                    return null;
+                });
+
+        SemanticModelCatalogService.NamespaceCatalogView view =
+                fixture.service().modelCatalogView(
+                        "tenant-a", List.of("AlphaModel"));
+
+        CatalogSnapshot snapshot = store.readCurrent("tenant-a").orElseThrow();
+        QueryModel alpha = snapshot.resolveQueryModel("AlphaModel")
+                .orElseThrow();
+        assertThat(view.identity()).isEqualTo(snapshot.identity());
+        assertThat(view.modelNames()).containsExactly("AlphaModel");
+        assertThat(view.queryModels()).containsOnlyKeys("AlphaModel");
+        assertThat(view.queryModels().get("AlphaModel")).isSameAs(alpha);
+        assertThat(view.aliasesByModel())
+                .containsEntry("AlphaModel", alpha.getShortAlias());
+        ArgumentCaptor<CatalogRefreshRequest> request =
+                ArgumentCaptor.forClass(CatalogRefreshRequest.class);
+        verify(fixture.coordinator(), times(1)).refresh(request.capture());
+        assertThat(request.getValue().scope())
+                .isEqualTo(CatalogRefreshScope.MODELS);
+        assertThat(request.getValue().targets())
+                .containsExactly(CatalogModelKey.query("AlphaModel"));
+        assertThat(request.getValue().trigger())
+                .isEqualTo(CatalogRefreshTrigger.EXPLICIT_RECOVERY);
         verifyNoInteractions(fixture.loader());
     }
 
@@ -404,6 +447,25 @@ class SemanticModelCatalogServiceTest {
                      store.openCandidate(buildView)) {
             CatalogCandidate candidate = scope.candidate();
             candidate.resetForNamespaceRefresh(versions.keySet());
+            versions.entrySet().stream()
+                    .sorted(Map.Entry.comparingByKey())
+                    .forEach(entry -> stageModel(
+                            candidate, namespace, entry.getKey(), entry.getValue()));
+            return scope.commit();
+        }
+    }
+
+    private static CatalogSnapshot publishSubset(
+            CatalogSnapshotStore store,
+            String namespace,
+            Set<String> discoveredModelNames,
+            Map<String, ModelVersion> versions
+    ) {
+        CatalogBuildView buildView = store.capture(namespace);
+        try (CatalogSnapshotStore.CandidateScope scope =
+                     store.openCandidate(buildView)) {
+            CatalogCandidate candidate = scope.candidate();
+            candidate.resetForNamespaceRefresh(discoveredModelNames);
             versions.entrySet().stream()
                     .sorted(Map.Entry.comparingByKey())
                     .forEach(entry -> stageModel(

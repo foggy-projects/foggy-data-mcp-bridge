@@ -61,10 +61,12 @@ public class WebClientConfig {
                         .addHandlerLast(new ReadTimeoutHandler(timeout, TimeUnit.SECONDS))
                         .addHandlerLast(new WriteTimeoutHandler(timeout, TimeUnit.SECONDS)));
 
-        return WebClient.builder()
+        WebClient.Builder builder = WebClient.builder()
                 .baseUrl(baseUrl)
-                .defaultHeader("Authorization", authToken)
-                .clientConnector(new ReactorClientHttpConnector(httpClient))
-                .build();
+                .clientConnector(new ReactorClientHttpConnector(httpClient));
+        if (authToken != null && !authToken.isBlank()) {
+            builder.defaultHeader("Authorization", authToken);
+        }
+        return builder.build();
     }
 }

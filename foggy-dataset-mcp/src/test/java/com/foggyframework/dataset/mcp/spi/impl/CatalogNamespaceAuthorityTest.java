@@ -193,6 +193,46 @@ class CatalogNamespaceAuthorityTest {
         verify(loader, never()).getJdbcQueryModel(anyString(), anyString());
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void configuredDefaultCatalogUsesOnlyConfiguredModelView() {
+        NamespaceCatalogView configured =
+                view("", "default-g1", "default-r1", "AlphaModel", "AM");
+        SemanticModelCatalogService authority =
+                mock(SemanticModelCatalogService.class);
+        when(authority.modelCatalogView(
+                "", List.of("AlphaModel")))
+                .thenReturn(configured);
+        QueryModelLoader loader = mock(QueryModelLoader.class);
+        SemanticServiceResolver metadataResolver =
+                mock(SemanticServiceResolver.class);
+        when(metadataResolver.getMetadata(any(), eq("json"), any()))
+                .thenReturn(emptyMetadata());
+        McpProperties properties = new McpProperties();
+        properties.getSemantic().setUseAllModels(null);
+        properties.getSemantic().setModelList(List.of("AlphaModel"));
+        ModelCatalogService catalog = new ModelCatalogService(
+                metadataResolver,
+                loader,
+                new ObjectMapper(),
+                properties,
+                authority);
+
+        Map<String, Object> data = (Map<String, Object>) catalog
+                .buildCatalogResponse(
+                        Map.of("format", "json", "fieldLimit", 0),
+                        "",
+                        null)
+                .get("data");
+
+        assertThat((List<String>) data.get("models"))
+                .containsExactly("AlphaModel");
+        verify(authority, times(2)).modelCatalogView(
+                "", List.of("AlphaModel"));
+        verify(authority, never()).namespaceCatalogView(anyString());
+        verify(loader, never()).getJdbcQueryModel(anyString(), anyString());
+    }
+
     private static SemanticModelCatalogService authority(
             AtomicReference<Map<String, NamespaceCatalogView>> published
     ) {

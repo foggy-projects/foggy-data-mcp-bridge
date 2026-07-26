@@ -729,8 +729,18 @@ public class ResultValidator {
             return true;
         }
         return "dataset.query_model".equals(expectedTool)
-                && ("dataset.export_with_chart".equals(call.getToolName())
-                || "dataset_export_with_chart".equals(call.getSpringToolName()));
+                && (isChartExportTool(call.getToolName())
+                || isChartExportSpringTool(call.getSpringToolName()));
+    }
+
+    private boolean isChartExportTool(String toolName) {
+        return "dataset.export_with_xchart".equals(toolName)
+                || "dataset.export_with_echarts".equals(toolName);
+    }
+
+    private boolean isChartExportSpringTool(String toolName) {
+        return "dataset_export_with_xchart".equals(toolName)
+                || "dataset_export_with_echarts".equals(toolName);
     }
 
     private void validateTargetModel(EcommerceTestCase testCase,

@@ -459,6 +459,42 @@ class LocalDatasetAccessorGovernanceTest {
     }
 
     @Test
+    @DisplayName("query payload 应透传 Pivot 并支持字符串轴字段简写")
+    void queryShouldMapPivotStringAxisShorthandIntoRequest() {
+        SemanticQueryResponse response = new SemanticQueryResponse();
+        response.setItems(List.of());
+        when(semanticServiceResolver.queryModel(anyString(), any(SemanticQueryRequest.class), eq("execute"), any(SemanticRequestContext.class)))
+                .thenReturn(response);
+
+        accessor.queryModel(
+                "FactOrderQueryModel",
+                Map.of("pivot", Map.of(
+                        "rows", List.of("orderStatus"),
+                        "columns", List.of(),
+                        "metrics", List.of("payAmount"),
+                        "outputFormat", "flat"
+                )),
+                "execute",
+                "trace-pivot",
+                null,
+                null
+        );
+
+        ArgumentCaptor<SemanticQueryRequest> requestCaptor = ArgumentCaptor.forClass(SemanticQueryRequest.class);
+        verify(semanticServiceResolver).queryModel(
+                eq("FactOrderQueryModel"),
+                requestCaptor.capture(),
+                eq("execute"),
+                any(SemanticRequestContext.class)
+        );
+
+        assertNotNull(requestCaptor.getValue().getPivot());
+        assertEquals("orderStatus", requestCaptor.getValue().getPivot().getRows().get(0).getField());
+        assertEquals(List.of("payAmount"), requestCaptor.getValue().getPivot().getMetrics());
+        assertEquals("flat", requestCaptor.getValue().getPivot().getOutputFormat());
+    }
+
+    @Test
     @DisplayName("query payload 中非法 slice 项应 fail-closed")
     void queryShouldFailClosedForInvalidSliceItem() {
         RX<SemanticQueryResponse> result = accessor.queryModel(

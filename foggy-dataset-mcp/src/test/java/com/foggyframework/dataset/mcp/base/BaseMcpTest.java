@@ -105,7 +105,9 @@ public abstract class BaseMcpTest {
                 createMockTool("dataset.query_model", "Query model", ToolCategory.QUERY),
                 createMockTool("dataset_nl.query", "NL Query", ToolCategory.NATURAL_LANGUAGE),
                 createMockTool("chart.generate", "Generate chart", ToolCategory.VISUALIZATION),
-                createMockTool("dataset.export_with_chart", "Export with chart",
+                createMockTool("dataset.export_with_xchart", "Export with XChart",
+                        ToolCategory.QUERY, ToolCategory.VISUALIZATION, ToolCategory.EXPORT),
+                createMockTool("dataset.export_with_echarts", "Export with ECharts",
                         ToolCategory.QUERY, ToolCategory.VISUALIZATION, ToolCategory.EXPORT)
         );
     }

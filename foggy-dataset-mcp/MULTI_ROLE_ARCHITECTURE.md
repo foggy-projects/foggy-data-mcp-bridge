@@ -26,7 +26,7 @@
 | **METADATA** | 元数据管理 | dataset.get_metadata, dataset.description_model_internal |
 | **QUERY** | 数据查询 | dataset.query_model |
 | **VISUALIZATION** | 数据可视化 | chart.generate |
-| **EXPORT** | 数据导出 | dataset.export_with_chart |
+| **EXPORT** | 数据导出 | dataset.export_with_xchart, dataset.export_with_echarts |
 | **SYSTEM** | 系统工具 | 健康检查等 |
 
 ### 3. 角色与工具分类映射
@@ -93,7 +93,8 @@ curl -X POST http://localhost:8080/mcp/business/rpc \
 - `dataset.description_model_internal` - 获取模型详细信息
 - `dataset.query_model` - 执行结构化查询
 - `chart.generate` - 生成图表
-- `dataset.export_with_chart` - 查询并生成图表
+- `dataset.export_with_xchart` - 查询并使用 XChart Adapter JSON 生成图表
+- `dataset.export_with_echarts` - 查询并使用原生 ECharts Option 生成图表
 
 **示例请求**:
 ```bash

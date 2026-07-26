@@ -26,7 +26,7 @@ src/test/java/com/foggyframework/dataset/mcp/
 │   ├── QueryModelToolTest.java
 │   ├── ChartToolTest.java
 │   ├── NaturalLanguageQueryToolTest.java
-│   └── ExportWithChartToolTest.java
+│   └── ExportWithChartToolsTest.java
 ├── integration/                   # 集成测试
 │   ├── McpIntegrationTestApplication.java
 │   ├── McpIntegrationTestSupport.java
@@ -132,9 +132,10 @@ class AdminMcpControllerTest {
 
 ### 第三层：工具实现测试
 
-#### 3. 使用 WireMock 的工具测试
+#### 3. 工具与渲染器测试
 
-使用 WireMock 模拟外部服务（dataset-query-service、chart-render-service）。
+使用 WireMock 模拟 dataset-query-service，以及可选 ECharts 外部渲染服务。
+默认 XChart 渲染器直接在 JVM 内生成图片，不依赖外部服务。
 
 **MetadataToolTest.java**
 - 模拟 `/dataset/v1/metadata` 端点
@@ -147,9 +148,14 @@ class AdminMcpControllerTest {
 - 测试各种查询场景（过滤、分组、排序、分页）
 
 **ChartToolTest.java**
-- 模拟 `/render/unified/stream` 端点
-- 测试不同图表类型（柱图、线图、饼图）
+- 使用真实 XChart 渲染器生成图片
+- 测试 XChart 原生配置、图片存储与失败回退
 - 测试流式进度事件
+
+**EChartsRendererTest.java**
+- 模拟 `/render/native/stream` 端点
+- 验证原始 ECharts Option 与 `dataset.source` 数据注入
+- 验证不支持的多 dataset 场景
 
 **NaturalLanguageQueryToolTest.java**
 - 使用 Mockito 模拟 QueryExpertService
@@ -262,6 +268,7 @@ spring:
 
 mcp:
   dataset-query-url: http://localhost:8080
+  # 仅在测试可选 ECharts 渲染器时使用；XChart 不需要该服务
   chart-render-url: http://localhost:3000
 
 logging:

@@ -128,8 +128,8 @@ public class ModelCatalogService {
             return buildCatalogOnce(safeOptions, namespace, authorization, null);
         }
 
-        NamespaceCatalogView namespaceView = modelCatalogReadPort
-                .namespaceCatalogView(namespace);
+        ModelNameSelection selection = selectModelNames(safeOptions, namespace);
+        NamespaceCatalogView namespaceView = catalogView(selection, namespace);
         if (namespaceView.identity() == null) {
             return buildCatalogOnce(
                     safeOptions, namespace, authorization, namespaceView);
@@ -141,8 +141,8 @@ public class ModelCatalogService {
         for (int attempt = 1; attempt <= MAX_CATALOG_VIEW_ATTEMPTS; attempt++) {
             Map<String, Object> catalog = buildCatalogOnce(
                     safeOptions, namespace, authorization, namespaceView);
-            NamespaceCatalogView observedAfterBuild = modelCatalogReadPort
-                    .namespaceCatalogView(namespace);
+            NamespaceCatalogView observedAfterBuild =
+                    catalogView(selection, namespace);
             if (namespaceView.identity().equals(observedAfterBuild.identity())) {
                 return catalog;
             }
@@ -157,6 +157,22 @@ public class ModelCatalogService {
         throw new IllegalStateException(
                 "CATALOG_VIEW_STALE_RETRY_EXHAUSTED: namespace='"
                         + namespaceView.identity().namespace() + "'");
+    }
+
+    private NamespaceCatalogView catalogView(
+            ModelNameSelection selection,
+            String namespace
+    ) {
+        if (selection.modelNames() == null
+                || (selection.source() == ModelNameSource.GLOBAL_CONFIGURED
+                && !isBlank(namespace))) {
+            return modelCatalogReadPort.namespaceCatalogView(namespace);
+        }
+        NamespaceCatalogView scoped = modelCatalogReadPort.modelCatalogView(
+                namespace, selection.modelNames());
+        return scoped != null
+                ? scoped
+                : modelCatalogReadPort.namespaceCatalogView(namespace);
     }
 
     private Map<String, Object> buildCatalogOnce(

@@ -56,7 +56,7 @@ public class ToolAuditLog {
 
     /**
      * 工具名称
-     * <p>如 dataset.query_model, dataset.export_with_chart
+     * <p>如 dataset.query_model, dataset.export_with_xchart
      */
     @Indexed
     private String toolName;

@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "description": "执行 QueryModel 查询，并用原生 ECharts Option 调用可选渲染服务生成图片。",
+  "properties": {
+    "model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "payload": {
+      "type": "object",
+      "description": "与 dataset.query_model 相同的 payload；支持普通 DSL、DSL_CTE、timeWindow 和 flat Pivot。",
+      "additionalProperties": true
+    },
+    "chart": {
+      "type": "object",
+      "properties": {
+        "config": {
+          "type": "object",
+          "minProperties": 1,
+          "description": "原生 ECharts Option。不得内嵌 dataset.source、series.data、xAxis.data、dataset 数组或 transform。",
+          "additionalProperties": true
+        },
+        "image": {
+          "type": "object",
+          "properties": {
+            "width": { "type": "integer", "minimum": 100, "maximum": 4096, "default": 800 },
+            "height": { "type": "integer", "minimum": 100, "maximum": 4096, "default": 600 },
+            "format": { "type": "string", "enum": ["png", "svg"], "default": "png" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": ["config"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["model", "payload", "chart"],
+  "additionalProperties": false
+}

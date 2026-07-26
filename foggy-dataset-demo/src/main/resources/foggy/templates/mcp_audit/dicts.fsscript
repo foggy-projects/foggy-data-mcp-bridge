@@ -27,7 +27,8 @@ export const dicts = {
             { value: 'dataset.get_metadata', label: '获取元数据' },
             { value: 'dataset.describe_model_internal', label: '模型详情' },
             { value: 'dataset.query_model', label: '数据查询' },
-            { value: 'dataset.export_with_chart', label: '导出图表' },
+            { value: 'dataset.export_with_xchart', label: 'XChart图表导出' },
+            { value: 'dataset.export_with_echarts', label: 'ECharts图表导出' },
             { value: 'chart.generate', label: '生成图表' },
             { value: 'dataset_nl.query', label: '自然语言查询' }
         ]

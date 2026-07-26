@@ -1,463 +1,339 @@
 package com.foggyframework.dataset.mcp.tools;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.foggyframework.dataset.mcp.config.McpProperties;
-
+import com.foggyframework.dataset.mcp.chart.ChartRendererRegistry;
+import com.foggyframework.dataset.mcp.chart.ChartRenderRequest;
+import com.foggyframework.dataset.mcp.chart.ChartRenderResult;
+import com.foggyframework.dataset.mcp.chart.ChartRenderer;
+import com.foggyframework.dataset.mcp.chart.XChartRenderer;
 import com.foggyframework.dataset.mcp.storage.ChartStorageAdapter;
+import com.foggyframework.dataset.mcp.storage.ChartStorageException;
 import com.foggyframework.mcp.spi.ProgressEvent;
 import com.foggyframework.mcp.spi.ToolCategory;
 import com.foggyframework.mcp.spi.ToolExecutionContext;
-import com.github.tomakehurst.wiremock.WireMockServer;
-import com.github.tomakehurst.wiremock.client.WireMock;
-import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
-import org.junit.jupiter.api.*;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.web.reactive.function.client.WebClient;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.github.tomakehurst.wiremock.client.WireMock.*;
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-/**
- * ChartTool 单元测试
- *
- * 使用 WireMock 模拟外部 chart-render-service
- */
 @DisplayName("ChartTool 单元测试")
 class ChartToolTest {
 
-    private static WireMockServer wireMockServer;
     private ChartTool chartTool;
-    private ObjectMapper objectMapper;
-    private McpProperties mcpProperties;
     private ChartStorageAdapter storageAdapter;
-
-    @BeforeAll
-    static void setupWireMock() {
-        wireMockServer = new WireMockServer(WireMockConfiguration.wireMockConfig().dynamicPort());
-        wireMockServer.start();
-        WireMock.configureFor("localhost", wireMockServer.port());
-    }
-
-    @AfterAll
-    static void tearDownWireMock() {
-        wireMockServer.stop();
-    }
+    private ChartRenderer echartsRenderer;
 
     @BeforeEach
     void setUp() {
-        objectMapper = new ObjectMapper();
-        mcpProperties = new McpProperties();
-
-        // Mock storage adapter
         storageAdapter = mock(ChartStorageAdapter.class);
         when(storageAdapter.getType()).thenReturn("mock");
         when(storageAdapter.save(any(byte[].class), anyString(), anyString()))
-                .thenAnswer(inv -> "http://mock-storage/charts/chart_" + inv.getArgument(2) + "." + inv.getArgument(1));
+                .thenAnswer(invocation ->
+                        "http://mock-storage/charts/chart_"
+                                + invocation.getArgument(2)
+                                + "."
+                                + invocation.getArgument(1));
 
-        WebClient webClient = WebClient.builder()
-                .baseUrl("http://localhost:" + wireMockServer.port())
-                .build();
+        echartsRenderer = mock(ChartRenderer.class);
+        when(echartsRenderer.getEngine()).thenReturn("echarts");
+        when(echartsRenderer.render(any(ChartRenderRequest.class)))
+                .thenReturn(new ChartRenderResult(
+                        new byte[]{1, 2, 3, 4},
+                        "png",
+                        1000,
+                        600,
+                        "bar",
+                        "月度销售额"
+                ));
 
-        chartTool = new ChartTool(webClient, mcpProperties, objectMapper, storageAdapter);
-        wireMockServer.resetAll();
+        ChartRendererRegistry registry = new ChartRendererRegistry(
+                List.of(new XChartRenderer(), echartsRenderer));
+        chartTool = new ChartTool(registry, storageAdapter);
     }
 
-    // ==================== 基本属性测试 ====================
-
     @Nested
-    @DisplayName("工具基本属性")
+    @DisplayName("工具属性")
     class BasicPropertiesTest {
 
         @Test
-        @DisplayName("getName 应返回正确的工具名称")
-        void getName_shouldReturnCorrectName() {
+        void shouldExposeVisualizationTool() {
             assertEquals("chart.generate", chartTool.getName());
-        }
-
-        @Test
-        @DisplayName("getCategories 应返回 VISUALIZATION 类别")
-        void getCategories_shouldReturnVisualizationCategory() {
-            assertTrue(chartTool.getCategories().contains(ToolCategory.VISUALIZATION));
             assertEquals(1, chartTool.getCategories().size());
-        }
-
-        @Test
-        @DisplayName("supportsStreaming 应返回 true")
-        void supportsStreaming_shouldReturnTrue() {
+            assertTrue(chartTool.getCategories().contains(ToolCategory.VISUALIZATION));
             assertTrue(chartTool.supportsStreaming());
         }
-
-        // Note: getDescription() and getInputSchema() now load from config files,
-        // they are tested in integration tests with ToolConfigLoader
     }
-
-    // ==================== execute 参数验证测试 ====================
 
     @Nested
-    @DisplayName("execute - 参数验证")
-    class ParameterValidationTest {
+    @DisplayName("进程内 XChart 渲染")
+    class XChartExecutionTest {
 
         @Test
-        @DisplayName("空数据应返回错误")
-        void emptyData_shouldReturnError() {
-            Map<String, Object> args = Map.of(
-                    "type", "bar",
-                    "data", List.of()
+        void shouldRenderCategoryChartAndStorePng() {
+            Map<String, Object> arguments = Map.of(
+                    "data", List.of(
+                            Map.of("category", "A", "sales", 120),
+                            Map.of("category", "B", "sales", 180)
+                    ),
+                    "config", Map.of(
+                            "chartType", "CategoryChart",
+                            "title", "分类销售额",
+                            "series", List.of(Map.of(
+                                    "name", "销售额",
+                                    "xField", "category",
+                                    "yField", "sales",
+                                    "renderStyle", "Bar"
+                            ))
+                    ),
+                    "image", Map.of(
+                            "width", 900,
+                            "height", 500,
+                            "format", "png"
+                    )
             );
 
-            Object result = chartTool.execute(args, ToolExecutionContext.of("trace-1", null));
+            Object result = chartTool.execute(
+                    arguments,
+                    ToolExecutionContext.of("trace-xchart", null)
+            );
 
-            assertIsError(result, "数据不能为空");
+            Map<String, Object> resultMap = castMap(result);
+            assertEquals(true, resultMap.get("success"));
+
+            Map<String, Object> chart = castMap(resultMap.get("chart"));
+            assertEquals("xchart", chart.get("engine"));
+            assertEquals("CategoryChart", chart.get("type"));
+            assertEquals("分类销售额", chart.get("title"));
+            assertEquals("PNG", chart.get("format"));
+            assertEquals(900, chart.get("width"));
+            assertEquals(500, chart.get("height"));
+
+            ArgumentCaptor<byte[]> bytesCaptor = ArgumentCaptor.forClass(byte[].class);
+            verify(storageAdapter).save(
+                    bytesCaptor.capture(),
+                    org.mockito.ArgumentMatchers.eq("png"),
+                    org.mockito.ArgumentMatchers.eq("trace-xchart")
+            );
+            byte[] image = bytesCaptor.getValue();
+            assertTrue(image.length > 100);
+            assertArrayEquals(
+                    new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A},
+                    java.util.Arrays.copyOf(image, 8)
+            );
         }
 
         @Test
-        @DisplayName("null 数据应返回错误")
-        void nullData_shouldReturnError() {
-            Map<String, Object> args = new HashMap<>();
-            args.put("type", "bar");
-            args.put("data", null);
+        void missingDataShouldBeRejected() {
+            Map<String, Object> arguments = Map.of(
+                    "config", Map.of(
+                            "chartType", "XYChart",
+                            "series", List.of(Map.of(
+                                    "name", "趋势",
+                                    "xField", "x",
+                                    "yField", "y",
+                                    "renderStyle", "Line"
+                            ))
+                    )
+            );
 
-            Object result = chartTool.execute(args, ToolExecutionContext.of("trace-2", null));
+            assertError(
+                    chartTool.execute(
+                            arguments,
+                            ToolExecutionContext.of("trace-direct", null)
+                    ),
+                    "data 必须是非空对象数组"
+            );
+        }
 
-            assertIsError(result, "数据不能为空");
+        @Test
+        void shouldRejectSvgForXChart() {
+            Map<String, Object> arguments = Map.of(
+                    "data", List.of(Map.of("category", "A", "amount", 1)),
+                    "config", Map.of(
+                            "chartType", "PieChart",
+                            "nameField", "category",
+                            "valueField", "amount"
+                    ),
+                    "image", Map.of("format", "svg")
+            );
+
+            assertError(
+                    chartTool.execute(arguments, ToolExecutionContext.of("trace-svg", null)),
+                    "仅支持 png/jpg"
+            );
         }
     }
-
-    // ==================== execute 成功场景测试 ====================
 
     @Nested
-    @DisplayName("execute - 成功场景")
-    class ExecuteSuccessTest {
+    @DisplayName("ECharts 直接数据路由")
+    class EChartsExecutionTest {
 
         @Test
-        @DisplayName("柱图生成应成功")
-        void barChart_shouldGenerateSuccessfully() throws Exception {
-            // 模拟图表渲染服务返回图片字节
-            byte[] fakeImageBytes = "fake-png-image-bytes".getBytes();
+        void shouldRouteNativeOptionAndTopLevelDataToEChartsRenderer() {
+            List<Map<String, Object>> data = List.of(
+                    Map.of("month", "1月", "amount", 12000),
+                    Map.of("month", "2月", "amount", 15000)
+            );
+            Map<String, Object> config = Map.of(
+                    "title", Map.of("text", "月度销售额"),
+                    "series", List.of(Map.of(
+                            "type", "bar",
+                            "encode", Map.of("x", "month", "y", "amount")
+                    ))
+            );
 
-            stubFor(post(urlEqualTo("/render/unified/stream"))
-                    .willReturn(aResponse()
-                            .withStatus(200)
-                            .withHeader(HttpHeaders.CONTENT_TYPE, "image/png")
-                            .withBody(fakeImageBytes)));
-
-            Map<String, Object> args = Map.of(
-                    "type", "bar",
-                    "title", "Sales by Category",
-                    "data", List.of(
-                            Map.of("category", "Electronics", "sales", 50000),
-                            Map.of("category", "Clothing", "sales", 30000),
-                            Map.of("category", "Food", "sales", 20000)
+            Map<String, Object> result = castMap(chartTool.execute(
+                    Map.of(
+                            "engine", "echarts",
+                            "data", data,
+                            "config", config,
+                            "image", Map.of(
+                                    "width", 1000,
+                                    "height", 600,
+                                    "format", "png"
+                            )
                     ),
-                    "xField", "category",
-                    "yField", "sales"
+                    ToolExecutionContext.of("trace-echarts-direct", null)
+            ));
+
+            assertEquals(true, result.get("success"));
+            Map<String, Object> chart = castMap(result.get("chart"));
+            assertEquals("echarts", chart.get("engine"));
+            assertEquals("bar", chart.get("type"));
+
+            verify(echartsRenderer).render(
+                    org.mockito.ArgumentMatchers.argThat(request ->
+                            config.equals(request.config())
+                                    && data.equals(request.data())
+                                    && "trace-echarts-direct".equals(request.traceId()))
             );
-
-            Object result = chartTool.execute(args, ToolExecutionContext.of("trace-bar", null));
-
-            assertNotNull(result);
-            @SuppressWarnings("unchecked")
-            Map<String, Object> resultMap = (Map<String, Object>) result;
-            assertTrue((Boolean) resultMap.get("success"));
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> chartInfo = (Map<String, Object>) resultMap.get("chart");
-            assertEquals("BAR", chartInfo.get("type"));
-            assertEquals("Sales by Category", chartInfo.get("title"));
-            assertNotNull(chartInfo.get("url"));
-        }
-
-        @Test
-        @DisplayName("线图生成应成功")
-        void lineChart_shouldGenerateSuccessfully() throws Exception {
-            byte[] fakeImageBytes = "fake-line-chart".getBytes();
-
-            stubFor(post(urlEqualTo("/render/unified/stream"))
-                    .willReturn(aResponse()
-                            .withStatus(200)
-                            .withHeader(HttpHeaders.CONTENT_TYPE, "image/png")
-                            .withBody(fakeImageBytes)));
-
-            Map<String, Object> args = Map.of(
-                    "type", "line",
-                    "title", "Monthly Sales Trend",
-                    "data", List.of(
-                            Map.of("month", "Jan", "sales", 10000),
-                            Map.of("month", "Feb", "sales", 12000),
-                            Map.of("month", "Mar", "sales", 15000)
-                    ),
-                    "xField", "month",
-                    "yField", "sales"
+            verify(storageAdapter).save(
+                    org.mockito.AdditionalMatchers.aryEq(new byte[]{1, 2, 3, 4}),
+                    org.mockito.ArgumentMatchers.eq("png"),
+                    org.mockito.ArgumentMatchers.eq("trace-echarts-direct")
             );
-
-            Object result = chartTool.execute(args, ToolExecutionContext.of("trace-line", null));
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> resultMap = (Map<String, Object>) result;
-            assertTrue((Boolean) resultMap.get("success"));
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> chartInfo = (Map<String, Object>) resultMap.get("chart");
-            assertEquals("LINE", chartInfo.get("type"));
-        }
-
-        @Test
-        @DisplayName("饼图生成应正确处理字段映射")
-        void pieChart_shouldHandleFieldMappingCorrectly() throws Exception {
-            byte[] fakeImageBytes = "fake-pie-chart".getBytes();
-
-            stubFor(post(urlEqualTo("/render/unified/stream"))
-                    .willReturn(aResponse()
-                            .withStatus(200)
-                            .withBody(fakeImageBytes)));
-
-            Map<String, Object> args = Map.of(
-                    "type", "pie",
-                    "title", "Market Share",
-                    "data", List.of(
-                            Map.of("name", "Company A", "value", 45),
-                            Map.of("name", "Company B", "value", 35),
-                            Map.of("name", "Others", "value", 20)
-                    ),
-                    "xField", "name",
-                    "yField", "value"
-            );
-
-            chartTool.execute(args, ToolExecutionContext.of("trace-pie", null));
-
-            // 验证饼图使用了正确的字段映射 (valueField/nameField)
-            verify(postRequestedFor(urlEqualTo("/render/unified/stream"))
-                    .withRequestBody(matchingJsonPath("$.unified.type", equalTo("pie")))
-                    .withRequestBody(matchingJsonPath("$.unified.valueField", equalTo("value")))
-                    .withRequestBody(matchingJsonPath("$.unified.nameField", equalTo("name"))));
-        }
-
-        @Test
-        @DisplayName("自定义尺寸应正确传递")
-        void customSize_shouldPassCorrectly() throws Exception {
-            byte[] fakeImageBytes = "fake-sized-chart".getBytes();
-
-            stubFor(post(urlEqualTo("/render/unified/stream"))
-                    .willReturn(aResponse()
-                            .withStatus(200)
-                            .withBody(fakeImageBytes)));
-
-            Map<String, Object> args = Map.of(
-                    "type", "bar",
-                    "data", List.of(Map.of("x", 1, "y", 2)),
-                    "xField", "x",
-                    "yField", "y",
-                    "width", 1200,
-                    "height", 800,
-                    "format", "svg"
-            );
-
-            Object result = chartTool.execute(args, ToolExecutionContext.of("trace-size", null));
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> resultMap = (Map<String, Object>) result;
-            @SuppressWarnings("unchecked")
-            Map<String, Object> chartInfo = (Map<String, Object>) resultMap.get("chart");
-            assertEquals(1200, chartInfo.get("width"));
-            assertEquals(800, chartInfo.get("height"));
-            assertEquals("SVG", chartInfo.get("format"));
-
-            verify(postRequestedFor(urlEqualTo("/render/unified/stream"))
-                    .withRequestBody(matchingJsonPath("$.image.width", equalTo("1200")))
-                    .withRequestBody(matchingJsonPath("$.image.height", equalTo("800")))
-                    .withRequestBody(matchingJsonPath("$.image.format", equalTo("svg"))));
-        }
-
-        @Test
-        @DisplayName("带 seriesField 的多系列图表应正确处理")
-        void multiSeriesChart_shouldHandleSeriesField() throws Exception {
-            byte[] fakeImageBytes = "fake-multi-series".getBytes();
-
-            stubFor(post(urlEqualTo("/render/unified/stream"))
-                    .willReturn(aResponse()
-                            .withStatus(200)
-                            .withBody(fakeImageBytes)));
-
-            Map<String, Object> args = Map.of(
-                    "type", "line",
-                    "title", "Sales Comparison",
-                    "data", List.of(
-                            Map.of("month", "Jan", "sales", 100, "region", "North"),
-                            Map.of("month", "Jan", "sales", 80, "region", "South"),
-                            Map.of("month", "Feb", "sales", 120, "region", "North"),
-                            Map.of("month", "Feb", "sales", 90, "region", "South")
-                    ),
-                    "xField", "month",
-                    "yField", "sales",
-                    "seriesField", "region"
-            );
-
-            chartTool.execute(args, ToolExecutionContext.of("trace-multi-series", null));
-
-            verify(postRequestedFor(urlEqualTo("/render/unified/stream"))
-                    .withRequestBody(matchingJsonPath("$.unified.seriesField", equalTo("region"))));
-        }
-
-        @Test
-        @DisplayName("默认值应正确应用")
-        void defaultValues_shouldBeApplied() throws Exception {
-            byte[] fakeImageBytes = "fake-default-chart".getBytes();
-
-            stubFor(post(urlEqualTo("/render/unified/stream"))
-                    .willReturn(aResponse()
-                            .withStatus(200)
-                            .withBody(fakeImageBytes)));
-
-            // 只提供必需参数
-            Map<String, Object> args = Map.of(
-                    "type", "bar",
-                    "data", List.of(Map.of("x", 1, "y", 2))
-            );
-
-            Object result = chartTool.execute(args, ToolExecutionContext.of("trace-defaults", null));
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> resultMap = (Map<String, Object>) result;
-            @SuppressWarnings("unchecked")
-            Map<String, Object> chartInfo = (Map<String, Object>) resultMap.get("chart");
-
-            // 验证默认值
-            assertEquals("数据图表", chartInfo.get("title"));
-            assertEquals("PNG", chartInfo.get("format"));
-            assertEquals(800, chartInfo.get("width"));
-            assertEquals(600, chartInfo.get("height"));
         }
     }
-
-    // ==================== execute 错误场景测试 ====================
 
     @Nested
-    @DisplayName("execute - 错误场景")
-    class ExecuteErrorTest {
+    @DisplayName("参数与降级")
+    class ValidationAndFallbackTest {
 
         @Test
-        @DisplayName("渲染服务返回 500 应返回错误")
-        void renderServiceError_shouldReturnError() {
-            stubFor(post(urlEqualTo("/render/unified/stream"))
-                    .willReturn(aResponse()
-                            .withStatus(500)
-                            .withBody("Internal Server Error")));
-
-            Map<String, Object> args = Map.of(
-                    "type", "bar",
-                    "data", List.of(Map.of("x", 1, "y", 2))
+        void missingConfigShouldReturnError() {
+            assertError(
+                    chartTool.execute(
+                            Map.of("engine", "xchart"),
+                            ToolExecutionContext.of("trace-no-config", null)
+                    ),
+                    "config 必须是非空对象"
             );
-
-            Object result = chartTool.execute(args, ToolExecutionContext.of("trace-500", null));
-
-            assertIsError(result, "图表生成失败");
         }
 
         @Test
-        @DisplayName("渲染服务返回空数据应返回错误")
-        void emptyResponse_shouldReturnError() {
-            stubFor(post(urlEqualTo("/render/unified/stream"))
-                    .willReturn(aResponse()
-                            .withStatus(200)
-                            .withBody(new byte[0])));
-
-            Map<String, Object> args = Map.of(
-                    "type", "bar",
-                    "data", List.of(Map.of("x", 1, "y", 2))
+        void unsupportedEngineShouldListAvailableEngines() {
+            assertError(
+                    chartTool.execute(
+                            Map.of(
+                                    "engine", "unknown",
+                                    "data", List.of(Map.of("category", "A", "amount", 1)),
+                                    "config", Map.of(
+                                            "chartType", "PieChart",
+                                            "nameField", "category",
+                                            "valueField", "amount"
+                                    )
+                            ),
+                            ToolExecutionContext.of("trace-engine", null)
+                    ),
+                    "可用引擎"
             );
-            ToolExecutionContext context = ToolExecutionContext.of("trace-empty", null);
-            Object result = chartTool.execute(args, context);
-
-            assertIsError(result, "图表生成失败");
-        }
-    }
-
-    // ==================== executeWithProgress 测试 ====================
-
-    @Nested
-    @DisplayName("executeWithProgress - 流式执行")
-    class ExecuteWithProgressTest {
-
-        @Test
-        @DisplayName("应发出进度事件序列")
-        void shouldEmitProgressEvents() {
-            byte[] fakeImageBytes = "fake-streaming-chart".getBytes();
-
-            stubFor(post(urlEqualTo("/render/unified/stream"))
-                    .willReturn(aResponse()
-                            .withStatus(200)
-                            .withBody(fakeImageBytes)));
-
-            Map<String, Object> args = Map.of(
-                    "type", "bar",
-                    "data", List.of(Map.of("x", 1, "y", 2))
-            );
-
-            ToolExecutionContext context = ToolExecutionContext.of("trace-streaming", null);
-            Flux<ProgressEvent> flux = chartTool.executeWithProgress(args, context);
-
-            StepVerifier.create(flux)
-                    .expectNextMatches(e -> "progress".equals(e.getEventType()) && hasPercent(e, 10))
-                    .expectNextMatches(e -> "progress".equals(e.getEventType()) && hasPercent(e, 50))
-                    .expectNextMatches(e -> "progress".equals(e.getEventType()) && hasPercent(e, 80))
-                    .expectNextMatches(e -> "complete".equals(e.getEventType()))
-                    .verifyComplete();
         }
 
         @Test
-        @DisplayName("执行错误应发出错误事件")
-        void executionError_shouldEmitErrorEvent() {
-            stubFor(post(urlEqualTo("/render/unified/stream"))
-                    .willReturn(aResponse()
-                            .withStatus(500)
-                            .withBody("Error")));
+        void storageFailureShouldFallBackToBase64() {
+            when(storageAdapter.save(any(byte[].class), anyString(), anyString()))
+                    .thenThrow(new ChartStorageException("storage unavailable"));
 
-            Map<String, Object> args = Map.of(
-                    "type", "bar",
-                    "data", List.of(Map.of("x", 1, "y", 2))
-            );
+            Map<String, Object> result = castMap(chartTool.execute(
+                    Map.of(
+                            "data", List.of(
+                                    Map.of("category", "A", "amount", 10),
+                                    Map.of("category", "B", "amount", 20)
+                            ),
+                            "config", Map.of(
+                                    "chartType", "PieChart",
+                                    "nameField", "category",
+                                    "valueField", "amount"
+                            )
+                    ),
+                    ToolExecutionContext.of("trace-base64", null)
+            ));
 
-            ToolExecutionContext context = ToolExecutionContext.of("trace-error-stream", null);
-            Flux<ProgressEvent> flux = chartTool.executeWithProgress(args, context);
-
-            // 由于 execute 返回错误而非抛出异常，complete 事件会包含错误响应
-            StepVerifier.create(flux)
-                    .expectNextMatches(e -> "progress".equals(e.getEventType()))
-                    .expectNextMatches(e -> "progress".equals(e.getEventType()))
-                    .expectNextMatches(e -> "progress".equals(e.getEventType()))
-                    .expectNextMatches(e -> "complete".equals(e.getEventType()))
-                    .verifyComplete();
+            assertEquals(true, result.get("success"));
+            Map<String, Object> chart = castMap(result.get("chart"));
+            assertTrue(chart.get("url").toString().startsWith("data:image/png;base64,"));
         }
     }
 
-    // ==================== 辅助方法 ====================
+    @Test
+    void shouldEmitProgressEvents() {
+        Map<String, Object> arguments = Map.of(
+                "data", List.of(Map.of("category", "A", "amount", 1)),
+                "config", Map.of(
+                        "chartType", "PieChart",
+                        "nameField", "category",
+                        "valueField", "amount"
+                )
+        );
+
+        Flux<ProgressEvent> flux = chartTool.executeWithProgress(
+                arguments,
+                ToolExecutionContext.of("trace-progress", null)
+        );
+
+        StepVerifier.create(flux)
+                .expectNextMatches(event -> isProgress(event, 10))
+                .expectNextMatches(event -> isProgress(event, 50))
+                .expectNextMatches(event -> isProgress(event, 80))
+                .expectNextMatches(event -> "complete".equals(event.getEventType()))
+                .verifyComplete();
+    }
 
     @SuppressWarnings("unchecked")
-    private boolean hasPercent(ProgressEvent e, int expectedPercent) {
-        if (e.getData() instanceof Map) {
-            Map<String, Object> data = (Map<String, Object>) e.getData();
-            Object percent = data.get("percent");
-            return percent != null && ((Number) percent).intValue() == expectedPercent;
-        }
-        return false;
+    private Map<String, Object> castMap(Object value) {
+        assertNotNull(value);
+        assertTrue(value instanceof Map<?, ?>);
+        return (Map<String, Object>) value;
     }
 
-    private void assertIsError(Object result, String expectedMessagePart) {
-        assertNotNull(result);
-        assertInstanceOf(Map.class, result);
+    private void assertError(Object result, String messagePart) {
+        Map<String, Object> error = castMap(result);
+        assertEquals(false, error.get("success"));
+        assertEquals(true, error.get("error"));
+        assertTrue(error.get("message").toString().contains(messagePart));
+    }
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> errorMap = (Map<String, Object>) result;
-        assertEquals(false, errorMap.get("success"));
-        assertTrue((Boolean) errorMap.get("error"));
-        assertTrue(errorMap.get("message").toString().contains(expectedMessagePart));
+    @SuppressWarnings("unchecked")
+    private boolean isProgress(ProgressEvent event, int expectedPercent) {
+        if (!"progress".equals(event.getEventType()) || !(event.getData() instanceof Map<?, ?>)) {
+            return false;
+        }
+        return ((Number) ((Map<String, Object>) event.getData()).get("percent")).intValue()
+                == expectedPercent;
     }
 }

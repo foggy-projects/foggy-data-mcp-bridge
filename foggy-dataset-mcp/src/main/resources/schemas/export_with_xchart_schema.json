@@ -1,0 +1,175 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "description": "执行 QueryModel 查询，并使用受控 XChart Adapter JSON 在 JVM 内生成图片。",
+  "properties": {
+    "model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "payload": {
+      "type": "object",
+      "description": "与 dataset.query_model 相同的 payload；支持普通 DSL、DSL_CTE、timeWindow 和 flat Pivot。",
+      "additionalProperties": true
+    },
+    "chart": {
+      "type": "object",
+      "properties": {
+        "config": {
+          "$ref": "#/definitions/xchartConfig"
+        },
+        "image": {
+          "$ref": "#/definitions/xchartImage"
+        }
+      },
+      "required": ["config"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["model", "payload", "chart"],
+  "additionalProperties": false,
+  "definitions": {
+    "xchartConfig": {
+      "type": "object",
+      "minProperties": 1,
+      "required": ["chartType"],
+      "properties": {
+        "chartType": {
+          "type": "string",
+          "enum": ["CategoryChart", "XYChart", "PieChart"]
+        },
+        "title": { "type": "string" },
+        "xAxisTitle": { "type": "string" },
+        "yAxisTitle": { "type": "string" },
+        "theme": {
+          "type": "string",
+          "enum": ["XChart", "GGPlot2", "Matlab"]
+        },
+        "nameField": { "type": "string", "minLength": 1 },
+        "valueField": { "type": "string", "minLength": 1 },
+        "renderStyle": {
+          "type": "string",
+          "enum": ["Pie", "Donut"]
+        },
+        "styler": {
+          "$ref": "#/definitions/xchartStyler"
+        },
+        "series": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/xchartSeries"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "chartType": {
+                "enum": ["CategoryChart", "XYChart"]
+              }
+            }
+          },
+          "then": {
+            "required": ["series"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "chartType": {
+                "const": "PieChart"
+              }
+            }
+          },
+          "then": {
+            "required": ["nameField", "valueField"]
+          }
+        }
+      ]
+    },
+    "xchartSeries": {
+      "type": "object",
+      "required": ["xField", "yField"],
+      "properties": {
+        "name": { "type": "string" },
+        "xField": { "type": "string", "minLength": 1 },
+        "yField": { "type": "string", "minLength": 1 },
+        "seriesField": { "type": "string", "minLength": 1 },
+        "renderStyle": { "type": "string" },
+        "smooth": { "type": "boolean" },
+        "lineColor": { "$ref": "#/definitions/color" },
+        "fillColor": { "$ref": "#/definitions/color" },
+        "markerColor": { "$ref": "#/definitions/color" },
+        "lineWidth": { "type": "number" },
+        "showInLegend": { "type": "boolean" },
+        "enabled": { "type": "boolean" },
+        "label": { "type": "string" },
+        "yAxisGroup": { "type": "integer" },
+        "yAxisDecimalPattern": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "xchartStyler": {
+      "type": "object",
+      "properties": {
+        "legendVisible": { "type": "boolean" },
+        "legendPosition": { "type": "string" },
+        "chartTitleVisible": { "type": "boolean" },
+        "plotBorderVisible": { "type": "boolean" },
+        "antiAlias": { "type": "boolean" },
+        "chartPadding": { "type": "integer" },
+        "markerSize": { "type": "integer" },
+        "decimalPattern": { "type": "string" },
+        "chartBackgroundColor": { "$ref": "#/definitions/color" },
+        "plotBackgroundColor": { "$ref": "#/definitions/color" },
+        "chartFontColor": { "$ref": "#/definitions/color" },
+        "seriesColors": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/definitions/color" }
+        },
+        "fontFamily": { "type": "string" },
+        "fontSize": { "type": "integer", "minimum": 1 },
+        "axisTitlesVisible": { "type": "boolean" },
+        "axisTicksVisible": { "type": "boolean" },
+        "plotGridLinesVisible": { "type": "boolean" },
+        "xAxisLogarithmic": { "type": "boolean" },
+        "yAxisLogarithmic": { "type": "boolean" },
+        "xAxisLabelRotation": { "type": "integer" },
+        "xAxisMin": { "type": "number" },
+        "xAxisMax": { "type": "number" },
+        "yAxisMin": { "type": "number" },
+        "yAxisMax": { "type": "number" },
+        "xAxisDecimalPattern": { "type": "string" },
+        "yAxisDecimalPattern": { "type": "string" },
+        "labelsVisible": { "type": "boolean" },
+        "stacked": { "type": "boolean" },
+        "overlapped": { "type": "boolean" },
+        "availableSpaceFill": { "type": "number" },
+        "defaultSeriesRenderStyle": { "type": "string" },
+        "circular": { "type": "boolean" },
+        "forceAllLabelsVisible": { "type": "boolean" },
+        "donutThickness": { "type": "number" },
+        "startAngleInDegrees": { "type": "number" },
+        "labelType": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "xchartImage": {
+      "type": "object",
+      "properties": {
+        "width": { "type": "integer", "minimum": 100, "maximum": 4096, "default": 800 },
+        "height": { "type": "integer", "minimum": 100, "maximum": 4096, "default": 600 },
+        "format": { "type": "string", "enum": ["png", "jpg"], "default": "png" }
+      },
+      "additionalProperties": false
+    },
+    "color": {
+      "type": "string",
+      "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+    }
+  }
+}

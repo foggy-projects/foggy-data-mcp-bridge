@@ -59,7 +59,8 @@ class McpAuditLogMongoIT extends MongoTestSupport {
             "dataset.get_metadata",
             "dataset.describe_model_internal",
             "dataset.query_model",
-            "dataset.export_with_chart",
+            "dataset.export_with_xchart",
+            "dataset.export_with_echarts",
             "chart.generate",
             "dataset_nl.query"
     };
@@ -227,7 +228,8 @@ class McpAuditLogMongoIT extends MongoTestSupport {
             case "dataset.get_metadata" -> "返回 " + (3 + random.nextInt(5)) + " 个可用模型";
             case "dataset.describe_model_internal" -> "模型包含 " + (5 + random.nextInt(15)) + " 个字段";
             case "dataset.query_model" -> "查询返回 " + (10 + random.nextInt(990)) + " 条数据";
-            case "dataset.export_with_chart" -> "导出成功，文件大小 " + (100 + random.nextInt(900)) + "KB";
+            case "dataset.export_with_xchart", "dataset.export_with_echarts" ->
+                    "导出成功，文件大小 " + (100 + random.nextInt(900)) + "KB";
             case "chart.generate" -> "图表生成成功，类型: " + (random.nextBoolean() ? "bar" : "line");
             case "dataset_nl.query" -> "自然语言查询解析成功";
             default -> "操作完成";
@@ -260,7 +262,7 @@ class McpAuditLogMongoIT extends MongoTestSupport {
                 args.put("columns", Arrays.asList("product$caption", "salesAmount"));
                 args.put("limit", 100);
             }
-            case "dataset.export_with_chart" -> {
+            case "dataset.export_with_xchart", "dataset.export_with_echarts" -> {
                 args.put("modelName", "FactSalesQueryModel");
                 args.put("chartType", random.nextBoolean() ? "bar" : "pie");
             }

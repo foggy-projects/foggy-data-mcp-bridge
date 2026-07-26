@@ -42,9 +42,13 @@ mcp:
       descriptionFile: "classpath:/schemas/descriptions/generate_chart.md"
       schemaFile: "classpath:/schemas/generate_chart_schema.json"
       category: VISUALIZATION
-    - name: "dataset.export_with_chart"
-      descriptionFile: "classpath:/schemas/descriptions/export_with_chart.md"
-      schemaFile: "classpath:/schemas/export_with_chart_schema.json"
+    - name: "dataset.export_with_xchart"
+      descriptionFile: "classpath:/schemas/descriptions/export_with_xchart.md"
+      schemaFile: "classpath:/schemas/export_with_xchart_schema.json"
+      category: EXPORT
+    - name: "dataset.export_with_echarts"
+      descriptionFile: "classpath:/schemas/descriptions/export_with_echarts.md"
+      schemaFile: "classpath:/schemas/export_with_echarts_schema.json"
       category: EXPORT
 # Spider2 测试配置
 spider2:

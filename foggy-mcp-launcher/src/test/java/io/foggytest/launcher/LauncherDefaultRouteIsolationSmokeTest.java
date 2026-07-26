@@ -1,6 +1,7 @@
 package io.foggytest.launcher;
 
 import com.foggyframework.dataset.model.semantic.controller.SemanticServiceV3TestController;
+import com.foggyframework.dataset.mcp.controller.ChartImageController;
 import com.foggyframework.dataset.mcp.controller.DevToolsController;
 import com.foggyframework.mcp.launcher.DemoSecurityIdentityResolver;
 import com.foggyframework.mcp.launcher.McpLauncherApplication;
@@ -52,7 +53,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
                 "foggy.demo.enabled=true",
                 "foggy.test.enabled=false",
                 "foggy.dev-tools.enabled=false",
-                "foggy.chart.storage.local.base-dir=${java.io.tmpdir}/foggy-launcher-smoke-default"
+                "foggy.chart.storage.local.directory=${java.io.tmpdir}/foggy-launcher-smoke-default"
         })
 @AutoConfigureMockMvc
 @ActiveProfiles("lite")
@@ -70,6 +71,7 @@ class LauncherDefaultRouteIsolationSmokeTest {
         assertThat(applicationContext.getBeansOfType(SemanticServiceV3TestController.class)).isEmpty();
         assertThat(applicationContext.getBeansOfType(SavedQueryTestController.class)).isEmpty();
         assertThat(applicationContext.getBeansOfType(DemoSecurityIdentityResolver.class)).isEmpty();
+        assertThat(applicationContext.getBeansOfType(ChartImageController.class)).hasSize(1);
 
         mockMvc.perform(get("/dev/tables"))
                 .andExpect(status().isNotFound());
@@ -77,5 +79,7 @@ class LauncherDefaultRouteIsolationSmokeTest {
                 .andExpect(status().isNotFound());
         mockMvc.perform(get("/test/identity"))
                 .andExpect(status().isNotFound());
+        mockMvc.perform(get("/charts/stats"))
+                .andExpect(status().isOk());
     }
 }

@@ -29,7 +29,7 @@ import java.util.UUID;
  * - 元数据查询工具（MetadataTool、DescriptionModelTool）
  * - 数据查询工具（QueryModelTool）
  * - 数据可视化工具（ChartTool）
- * - 数据导出工具（ExportWithChartTool）
+ * - 数据导出工具（ExportWithXChartTool、ExportWithEChartsTool）
  *
  * 不可用工具：
  * - 自然语言查询工具（NaturalLanguageQueryTool）- 专业人员需要精确控制查询逻辑

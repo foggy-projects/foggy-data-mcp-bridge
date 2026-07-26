@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.mcp.spi.impl;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.dataset.model.config.DatasetProperties;
 import com.foggyframework.dataset.model.config.DatasetRequestNamespaceResolver;
@@ -13,11 +14,11 @@ import com.foggyframework.dataset.model.semantic.domain.SemanticMetadataResponse
 import com.foggyframework.dataset.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.model.semantic.support.SemanticQueryPayloadMapper;
 import com.foggyframework.dataset.mcp.config.McpProperties;
 import com.foggyframework.dataset.mcp.spi.DatasetAccessor;
 import com.foggyframework.dataset.mcp.spi.SemanticServiceResolver;
 import com.foggyframework.fsscript.fun.Iif;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.*;
@@ -48,7 +49,6 @@ import java.util.*;
  * @see McpProperties.LevelConfig
  */
 @Slf4j
-@RequiredArgsConstructor
 public class LocalDatasetAccessor implements DatasetAccessor {
 
     private static final String DENIED_COLUMNS_KEY = "deniedColumns";
@@ -61,9 +61,31 @@ public class LocalDatasetAccessor implements DatasetAccessor {
     private final SemanticServiceResolver semanticServiceResolver;
     private final McpProperties mcpProperties;
     private final DatasetProperties datasetProperties;
+    private final SemanticQueryPayloadMapper queryPayloadMapper;
 
     public LocalDatasetAccessor(SemanticServiceResolver semanticServiceResolver, McpProperties mcpProperties) {
         this(semanticServiceResolver, mcpProperties, new DatasetProperties());
+    }
+
+    public LocalDatasetAccessor(
+            SemanticServiceResolver semanticServiceResolver,
+            McpProperties mcpProperties,
+            DatasetProperties datasetProperties
+    ) {
+        this(semanticServiceResolver, mcpProperties, datasetProperties,
+                new SemanticQueryPayloadMapper(new ObjectMapper()));
+    }
+
+    public LocalDatasetAccessor(
+            SemanticServiceResolver semanticServiceResolver,
+            McpProperties mcpProperties,
+            DatasetProperties datasetProperties,
+            SemanticQueryPayloadMapper queryPayloadMapper
+    ) {
+        this.semanticServiceResolver = semanticServiceResolver;
+        this.mcpProperties = mcpProperties;
+        this.datasetProperties = datasetProperties;
+        this.queryPayloadMapper = queryPayloadMapper;
     }
 
     @Override
@@ -597,6 +619,10 @@ public class LocalDatasetAccessor implements DatasetAccessor {
             if (tw instanceof Map) {
                 request.setTimeWindow((Map<String, Object>) tw);
             }
+        }
+
+        if (payload.containsKey("pivot")) {
+            request.setPivot(queryPayloadMapper.toPivotRequest(payload.get("pivot")));
         }
 
         if (payload.containsKey("outputFormatting")) {

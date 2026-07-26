@@ -136,8 +136,9 @@ public class ToolConfigLoader {
         defaults.add(createToolConfig("dataset.list_models", "classpath:/schemas/descriptions/list_models.md", "classpath:/schemas/list_models_schema.json", "METADATA"));
         defaults.add(createToolConfig("dataset.describe_model_internal", "classpath:/schemas/descriptions/describe_model_internal.md", "classpath:/schemas/describe_model_internal_schema.json", "METADATA"));
         defaults.add(createToolConfig("dataset.query_model", "classpath:/schemas/descriptions/query_model_v3.md", "classpath:/schemas/query_model_v3_schema.json", "QUERY"));
-        defaults.add(createToolConfig("chart.generate", "classpath:/schemas/descriptions/generate_chart.md", "classpath:/schemas/generate_chart_schema.json", "VISUALIZATION", false));
-        defaults.add(createToolConfig("dataset.export_with_chart", "classpath:/schemas/descriptions/export_with_chart.md", "classpath:/schemas/export_with_chart_schema.json", "EXPORT"));
+        defaults.add(createToolConfig("chart.generate", "classpath:/schemas/descriptions/generate_chart.md", "classpath:/schemas/generate_chart_schema.json", "VISUALIZATION"));
+        defaults.add(createToolConfig("dataset.export_with_xchart", "classpath:/schemas/descriptions/export_with_xchart.md", "classpath:/schemas/export_with_xchart_schema.json", "EXPORT"));
+        defaults.add(createToolConfig("dataset.export_with_echarts", "classpath:/schemas/descriptions/export_with_echarts.md", "classpath:/schemas/export_with_echarts_schema.json", "EXPORT"));
         defaults.add(createToolConfig("dataset.inspect_table", "classpath:/schemas/descriptions/inspect_table.md", "classpath:/schemas/inspect_table_schema.json", "ADMIN", false));
         defaults.add(createToolConfig("dataset.open_in_viewer", "classpath:/schemas/descriptions/open_in_viewer.md", "classpath:/schemas/open_in_viewer_schema.json", "EXPORT"));
         defaults.add(createToolConfig("dataset.compose_script", "classpath:/schemas/descriptions/compose_script_m2.md", "classpath:/schemas/compose_query_schema.json", "QUERY"));

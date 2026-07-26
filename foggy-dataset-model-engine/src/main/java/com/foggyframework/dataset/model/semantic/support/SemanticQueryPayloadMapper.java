@@ -15,6 +15,7 @@ import com.foggyframework.dataset.model.semantic.memorygrid.MemoryGridInputBindi
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -86,10 +87,71 @@ public class SemanticQueryPayloadMapper {
         if (mismatchStrategy != null && !mismatchStrategy.isBlank()) {
             request.setMismatchHandleStrategy(MismatchHandleStrategy.valueOf(mismatchStrategy));
         }
-        if (payload.get("pivot") instanceof Map<?, ?> pivotMap) {
-            request.setPivot(objectMapper.convertValue(pivotMap, PivotRequest.class));
+        if (payload.containsKey("pivot")) {
+            request.setPivot(toPivotRequest(payload.get("pivot")));
         }
         return request;
+    }
+
+    /**
+     * Converts the public pivot payload into the engine AST.
+     *
+     * <p>The public contract accepts both the native object form
+     * {@code {"field":"orderStatus"}} and the LLM-friendly shorthand
+     * {@code "orderStatus"} for row/column axis entries.</p>
+     */
+    public PivotRequest toPivotRequest(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (!(value instanceof Map<?, ?> source)) {
+            throw new IllegalArgumentException(
+                    "QUERY_MODEL_PIVOT_CONTRACT_INVALID: payload.pivot must be an object");
+        }
+
+        Map<String, Object> normalized = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> entry : source.entrySet()) {
+            if (!(entry.getKey() instanceof String key) || key.isBlank()) {
+                throw new IllegalArgumentException(
+                        "QUERY_MODEL_PIVOT_CONTRACT_INVALID: payload.pivot keys must be non-empty strings");
+            }
+            normalized.put(key, entry.getValue());
+        }
+        normalizePivotAxis(normalized, "rows");
+        normalizePivotAxis(normalized, "columns");
+        return objectMapper.convertValue(normalized, PivotRequest.class);
+    }
+
+    private static void normalizePivotAxis(Map<String, Object> pivot, String axisName) {
+        if (!pivot.containsKey(axisName) || pivot.get(axisName) == null) {
+            return;
+        }
+        Object value = pivot.get(axisName);
+        if (!(value instanceof List<?> entries)) {
+            throw new IllegalArgumentException(
+                    "QUERY_MODEL_PIVOT_CONTRACT_INVALID: payload.pivot."
+                            + axisName + " must be an array");
+        }
+
+        List<Object> normalized = new ArrayList<>(entries.size());
+        for (int i = 0; i < entries.size(); i++) {
+            Object entry = entries.get(i);
+            if (entry instanceof String field) {
+                if (field.isBlank()) {
+                    throw new IllegalArgumentException(
+                            "QUERY_MODEL_PIVOT_CONTRACT_INVALID: payload.pivot."
+                                    + axisName + "[" + i + "] must not be blank");
+                }
+                normalized.add(Map.of("field", field));
+            } else if (entry instanceof Map<?, ?>) {
+                normalized.add(entry);
+            } else {
+                throw new IllegalArgumentException(
+                        "QUERY_MODEL_PIVOT_CONTRACT_INVALID: payload.pivot."
+                                + axisName + "[" + i + "] must be a field string or object");
+            }
+        }
+        pivot.put(axisName, normalized);
     }
 
     public Set<String> optionalStringSet(Object value) {

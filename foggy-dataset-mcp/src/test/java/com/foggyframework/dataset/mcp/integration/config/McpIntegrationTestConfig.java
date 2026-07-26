@@ -46,7 +46,7 @@ public class McpIntegrationTestConfig {
     /**
      * 创建测试用 chartRenderWebClient
      *
-     * 图表服务在集成测试中暂不测试，但需要返回稳定的图片字节，避免 AI 选择 export_with_chart
+     * 图表服务在集成测试中暂不测试，但需要返回稳定的图片字节，避免 AI 选择 ECharts 导出
      * 时因裸 Mockito WebClient 的 post() 返回 null 而污染实测日志。
      */
     @Bean

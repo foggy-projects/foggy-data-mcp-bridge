@@ -219,7 +219,7 @@ curl -X POST http://localhost:7108/mcp/analyst/rpc \
 | 工具系统 | ✅ 动态注册 | ✅ Spring Bean 自动注册 |
 | 双端口架构 | ✅ M1/M2 | ✅ Profile 配置 |
 | 会话管理 | ✅ Redis | 🚧 内存 (可扩展) |
-| 图表生成 | ✅ | ✅ chart-render-service |
+| 图表生成 | ✅ | ✅ JVM 内置 XChart；可选外部 ECharts 适配器 |
 | Excel 导出 | ✅ | ❌ (按需求不实现) |
 
 ## 常见问题

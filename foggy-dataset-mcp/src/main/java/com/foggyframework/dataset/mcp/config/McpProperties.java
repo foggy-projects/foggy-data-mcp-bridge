@@ -404,7 +404,8 @@ public class McpProperties {
      *     mask-authorization: true
      *     tools:
      *       - dataset.query_model
-     *       - dataset.export_with_chart
+     *       - dataset.export_with_xchart
+     *       - dataset.export_with_echarts
      *     mongodb:
      *       collection: mcp_tool_audit_log
      * </pre>
@@ -428,7 +429,8 @@ public class McpProperties {
          */
         private List<String> tools = List.of(
                 "dataset.query_model",
-                "dataset.export_with_chart"
+                "dataset.export_with_xchart",
+                "dataset.export_with_echarts"
         );
 
         /**

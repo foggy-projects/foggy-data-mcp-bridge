@@ -69,6 +69,27 @@ class SemanticQueryPayloadMapperTest {
                 "payload.slice[0].$or");
     }
 
+    @Test
+    @DisplayName("pivot row and column string shorthand should map to axis fields")
+    void pivotStringAxisShorthandShouldMapToAxisFields() {
+        Map<String, Object> payload = Map.of(
+                "pivot", Map.of(
+                        "rows", List.of("orderStatus"),
+                        "columns", List.of("orderDate$month"),
+                        "metrics", List.of("payAmount"),
+                        "outputFormat", "flat"
+                )
+        );
+
+        SemanticQueryRequest request = mapper.toQueryRequest(payload);
+
+        assertNotNull(request.getPivot());
+        assertEquals("orderStatus", request.getPivot().getRows().get(0).getField());
+        assertEquals("orderDate$month", request.getPivot().getColumns().get(0).getField());
+        assertEquals(List.of("payAmount"), request.getPivot().getMetrics());
+        assertEquals("flat", request.getPivot().getOutputFormat());
+    }
+
     private void assertInvalidSliceElement(Object element, String expectedMessagePart) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("slice", List.of(element));

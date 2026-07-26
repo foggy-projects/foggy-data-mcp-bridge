@@ -147,8 +147,8 @@ class ToolFilterServiceTest extends BaseMcpTest {
         @Test
         @DisplayName("多分类工具：有交集即可通过过滤")
         void multiCategoryTool_shouldPassWithIntersection() {
-            // 创建只有 export_with_chart 工具的列表
-            McpTool exportTool = MockToolFactory.createExportWithChartTool();
+            // 创建只有 XChart 导出工具的列表
+            McpTool exportTool = MockToolFactory.createExportWithXChartTool();
             List<McpTool> tools = List.of(exportTool);
 
             // Analyst 可以访问（因为有 QUERY, VISUALIZATION, EXPORT 分类）
@@ -222,7 +222,7 @@ class ToolFilterServiceTest extends BaseMcpTest {
         @Test
         @DisplayName("Analyst 可以访问多分类工具（有交集）")
         void analyst_shouldAccessMultiCategoryTool() {
-            McpTool exportTool = MockToolFactory.createExportWithChartTool();
+            McpTool exportTool = MockToolFactory.createExportWithXChartTool();
 
             assertTrue(filterService.canAccessTool(exportTool, UserRole.ANALYST));
         }

@@ -1,49 +1,72 @@
-# generate_chart
+# chart.generate
 
-从提供的数据直接生成图表，无需查询数据模型。chart参数格式与export_with_chart完全相同。
+直接使用调用方提供的数据生成图片。`data` 必填且至少包含一行；默认使用 `xchart`，只有明确需要 ECharts 原生能力时才设置 `engine: "echarts"`。
 
-## 参数
+本工具使用引擎原生表达，不做配置转换：
 
-### data (必填)
-数据数组：`[{"x": 1, "y": 10}, {"x": 2, "y": 20}]`
+- XChart：`config` 使用受控 XChart Adapter JSON。CategoryChart/XYChart series 使用 `xField`、`yField` 和可选 `seriesField` 绑定顶层 `data`；PieChart 使用 `nameField`、`valueField`。
+- ECharts：`config` 使用原生 ECharts Option；顶层 `data` 会被注入单个 `dataset.source`，Option 使用 `dataset.dimensions` 和 `series.encode` 绑定。
 
-### chart (必填)
-图表配置，格式同export_with_chart。
+任何配置都不能嵌入第二份数据：
 
-### returnFormat (可选)
-- `URL`: 返回图片URL（默认，24小时有效）
-- `BASE64`: 返回Base64编码
-- `BINARY`: 返回二进制数据
+- XChart 不接受 `xData`、`yData` 或 `series.value`。
+- ECharts 不接受已有 `dataset.source`、`series[*].data`、`xAxis.data`、dataset 数组或 `transform`。
 
-## 示例
+XChart 示例：
 
-**饼图**：
 ```json
 {
-  "data": [{"category": "产品A", "amount": 12500}, {"category": "产品B", "amount": 8900}],
-  "chart": {"type": "PIE", "title": "销售占比", "xField": "category", "yField": "amount"}
+  "data": [
+    {"month": "1月", "amount": 12000},
+    {"month": "2月", "amount": 15000}
+  ],
+  "config": {
+    "chartType": "CategoryChart",
+    "title": "月度销售额",
+    "series": [
+      {
+        "name": "销售额",
+        "xField": "month",
+        "yField": "amount",
+        "renderStyle": "Bar"
+      }
+    ]
+  },
+  "image": {
+    "width": 1000,
+    "height": 600,
+    "format": "png"
+  }
 }
 ```
 
-**折线图**：
+ECharts 示例：
+
 ```json
 {
-  "data": [{"date": "2025-09-20", "sales": 1200}, {"date": "2025-09-21", "sales": 1500}],
-  "chart": {"type": "LINE", "title": "销售趋势", "xAxis": {"field": "date"}, "yAxis": {"field": "sales"}}
+  "engine": "echarts",
+  "data": [
+    {"month": "1月", "amount": 12000},
+    {"month": "2月", "amount": 15000}
+  ],
+  "config": {
+    "title": {"text": "月度销售额"},
+    "dataset": {
+      "dimensions": ["month", "amount"]
+    },
+    "xAxis": {"type": "category"},
+    "yAxis": {"type": "value"},
+    "series": [
+      {
+        "type": "bar",
+        "encode": {"x": "month", "y": "amount"}
+      }
+    ]
+  },
+  "image": {
+    "width": 1000,
+    "height": 600,
+    "format": "png"
+  }
 }
 ```
-
-## 返回值
-```json
-{"success": true, "imageUrl": "https://...", "width": 800, "height": 600}
-```
-
-## 常见错误
-- INVALID_DATA → 确保data是对象数组
-- FIELD_NOT_FOUND → 检查xField/yField是否存在
-- RENDER_FAILED → 检查chart-render-service状态
-
-## 注意
-- 数据点建议<1000个
-- 相同数据缓存15分钟
-- 图表类型详见export_with_chart

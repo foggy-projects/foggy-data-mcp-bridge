@@ -3,7 +3,7 @@ package com.foggyframework.dataset.mcp.controller;
 import com.foggyframework.dataset.mcp.storage.LocalChartStorageAdapter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.CacheControl;
@@ -30,7 +30,7 @@ import java.time.Duration;
 @RestController
 @RequestMapping("/charts")
 @RequiredArgsConstructor
-@ConditionalOnBean(LocalChartStorageAdapter.class)
+@ConditionalOnProperty(name = "foggy.chart.storage.type", havingValue = "local", matchIfMissing = true)
 public class ChartImageController {
 
     private final LocalChartStorageAdapter storageAdapter;

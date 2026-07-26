@@ -155,14 +155,19 @@ foggy:
         schemaFile: "classpath:/schemas/query_model_v3_schema.json"
         category: QUERY
       - name: "chart.generate"
-        enabled: false
+        enabled: true
         descriptionFile: "classpath:/schemas/descriptions/generate_chart.md"
         schemaFile: "classpath:/schemas/generate_chart_schema.json"
         category: VISUALIZATION
-      - name: "dataset.export_with_chart"
+      - name: "dataset.export_with_xchart"
         enabled: true
-        descriptionFile: "classpath:/schemas/descriptions/export_with_chart.md"
-        schemaFile: "classpath:/schemas/export_with_chart_schema.json"
+        descriptionFile: "classpath:/schemas/descriptions/export_with_xchart.md"
+        schemaFile: "classpath:/schemas/export_with_xchart_schema.json"
+        category: EXPORT
+      - name: "dataset.export_with_echarts"
+        enabled: true
+        descriptionFile: "classpath:/schemas/descriptions/export_with_echarts.md"
+        schemaFile: "classpath:/schemas/export_with_echarts_schema.json"
         category: EXPORT
       - name: "dataset.inspect_table"
         enabled: true
@@ -186,7 +191,8 @@ foggy:
       # 需要记录审计日志的工具列表（为空则记录所有）
       tools:
         - dataset.query_model
-        - dataset.export_with_chart
+        - dataset.export_with_xchart
+        - dataset.export_with_echarts
       # MongoDB 配置
       mongodb:
         collection: ${MCP_AUDIT_COLLECTION:mcp_tool_audit_log}

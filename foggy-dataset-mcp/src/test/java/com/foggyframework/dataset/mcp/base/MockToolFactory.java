@@ -113,16 +113,23 @@ public class MockToolFactory {
     /**
      * 创建导出工具 Mock (多分类)
      */
-    public static McpTool createExportWithChartTool() {
+    public static McpTool createExportWithXChartTool() {
         McpTool tool = mock(McpTool.class);
-        when(tool.getName()).thenReturn("dataset.export_with_chart");
-        when(tool.getDescription()).thenReturn("查询并生成图表导出");
+        when(tool.getName()).thenReturn("dataset.export_with_xchart");
+        when(tool.getDescription()).thenReturn("查询并使用 XChart 生成图表");
         when(tool.getCategories()).thenReturn(EnumSet.of(
                 ToolCategory.QUERY,
                 ToolCategory.VISUALIZATION,
                 ToolCategory.EXPORT
         ));
         when(tool.supportsStreaming()).thenReturn(true);
+        return tool;
+    }
+
+    public static McpTool createExportWithEChartsTool() {
+        McpTool tool = createExportWithXChartTool();
+        when(tool.getName()).thenReturn("dataset.export_with_echarts");
+        when(tool.getDescription()).thenReturn("查询并使用 ECharts 生成图表");
         return tool;
     }
 
@@ -136,7 +143,8 @@ public class MockToolFactory {
                 createQueryModelTool(),
                 createNLQueryTool(),
                 createChartTool(),
-                createExportWithChartTool()
+                createExportWithXChartTool(),
+                createExportWithEChartsTool()
         );
     }
 

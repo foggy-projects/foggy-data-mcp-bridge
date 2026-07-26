@@ -26,6 +26,7 @@
         -->
         <spring-ai.version>1.0.1</spring-ai.version>
         <mcp.version>0.13.1</mcp.version>
+        <xchart.version>4.0.3</xchart.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
@@ -102,6 +103,13 @@
         <dependency>
             <groupId>com.fasterxml.jackson.datatype</groupId>
             <artifactId>jackson-datatype-jsr310</artifactId>
+        </dependency>
+
+        <!-- In-process Java chart rendering (no browser or sidecar service required) -->
+        <dependency>
+            <groupId>org.knowm.xchart</groupId>
+            <artifactId>xchart</artifactId>
+            <version>${xchart.version}</version>
         </dependency>
 
         <!-- Configuration Processor -->

@@ -96,6 +96,7 @@ foggy:
       dataset-query:
         base-url: http://localhost:8080
         timeout-seconds: 30
+      # 仅用于可选 ECharts 渲染器；默认 XChart 在 JVM 内渲染
       chart-render:
         base-url: http://localhost:3000
         auth-token: test-token

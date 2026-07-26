@@ -68,7 +68,8 @@ class AnalystMcpControllerTest {
                             Map.of("name", "dataset.description_model_internal", "description", "模型描述"),
                             Map.of("name", "dataset.query_model", "description", "查询模型"),
                             Map.of("name", "chart.generate", "description", "生成图表"),
-                            Map.of("name", "dataset.export_with_chart", "description", "导出图表")
+                            Map.of("name", "dataset.export_with_xchart", "description", "XChart 导出"),
+                            Map.of("name", "dataset.export_with_echarts", "description", "ECharts 导出")
                     )
             ));
 
@@ -82,7 +83,7 @@ class AnalystMcpControllerTest {
                                     """))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.result.tools").isArray())
-                    .andExpect(jsonPath("$.result.tools", hasSize(5)))
+                    .andExpect(jsonPath("$.result.tools", hasSize(6)))
                     .andExpect(jsonPath("$.result.tools[*].name",
                             not(hasItem("dataset_nl.query"))));
 
@@ -451,8 +452,8 @@ class AnalystMcpControllerTest {
     class ExportToolTest {
 
         @Test
-        @DisplayName("Analyst 调用 export_with_chart 应成功")
-        void analyst_shouldAccessExportWithChartTool() throws Exception {
+        @DisplayName("Analyst 调用 export_with_xchart 应成功")
+        void analyst_shouldAccessExportWithXChartTool() throws Exception {
             McpResponse mockResponse = McpResponse.success("1", Map.of(
                     "content", List.of(Map.of(
                             "type", "text",
@@ -471,11 +472,21 @@ class AnalystMcpControllerTest {
                                       "id":"1",
                                       "method":"tools/call",
                                       "params":{
-                                        "name":"dataset.export_with_chart",
+                                        "name":"dataset.export_with_xchart",
                                         "arguments":{
                                           "model":"FactSalesModel",
                                           "payload":{},
-                                          "chartType":"bar"
+                                          "chart":{
+                                            "config":{
+                                              "chartType":"CategoryChart",
+                                              "series":[{
+                                                "name":"销售额",
+                                                "xField":"month",
+                                                "yField":"amount",
+                                                "renderStyle":"Bar"
+                                              }]
+                                            }
+                                          }
                                         }
                                       }
                                     }

@@ -14,6 +14,7 @@ import com.foggyframework.dataset.model.semantic.permission.PermissionAction;
 import com.foggyframework.dataset.model.semantic.permission.PermissionEvaluationSession;
 import com.foggyframework.dataset.model.semantic.permission.RequestIdentity;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogAdmissionBlockedException;
+import com.foggyframework.dataset.model.lifecycle.catalog.CatalogModelKey;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogResolution;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogSnapshot;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogSnapshotStore;
@@ -32,11 +33,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -365,6 +368,58 @@ public class SemanticModelCatalogService implements SemanticModelCatalogReadPort
         return scanNamespaceCatalogView(canonicalNamespace);
     }
 
+    /**
+     * Materializes only the requested models when the lifecycle loader is
+     * available. This deliberately accepts an incomplete namespace snapshot:
+     * the returned view is complete for the requested subset and remains
+     * pinned to one catalog identity.
+     */
+    @Override
+    public NamespaceCatalogView modelCatalogView(
+            String namespace,
+            Collection<String> modelNames
+    ) {
+        if (modelNames == null) {
+            return namespaceCatalogView(namespace);
+        }
+        String canonicalNamespace = CatalogIdentity.canonicalNamespace(namespace);
+        List<String> requested = modelNames.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(name -> !name.isEmpty())
+                .distinct()
+                .toList();
+        if (requested.isEmpty()) {
+            return new NamespaceCatalogView(
+                    null, List.of(), Map.of(), Map.of(), Map.of());
+        }
+        if (catalogSnapshotStore == null
+                || catalogRefreshCoordinator == null
+                || !(queryModelLoader instanceof QueryModelLoaderImpl)) {
+            return SemanticModelCatalogReadPort.super.modelCatalogView(
+                    canonicalNamespace, requested);
+        }
+
+        CatalogSnapshot active = catalogSnapshotStore.readCurrent(
+                canonicalNamespace).orElse(null);
+        if (active != null && containsModels(active, requested)) {
+            return modelView(active, requested);
+        }
+
+        catalogRefreshCoordinator.refresh(CatalogRefreshRequest.models(
+                canonicalNamespace,
+                requested.stream()
+                        .map(CatalogModelKey::query)
+                        .toList(),
+                CatalogRefreshTrigger.EXPLICIT_RECOVERY));
+        CatalogSnapshot refreshed = catalogSnapshotStore.readCurrent(
+                        canonicalNamespace)
+                .orElseThrow(() -> new IllegalStateException(
+                        "CATALOG_MODEL_RECOVERY_PUBLISHED_SNAPSHOT_ABSENT: namespace='"
+                                + canonicalNamespace + "'"));
+        return modelView(refreshed, requested);
+    }
+
     public void clearCachedModelNames() {
         // Compatibility no-op. Discovery is part of the immutable catalog and
         // production invalidation must go through the scoped lifecycle authority.
@@ -440,6 +495,51 @@ public class SemanticModelCatalogService implements SemanticModelCatalogReadPort
         }
         return new NamespaceCatalogView(
                 snapshot.identity(), snapshotNames, aliases, models, resolutions);
+    }
+
+    private boolean containsModels(
+            CatalogSnapshot snapshot,
+            Collection<String> requested
+    ) {
+        return requested.stream()
+                .allMatch(name -> snapshot.resolveQueryModel(name).isPresent());
+    }
+
+    private NamespaceCatalogView modelView(
+            CatalogSnapshot snapshot,
+            Collection<String> requested
+    ) {
+        LinkedHashSet<String> modelNames = new LinkedHashSet<>();
+        LinkedHashMap<String, String> aliases = new LinkedHashMap<>();
+        LinkedHashMap<String, QueryModel> models = new LinkedHashMap<>();
+        LinkedHashMap<String, CatalogResolution<QueryModel>> resolutions =
+                new LinkedHashMap<>();
+        for (String requestedName : requested) {
+            String modelName = snapshot.canonicalQueryModelName(requestedName);
+            if (!modelNames.add(modelName)) {
+                continue;
+            }
+            QueryModel model = snapshot.resolveQueryModel(modelName)
+                    .orElseThrow(() -> new IllegalStateException(
+                            "CATALOG_REQUESTED_MODEL_ABSENT: " + requestedName));
+            ModelProvenance provenance = snapshot.queryModelProvenance(modelName)
+                    .orElseThrow(() -> new IllegalStateException(
+                            "CATALOG_QUERY_PROVENANCE_ABSENT: " + modelName));
+            aliases.put(modelName, snapshot.canonicalToAlias().get(modelName));
+            models.put(modelName, model);
+            resolutions.put(modelName, new CatalogResolution<>(
+                    modelName,
+                    model,
+                    snapshot.identity(),
+                    provenance.datasourceBindings(),
+                    provenance.bindingIdentityComplete()));
+        }
+        return new NamespaceCatalogView(
+                snapshot.identity(),
+                List.copyOf(modelNames),
+                aliases,
+                models,
+                resolutions);
     }
 
     private boolean isCompleteNamespaceSnapshot(CatalogSnapshot snapshot) {
