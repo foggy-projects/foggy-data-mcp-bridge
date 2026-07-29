@@ -1,427 +1,263 @@
-# Foggy Data MCP Bridge
+<p align="center">
+  <img src="logo.png" alt="Foggy Data MCP Bridge" width="120">
+</p>
 
-[中文文档](README.zh-CN.md) | [Full Documentation](https://foggy-projects.github.io/foggy-data-mcp-docs/)
+<h1 align="center">Foggy Data MCP Bridge</h1>
 
-Enable AI assistants to query business data through a semantic layer and MCP instead of writing raw SQL directly.
+<p align="center">
+  A governed semantic layer that lets AI assistants query business data through MCP—without making raw database schemas the AI interface.
+</p>
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Java](https://img.shields.io/badge/Java-17+-green.svg)](https://openjdk.org/)
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.x-brightgreen.svg)](https://spring.io/projects/spring-boot)
-[![MCP](https://img.shields.io/badge/MCP-Compatible-purple.svg)](https://modelcontextprotocol.io/)
+<p align="center">
+  <a href="README.zh-CN.md">简体中文</a> ·
+  <a href="https://foggy-projects.github.io/foggy-data-mcp-docs/en/">Documentation</a> ·
+  <a href="https://github.com/foggy-projects/foggy-data-mcp-bridge/releases">Releases</a> ·
+  <a href="https://github.com/foggy-projects/foggy-data-mcp-bridge/issues">Issues</a>
+</p>
 
-## Why This Exists
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="Apache 2.0 License"></a>
+  <img src="https://img.shields.io/badge/Java-17%2B-ED8B00.svg" alt="Java 17+">
+  <img src="https://img.shields.io/badge/Spring%20Boot-3.4-6DB33F.svg" alt="Spring Boot 3.4">
+  <img src="https://img.shields.io/badge/MCP-JSON--RPC-7B61FF.svg" alt="MCP JSON-RPC">
+</p>
 
-Letting an LLM generate SQL directly against production data is usually the wrong abstraction:
+## Overview
 
-- You have to expose schema details and database dialect quirks to the model.
-- Permissions become hard to preserve once the model writes SQL itself.
-- JOINs, aggregations, and business meaning drift quickly as prompts grow.
-- Multi-database deployments multiply the problem.
-
-Foggy Data MCP puts a semantic layer between AI and the database:
+Giving an LLM direct access to database schemas and asking it to generate SQL
+couples the AI to physical tables, dialect details, and fragile join logic.
+Foggy puts a semantic and governance layer in between:
 
 ```text
-AI assistant -> MCP tools / JSON DSL -> semantic layer -> safe SQL -> database
+AI client
+   │  MCP / JSON Query DSL
+   ▼
+Foggy Runtime
+   ├── TM/QM semantic models
+   ├── namespace and field policies
+   ├── query planning and dialect translation
+   └── model lifecycle and Runtime API
+   │
+   ▼
+MySQL · PostgreSQL · SQL Server · SQLite · optional MongoDB
 ```
 
-That layer gives you:
+AI clients work with business concepts such as revenue, customer, product, and
+order date. Foggy resolves those concepts into governed, read-oriented queries
+and handles joins, aggregation, and database dialects at runtime.
 
-- business semantics instead of raw table exposure
-- read-oriented query governance
-- permission injection before execution
-- reusable TM/QM models
-- one query interface across multiple databases
+## Highlights
 
-## Who This Is For
+- **Semantic modeling** — define reusable table models (TM) and query models
+  (QM) with FSScript.
+- **MCP-native access** — expose analyst, business, and administrative tool
+  surfaces over JSON-RPC.
+- **Structured query DSL** — keep generated queries inside a model-aware
+  contract instead of accepting arbitrary AI-generated SQL.
+- **Runtime governance** — namespace isolation, semantic field allowlists,
+  physical-column deny rules, and auditable tool execution.
+- **Model lifecycle** — register bundles, validate models, refresh atomically,
+  and inspect runtime capabilities through REST APIs.
+- **Extensible backends** — relational databases in the core repository, with
+  optional MongoDB, cache, vector, pre-aggregation, GraphQL, viewer, and Odoo
+  integrations.
 
-- Teams building internal AI data assistants
-- Products exposing governed data access through MCP
-- ERP / BI / reporting projects that need business-friendly query interfaces
-- Developers who want AI-accessible analytics without handing SQL generation to the model
+## Quick start
 
-If your immediate use case is Odoo, start here instead:
+The published Runtime Launcher is the shortest path for local development and
+evaluation. It requires Java 17 or newer and uses a local SQLite database by
+default.
 
-- [Foggy Odoo Bridge](https://github.com/foggy-projects/foggy-odoo-bridge)
+> The launcher is a dev/test distribution. Add production authentication,
+> network controls, datasource governance, and deployment hardening before
+> exposing Foggy outside a trusted environment.
 
-## What You Get
+### 1. Download and start the Runtime
 
-- Semantic layer engine based on TM/QM models
-- JSON Query DSL instead of raw SQL prompts
-- Native MCP endpoints for AI clients and tools
-- Multi-database support: MySQL, PostgreSQL, SQL Server, SQLite, MongoDB
-- JavaScript-like modeling with FSScript
-- Automatic chart generation support
-- Java implementation for server deployment
-- Python implementation for embeddable and FastAPI-based scenarios
-
-## Example Query Flow
-
-The AI only needs business fields, not table structure:
-
-```json
-{
-  "model": "FactSalesQueryModel",
-  "columns": ["customer$name", "sum(totalAmount)"],
-  "filters": [{"field": "orderDate", "op": ">=", "value": "2024-01-01"}],
-  "orderBy": [{"field": "totalAmount", "dir": "DESC"}],
-  "limit": 10
-}
-```
-
-Foggy turns that into governed SQL with JOIN handling, aggregation, and dialect translation built in.
-
-## Quick Start
-
-### 1. Clone and start the demo
+The commands below pin launcher `0.1.16`. Check the
+[releases page](https://github.com/foggy-projects/foggy-data-mcp-bridge/releases)
+for a newer version.
 
 ```bash
-git clone https://github.com/foggy-projects/foggy-data-mcp-bridge.git
-cd foggy-data-mcp-bridge/docker/demo
+mkdir foggy-runtime && cd foggy-runtime
 
-# Optional: enable natural-language querying
-cp .env.example .env
-# Edit .env and set OPENAI_API_KEY if needed
+curl -fLO https://github.com/foggy-projects/foggy-data-mcp-bridge/releases/download/foggy-runtime-launcher-v0.1.16/foggy-runtime-launcher-0.1.16.jar
+curl -fLO https://github.com/foggy-projects/foggy-data-mcp-bridge/releases/download/foggy-runtime-launcher-v0.1.16/start-foggy-runtime.sh
+curl -fLO https://github.com/foggy-projects/foggy-data-mcp-bridge/releases/download/foggy-runtime-launcher-v0.1.16/SHA256SUMS
 
-docker compose up -d
+grep -E 'foggy-runtime-launcher-0.1.16.jar|start-foggy-runtime.sh' SHA256SUMS | sha256sum -c -
+chmod +x start-foggy-runtime.sh
+./start-foggy-runtime.sh
 ```
+
+Windows users can download `start-foggy-runtime.ps1` from the same release and
+run it from PowerShell. The default service URL is
+`http://127.0.0.1:18066`.
 
 ### 2. Verify the service
 
 ```bash
-curl http://localhost:7108/actuator/health
+curl http://127.0.0.1:18066/readyz
+curl http://127.0.0.1:18066/api/v1/capabilities
 ```
 
-### 3. Connect an AI client
+The capabilities response reports the Runtime API version, enabled features,
+and `securityMode`. If a deployment reports `auth-code`, supply the configured
+auth code when using its Runtime API.
 
-Claude Desktop example:
+### 3. Connect an MCP client
+
+Use the analyst JSON-RPC endpoint and select a namespace with `X-NS`:
 
 ```json
 {
   "mcpServers": {
-    "foggy-dataset": {
-      "url": "http://localhost:7108/mcp/analyst/rpc"
+    "foggy-ai-analysis": {
+      "url": "http://127.0.0.1:18066/mcp/analyst/rpc",
+      "headers": {
+        "X-NS": "salesdrop"
+      }
     }
   }
 }
 ```
 
-Cursor setup:
+Some clients require an additional `"type": "http"` field. Keep runtime
+metadata and datasource credentials outside `mcpServers`.
 
-- [Cursor integration guide](https://foggy-projects.github.io/foggy-data-mcp-docs/en/mcp/integration/cursor)
-
-### 4. Ask a question
-
-- "Show me sales by brand for the last week"
-- "Which products had the highest return rate last month?"
-- "Generate a chart comparing revenue by region"
-
-## Why Not Raw SQL
-
-| Problem | Why It Matters |
-|---------|----------------|
-| Schema exposure | Prompts become tied to internal database design |
-| SQL safety | It is difficult to prove what the model may generate |
-| Missing business meaning | AI does not know what `order_status=3` means |
-| Fragile JOIN logic | Complex reporting queries degrade quickly |
-| Dialect differences | MySQL, PostgreSQL, SQL Server, and others diverge fast |
-
-## Key Capabilities
-
-### Security and Governance
-
-- DSL-based queries instead of raw SQL generation
-- Read-only query model by design
-- Field-level and role-level access control
-- Runtime permission injection before execution
-
-### Modeling
-
-- TM/QM semantic modeling
-- Calculated fields and reusable business metrics
-- FSScript for functions, imports, and dynamic logic
-- Parent-child dimensions and pre-aggregation support
-
-### Integration
-
-- MCP endpoints for AI assistants
-- Natural language to DSL workflows
-- Chart rendering support
-- Docker-based local demos and deployment
-
----
-
-## 🎬 Quick Start (Docker)
-
-### 1. Clone and Start
+You can probe the endpoint before configuring a client:
 
 ```bash
-git clone https://github.com/foggy-projects/foggy-data-mcp-bridge.git
-cd foggy-data-mcp-bridge/docker/demo
-
-# Optional: Set OpenAI API key for natural language queries
-cp .env.example .env
-# Edit .env to configure OPENAI_API_KEY (optional)
-
-docker compose up -d
+curl -X POST http://127.0.0.1:18066/mcp/analyst/rpc \
+  -H 'Content-Type: application/json' \
+  -H 'X-NS: salesdrop' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
 ```
 
-### 2. Verify Service
+### 4. Add a datasource and semantic models
 
-```bash
-curl http://localhost:7108/actuator/health
-```
+A useful query environment needs:
 
-### 3. Connect AI Client
+1. a namespace and datasource binding;
+2. TM/QM model files in a model bundle;
+3. successful model validation and refresh;
+4. an MCP client connected with the matching `X-NS` header.
 
-**Claude Desktop** - Add to `claude_desktop_config.json`:
+Follow the
+[AI analysis onboarding guide](https://foggy-projects.github.io/foggy-data-mcp-docs/en/)
+for the bundled SQLite example or for connecting your own datasource. See the
+[semantic-layer syntax reference](https://foggy-projects.github.io/foggy-data-mcp-docs/en/whitepaper/v1.0/semantic-layer-syntax-reference.html)
+and
+[Query DSL reference](https://foggy-projects.github.io/foggy-data-mcp-docs/en/whitepaper/v1.0/query-dsl-syntax-reference.html)
+when building models and queries.
 
-```json
-{
-  "mcpServers": {
-    "foggy-dataset": {
-      "url": "http://localhost:7108/mcp/analyst/rpc"
-    }
-  }
-}
-```
+## Query example
 
-**Cursor IDE** - [See integration guide](https://foggy-projects.github.io/foggy-data-mcp-docs/en/mcp/integration/cursor)
-
-### 4. Start Querying!
-
-Now ask AI in natural language:
-- *"Show me sales by brand for the last week"*
-- *"Which products had the highest return rate last month?"*
-- *"Generate a chart comparing revenue by region"*
-
----
-
-## 📖 How It Works
-
-### 1️⃣ Define Data Model (TM File)
-
-Create `FactSalesModel.tm` using FSScript syntax:
-
-```javascript
-export const model = {
-    name: 'FactSalesModel',
-    caption: 'Sales Data',
-    tableName: 'fact_sales',
-
-    dimensions: [{
-        name: 'product',
-        tableName: 'dim_product',
-        foreignKey: 'product_key',
-        caption: 'Product',
-        properties: [
-            { column: 'brand', caption: 'Brand' },
-            { column: 'category', caption: 'Category' }
-        ]
-    }],
-
-    measures: [
-        { column: 'quantity', caption: 'Quantity', aggregation: 'sum' },
-        { column: 'sales_amount', caption: 'Sales Amount', aggregation: 'sum' }
-    ]
-};
-```
-
-### 2️⃣ AI Sends Semantic Query
-
-AI doesn't need to know table structure, just semantic fields:
+The AI submits semantic fields rather than physical joins:
 
 ```json
 {
   "model": "FactSalesQueryModel",
-  "columns": ["product$brand", "salesAmount"],
-  "filters": [{ "field": "orderDate", "op": ">=", "value": "2024-01-01" }],
-  "orderBy": [{ "field": "salesAmount", "dir": "DESC" }],
-  "limit": 10
+  "payload": {
+    "columns": [
+      "product$brand",
+      "sum(salesAmount) as totalSalesAmount"
+    ],
+    "slice": [
+      {
+        "field": "salesDate$caption",
+        "op": "[)",
+        "value": ["2026-01-01", "2027-01-01"]
+      }
+    ],
+    "groupBy": ["product$brand"],
+    "orderBy": ["-totalSalesAmount"],
+    "limit": 10
+  },
+  "mode": "execute"
 }
 ```
 
-### 3️⃣ Framework Generates Safe SQL
+Foggy resolves the model relationships, applies configured access rules, plans
+the aggregation, translates the query for the selected backend, and returns a
+structured result.
 
-```sql
-SELECT p.brand, SUM(f.sales_amount) as salesAmount
-FROM fact_sales f
-LEFT JOIN dim_product p ON f.product_key = p.product_key
-WHERE f.order_date >= '2024-01-01'
-GROUP BY p.brand
-ORDER BY salesAmount DESC
-LIMIT 10
-```
+## Run the source Docker demo
 
-**No SQL injection risk. No unauthorized access. Just safe, semantic queries.**
-
----
-
-## 🏗️ Project Structure
-
-```
-foggy-data-mcp-bridge/
-├── foggy-core/                    # Core utilities
-├── foggy-fsscript/                # FSScript scripting engine (JavaScript-like)
-├── foggy-dataset/                 # Multi-database query layer (Dialects)
-├── foggy-dataset-model-api/       # Stable QueryFacade DTO and backend SPI
-├── foggy-dataset-model-core/      # Provider catalog and fail-closed governance
-├── foggy-dataset-model-engine/    # Semantic layer engine (TM/QM)
-├── foggy-runtime-api/             # Runtime management API
-├── foggy-dataset-mcp/             # MCP server implementation
-├── foggy-mcp-launcher/            # Executable Spring Boot assembly
-├── foggy-dataset-demo/            # Demo: E-commerce sample data
-├── foggy-bean-copy/               # Bean mapping utilities
-├── docs/architecture/             # Canonical architecture for current main
-├── docs-site/                     # Documentation migration notice; source moved to foggy-data-mcp-docs
-│
-└── addons/                        # Extension modules
-    ├── foggy-dataset-client/      # Dataset client SDK
-    ├── foggy-dataset-model-cache/ # Query cache invalidation provider
-    ├── foggy-dataset-model-mongo/ # MongoDB model support
-    ├── foggy-dataset-mongo/       # MongoDB query layer
-    ├── foggy-dataset-model-vector/# Vector model support
-    ├── foggy-dataset-model-preagg/# Pre-aggregation support
-    ├── foggy-data-viewer/         # Data viewer resources
-    ├── foggy-odoo-bridge-java/    # Odoo Java TM/QM models
-    └── foggy-fsscript-client/     # FSScript client utilities
-```
-
-### Core Modules
-
-| Module | Description |
-|--------|-------------|
-| **foggy-dataset-model-api/core** | Stable query/backend contracts and provider governance |
-| **foggy-dataset-model-engine** | Semantic layer engine - TM/QM modeling, DSL query execution |
-| **foggy-runtime-api** | Datasource, namespace, bundle, model, and query management |
-| **foggy-dataset-mcp** | MCP server - AI assistant integration |
-| **foggy-mcp-launcher** | Executable Spring Boot product assembly |
-| **foggy-dataset** | Database abstraction - MySQL, PostgreSQL, SQL Server, SQLite |
-| **foggy-fsscript** | Scripting engine - JavaScript-like syntax for TM/QM files |
-| **foggy-dataset-demo** | Sample project - E-commerce data models |
-
-### Extension Addons
-
-| Addon | Purpose |
-|-------|---------|
-| **foggy-dataset-mongo** | MongoDB support (NoSQL) |
-| **foggy-dataset-model-cache** | Query cache and invalidation integration |
-| **foggy-dataset-model-vector / preagg** | Optional vector and pre-aggregation capabilities |
-| **foggy-data-viewer / chart-storage-cloud** | Data browsing and chart storage |
-| **foggy-odoo-bridge-java** | Odoo Java TM/QM models for gateway deployment |
-
----
-
-## 📚 Documentation
-
-### 🏗️ Repository Architecture
-- [Current Architecture](docs/architecture/README.md) - Canonical architecture and module boundaries for `main`
-
-### 📘 Getting Started
-- [MCP Introduction](https://foggy-projects.github.io/foggy-data-mcp-docs/en/mcp/guide/introduction) - What is Foggy MCP
-- [Quick Start](https://foggy-projects.github.io/foggy-data-mcp-docs/en/mcp/guide/quick-start) - Get up and running
-- [Architecture](https://foggy-projects.github.io/foggy-data-mcp-docs/en/mcp/guide/architecture) - System architecture overview
-
-### 📗 Core Concepts
-- [TM/QM Modeling](https://foggy-projects.github.io/foggy-data-mcp-docs/en/dataset-model/guide/introduction) - Build semantic layer
-- [TM Syntax Manual](https://foggy-projects.github.io/foggy-data-mcp-docs/en/dataset-model/tm-qm/tm-syntax) - Table model reference
-- [QM Syntax Manual](https://foggy-projects.github.io/foggy-data-mcp-docs/en/dataset-model/tm-qm/qm-syntax) - Query model reference
-- [Query DSL API](https://foggy-projects.github.io/foggy-data-mcp-docs/en/dataset-model/api/query-api) - JSON query reference
-
-### 📙 FSScript Engine
-- [Why FSScript](https://foggy-projects.github.io/foggy-data-mcp-docs/en/fsscript/guide/why-fsscript) - Use cases
-- [Syntax Guide](https://foggy-projects.github.io/foggy-data-mcp-docs/en/fsscript/syntax/variables) - Language reference
-- [Spring Boot Integration](https://foggy-projects.github.io/foggy-data-mcp-docs/en/fsscript/java/spring-boot) - Java integration
-
-### 📕 MCP Integration
-- [Claude Desktop Setup](https://foggy-projects.github.io/foggy-data-mcp-docs/en/mcp/integration/claude-desktop)
-- [Cursor Integration](https://foggy-projects.github.io/foggy-data-mcp-docs/en/mcp/integration/cursor)
-- [MCP Tools Reference](https://foggy-projects.github.io/foggy-data-mcp-docs/en/mcp/tools/overview)
-- [API Usage](https://foggy-projects.github.io/foggy-data-mcp-docs/en/mcp/integration/api)
-
-### 🌐 Full Documentation Site
-**Visit: [https://foggy-projects.github.io/foggy-data-mcp-docs/](https://foggy-projects.github.io/foggy-data-mcp-docs/)**
-
----
-
-## 🎯 Use Cases
-
-### 📊 Business Intelligence
-- **Ad-Hoc Queries** - Business users ask questions in natural language
-- **Multi-Dimensional Analysis** - Group by dimensions, aggregate measures
-- **KPI Dashboards** - Track metrics with calculated fields
-
-### 🔍 Data Analysis Platform
-- **Self-Service Analytics** - Non-technical users query data without SQL
-- **Dynamic Filtering** - Flexible conditions without schema knowledge
-- **Data Exploration** - AI helps discover insights
-
-### 🏢 Enterprise Data Gateway
-- **Unified Data Access** - Single semantic layer across multiple databases
-- **Access Control** - Role-based field-level permissions
-- **Audit Logging** - Track all data access
-
-### 🤖 AI Agent Development
-- **RAG Systems** - Retrieve business data for AI reasoning
-- **Chatbots** - Answer business questions from databases
-- **Workflow Automation** - AI-driven data operations
-
----
-
-## 🛠️ Development
-
-### Prerequisites
-- **Java 17+**
-- **Maven 3.6+**
-- **Docker** (optional, for demo)
-
-### Local Build
+The repository also contains an e-commerce demo backed by MySQL. This path
+builds the current source tree and requires an OpenAI-compatible API key.
 
 ```bash
-# Build all modules
-mvn clean install
-
-# Run MCP server
-cd foggy-dataset-mcp
-mvn spring-boot:run
+git clone https://github.com/foggy-projects/foggy-data-mcp-bridge.git
+cd foggy-data-mcp-bridge/docker/demo
+cp .env.example .env
+# Edit .env and set OPENAI_API_KEY and, if needed, OPENAI_BASE_URL.
+docker compose up -d --build
+curl http://localhost:7108/actuator/health
 ```
 
-### IDE Setup
-See [IDE Development Guide](https://foggy-projects.github.io/foggy-data-mcp-docs/en/mcp/guide/quick-start) for IntelliJ IDEA / VS Code configuration.
+See the [Docker demo guide](docker/demo/README.md) for models, configuration,
+logs, and cleanup commands.
 
----
+## Repository layout
 
-## 🤝 Contributing
+| Path | Responsibility |
+| --- | --- |
+| `foggy-dataset-model-api` | Stable query DTOs and backend SPI |
+| `foggy-dataset-model-core` | Provider catalog and fail-closed governance |
+| `foggy-dataset-model-engine` | TM/QM loading, planning, refresh, and execution |
+| `foggy-runtime-api` | Datasource, namespace, bundle, model, and query APIs |
+| `foggy-dataset-mcp` | MCP tools, discovery, dispatch, and audit |
+| `foggy-mcp-launcher` | Executable Spring Boot assembly |
+| `foggy-dataset` | JDBC access and relational dialects |
+| `foggy-fsscript` | Script engine used by semantic models |
+| `foggy-dataset-demo` | Example schemas, data, and semantic models |
+| `addons` | Optional backend and product integrations |
 
-We welcome contributions! Please:
+For the complete module boundaries and lifecycle, read the
+[canonical architecture guide](docs/architecture/README.md).
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+## Development
 
----
+Prerequisites:
 
-## 📄 License
+- JDK 17+
+- Maven 3.9+
+- Docker Compose v2 for integration environments
 
-[Apache License 2.0](LICENSE)
+Run the unit-test reactor:
 
----
+```bash
+mvn -B -ntp test -DskipITs
+```
 
-## 🌟 Star History
+Run focused tests while developing a module:
 
-If you find this project useful, please give it a ⭐️ on GitHub!
+```bash
+mvn -B -ntp -pl foggy-runtime-api,foggy-dataset-mcp -am test -DskipITs
+```
 
-[![Star History Chart](https://api.star-history.com/svg?repos=foggy-projects/foggy-data-mcp-bridge&type=Date)](https://star-history.com/#foggy-projects/foggy-data-mcp-bridge&Date)
+Integration tests are opt-in and may require external databases:
 
----
+```bash
+mvn -B -ntp verify -DskipITs=false
+```
 
-## 📞 Support & Community
+Please open an issue before a large architectural change and submit changes
+through a focused pull request. Never commit credentials, connection strings,
+or logs containing sensitive data.
 
-- **GitHub Issues**: [Report bugs or request features](https://github.com/foggy-projects/foggy-data-mcp-bridge/issues)
-- **Documentation**: [Full docs site](https://foggy-projects.github.io/foggy-data-mcp-docs/)
-- **Discussions**: [Join conversations](https://github.com/foggy-projects/foggy-data-mcp-bridge/discussions)
+## Documentation and support
 
----
+- [User documentation](https://foggy-projects.github.io/foggy-data-mcp-docs/en/)
+- [Architecture](docs/architecture/README.md)
+- [Releases](https://github.com/foggy-projects/foggy-data-mcp-bridge/releases)
+- [Bug reports and feature requests](https://github.com/foggy-projects/foggy-data-mcp-bridge/issues)
+- [Discussions](https://github.com/foggy-projects/foggy-data-mcp-bridge/discussions)
+- [Foggy Odoo Bridge](https://github.com/foggy-projects/foggy-odoo-bridge)
 
-**Built with ❤️ for the AI + Data community**
+## License
+
+Copyright © Foggy Data MCP Bridge contributors.
+
+Licensed under the [Apache License 2.0](LICENSE).

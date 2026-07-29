@@ -1,376 +1,244 @@
-# Foggy Data MCP Bridge
+<p align="center">
+  <img src="logo.png" alt="Foggy Data MCP Bridge" width="120">
+</p>
 
-[English](README.md) | [📚 完整文档](https://foggy-projects.github.io/foggy-data-mcp-docs/zh/)
+<h1 align="center">Foggy Data MCP Bridge</h1>
 
-**AI 原生语义层框架** - 让 AI 助手通过 MCP 协议安全、精准地查询业务数据。
+<p align="center">
+  面向 AI 数据分析的治理型语义层：通过 MCP 查询业务数据，而不是把数据库 Schema 和原始 SQL 直接交给 AI。
+</p>
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Java](https://img.shields.io/badge/Java-17+-green.svg)](https://openjdk.org/)
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.x-brightgreen.svg)](https://spring.io/projects/spring-boot)
-[![MCP](https://img.shields.io/badge/MCP-兼容-purple.svg)](https://modelcontextprotocol.io/)
+<p align="center">
+  <a href="README.md">English</a> ·
+  <a href="https://foggy-projects.github.io/foggy-data-mcp-docs/zh/">完整文档</a> ·
+  <a href="https://github.com/foggy-projects/foggy-data-mcp-bridge/releases">版本发布</a> ·
+  <a href="https://github.com/foggy-projects/foggy-data-mcp-bridge/issues">问题反馈</a>
+</p>
 
----
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="Apache 2.0 License"></a>
+  <img src="https://img.shields.io/badge/Java-17%2B-ED8B00.svg" alt="Java 17+">
+  <img src="https://img.shields.io/badge/Spring%20Boot-3.4-6DB33F.svg" alt="Spring Boot 3.4">
+  <img src="https://img.shields.io/badge/MCP-JSON--RPC-7B61FF.svg" alt="MCP JSON-RPC">
+</p>
 
-## 🚀 为什么需要这个项目？
+## 项目简介
 
-### ❌ 问题：让 AI 直接写 SQL 很危险
+让大模型直接理解数据库表结构并生成 SQL，会使 AI 与物理表、数据库方言和脆弱的 JOIN
+逻辑紧密耦合。Foggy 在 AI 与数据库之间增加语义建模和查询治理层：
 
-让大语言模型直接生成 SQL 存在严重的安全和可维护性问题：
-
-| 问题 | 影响 |
-|------|------|
-| **安全风险** | AI 可能生成 `DELETE`、`UPDATE` 或访问敏感表，难以有效防范 |
-| **Schema 暴露** | 必须将完整数据库结构提供给 AI，暴露内部设计细节 |
-| **业务语义缺失** | `order_status=3` 是什么意思？AI 不知道,用户也不想关心 |
-| **复杂 JOIN 易错** | 多表关联和聚合逻辑脆弱，调试成本高 |
-| **数据库方言混乱** | MySQL、PostgreSQL、SQL Server、MongoDB - AI 需要分别适配 |
-| **执行不可控** | 生成的 SQL 不透明，难以拦截或修改 |
-
-### ✅ 我们的方案：基于 DSL 查询语言的语义层
-
-AI 不直接写 SQL，而是发送**结构化 JSON 查询**到语义层：
-
-```
-AI → JSON DSL 查询 → 语义层 → 安全 SQL → 数据库
-                        ↓
-                  • 防止 SQL 注入
-                  • 强制权限控制
-                  • 处理多表 JOIN
-                  • 抽象数据库方言
-                  • 支持运行时权限注入
-```
-
-**示例**：AI 只需要知道语义含义，无需了解数据库内部结构：
-
-```json
-{
-  "model": "FactSalesQueryModel",
-  "columns": ["customer$name", "sum(totalAmount)"],
-  "filters": [{"field": "orderDate", "op": ">=", "value": "2024-01-01"}],
-  "orderBy": [{"field": "totalAmount", "dir": "DESC"}],
-  "limit": 10
-}
+```text
+AI 客户端
+   │  MCP / JSON Query DSL
+   ▼
+Foggy Runtime
+   ├── TM/QM 语义模型
+   ├── Namespace 与字段策略
+   ├── 查询规划与方言转换
+   └── 模型生命周期与 Runtime API
+   │
+   ▼
+MySQL · PostgreSQL · SQL Server · SQLite · 可选 MongoDB
 ```
 
-框架自动生成优化的、安全的 SQL，包含正确的 JOIN 和聚合。
+AI 面对的是销售额、客户、商品、下单日期等业务概念。Foggy 在运行时将它们解析为受治理的
+只读查询，并统一处理关联、聚合和数据库方言。
 
----
+## 核心能力
 
-## ⭐ 核心特性
+- **语义建模**：使用 FSScript 定义可复用的表模型（TM）和查询模型（QM）。
+- **原生 MCP 接入**：通过 JSON-RPC 暴露分析、业务和管理工具。
+- **结构化 Query DSL**：让 AI 在模型约束内生成查询，而不是提交任意 SQL。
+- **运行时治理**：支持 Namespace 隔离、语义字段白名单、物理列黑名单和工具调用审计。
+- **模型生命周期**：Bundle 注册、模型校验、原子刷新和 Runtime 能力发现。
+- **可扩展后端**：核心支持关系数据库，可选接入 MongoDB、缓存、向量、预聚合、
+  GraphQL、Data Viewer 和 Odoo。
 
-### 🔒 **安全第一**
-- **基于 DSL 的查询** - AI 永远不接触原始 SQL，从根本上消除注入风险
-- **字段级访问控制** - 精确定义每个角色可访问的模型和字段
-- **只读设计** - DSL 仅支持 `SELECT`，不支持 `DELETE`/`UPDATE`/`DROP`
-- **运行时权限注入** - 在查询执行前拦截并修改查询
+## 快速开始
 
-### 🎯 **模型即代码**
-- **基于 JavaScript 的建模** - 使用 [FSScript](https://foggy-projects.github.io/foggy-data-mcp-docs/zh/fsscript/guide/introduction)（类 JavaScript 语法）定义数据模型
-- **函数复用** - 不同于静态的 YAML/JSON，支持函数、导入和动态逻辑
-- **TM/QM 文件** - 表模型（TM）+ 查询模型（QM）构建语义层
-- **计算字段** - 在模型中定义复杂业务指标，而非在查询中
+已发布的 Runtime Launcher 是本地开发和体验的最短路径。它需要 Java 17 或更高版本，
+默认使用本地 SQLite 数据库。
 
-### 🌐 **多数据库支持**
-无缝支持：
-- ✅ MySQL 5.7+
-- ✅ PostgreSQL 12+
-- ✅ SQL Server 2012+
-- ✅ SQLite 3.30+
-- ✅ MongoDB（通过扩展）
+> Launcher 是开发/测试发行物。对外部署前，请补齐生产认证、网络隔离、数据源治理和运行环境加固。
 
-同一份 DSL 查询在所有数据库上运行 - 自动方言转换。
+### 1. 下载并启动 Runtime
 
-### 🤖 **AI 原生集成**
-- **MCP 协议** - 原生支持 [Model Context Protocol](https://modelcontextprotocol.io/)
-- **基于角色的端点** - `/mcp/admin/rpc`、`/mcp/analyst/rpc`、`/mcp/business/rpc`
-- **自然语言查询** - AI 自动将用户问题转换为 DSL
-- **Claude Desktop & Cursor** - 开箱即用集成主流 AI 工具
-
-### 📊 **数据可视化**
-- **自动图表生成** - 趋势图、柱状图、饼图等
-- **图表资源存储** - 可通过 `foggy-chart-storage-cloud` 扩展保存图表资源
-- **带图表导出** - 下载数据时附带可视化图表
-
-### 🚀 **生产就绪**
-- **基于 Spring Boot** - 企业级 Java 框架
-- **Docker 支持** - 使用 Docker Compose 一键部署
-- **完善文档** - 基于 VitePress 构建的双语文档站点（中/英）
-- **可扩展架构** - 图表、MongoDB、基准测试等扩展系统
-
----
-
-## 🎬 快速开始（Docker）
-
-### 1. 克隆并启动
+下面的命令固定使用 Launcher `0.1.16`。如有新版本，请以
+[Releases](https://github.com/foggy-projects/foggy-data-mcp-bridge/releases)
+页面为准。
 
 ```bash
-git clone https://github.com/foggy-projects/foggy-data-mcp-bridge.git
-cd foggy-data-mcp-bridge/docker/demo
+mkdir foggy-runtime && cd foggy-runtime
 
-# 可选：设置 OpenAI API key 以启用自然语言查询
-cp .env.example .env
-# 编辑 .env 配置 OPENAI_API_KEY（可选）
+curl -fLO https://github.com/foggy-projects/foggy-data-mcp-bridge/releases/download/foggy-runtime-launcher-v0.1.16/foggy-runtime-launcher-0.1.16.jar
+curl -fLO https://github.com/foggy-projects/foggy-data-mcp-bridge/releases/download/foggy-runtime-launcher-v0.1.16/start-foggy-runtime.sh
+curl -fLO https://github.com/foggy-projects/foggy-data-mcp-bridge/releases/download/foggy-runtime-launcher-v0.1.16/SHA256SUMS
 
-docker compose up -d
+grep -E 'foggy-runtime-launcher-0.1.16.jar|start-foggy-runtime.sh' SHA256SUMS | sha256sum -c -
+chmod +x start-foggy-runtime.sh
+./start-foggy-runtime.sh
 ```
+
+Windows 用户可从同一 Release 下载 `start-foggy-runtime.ps1`，然后在 PowerShell
+中运行。默认服务地址为 `http://127.0.0.1:18066`。
 
 ### 2. 验证服务
 
 ```bash
-curl http://localhost:7108/actuator/health
+curl http://127.0.0.1:18066/readyz
+curl http://127.0.0.1:18066/api/v1/capabilities
 ```
 
-### 3. 连接 AI 客户端
+`capabilities` 会返回 Runtime API 版本、已启用能力和 `securityMode`。如果部署返回
+`auth-code`，调用 Runtime API 时还需提供服务端配置的 auth code。
 
-**Claude Desktop** - 添加到 `claude_desktop_config.json`：
+### 3. 连接 MCP 客户端
+
+连接分析端 JSON-RPC，并通过 `X-NS` 选择 Namespace：
 
 ```json
 {
   "mcpServers": {
-    "foggy-dataset": {
-      "url": "http://localhost:7108/mcp/analyst/rpc"
+    "foggy-ai-analysis": {
+      "url": "http://127.0.0.1:18066/mcp/analyst/rpc",
+      "headers": {
+        "X-NS": "salesdrop"
+      }
     }
   }
 }
 ```
 
-**Cursor IDE** - [查看集成指南](https://foggy-projects.github.io/foggy-data-mcp-docs/zh/mcp/integration/cursor)
+少数 MCP 客户端还要求填写 `"type": "http"`。Runtime 元数据和数据源凭证不应放进
+`mcpServers`。
 
-### 4. 开始查询！
+配置客户端前，可以先探测 MCP 端点：
 
-现在用自然语言向 AI 提问：
-- *"显示上周按品牌分组的销售数据"*
-- *"上个月退货率最高的商品有哪些？"*
-- *"生成一个按地区比较收入的图表"*
-
----
-
-## 📖 工作原理
-
-### 1️⃣ 定义数据模型（TM 文件）
-
-使用 FSScript 语法创建 `FactSalesModel.tm`：
-
-```javascript
-export const model = {
-    name: 'FactSalesModel',
-    caption: '销售数据',
-    tableName: 'fact_sales',
-
-    dimensions: [{
-        name: 'product',
-        tableName: 'dim_product',
-        foreignKey: 'product_key',
-        caption: '商品',
-        properties: [
-            { column: 'brand', caption: '品牌' },
-            { column: 'category', caption: '品类' }
-        ]
-    }],
-
-    measures: [
-        { column: 'quantity', caption: '销量', aggregation: 'sum' },
-        { column: 'sales_amount', caption: '销售额', aggregation: 'sum' }
-    ]
-};
+```bash
+curl -X POST http://127.0.0.1:18066/mcp/analyst/rpc \
+  -H 'Content-Type: application/json' \
+  -H 'X-NS: salesdrop' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
 ```
 
-### 2️⃣ AI 发送语义查询
+### 4. 接入数据源和语义模型
 
-AI 不需要知道表结构，只需要知道语义字段：
+一个可查询的环境还需要：
+
+1. 创建 Namespace，并绑定数据源；
+2. 将 TM/QM 模型放入模型 Bundle；
+3. 完成模型校验和刷新；
+4. MCP 客户端使用相同的 `X-NS` 请求头。
+
+你可以通过
+[AI 分析上手指南](https://foggy-projects.github.io/foggy-data-mcp-docs/zh/)
+加载内置 SQLite 示例，或接入自己的数据库。编写模型与查询时，可参考
+[语义层语法手册](https://foggy-projects.github.io/foggy-data-mcp-docs/zh/whitepaper/v1.0/semantic-layer-syntax-reference.html)
+和
+[Query DSL 手册](https://foggy-projects.github.io/foggy-data-mcp-docs/zh/whitepaper/v1.0/query-dsl-syntax-reference.html)。
+
+## 查询示例
+
+AI 提交语义字段，不需要拼接物理表 JOIN：
 
 ```json
 {
   "model": "FactSalesQueryModel",
-  "columns": ["product$brand", "salesAmount"],
-  "filters": [{ "field": "orderDate", "op": ">=", "value": "2024-01-01" }],
-  "orderBy": [{ "field": "salesAmount", "dir": "DESC" }],
-  "limit": 10
+  "payload": {
+    "columns": [
+      "product$brand",
+      "sum(salesAmount) as totalSalesAmount"
+    ],
+    "slice": [
+      {
+        "field": "salesDate$caption",
+        "op": "[)",
+        "value": ["2026-01-01", "2027-01-01"]
+      }
+    ],
+    "groupBy": ["product$brand"],
+    "orderBy": ["-totalSalesAmount"],
+    "limit": 10
+  },
+  "mode": "execute"
 }
 ```
 
-### 3️⃣ 框架生成安全 SQL
+Foggy 会解析模型关系、执行已配置的访问控制、规划聚合、转换目标数据库方言，并返回结构化结果。
 
-```sql
-SELECT p.brand, SUM(f.sales_amount) as salesAmount
-FROM fact_sales f
-LEFT JOIN dim_product p ON f.product_key = p.product_key
-WHERE f.order_date >= '2024-01-01'
-GROUP BY p.brand
-ORDER BY salesAmount DESC
-LIMIT 10
-```
+## 运行源码 Docker 演示
 
-**没有 SQL 注入风险。没有未授权访问。只有安全的语义查询。**
-
----
-
-## 🏗️ 项目结构
-
-```
-foggy-data-mcp-bridge/
-├── foggy-core/                    # 核心工具类
-├── foggy-fsscript/                # FSScript 脚本引擎（类 JavaScript）
-├── foggy-dataset/                 # 多数据库查询层（方言）
-├── foggy-dataset-model-api/       # 稳定 QueryFacade DTO 与 backend SPI
-├── foggy-dataset-model-core/      # Provider catalog 与 fail-closed 治理
-├── foggy-dataset-model-engine/    # 语义层引擎（TM/QM）
-├── foggy-runtime-api/             # Runtime 管理 API
-├── foggy-dataset-mcp/             # MCP 服务端实现
-├── foggy-mcp-launcher/            # 可执行 Spring Boot 装配
-├── foggy-dataset-demo/            # 演示：电商示例数据
-├── foggy-bean-copy/               # Bean 映射工具
-├── docs/architecture/             # 当前 main 的 canonical 架构
-├── docs-site/                     # 文档迁移提示；源码已迁移到 foggy-data-mcp-docs
-│
-└── addons/                        # 扩展模块
-    ├── foggy-dataset-client/      # 数据集客户端 SDK
-    ├── foggy-dataset-model-cache/ # 查询缓存失效 provider
-    ├── foggy-dataset-model-mongo/ # MongoDB 模型支持
-    ├── foggy-dataset-mongo/       # MongoDB 查询层
-    ├── foggy-dataset-model-vector/# Vector 模型支持
-    ├── foggy-dataset-model-preagg/# 预聚合支持
-    ├── foggy-data-viewer/         # 数据浏览资源
-    ├── foggy-odoo-bridge-java/    # Odoo Java TM/QM 模型
-    └── foggy-fsscript-client/     # FSScript 客户端工具
-```
-
-### 核心模块
-
-| 模块 | 说明 |
-|------|------|
-| **foggy-dataset-model-api/core** | 稳定查询/backend 契约与 provider 治理 |
-| **foggy-dataset-model-engine** | 语义层引擎 - TM/QM 建模、DSL 查询执行 |
-| **foggy-runtime-api** | 数据源、namespace、Bundle、模型和查询管理 |
-| **foggy-dataset-mcp** | MCP 服务端 - AI 助手集成 |
-| **foggy-mcp-launcher** | 可执行 Spring Boot 产品装配 |
-| **foggy-dataset** | 数据库抽象 - MySQL、PostgreSQL、SQL Server、SQLite |
-| **foggy-fsscript** | 脚本引擎 - TM/QM 文件的 JavaScript 语法 |
-| **foggy-dataset-demo** | 示例项目 - 电商数据模型 |
-
-### 扩展插件
-
-| 扩展 | 用途 |
-|------|------|
-| **foggy-dataset-mongo** | MongoDB 支持（NoSQL） |
-| **foggy-dataset-model-cache** | 查询缓存与失效集成 |
-| **foggy-dataset-model-vector / preagg** | 可选 Vector 与预聚合能力 |
-| **foggy-data-viewer / chart-storage-cloud** | 数据浏览与图表存储 |
-| **foggy-odoo-bridge-java** | 网关部署使用的 Odoo Java TM/QM 模型 |
-
----
-
-## 📚 文档
-
-### 🏗️ 仓库架构
-- [当前架构](docs/architecture/README.md) - `main` 的 canonical 架构与模块边界
-
-### 📘 快速开始指南
-- [简介](https://foggy-projects.github.io/foggy-data-mcp-docs/zh/mcp/guide/introduction) - 什么是 Foggy MCP
-- [Docker 部署](https://foggy-projects.github.io/foggy-data-mcp-docs/zh/quick-start/docker-setup) - 一键部署
-- [第一次查询](https://foggy-projects.github.io/foggy-data-mcp-docs/zh/quick-start/first-query) - 运行第一个 AI 查询
-
-### 📗 核心概念
-- [TM/QM 建模](https://foggy-projects.github.io/foggy-data-mcp-docs/zh/dataset-model/guide/introduction) - 构建语义层
-- [TM 语法手册](https://foggy-projects.github.io/foggy-data-mcp-docs/zh/dataset-model/tm-qm/tm-syntax) - 表模型参考
-- [QM 语法手册](https://foggy-projects.github.io/foggy-data-mcp-docs/zh/dataset-model/tm-qm/qm-syntax) - 查询模型参考
-- [DSL 查询 API](https://foggy-projects.github.io/foggy-data-mcp-docs/zh/dataset-model/api/query-api) - JSON 查询参考
-
-### 📙 FSScript 引擎
-- [为什么用 FSScript](https://foggy-projects.github.io/foggy-data-mcp-docs/zh/fsscript/guide/why-fsscript) - 使用场景
-- [语法指南](https://foggy-projects.github.io/foggy-data-mcp-docs/zh/fsscript/syntax/variables) - 语言参考
-- [Spring Boot 集成](https://foggy-projects.github.io/foggy-data-mcp-docs/zh/fsscript/java/spring-boot) - Java 集成
-
-### 📕 MCP 集成
-- [Claude Desktop 配置](https://foggy-projects.github.io/foggy-data-mcp-docs/zh/mcp/integration/claude-desktop)
-- [Cursor 集成](https://foggy-projects.github.io/foggy-data-mcp-docs/zh/mcp/integration/cursor)
-- [MCP 工具参考](https://foggy-projects.github.io/foggy-data-mcp-docs/zh/mcp/tools/overview)
-- [API 使用](https://foggy-projects.github.io/foggy-data-mcp-docs/zh/mcp/integration/api)
-
-### 🌐 完整文档站点
-**访问：[https://foggy-projects.github.io/foggy-data-mcp-docs/zh/](https://foggy-projects.github.io/foggy-data-mcp-docs/zh/)**
-
----
-
-## 🎯 使用场景
-
-### 📊 商业智能
-- **即席查询** - 业务用户用自然语言提问
-- **多维分析** - 按维度分组、聚合度量
-- **KPI 仪表盘** - 使用计算字段跟踪指标
-
-### 🔍 数据分析平台
-- **自助分析** - 非技术用户无需 SQL 即可查询数据
-- **动态过滤** - 无需了解 Schema 即可灵活设置条件
-- **数据探索** - AI 帮助发现洞察
-
-### 🏢 企业数据网关
-- **统一数据访问** - 跨多个数据库的单一语义层
-- **访问控制** - 基于角色的字段级权限
-- **审计日志** - 跟踪所有数据访问
-
-### 🤖 AI 智能体开发
-- **RAG 系统** - 为 AI 推理检索业务数据
-- **聊天机器人** - 从数据库回答业务问题
-- **工作流自动化** - AI 驱动的数据操作
-
----
-
-## 🛠️ 开发
-
-### 前置要求
-- **Java 17+**
-- **Maven 3.6+**
-- **Docker**（可选，用于演示）
-
-### 本地构建
+仓库包含一个基于 MySQL 的电商演示。该方式会构建当前源码，并且需要
+OpenAI 兼容服务的 API Key。
 
 ```bash
-# 构建所有模块
-mvn clean install
-
-# 运行 MCP 服务
-cd foggy-dataset-mcp
-mvn spring-boot:run
+git clone https://github.com/foggy-projects/foggy-data-mcp-bridge.git
+cd foggy-data-mcp-bridge/docker/demo
+cp .env.example .env
+# 编辑 .env，设置 OPENAI_API_KEY；需要时同时修改 OPENAI_BASE_URL。
+docker compose up -d --build
+curl http://localhost:7108/actuator/health
 ```
 
-### IDE 配置
-查看 [IDE 开发指南](https://foggy-projects.github.io/foggy-data-mcp-docs/zh/mcp/guide/quick-start) 了解 IntelliJ IDEA / VS Code 配置。
+模型、配置、日志和清理命令详见 [Docker 演示指南](docker/demo/README.md)。
 
----
+## 仓库结构
 
-## 🤝 贡献
+| 目录 | 职责 |
+| --- | --- |
+| `foggy-dataset-model-api` | 稳定查询 DTO 与后端 SPI |
+| `foggy-dataset-model-core` | Provider Catalog 与 fail-closed 治理 |
+| `foggy-dataset-model-engine` | TM/QM 加载、规划、刷新和执行 |
+| `foggy-runtime-api` | 数据源、Namespace、Bundle、模型与查询 API |
+| `foggy-dataset-mcp` | MCP 工具、发现、分发和审计 |
+| `foggy-mcp-launcher` | 可执行 Spring Boot 装配 |
+| `foggy-dataset` | JDBC 访问与关系数据库方言 |
+| `foggy-fsscript` | 语义模型使用的脚本引擎 |
+| `foggy-dataset-demo` | 示例 Schema、数据与语义模型 |
+| `addons` | 可选后端与产品集成 |
 
-我们欢迎贡献！请：
+完整模块边界和生命周期见[当前架构文档](docs/architecture/README.md)。
 
-1. Fork 本仓库
-2. 创建特性分支（`git checkout -b feature/amazing-feature`）
-3. 提交更改（`git commit -m 'Add amazing feature'`）
-4. 推送到分支（`git push origin feature/amazing-feature`）
-5. 开启 Pull Request
+## 本地开发
 
----
+前置条件：
 
-## 📄 许可证
+- JDK 17+
+- Maven 3.9+
+- 集成测试环境需要 Docker Compose v2
 
-[Apache License 2.0](LICENSE)
+运行单元测试：
 
----
+```bash
+mvn -B -ntp test -DskipITs
+```
 
-## 🌟 Star 历史
+开发某个模块时运行聚焦测试：
 
-如果您觉得这个项目有用，请在 GitHub 上给我们一个 ⭐️！
+```bash
+mvn -B -ntp -pl foggy-runtime-api,foggy-dataset-mcp -am test -DskipITs
+```
 
-[![Star History Chart](https://api.star-history.com/svg?repos=foggy-projects/foggy-data-mcp-bridge&type=Date)](https://star-history.com/#foggy-projects/foggy-data-mcp-bridge&Date)
+集成测试默认不启用，执行时可能需要外部数据库：
 
----
+```bash
+mvn -B -ntp verify -DskipITs=false
+```
 
-## 📞 支持与社区
+较大的架构调整请先创建 Issue，再通过范围清晰的 Pull Request 提交。不要提交密钥、连接串，
+或包含敏感信息的日志。
 
-- **GitHub Issues**：[报告问题或请求功能](https://github.com/foggy-projects/foggy-data-mcp-bridge/issues)
-- **文档站点**：[完整文档](https://foggy-projects.github.io/foggy-data-mcp-docs/zh/)
-- **讨论区**：[加入讨论](https://github.com/foggy-projects/foggy-data-mcp-bridge/discussions)
+## 文档与支持
 
----
+- [用户文档](https://foggy-projects.github.io/foggy-data-mcp-docs/zh/)
+- [架构文档](docs/architecture/README.md)
+- [版本发布](https://github.com/foggy-projects/foggy-data-mcp-bridge/releases)
+- [Bug 与功能建议](https://github.com/foggy-projects/foggy-data-mcp-bridge/issues)
+- [讨论区](https://github.com/foggy-projects/foggy-data-mcp-bridge/discussions)
+- [Foggy Odoo Bridge](https://github.com/foggy-projects/foggy-odoo-bridge)
 
-**用 ❤️ 为 AI + 数据社区构建**
+## 许可证
+
+Copyright © Foggy Data MCP Bridge contributors.
+
+本项目基于 [Apache License 2.0](LICENSE) 开源。
