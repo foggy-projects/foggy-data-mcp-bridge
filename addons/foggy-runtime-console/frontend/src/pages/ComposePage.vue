@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import PageHeader from '@/components/PageHeader.vue'
 import RuntimeResultTable from '@/components/RuntimeResultTable.vue'
 import ExecutionToolTabs from '@/components/ExecutionToolTabs.vue'
 import { runtimeApi, RuntimeRequestError } from '@/api/client'
 import { useRuntimeSession } from '@/stores/session'
+import { useNamespaceScope } from '@/composables/useNamespaceScope'
 import { normalizeResultRows, parseJsonObject, prettyJson } from '@/utils/json'
 
 interface ComposeResponse {
@@ -20,6 +21,7 @@ interface ComposeResponse {
 }
 
 const session = useRuntimeSession()
+const namespaceScope = useNamespaceScope()
 const script = ref(`query OrderModel {
   columns: ["id"]
   limit: 20
@@ -63,8 +65,10 @@ async function run(mode: 'validate' | 'preview' | 'execute'): Promise<void> {
   }
 
   busy.value = mode
+  const requestScope = namespaceScope.snapshot()
   rows.value = []
   output.value = ''
+  warnings.value = []
   try {
     const result = await runtimeApi.post<ComposeResponse>(`compose/${mode}`, {
       script: script.value,
@@ -72,6 +76,7 @@ async function run(mode: 'validate' | 'preview' | 'execute'): Promise<void> {
       options: parsedOptions,
       namespace: session.namespace.value
     })
+    if (!namespaceScope.isCurrent(requestScope)) return
     rows.value = normalizeResultRows(result.value)
     warnings.value = result.warnings || []
     output.value = prettyJson({
@@ -84,11 +89,19 @@ async function run(mode: 'validate' | 'preview' | 'execute'): Promise<void> {
     })
     ElMessage.success(`Compose ${mode} 完成。`)
   } catch (error) {
+    if (!namespaceScope.isCurrent(requestScope)) return
     ElMessage.error(errorText(error))
   } finally {
-    busy.value = ''
+    if (namespaceScope.isCurrent(requestScope)) busy.value = ''
   }
 }
+
+watch(namespaceScope.namespace, () => {
+  busy.value = ''
+  rows.value = []
+  output.value = ''
+  warnings.value = []
+})
 </script>
 
 <template>
@@ -96,7 +109,7 @@ async function run(mode: 'validate' | 'preview' | 'execute'): Promise<void> {
   <PageHeader
     eyebrow="Governed composition"
     title="Compose / CTE"
-    description="面向受限 Compose 与 CTE 的校验、预览和执行入口。执行前需要二次确认，服务端仍负责最终语法与治理边界。"
+    :description="`面向受限 Compose 与 CTE 的校验、预览和执行入口。当前空间：${namespaceScope.label.value}。执行前需要二次确认，服务端仍负责最终语法与治理边界。`"
   />
 
   <div class="workbench-grid">

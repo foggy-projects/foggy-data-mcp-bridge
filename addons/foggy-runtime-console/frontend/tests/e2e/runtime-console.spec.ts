@@ -6,6 +6,12 @@ interface MockState {
   bundles: Array<Record<string, unknown>>
   namespaceHeaders: string[]
   refreshScopes: string[]
+  requests: Array<{
+    path: string
+    namespace: string
+    body: Record<string, unknown>
+  }>
+  delayNextDefaultModels: boolean
 }
 
 const acceptedToken = 'e2e-runtime-token'
@@ -67,7 +73,9 @@ async function mockRuntime(page: Page): Promise<MockState> {
       }
     ],
     namespaceHeaders: [],
-    refreshScopes: []
+    refreshScopes: [],
+    requests: [],
+    delayNextDefaultModels: false
   }
 
   await page.route('**/api/v1/**', async route => {
@@ -110,7 +118,14 @@ async function mockRuntime(page: Page): Promise<MockState> {
       })
       return
     }
-    state.namespaceHeaders.push(request.headers()['x-ns'] || '')
+    const requestNamespace = request.headers()['x-ns'] || ''
+    const requestBody = request.method() === 'GET' ? {} : await jsonBody(route)
+    state.namespaceHeaders.push(requestNamespace)
+    state.requests.push({
+      path,
+      namespace: requestNamespace,
+      body: requestBody
+    })
 
     let data: unknown = {}
     if (path === 'capabilities') {
@@ -138,7 +153,7 @@ async function mockRuntime(page: Page): Promise<MockState> {
     } else if (path === 'datasources' && request.method() === 'GET') {
       data = { datasources: state.datasources, warnings: [] }
     } else if (path === 'datasources' && request.method() === 'POST') {
-      const body = await jsonBody(route)
+      const body = requestBody
       state.datasources.push({
         ...body,
         enabled: true,
@@ -149,34 +164,46 @@ async function mockRuntime(page: Page): Promise<MockState> {
         canTest: true
       })
       data = { name: body.name, created: true }
+    } else if (/^namespaces\/[^/]+\/datasource$/.test(path) && request.method() === 'GET') {
+      const namespace = decodeURIComponent(path.split('/')[1] || '')
+      data = { namespace, dataSource: state.namespaceBindings[namespace] }
     } else if (/^namespaces\/[^/]+\/datasource$/.test(path) && request.method() === 'PUT') {
-      const body = await jsonBody(route)
+      const body = requestBody
       const namespace = decodeURIComponent(path.split('/')[1] || '')
       state.namespaceBindings[namespace] = String(body.dataSource || '')
       data = { namespace, dataSource: state.namespaceBindings[namespace] }
     } else if (path === 'models') {
+      if (requestNamespace === 'default' && state.delayNextDefaultModels) {
+        state.delayNextDefaultModels = false
+        await new Promise(resolve => setTimeout(resolve, 350))
+      }
+      const modelName = requestNamespace === 'finance'
+        ? 'FinanceModel'
+        : requestNamespace
+          ? 'OrderModel'
+          : 'EmptySpaceModel'
       data = {
         format: 'json',
         content: '{}',
         data: {
-          models: ['OrderModel'],
+          models: [modelName],
           count: 1,
           items: [{
-            model: 'OrderModel',
-            caption: '订单分析',
-            description: '用于订单趋势与履约分析。',
-            namespace: request.headers()['x-ns'] || '',
+            model: modelName,
+            caption: requestNamespace === 'finance' ? '财务分析' : '订单分析',
+            description: requestNamespace === 'finance' ? '用于财务汇总分析。' : '用于订单趋势与履约分析。',
+            namespace: requestNamespace,
             sourceKnown: true,
-            bundleName: request.headers()['x-ns'] === 'finance' ? 'finance-models' : 'runtime-console-demo',
-            sourceNamespace: request.headers()['x-ns'] || '',
-            resourceIdentity: 'qm:OrderModel',
-            physicalTables: ['public.orders'],
+            bundleName: requestNamespace === 'finance' ? 'finance-models' : 'runtime-console-demo',
+            sourceNamespace: requestNamespace,
+            resourceIdentity: `qm:${modelName}`,
+            physicalTables: [requestNamespace === 'finance' ? 'finance.invoices' : 'public.orders'],
             fieldCount: 12,
             primaryTimeField: 'createdAt'
           }]
         }
       }
-    } else if (path === 'models/OrderModel/describe') {
+    } else if (/^models\/[^/]+\/describe$/.test(path)) {
       data = {
         content: JSON.stringify({
           model: 'OrderModel',
@@ -185,7 +212,7 @@ async function mockRuntime(page: Page): Promise<MockState> {
         }, null, 2)
       }
     } else if (path === 'models/refresh') {
-      const body = await jsonBody(route)
+      const body = requestBody
       const models = Array.isArray(body.models) ? body.models : []
       state.refreshScopes.push(models.length ? 'selected' : 'all')
       data = {
@@ -208,22 +235,68 @@ async function mockRuntime(page: Page): Promise<MockState> {
       data = {
         resources: [{ path: 'models/orders.qm', sha256: 'mock-sha256' }]
       }
-    } else if (path === 'query/OrderModel/execute') {
+    } else if (/^query\/[^/]+\/execute$/.test(path)) {
       data = {
-        items: [
-          { customer: 'Alice', amount: 128.5 },
-          { customer: 'Bob', amount: 96 }
-        ],
-        total: 2,
+        items: requestNamespace === 'finance'
+          ? [{ ledger: 'Revenue', amount: 512 }]
+          : requestNamespace
+            ? [
+                { customer: 'Alice', amount: 128.5 },
+                { customer: 'Bob', amount: 96 }
+              ]
+            : [{ scope: 'empty', amount: 0 }],
+        total: requestNamespace === 'default' ? 2 : 1,
         hasNext: false,
         warnings: []
       }
-    } else if (path === 'query/OrderModel/validate') {
+    } else if (/^query\/[^/]+\/validate$/.test(path)) {
       data = { items: [], warnings: [], execution: { status: 'PLAN_READY' } }
     } else if (path === 'tables/list') {
       data = {
-        dataSource: 'analytics',
-        tables: [{ schema: 'public', name: 'orders', type: 'TABLE' }],
+        dataSource: requestNamespace === 'finance' ? 'analytics' : 'analytics',
+        tables: requestNamespace === 'finance'
+          ? [{ schema: 'finance', name: 'invoices', type: 'TABLE' }]
+          : requestNamespace
+            ? [{ schema: 'public', name: 'orders', type: 'TABLE' }]
+            : [{ schema: 'system', name: 'health', type: 'VIEW' }],
+        warnings: []
+      }
+    } else if (path === 'tables/inspect') {
+      data = {
+        dataSource: requestBody.dataSource || 'analytics',
+        schema: requestBody.schema,
+        table: requestBody.table,
+        tableType: 'TABLE',
+        columns: [{ name: requestNamespace === 'finance' ? 'invoice_id' : 'order_id', type: 'BIGINT' }],
+        primaryKey: [requestNamespace === 'finance' ? 'invoice_id' : 'order_id'],
+        indexes: [],
+        foreignKeys: []
+      }
+    } else if (path === 'sql/query') {
+      data = {
+        rows: [{ namespace: requestNamespace || 'empty', runtime_ok: 1 }],
+        rowCount: 1,
+        truncated: false,
+        warnings: [],
+        columns: ['namespace', 'runtime_ok']
+      }
+    } else if (/^compose\/(validate|preview|execute)$/.test(path)) {
+      data = {
+        valid: true,
+        scriptKind: 'COMPOSE',
+        mode: path.split('/')[1],
+        value: [{ namespace: requestNamespace || 'empty', composed: true }],
+        sql: 'SELECT 1',
+        params: [],
+        warnings: [],
+        diagnostics: { namespace: requestNamespace || 'empty' }
+      }
+    } else if (path === 'fsscript/execute') {
+      data = {
+        valid: true,
+        scriptKind: 'FSSCRIPT',
+        mode: 'execute',
+        value: [{ namespace: requestNamespace || 'empty', executed: true }],
         warnings: []
       }
     } else if (path === 'bundles' && request.method() === 'GET') {
@@ -244,6 +317,14 @@ async function login(page: Page): Promise<void> {
   await page.getByLabel('Runtime API Token').fill(acceptedToken)
   await page.getByRole('button', { name: '校验并进入 Console' }).click()
   await expect(page.getByRole('heading', { name: '运行概览' })).toBeVisible()
+}
+
+async function switchNamespace(page: Page, namespace: string): Promise<void> {
+  const input = page.getByLabel('当前数据与模型空间')
+  await input.fill(namespace)
+  await input.press('Enter')
+  await input.blur()
+  await expect(input).toHaveValue(namespace)
 }
 
 test.beforeEach(async ({ page }) => {
@@ -440,5 +521,103 @@ test('namespace workspace keeps route, request scope, cards, drawers and keyboar
 
   await page.goto('/console/#/models')
   await expect(page).toHaveURL(/#\/namespaces\/models\?ns=finance$/)
+  expect(browserErrors).toEqual([])
+})
+
+test('namespace context reloads every workbench and rejects stale responses', async ({ page }, testInfo) => {
+  testInfo.setTimeout(90_000)
+  const state = mockStates.get(page)!
+  const browserErrors: string[] = []
+  page.on('console', message => {
+    if (message.type() === 'error') browserErrors.push(message.text())
+  })
+  page.on('pageerror', error => browserErrors.push(error.message))
+  await login(page)
+
+  await page.goto('/console/#/query')
+  const queryModel = page.getByLabel('QM 模型')
+  await expect(queryModel).toHaveValue('OrderModel')
+  await page.getByLabel('查询 DSL JSON').fill('{"columns":["amount"]}')
+  await page.getByRole('button', { name: '运行查询' }).click()
+  await expect(page.getByText('Alice', { exact: true })).toBeVisible()
+
+  await switchNamespace(page, 'finance')
+  await expect(queryModel).toHaveValue('FinanceModel')
+  await expect(page.getByText('Alice', { exact: true })).toBeHidden()
+  await expect(page.getByLabel('当前空间 finance')).toBeVisible()
+  await page.getByRole('button', { name: '运行查询' }).click()
+  await expect(page.getByText('Revenue', { exact: true })).toBeVisible()
+  await expect.poll(() => state.requests.some(item =>
+    item.path === 'query/FinanceModel/execute' && item.namespace === 'finance'
+  )).toBe(true)
+
+  state.delayNextDefaultModels = true
+  await switchNamespace(page, 'default')
+  await switchNamespace(page, 'finance')
+  await expect(queryModel).toHaveValue('FinanceModel')
+  await page.waitForTimeout(450)
+  await expect(queryModel).toHaveValue('FinanceModel')
+
+  await page.goto('/console/#/tables')
+  const tableCatalog = page.locator('#console-main .table-list')
+  const tableInspector = page.locator('.split-grid > section').nth(1)
+  await expect(tableCatalog.getByText('invoices', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '检查' }).click()
+  await expect(tableInspector.getByText('invoice_id', { exact: true }).first()).toBeVisible()
+  await page.getByRole('button', { name: '运行 SQL' }).click()
+  const sqlResult = page.locator('.sql-panel .workbench-result')
+  await expect(sqlResult.getByText('finance', { exact: true })).toBeVisible()
+
+  await switchNamespace(page, 'default')
+  await expect(tableCatalog.getByText('orders', { exact: true })).toBeVisible()
+  await expect(tableInspector.getByText('invoice_id', { exact: true })).toBeHidden()
+  await expect(sqlResult.getByText('finance', { exact: true })).toBeHidden()
+  await expect(page.getByLabel('数据源')).toHaveValue('analytics')
+
+  await page.goto('/console/#/compose')
+  const composeScript = page.getByLabel('Compose 脚本')
+  await composeScript.fill('query RetainedCompose { columns: ["id"] }')
+  await page.getByRole('button', { name: '预览', exact: true }).click()
+  await expect(page.getByText('"namespace": "default"')).toBeVisible()
+  await switchNamespace(page, 'finance')
+  await expect(composeScript).toHaveValue('query RetainedCompose { columns: ["id"] }')
+  await expect(page.getByText('运行校验、预览或执行后显示结果。')).toBeVisible()
+  await page.getByRole('button', { name: '预览', exact: true }).click()
+  await expect(page.getByText('"namespace": "finance"')).toBeVisible()
+  await expect.poll(() => state.requests.some(item =>
+    item.path === 'compose/preview'
+      && item.namespace === 'finance'
+      && item.body.namespace === 'finance'
+  )).toBe(true)
+
+  await page.goto('/console/#/fsscript')
+  await page.getByText('我已核对脚本来源').locator('input').check()
+  await page.getByRole('button', { name: '展开高级工作台' }).click()
+  const fsscript = page.getByLabel('Fsscript', { exact: true })
+  await fsscript.fill('return { retained: true }')
+  await page.getByRole('button', { name: '确认并执行' }).click()
+  await page.getByRole('dialog', { name: '最终确认 Fsscript 执行' })
+    .getByRole('button', { name: '确认执行' })
+    .click()
+  const fsscriptResult = page.locator('.fsscript-workbench .workbench-result')
+  await expect(fsscriptResult.getByText('finance', { exact: true })).toBeVisible()
+
+  await switchNamespace(page, '')
+  await expect(fsscript).toHaveValue('return { retained: true }')
+  await expect(page.getByText('暂无执行结果。')).toBeVisible()
+  await page.getByRole('button', { name: '确认并执行' }).click()
+  await page.getByRole('dialog', { name: '最终确认 Fsscript 执行' })
+    .getByRole('button', { name: '确认执行' })
+    .click()
+  await expect(fsscriptResult.getByText('empty', { exact: true })).toBeVisible()
+  await expect.poll(() => state.requests.some(item =>
+    item.path === 'fsscript/execute'
+      && item.namespace === ''
+      && item.body.namespace === ''
+  )).toBe(true)
+
+  await page.reload()
+  await expect(page.getByLabel('当前数据与模型空间')).toHaveValue('')
+  await expect(page.getByRole('heading', { name: 'Fsscript', exact: true })).toBeVisible()
   expect(browserErrors).toEqual([])
 })

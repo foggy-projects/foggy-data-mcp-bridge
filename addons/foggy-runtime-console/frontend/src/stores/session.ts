@@ -11,6 +11,7 @@ import {
 const access = ref<AccessCheck | null>(null)
 const validating = ref(false)
 const namespace = ref(readNamespace())
+const namespaceRevision = ref(0)
 
 export function useRuntimeSession() {
   const authenticated = computed(() => Boolean(access.value?.authenticated && readRuntimeToken()))
@@ -68,8 +69,10 @@ export function useRuntimeSession() {
 
   function setNamespace(value: string): void {
     const normalized = value.trim()
-    namespace.value = normalized
     writeNamespace(normalized)
+    if (namespace.value === normalized) return
+    namespaceRevision.value += 1
+    namespace.value = normalized
   }
 
   return {
@@ -77,6 +80,7 @@ export function useRuntimeSession() {
     authenticated,
     validating,
     namespace,
+    namespaceRevision,
     login,
     logout,
     revalidate,
@@ -88,4 +92,5 @@ export function resetSessionStateForTests(): void {
   access.value = null
   validating.value = false
   namespace.value = readNamespace()
+  namespaceRevision.value = 0
 }

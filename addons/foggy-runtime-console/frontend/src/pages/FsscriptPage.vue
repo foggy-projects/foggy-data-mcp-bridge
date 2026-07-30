@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import PageHeader from '@/components/PageHeader.vue'
 import RuntimeResultTable from '@/components/RuntimeResultTable.vue'
 import ExecutionToolTabs from '@/components/ExecutionToolTabs.vue'
 import { runtimeApi, RuntimeRequestError } from '@/api/client'
 import { useRuntimeSession } from '@/stores/session'
+import { useNamespaceScope } from '@/composables/useNamespaceScope'
 import { normalizeResultRows, parseJsonObject, prettyJson } from '@/utils/json'
 
 interface FsscriptResponse {
@@ -17,6 +18,7 @@ interface FsscriptResponse {
 }
 
 const session = useRuntimeSession()
+const namespaceScope = useNamespaceScope()
 const acknowledged = ref(false)
 const advancedOpen = ref(false)
 const script = ref('')
@@ -62,6 +64,7 @@ async function execute(): Promise<void> {
   }
 
   busy.value = true
+  const requestScope = namespaceScope.snapshot()
   rows.value = []
   output.value = ''
   try {
@@ -72,6 +75,7 @@ async function execute(): Promise<void> {
       capabilities: parsedCapabilities,
       namespace: session.namespace.value
     })
+    if (!namespaceScope.isCurrent(requestScope)) return
     rows.value = normalizeResultRows(result.value)
     output.value = prettyJson({
       valid: result.valid,
@@ -81,11 +85,18 @@ async function execute(): Promise<void> {
     })
     ElMessage.success('Fsscript 执行完成。')
   } catch (error) {
+    if (!namespaceScope.isCurrent(requestScope)) return
     ElMessage.error(errorText(error))
   } finally {
-    busy.value = false
+    if (namespaceScope.isCurrent(requestScope)) busy.value = false
   }
 }
+
+watch(namespaceScope.namespace, () => {
+  busy.value = false
+  rows.value = []
+  output.value = ''
+})
 </script>
 
 <template>
@@ -93,7 +104,7 @@ async function execute(): Promise<void> {
   <PageHeader
     eyebrow="Advanced runtime"
     title="Fsscript"
-    description="高级脚本执行入口默认收起并锁定。仅在理解脚本能力边界、确认输入可信后启用。"
+    :description="`高级脚本执行入口默认收起并锁定。当前空间：${namespaceScope.label.value}。仅在理解脚本能力边界、确认输入可信后启用。`"
   />
 
   <section class="risk-gate console-panel">

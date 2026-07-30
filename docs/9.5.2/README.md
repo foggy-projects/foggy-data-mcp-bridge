@@ -17,7 +17,7 @@ recorded_at: 2026-07-27
 | [Runtime Web Console MVP](workitems/FEATURE-runtime-web-console-mvp.md) | READY_FOR_SIGNOFF | 已新增可选 `addons/foggy-runtime-console`；`foggy-runtime-api` 承担 access check、`management-all` 与真实鉴权，launcher 通过显式 profile 装配，Console 静态资源同源提供在 `/console/` |
 | [Namespace 资源工作区](workitems/OPT-runtime-console-namespace-workspace.md) | ACCEPTED | 将 Namespace 收敛为“数据与模型空间”，统一 QM/Bundle 浏览与详情交互 |
 | [签收后清理](workitems/REF-runtime-console-post-signoff-cleanup.md) | READY_FOR_SIGNOFF | 已清理不可达旧页面，并补齐交付路径规则与 CJK 体验证据 |
-| [全局 Namespace 上下文一致性](workitems/OPT-runtime-console-global-namespace-context.md) | APPROVED | 保证所有工作台切换空间后重载候选并隔离迟到响应 |
+| [全局 Namespace 上下文一致性](workitems/OPT-runtime-console-global-namespace-context.md) | READY_FOR_SIGNOFF | 所有工作台切换空间后重载候选或清空结果，并以 revision/snapshot 隔离迟到响应 |
 
 ## 交互原型
 

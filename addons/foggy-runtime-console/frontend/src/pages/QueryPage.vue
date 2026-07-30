@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import PageHeader from '@/components/PageHeader.vue'
 import RuntimeResultTable from '@/components/RuntimeResultTable.vue'
 import { runtimeApi, RuntimeRequestError } from '@/api/client'
 import { normalizeResultRows, parseJsonObject, prettyJson } from '@/utils/json'
 import { useContextRail } from '@/stores/contextRail'
+import { useNamespaceScope } from '@/composables/useNamespaceScope'
 
 interface ModelCatalog {
   data?: { models?: string[] }
@@ -23,6 +24,7 @@ interface QueryResponse {
 
 const models = ref<string[]>([])
 const contextRail = useContextRail()
+const namespaceScope = useNamespaceScope()
 const model = ref('')
 const mode = ref<'validate' | 'execute'>('execute')
 const payload = ref(prettyJson({
@@ -36,6 +38,7 @@ const busy = ref(false)
 const rows = ref<Record<string, unknown>[]>([])
 const diagnostics = ref('')
 const warnings = ref<string[]>([])
+const modelsLoading = ref(false)
 
 function errorText(error: unknown): string {
   return error instanceof RuntimeRequestError ? error.message : '语义查询失败。'
@@ -47,7 +50,7 @@ function syncContextRail(): void {
     eyebrow: 'Semantic workbench',
     title: 'Query Models',
     description: '选择模型后在右侧编写并运行受治理查询 DSL。',
-    loading: false,
+    loading: modelsLoading.value,
     filterable: true,
     emptyText: '当前 namespace 没有可查询模型。',
     sections: [{
@@ -69,16 +72,37 @@ function syncContextRail(): void {
 }
 
 async function loadModels(): Promise<void> {
+  const requestScope = namespaceScope.snapshot()
+  modelsLoading.value = true
+  syncContextRail()
   try {
     const result = await runtimeApi.get<ModelCatalog>('models', { format: 'json', fieldLimit: 0 })
+    if (!namespaceScope.isCurrent(requestScope)) return
     models.value = result.data?.models || []
-    model.value ||= models.value.includes('FactOrderQueryModel')
+    model.value = models.value.includes(model.value)
+      ? model.value
+      : models.value.includes('FactOrderQueryModel')
       ? 'FactOrderQueryModel'
       : models.value[0] || ''
-    syncContextRail()
   } catch (error) {
+    if (!namespaceScope.isCurrent(requestScope)) return
     ElMessage.error(errorText(error))
+  } finally {
+    if (namespaceScope.isCurrent(requestScope)) {
+      modelsLoading.value = false
+      syncContextRail()
+    }
   }
+}
+
+function resetNamespaceState(): void {
+  models.value = []
+  model.value = ''
+  rows.value = []
+  diagnostics.value = ''
+  warnings.value = []
+  busy.value = false
+  syncContextRail()
 }
 
 async function run(nextMode = mode.value): Promise<void> {
@@ -95,6 +119,7 @@ async function run(nextMode = mode.value): Promise<void> {
   }
 
   mode.value = nextMode
+  const requestScope = namespaceScope.snapshot()
   busy.value = true
   rows.value = []
   diagnostics.value = ''
@@ -104,6 +129,7 @@ async function run(nextMode = mode.value): Promise<void> {
       `query/${encodeURIComponent(model.value.trim())}/${nextMode}`,
       request
     )
+    if (!namespaceScope.isCurrent(requestScope)) return
     rows.value = normalizeResultRows(result.items || [])
     warnings.value = result.warnings || []
     diagnostics.value = prettyJson({
@@ -114,9 +140,10 @@ async function run(nextMode = mode.value): Promise<void> {
     })
     ElMessage.success(nextMode === 'validate' ? '查询 DSL 校验通过。' : `查询完成，返回 ${rows.value.length} 行。`)
   } catch (error) {
+    if (!namespaceScope.isCurrent(requestScope)) return
     ElMessage.error(errorText(error))
   } finally {
-    busy.value = false
+    if (namespaceScope.isCurrent(requestScope)) busy.value = false
   }
 }
 
@@ -130,7 +157,14 @@ contextRail.setContext({
   emptyText: '当前 namespace 没有可查询模型。',
   sections: []
 })
-onMounted(loadModels)
+watch(namespaceScope.namespace, () => {
+  resetNamespaceState()
+  void loadModels()
+})
+onMounted(() => {
+  resetNamespaceState()
+  void loadModels()
+})
 onBeforeUnmount(() => contextRail.clearContext('query'))
 </script>
 
@@ -150,6 +184,9 @@ onBeforeUnmount(() => contextRail.clearContext('query'))
       </datalist>
     </label>
     <div class="toolbar-spacer" />
+    <span class="status-chip" :aria-label="`当前空间 ${namespaceScope.label.value}`">
+      SPACE · {{ namespaceScope.label.value }}
+    </span>
     <span class="status-chip">{{ mode.toUpperCase() }}</span>
   </div>
 

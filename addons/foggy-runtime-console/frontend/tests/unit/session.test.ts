@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { watch } from 'vue'
 
 const { checkAccess } = vi.hoisted(() => ({
   checkAccess: vi.fn()
@@ -12,7 +13,7 @@ vi.mock('@/api/client', async importOriginal => {
   }
 })
 
-import { readRuntimeToken } from '@/api/storage'
+import { readNamespace, readRuntimeToken } from '@/api/storage'
 import { resetSessionStateForTests, useRuntimeSession } from '@/stores/session'
 
 describe('Runtime Console session', () => {
@@ -59,5 +60,27 @@ describe('Runtime Console session', () => {
     await expect(session.revalidate()).resolves.toBe(false)
     expect(readRuntimeToken()).toBeNull()
     expect(session.authenticated.value).toBe(false)
+  })
+
+  it('publishes namespace storage and revision before observers reload scoped data', () => {
+    const session = useRuntimeSession()
+    const observed: Array<{ namespace: string; stored: string; revision: number }> = []
+    const stop = watch(session.namespace, namespace => {
+      observed.push({
+        namespace,
+        stored: readNamespace(),
+        revision: session.namespaceRevision.value
+      })
+    }, { flush: 'sync' })
+
+    session.setNamespace('  finance  ')
+    session.setNamespace('finance')
+    session.setNamespace('')
+
+    expect(observed).toEqual([
+      { namespace: 'finance', stored: 'finance', revision: 1 },
+      { namespace: '', stored: '', revision: 2 }
+    ])
+    stop()
   })
 })

@@ -13,6 +13,7 @@ const contextRail = useContextRail()
 const namespaceData = useNamespaceWorkspaceData()
 const mobileNavigationOpen = ref(false)
 const mobileContextOpen = ref(false)
+const namespaceLabel = computed(() => session.namespace.value || '空 Namespace')
 
 const navigation = [
   { route: 'overview', matches: ['overview'], label: '运行概览', short: '概览', code: '01' },
@@ -56,19 +57,21 @@ const fallbackContexts: Record<string, {
 }
 
 const currentContext = computed(() => {
-  if (contextRail.state.route === route.name) return contextRail.state
-  const fallback = fallbackContexts[String(route.name)] || {
+  const context = contextRail.state.route === route.name
+    ? contextRail.state
+    : fallbackContexts[String(route.name)] || {
     eyebrow: 'Workspace',
     title: currentLabel.value,
     description: '当前页面的 Runtime 操作上下文。'
   }
   return {
     route: String(route.name || ''),
-    ...fallback,
     loading: false,
     filterable: false,
     emptyText: '此工作台没有固定资源列表。',
-    sections: []
+    sections: [],
+    ...context,
+    description: `${context.description} 当前空间：${namespaceLabel.value}。`,
   }
 })
 

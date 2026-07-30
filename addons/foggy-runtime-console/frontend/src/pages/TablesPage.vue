@@ -1,14 +1,19 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import PageHeader from '@/components/PageHeader.vue'
 import RuntimeResultTable from '@/components/RuntimeResultTable.vue'
 import { runtimeApi, RuntimeRequestError } from '@/api/client'
 import { normalizeResultRows, prettyJson } from '@/utils/json'
 import { useContextRail } from '@/stores/contextRail'
+import { useNamespaceScope, type NamespaceScopeSnapshot } from '@/composables/useNamespaceScope'
 
 interface DatasourceList {
   datasources?: Array<{ name: string; enabled?: boolean }>
+}
+
+interface NamespaceDatasource {
+  dataSource?: string
 }
 
 interface TableInfo {
@@ -35,6 +40,7 @@ interface SqlResponse {
 
 const datasources = ref<string[]>([])
 const contextRail = useContextRail()
+const namespaceScope = useNamespaceScope()
 const tables = ref<TableInfo[]>([])
 const activeTable = ref('')
 const busy = ref('')
@@ -96,33 +102,75 @@ function syncContextRail(): void {
   })
 }
 
-async function loadDatasources(): Promise<void> {
-  try {
-    const result = await runtimeApi.get<DatasourceList>('datasources')
-    datasources.value = (result.datasources || []).filter(item => item.enabled !== false).map(item => item.name)
-    form.dataSource ||= datasources.value[0] || ''
-    syncContextRail()
-  } catch (error) {
-    ElMessage.error(errorText(error))
-  }
+function resetNamespaceState(): void {
+  datasources.value = []
+  tables.value = []
+  activeTable.value = ''
+  inspectRows.value = []
+  inspectMeta.value = ''
+  sqlRows.value = []
+  sqlMeta.value = ''
+  form.dataSource = ''
+  busy.value = ''
+  syncContextRail()
 }
 
-async function listTables(): Promise<void> {
+async function loadWorkspace(): Promise<void> {
+  const requestScope = namespaceScope.snapshot()
   busy.value = 'list'
   syncContextRail()
   try {
-    const result = await runtimeApi.post<TableListResponse>('tables/list', form)
+    const [datasourceResult, bindingResult] = await Promise.all([
+      runtimeApi.get<DatasourceList>('datasources'),
+      requestScope.namespace
+        ? runtimeApi.get<NamespaceDatasource>(
+          `namespaces/${encodeURIComponent(requestScope.namespace)}/datasource`
+        )
+        : Promise.resolve<NamespaceDatasource>({})
+    ])
+    if (!namespaceScope.isCurrent(requestScope)) return
+    datasources.value = (datasourceResult.datasources || [])
+      .filter(item => item.enabled !== false)
+      .map(item => item.name)
+    form.dataSource = bindingResult.dataSource || ''
+    await listTables(requestScope)
+  } catch (error) {
+    if (!namespaceScope.isCurrent(requestScope)) return
+    ElMessage.error(errorText(error))
+  } finally {
+    if (namespaceScope.isCurrent(requestScope) && busy.value === 'list') {
+      busy.value = ''
+      syncContextRail()
+    }
+  }
+}
+
+async function listTables(existingScope?: NamespaceScopeSnapshot): Promise<void> {
+  const requestScope = existingScope || namespaceScope.snapshot()
+  busy.value = 'list'
+  tables.value = []
+  activeTable.value = ''
+  inspectRows.value = []
+  inspectMeta.value = ''
+  syncContextRail()
+  try {
+    const result = await runtimeApi.post<TableListResponse>('tables/list', { ...form })
+    if (!namespaceScope.isCurrent(requestScope)) return
     tables.value = result.tables || []
     ElMessage.success(`读取到 ${tables.value.length} 个表或视图。`)
   } catch (error) {
+    if (!namespaceScope.isCurrent(requestScope)) return
     ElMessage.error(errorText(error))
   } finally {
-    busy.value = ''
-    syncContextRail()
+    if (namespaceScope.isCurrent(requestScope)) {
+      busy.value = ''
+      syncContextRail()
+    }
   }
 }
 
 async function inspectTable(item: TableInfo): Promise<void> {
+  const requestScope = namespaceScope.snapshot()
   busy.value = `inspect:${item.name}`
   activeTable.value = item.name
   inspectRows.value = []
@@ -135,6 +183,7 @@ async function inspectTable(item: TableInfo): Promise<void> {
       includeIndexes: true,
       includeForeignKeys: true
     })
+    if (!namespaceScope.isCurrent(requestScope)) return
     inspectRows.value = normalizeResultRows(result.columns || [])
     inspectMeta.value = prettyJson({
       dataSource: result.dataSource,
@@ -146,10 +195,13 @@ async function inspectTable(item: TableInfo): Promise<void> {
       foreignKeys: result.foreignKeys
     })
   } catch (error) {
+    if (!namespaceScope.isCurrent(requestScope)) return
     ElMessage.error(errorText(error))
   } finally {
-    busy.value = ''
-    syncContextRail()
+    if (namespaceScope.isCurrent(requestScope)) {
+      busy.value = ''
+      syncContextRail()
+    }
   }
 }
 
@@ -158,6 +210,7 @@ async function runSql(): Promise<void> {
     ElMessage.warning('请输入只读 SELECT 或 WITH ... SELECT。')
     return
   }
+  const requestScope = namespaceScope.snapshot()
   busy.value = 'sql'
   sqlRows.value = []
   try {
@@ -167,6 +220,7 @@ async function runSql(): Promise<void> {
       maxRows: maxRows.value,
       timeoutSeconds: 10
     })
+    if (!namespaceScope.isCurrent(requestScope)) return
     sqlRows.value = result.rows || []
     sqlMeta.value = prettyJson({
       rowCount: result.rowCount,
@@ -176,9 +230,10 @@ async function runSql(): Promise<void> {
     })
     ElMessage.success(`SQL 查询完成，返回 ${sqlRows.value.length} 行。`)
   } catch (error) {
+    if (!namespaceScope.isCurrent(requestScope)) return
     ElMessage.error(errorText(error))
   } finally {
-    busy.value = ''
+    if (namespaceScope.isCurrent(requestScope)) busy.value = ''
   }
 }
 
@@ -192,9 +247,13 @@ contextRail.setContext({
   emptyText: '当前筛选条件下没有表。',
   sections: []
 })
-onMounted(async () => {
-  await loadDatasources()
-  await listTables()
+watch(namespaceScope.namespace, () => {
+  resetNamespaceState()
+  void loadWorkspace()
+})
+onMounted(() => {
+  resetNamespaceState()
+  void loadWorkspace()
 })
 onBeforeUnmount(() => contextRail.clearContext('tables'))
 </script>
@@ -203,7 +262,7 @@ onBeforeUnmount(() => contextRail.clearContext('tables'))
   <PageHeader
     eyebrow="Database inspector"
     title="表结构与只读 SQL"
-    description="按数据源检查表、列、索引与外键；SQL 端点只接受单条只读 SELECT 或 WITH ... SELECT，并限制行数和超时。"
+    :description="`按数据源检查表、列、索引与外键；当前空间：${namespaceScope.label.value}。SQL 端点只接受单条只读 SELECT 或 WITH ... SELECT，并限制行数和超时。`"
   >
     <template #actions>
       <button class="console-button primary" type="button" :disabled="Boolean(busy)" @click="listTables">读取表清单</button>
