@@ -348,13 +348,23 @@ async function mockRuntime(page: Page): Promise<MockState> {
         warnings: []
       }
     } else if (path === 'tables/inspect') {
+      const primaryColumn = requestNamespace === 'finance' ? 'invoice_id' : 'order_id'
       data = {
         dataSource: requestBody.dataSource || 'analytics',
         schema: requestBody.schema,
         table: requestBody.table,
         tableType: 'TABLE',
-        columns: [{ name: requestNamespace === 'finance' ? 'invoice_id' : 'order_id', type: 'BIGINT' }],
-        primaryKey: [requestNamespace === 'finance' ? 'invoice_id' : 'order_id'],
+        columns: [{
+          name: primaryColumn,
+          jdbcType: 'BIGINT',
+          jdbcTypeCode: -5,
+          nullable: false,
+          ordinalPosition: 1
+        }],
+        primaryKey: {
+          name: requestNamespace === 'finance' ? 'pk_invoices' : 'pk_orders',
+          columns: [primaryColumn]
+        },
         indexes: [],
         foreignKeys: []
       }
@@ -779,15 +789,61 @@ test('namespace context reloads every workbench and rejects stale responses', as
   await expect(tableCatalog.getByText('invoices', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '检查' }).click()
   await expect(tableInspector.getByText('invoice_id', { exact: true }).first()).toBeVisible()
+  await page.getByRole('button', { name: '生成 SELECT' }).click()
+  const sqlEditor = page.getByLabel('只读 SQL')
+  await expect(sqlEditor).toHaveValue('SELECT *\nFROM finance.invoices')
   await page.getByRole('button', { name: '运行 SQL' }).click()
   const sqlResult = page.locator('.sql-panel .workbench-result')
   await expect(sqlResult.getByText('finance', { exact: true })).toBeVisible()
+  await expect.poll(() => state.requests.some(item =>
+    item.path === 'sql/query'
+      && item.namespace === 'finance'
+      && item.body.dataSource === 'analytics'
+      && item.body.sql === 'SELECT *\nFROM finance.invoices'
+  )).toBe(true)
 
-  await switchNamespace(page, 'default')
+  await page.getByRole('button', { name: '生成 TM 草稿' }).click()
+  const draftDrawer = page.getByRole('dialog', { name: 'TM 机械草稿' })
+  const draftContent = page.getByLabel('TM 草稿内容')
+  await expect(draftDrawer).toBeVisible()
+  await expect(draftDrawer).toContainText('InvoicesModel')
+  await expect(draftDrawer).toContainText('尚未校验、保存、注册或刷新')
+  await expect(draftDrawer).toContainText('仅下载到浏览器，不写入 Runtime')
+  await expect(draftContent).toHaveValue(/tableName: 'invoices'/)
+  await expect(draftContent).toHaveValue(/idColumn: 'invoice_id'/)
+  await expect(draftContent).toHaveValue(/type: 'LONG'/)
+  await expect(draftContent).toHaveValue(/dimensions: \[\]/)
+  await expect(draftContent).toHaveValue(/measures: \[\]/)
+  const draftBox = await page.locator('.tm-draft-drawer').boundingBox()
+  const viewport = page.viewportSize()
+  expect(draftBox).not.toBeNull()
+  expect(viewport).not.toBeNull()
+  expect(draftBox!.width).toBeLessThanOrEqual(viewport!.width)
+  expect(draftBox!.width).toBeGreaterThan(Math.min(360, viewport!.width * 0.75))
+  const tmDownloadPromise = page.waitForEvent('download')
+  await draftDrawer.getByRole('button', { name: '下载 .tm' }).click()
+  const tmDownload = await tmDownloadPromise
+  expect(tmDownload.suggestedFilename()).toBe('InvoicesModel.tm')
+  await expect(page.locator('.el-message')).toHaveCount(0, { timeout: 6_000 })
+  await page.screenshot({
+    path: testInfo.outputPath(testInfo.project.name.includes('mobile')
+      ? 'tables-tm-draft-mobile.png'
+      : 'tables-tm-draft-desktop.png')
+  })
+
+  await page.getByLabel('当前数据与模型空间').evaluate((element) => {
+    const input = element as HTMLInputElement
+    input.value = 'default'
+    input.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+  await expect(page.getByLabel('当前数据与模型空间')).toHaveValue('default')
+  await expect(draftDrawer).toBeHidden()
+
   await expect(tableCatalog.getByText('orders', { exact: true })).toBeVisible()
   await expect(tableInspector.getByText('invoice_id', { exact: true })).toBeHidden()
   await expect(sqlResult.getByText('finance', { exact: true })).toBeHidden()
   await expect(page.getByLabel('数据源')).toHaveValue('analytics')
+  await expect(sqlEditor).toHaveValue('SELECT *\nFROM finance.invoices')
 
   await page.goto('/console/#/compose')
   const composeScript = page.getByLabel('Compose 脚本')

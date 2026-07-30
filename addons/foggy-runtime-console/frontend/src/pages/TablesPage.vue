@@ -1,12 +1,17 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElDrawer, ElMessage } from 'element-plus'
 import PageHeader from '@/components/PageHeader.vue'
 import RuntimeResultTable from '@/components/RuntimeResultTable.vue'
 import { runtimeApi, RuntimeRequestError } from '@/api/client'
 import { normalizeResultRows, prettyJson } from '@/utils/json'
 import { useContextRail } from '@/stores/contextRail'
 import { useNamespaceScope, type NamespaceScopeSnapshot } from '@/composables/useNamespaceScope'
+import {
+  buildSelectStatement,
+  buildTableModelDraft,
+  type InspectedTable
+} from '@/features/tables/tableModelDraft'
 
 interface DatasourceList {
   datasources?: Array<{ name: string; enabled?: boolean }>
@@ -38,6 +43,17 @@ interface SqlResponse {
   columns?: unknown[]
 }
 
+interface TableInspectResponse {
+  dataSource?: string
+  schema?: string
+  table?: string
+  tableType?: string
+  columns?: InspectedTable['columns']
+  primaryKey?: { columns?: string[] } | string[]
+  indexes?: unknown[]
+  foreignKeys?: unknown[]
+}
+
 const datasources = ref<string[]>([])
 const contextRail = useContextRail()
 const namespaceScope = useNamespaceScope()
@@ -46,8 +62,11 @@ const activeTable = ref('')
 const busy = ref('')
 const inspectRows = ref<Record<string, unknown>[]>([])
 const inspectMeta = ref('')
+const inspectDetail = ref<InspectedTable | null>(null)
 const sqlRows = ref<Record<string, unknown>[]>([])
 const sqlMeta = ref('')
+const draftOpen = ref(false)
+const tmDraft = ref<ReturnType<typeof buildTableModelDraft> | null>(null)
 const form = reactive({
   dataSource: '',
   schema: '',
@@ -108,8 +127,11 @@ function resetNamespaceState(): void {
   activeTable.value = ''
   inspectRows.value = []
   inspectMeta.value = ''
+  inspectDetail.value = null
   sqlRows.value = []
   sqlMeta.value = ''
+  draftOpen.value = false
+  tmDraft.value = null
   form.dataSource = ''
   busy.value = ''
   syncContextRail()
@@ -152,6 +174,9 @@ async function listTables(existingScope?: NamespaceScopeSnapshot): Promise<void>
   activeTable.value = ''
   inspectRows.value = []
   inspectMeta.value = ''
+  inspectDetail.value = null
+  draftOpen.value = false
+  tmDraft.value = null
   syncContextRail()
   try {
     const result = await runtimeApi.post<TableListResponse>('tables/list', { ...form })
@@ -174,9 +199,13 @@ async function inspectTable(item: TableInfo): Promise<void> {
   busy.value = `inspect:${item.name}`
   activeTable.value = item.name
   inspectRows.value = []
+  inspectMeta.value = ''
+  inspectDetail.value = null
+  draftOpen.value = false
+  tmDraft.value = null
   syncContextRail()
   try {
-    const result = await runtimeApi.post<Record<string, unknown>>('tables/inspect', {
+    const result = await runtimeApi.post<TableInspectResponse>('tables/inspect', {
       dataSource: form.dataSource || undefined,
       schema: item.schema || form.schema || undefined,
       table: item.name,
@@ -185,6 +214,16 @@ async function inspectTable(item: TableInfo): Promise<void> {
     })
     if (!namespaceScope.isCurrent(requestScope)) return
     inspectRows.value = normalizeResultRows(result.columns || [])
+    const primaryKeyColumns = Array.isArray(result.primaryKey)
+      ? result.primaryKey
+      : result.primaryKey?.columns || []
+    inspectDetail.value = {
+      dataSource: result.dataSource || form.dataSource,
+      schema: result.schema || item.schema || form.schema,
+      table: result.table || item.name,
+      columns: result.columns || [],
+      primaryKeyColumns
+    }
     inspectMeta.value = prettyJson({
       dataSource: result.dataSource,
       schema: result.schema,
@@ -203,6 +242,36 @@ async function inspectTable(item: TableInfo): Promise<void> {
       syncContextRail()
     }
   }
+}
+
+function generateSelect(): void {
+  if (!inspectDetail.value) return
+  try {
+    sql.value = buildSelectStatement(inspectDetail.value.schema, inspectDetail.value.table)
+    ElMessage.success('已生成只读 SELECT，请确认后运行。')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '无法安全生成 SQL。')
+  }
+}
+
+function generateTmDraft(): void {
+  if (!inspectDetail.value) return
+  tmDraft.value = buildTableModelDraft(inspectDetail.value)
+  draftOpen.value = true
+}
+
+function downloadTmDraft(): void {
+  if (!tmDraft.value) return
+  const href = URL.createObjectURL(new Blob([tmDraft.value.content], {
+    type: 'text/plain;charset=utf-8'
+  }))
+  const anchor = document.createElement('a')
+  anchor.href = href
+  anchor.download = tmDraft.value.filename
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  window.setTimeout(() => URL.revokeObjectURL(href), 0)
 }
 
 async function runSql(): Promise<void> {
@@ -310,7 +379,20 @@ onBeforeUnmount(() => contextRail.clearContext('tables'))
       </div>
     </section>
     <section class="console-panel">
-      <div class="console-panel-head"><span class="console-panel-title">表结构</span><span class="console-panel-kicker">COLUMNS</span></div>
+      <div class="console-panel-head inspector-head">
+        <div>
+          <span class="console-panel-title">表结构</span>
+          <span class="console-panel-kicker">COLUMNS</span>
+        </div>
+        <div class="inspector-actions">
+          <button class="console-button compact" type="button" :disabled="!inspectDetail || Boolean(busy)" @click="generateSelect">
+            生成 SELECT
+          </button>
+          <button class="console-button compact primary" type="button" :disabled="!inspectDetail || Boolean(busy)" @click="generateTmDraft">
+            生成 TM 草稿
+          </button>
+        </div>
+      </div>
       <RuntimeResultTable :rows="inspectRows" :loading="busy.startsWith('inspect:')" />
       <details class="diagnostics-details">
         <summary>主键、索引与外键</summary>
@@ -342,6 +424,47 @@ onBeforeUnmount(() => contextRail.clearContext('tables'))
       </div>
     </div>
   </section>
+
+  <ElDrawer
+    v-model="draftOpen"
+    title="TM 机械草稿"
+    size="min(720px, 94vw)"
+    class="tm-draft-drawer"
+  >
+    <div v-if="tmDraft" class="draft-shell">
+      <div class="draft-ident">
+        <div>
+          <span>MODEL NAME</span>
+          <strong>{{ tmDraft.modelName }}</strong>
+        </div>
+        <div>
+          <span>LOCAL FILE</span>
+          <strong>{{ tmDraft.filename }}</strong>
+        </div>
+      </div>
+      <div class="notice draft-warning" role="note">
+        这是基于表 metadata 的机械起点，尚未校验、保存、注册或刷新。请人工补充业务标题、维度、度量、关系与描述。
+      </div>
+      <label class="draft-code">
+        <span class="console-label">可选择复制的 TM 草稿</span>
+        <textarea
+          class="console-textarea draft-editor"
+          aria-label="TM 草稿内容"
+          :value="tmDraft.content"
+          readonly
+          spellcheck="false"
+        />
+      </label>
+    </div>
+    <template #footer>
+      <div class="draft-footer">
+        <span>仅下载到浏览器，不写入 Runtime。</span>
+        <button class="console-button primary" type="button" :disabled="!tmDraft" @click="downloadTmDraft">
+          下载 .tm
+        </button>
+      </div>
+    </template>
+  </ElDrawer>
 </template>
 
 <style scoped>
@@ -368,5 +491,103 @@ onBeforeUnmount(() => contextRail.clearContext('tables'))
 .max-rows .console-input {
   width: 86px;
   min-height: 36px;
+}
+
+.inspector-head,
+.inspector-head > div,
+.inspector-actions,
+.draft-footer {
+  display: flex;
+  align-items: center;
+}
+
+.inspector-head {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.inspector-head > div:first-child {
+  gap: 8px;
+}
+
+.inspector-actions {
+  gap: 8px;
+}
+
+.draft-shell {
+  display: grid;
+  gap: 18px;
+}
+
+.draft-ident {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border: 1px solid var(--console-border);
+}
+
+.draft-ident > div {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+}
+
+.draft-ident > div + div {
+  border-left: 1px solid var(--console-border);
+}
+
+.draft-ident span,
+.draft-footer span {
+  color: var(--console-dim);
+  font: 10px/1.2 var(--console-mono);
+  letter-spacing: .08em;
+}
+
+.draft-ident strong {
+  overflow-wrap: anywhere;
+  font: 600 15px/1.3 var(--console-sans);
+}
+
+.draft-code {
+  display: grid;
+  gap: 8px;
+}
+
+.draft-editor {
+  min-height: 480px !important;
+  resize: vertical;
+}
+
+.draft-footer {
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+}
+
+@media (max-width: 760px) {
+  .inspector-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .inspector-actions {
+    width: 100%;
+  }
+
+  .inspector-actions .console-button {
+    flex: 1;
+  }
+
+  .draft-ident {
+    grid-template-columns: 1fr;
+  }
+
+  .draft-ident > div + div {
+    border-top: 1px solid var(--console-border);
+    border-left: 0;
+  }
+
+  .draft-editor {
+    min-height: 420px !important;
+  }
 }
 </style>

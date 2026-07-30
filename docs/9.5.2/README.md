@@ -22,6 +22,7 @@ recorded_at: 2026-07-27
 | [Bundle 资源操作产品化](workitems/OPT-runtime-console-bundle-resource-operations.md) | READY_FOR_SIGNOFF | 将 export/save 改为路径安全的向导，并保留显式专家 JSON 覆盖 |
 | [模型生命周期操作中心](workitems/OPT-runtime-console-model-lifecycle-center.md) | READY_FOR_SIGNOFF | 收敛候选校验、选中/全部刷新、generation 诊断与会话历史 |
 | [查询工作台增强](workitems/OPT-runtime-console-query-workbench.md) | READY_FOR_SIGNOFF | 增加 payload intelligence、结构化诊断、空间内历史恢复与 CSV 导出 |
+| [Tables / SQL 联动与 TM 草稿](workitems/OPT-runtime-console-tables-sql-tm-draft.md) | READY_FOR_SIGNOFF | 串联 inspect、只读 SELECT 与不自动发布的机械 TM 草稿 |
 
 ## 交互原型
 
