@@ -205,11 +205,61 @@ async function mockRuntime(page: Page): Promise<MockState> {
       }
     } else if (/^models\/[^/]+\/describe$/.test(path)) {
       data = {
-        content: JSON.stringify({
-          model: 'OrderModel',
-          fields: [{ name: 'amount', type: 'DECIMAL' }],
-          examples: [{ columns: ['amount'] }]
-        }, null, 2)
+        format: 'json',
+        content: '{}',
+        data: {
+          version: 'v3',
+          models: {
+            OrderModel: {
+              name: '订单分析',
+              factTable: 'orders',
+              purpose: '订单经营分析',
+              scenarios: ['趋势分析', '履约监控']
+            }
+          },
+          fields: {
+            customer: {
+              name: '客户',
+              fieldName: 'customer',
+              type: 'TEXT',
+              measure: false,
+              filterable: true,
+              sourceColumn: 'customer_name',
+              models: {
+                OrderModel: {
+                  description: '客户显示名称',
+                  usage: '用于筛选与分组'
+                }
+              }
+            },
+            amount: {
+              name: '订单金额',
+              fieldName: 'amount',
+              type: 'DECIMAL',
+              measure: true,
+              aggregation: 'SUM',
+              sourceColumn: 'pay_amount',
+              models: {
+                OrderModel: { description: '订单实付金额' }
+              }
+            },
+            margin: {
+              name: '订单毛利',
+              fieldName: 'margin',
+              type: 'DECIMAL',
+              calculated: true,
+              description: '收入减去成本'
+            }
+          },
+          physicalTables: [{ table: 'public.orders', role: 'fact' }],
+          examples: [{ columns: ['customer', 'amount'] }],
+          modelSource: {
+            known: true,
+            bundleName: requestNamespace === 'finance' ? 'finance-models' : 'runtime-console-demo',
+            namespace: requestNamespace,
+            resourceIdentity: 'qm:OrderModel'
+          }
+        }
       }
     } else if (path === 'models/refresh') {
       const body = requestBody
@@ -469,10 +519,28 @@ test('namespace workspace keeps route, request scope, cards, drawers and keyboar
   await expect(detailDrawer).toContainText('public.orders')
   await expect(detailDrawer).toContainText('当前 Runtime API 未提供 typed 模型依赖')
   await expect(detailDrawer).toContainText('"amount"')
+  await expect(detailDrawer.getByLabel('模型详情摘要')).toContainText('3')
+  await expect(detailDrawer.getByText('订单经营分析', { exact: true })).toBeVisible()
+  await expect(detailDrawer.getByText('趋势分析', { exact: true })).toBeVisible()
+  await expect(detailDrawer.getByText('fact', { exact: true })).toBeVisible()
+  await detailDrawer.getByRole('button', { name: '度量', exact: true }).click()
+  await expect(detailDrawer.getByText('订单金额', { exact: true })).toBeVisible()
+  await expect(detailDrawer.getByText('客户', { exact: true })).toBeHidden()
+  await detailDrawer.getByRole('button', { name: '全部', exact: true }).click()
+  await detailDrawer.getByLabel('搜索字段').fill('毛利')
+  await expect(detailDrawer.getByText('订单毛利', { exact: true })).toBeVisible()
+  await expect(detailDrawer.getByText('订单金额', { exact: true })).toBeHidden()
+  await expect(detailDrawer.getByText('Runtime 原始模型 JSON')).toBeVisible()
   if (testInfo.project.name.includes('mobile')) {
     const box = await detailDrawer.boundingBox()
     expect(box?.width).toBeLessThanOrEqual(420)
   }
+  await page.screenshot({
+    path: testInfo.outputPath(testInfo.project.name.includes('mobile')
+      ? 'structured-model-detail-mobile.png'
+      : 'structured-model-detail-desktop.png'),
+    fullPage: true
+  })
   await page.keyboard.press('Escape')
   await expect(detailDrawer).toBeHidden()
   await expect(detailButton).toBeFocused()
