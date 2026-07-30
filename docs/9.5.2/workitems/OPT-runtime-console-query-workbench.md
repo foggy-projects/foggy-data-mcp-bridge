@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: optimization
 version: 9.5.2-follow-up
 ticket: runtime-console-query-workbench
-status: READY_FOR_SIGNOFF
+status: ACCEPTED
 canonical: true
 execution_mode: ultra
 assurance_level: standard
@@ -97,3 +97,13 @@ open_questions: []
 - omitted_validation_and_reason:
   - 未运行 Maven、数据库矩阵和 release authority；changed surface 仅为 Console frontend/docs。
 - readiness: READY_FOR_SIGNOFF
+
+## Acceptance Status
+
+- acceptance_status: signed-off
+- acceptance_decision: accepted
+- signed_off_by: Codex independent reviewer
+- signed_off_at: 2026-07-31
+- acceptance_record: docs/9.5.2/acceptance/OPT-runtime-console-query-workbench-signoff.md
+- blocking_items: none
+- follow_up_required: yes

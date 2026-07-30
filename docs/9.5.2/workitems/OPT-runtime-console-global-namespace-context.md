@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: optimization
 version: 9.5.2-follow-up
 ticket: runtime-console-global-namespace-context
-status: READY_FOR_SIGNOFF
+status: ACCEPTED
 canonical: true
 execution_mode: ultra
 assurance_level: standard
@@ -184,3 +184,13 @@ open_questions: []
 - requirement / issue: Namespace workspace 签收后的功能正确性优先项。
 - architecture / glossary: docs/architecture/runtime-and-model-lifecycle.md
 - related work items: docs/9.5.2/workitems/OPT-runtime-console-namespace-workspace.md
+
+## Acceptance Status
+
+- acceptance_status: signed-off
+- acceptance_decision: accepted
+- signed_off_by: Codex independent reviewer
+- signed_off_at: 2026-07-31
+- acceptance_record: docs/9.5.2/acceptance/OPT-runtime-console-global-namespace-context-signoff.md
+- blocking_items: none
+- follow_up_required: yes

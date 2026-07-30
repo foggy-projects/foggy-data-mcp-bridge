@@ -16,13 +16,13 @@ recorded_at: 2026-07-27
 |---|---|---|
 | [Runtime Web Console MVP](workitems/FEATURE-runtime-web-console-mvp.md) | READY_FOR_SIGNOFF | 已新增可选 `addons/foggy-runtime-console`；`foggy-runtime-api` 承担 access check、`management-all` 与真实鉴权，launcher 通过显式 profile 装配，Console 静态资源同源提供在 `/console/` |
 | [Namespace 资源工作区](workitems/OPT-runtime-console-namespace-workspace.md) | ACCEPTED | 将 Namespace 收敛为“数据与模型空间”，统一 QM/Bundle 浏览与详情交互 |
-| [签收后清理](workitems/REF-runtime-console-post-signoff-cleanup.md) | READY_FOR_SIGNOFF | 已清理不可达旧页面，并补齐交付路径规则与 CJK 体验证据 |
-| [全局 Namespace 上下文一致性](workitems/OPT-runtime-console-global-namespace-context.md) | READY_FOR_SIGNOFF | 所有工作台切换空间后重载候选或清空结果，并以 revision/snapshot 隔离迟到响应 |
-| [结构化模型详情](workitems/OPT-runtime-console-structured-model-detail.md) | READY_FOR_SIGNOFF | 将 describe metadata 转为模型契约、字段目录、物理映射与高级原文 |
-| [Bundle 资源操作产品化](workitems/OPT-runtime-console-bundle-resource-operations.md) | READY_FOR_SIGNOFF | 将 export/save 改为路径安全的向导，并保留显式专家 JSON 覆盖 |
-| [模型生命周期操作中心](workitems/OPT-runtime-console-model-lifecycle-center.md) | READY_FOR_SIGNOFF | 收敛候选校验、选中/全部刷新、generation 诊断与会话历史 |
-| [查询工作台增强](workitems/OPT-runtime-console-query-workbench.md) | READY_FOR_SIGNOFF | 增加 payload intelligence、结构化诊断、空间内历史恢复与 CSV 导出 |
-| [Tables / SQL 联动与 TM 草稿](workitems/OPT-runtime-console-tables-sql-tm-draft.md) | READY_FOR_SIGNOFF | 串联 inspect、只读 SELECT 与不自动发布的机械 TM 草稿 |
+| [签收后清理](workitems/REF-runtime-console-post-signoff-cleanup.md) | ACCEPTED | 已清理不可达旧页面，并补齐交付路径规则与 CJK 体验证据 |
+| [全局 Namespace 上下文一致性](workitems/OPT-runtime-console-global-namespace-context.md) | ACCEPTED | 所有工作台切换空间后重载候选或清空结果，并以 revision/snapshot 隔离迟到响应 |
+| [结构化模型详情](workitems/OPT-runtime-console-structured-model-detail.md) | ACCEPTED | 将 describe metadata 转为模型契约、字段目录、物理映射与高级原文 |
+| [Bundle 资源操作产品化](workitems/OPT-runtime-console-bundle-resource-operations.md) | ACCEPTED | 将 export/save 改为路径安全的向导，并保留显式专家 JSON 覆盖 |
+| [模型生命周期操作中心](workitems/OPT-runtime-console-model-lifecycle-center.md) | ACCEPTED | 收敛候选校验、选中/全部刷新、generation 诊断与会话历史 |
+| [查询工作台增强](workitems/OPT-runtime-console-query-workbench.md) | ACCEPTED | 增加 payload intelligence、结构化诊断、空间内历史恢复与 CSV 导出 |
+| [Tables / SQL 联动与 TM 草稿](workitems/OPT-runtime-console-tables-sql-tm-draft.md) | ACCEPTED | 串联 inspect、只读 SELECT 与不自动发布的机械 TM 草稿 |
 
 ## 交互原型
 
