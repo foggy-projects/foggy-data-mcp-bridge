@@ -20,6 +20,7 @@ recorded_at: 2026-07-27
 | [全局 Namespace 上下文一致性](workitems/OPT-runtime-console-global-namespace-context.md) | READY_FOR_SIGNOFF | 所有工作台切换空间后重载候选或清空结果，并以 revision/snapshot 隔离迟到响应 |
 | [结构化模型详情](workitems/OPT-runtime-console-structured-model-detail.md) | READY_FOR_SIGNOFF | 将 describe metadata 转为模型契约、字段目录、物理映射与高级原文 |
 | [Bundle 资源操作产品化](workitems/OPT-runtime-console-bundle-resource-operations.md) | READY_FOR_SIGNOFF | 将 export/save 改为路径安全的向导，并保留显式专家 JSON 覆盖 |
+| [模型生命周期操作中心](workitems/OPT-runtime-console-model-lifecycle-center.md) | READY_FOR_SIGNOFF | 收敛候选校验、选中/全部刷新、generation 诊断与会话历史 |
 
 ## 交互原型
 

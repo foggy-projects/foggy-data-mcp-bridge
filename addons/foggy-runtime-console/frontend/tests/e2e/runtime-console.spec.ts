@@ -271,6 +271,7 @@ async function mockRuntime(page: Page): Promise<MockState> {
         afterCatalogGeneration: 'g-2',
         refreshedCount: models.length || 1,
         failedCount: 0,
+        durationMs: 42,
         warnings: []
       }
     } else if (path === 'models/validate') {
@@ -279,6 +280,7 @@ async function mockRuntime(page: Page): Promise<MockState> {
         catalogState: 'CANDIDATE_VALID',
         validFiles: 2,
         invalidFiles: 0,
+        durationMs: 18,
         warnings: []
       }
     } else if (path === 'resources/export') {
@@ -570,18 +572,42 @@ test('namespace workspace keeps route, request scope, cards, drawers and keyboar
   await expect(detailDrawer).toBeHidden()
   await expect(detailButton).toBeFocused()
 
+  const lifecycleCenter = page.locator('section.lifecycle-center')
+  await expect(lifecycleCenter.getByRole('heading', { name: '模型生命周期操作中心' })).toBeVisible()
+  await expect(lifecycleCenter.getByRole('button', { name: '刷新已选' })).toBeDisabled()
   await modelCard.getByLabel('选择 OrderModel').check()
-  await page.getByRole('button', { name: '刷新已选' }).click()
+  await lifecycleCenter.getByRole('button', { name: '刷新已选' }).click()
   await page.getByRole('dialog', { name: '确认模型刷新' }).getByRole('button', { name: '确认刷新' }).click()
   await expect.poll(() => state.refreshScopes).toContain('selected')
-  await page.getByRole('button', { name: '刷新全部' }).click()
-  await page.getByRole('dialog', { name: '确认模型刷新' }).getByRole('button', { name: '确认刷新' }).click()
+  await expect(lifecycleCenter).toContainText('PUBLISHED')
+  await expect(lifecycleCenter).toContainText('g-1')
+  await expect(lifecycleCenter).toContainText('g-2')
+  await expect(lifecycleCenter).toContainText('42 ms')
+  await lifecycleCenter.getByRole('button', { name: '刷新全部' }).click()
+  await page.getByRole('dialog', { name: '确认模型刷新' })
+    .getByRole('button', { name: '刷新全部并发布' })
+    .click()
   await expect.poll(() => state.refreshScopes).toContain('all')
 
-  await page.getByText('模型维护工具 · 路径校验与生命周期诊断').click()
-  await page.getByLabel('模型路径').fill('/runtime/models/demo')
-  await page.getByRole('button', { name: '校验路径' }).click()
-  await expect(page.getByText('CANDIDATE_VALID')).toBeVisible()
+  await lifecycleCenter.getByLabel('模型路径').fill('/runtime/models/demo')
+  await lifecycleCenter.getByRole('button', { name: '校验候选路径' }).click()
+  await expect(lifecycleCenter.locator('.result-head')).toContainText('CANDIDATE_VALID')
+  await expect(lifecycleCenter).toContainText('18 ms')
+  await lifecycleCenter.getByText('3 次最近操作').click()
+  const lifecycleHistory = lifecycleCenter.locator('.history-list')
+  await expect(lifecycleHistory.getByText('候选校验', { exact: true })).toBeVisible()
+  await expect(lifecycleHistory.getByText('刷新已选', { exact: true })).toBeVisible()
+  await expect(lifecycleHistory.getByText('刷新全部', { exact: true })).toBeVisible()
+  await page.waitForTimeout(3200)
+  const lifecycleEvidenceStyle = await page.addStyleTag({
+    content: '.console-header { visibility: hidden !important; } .skip-link { display: none !important; }'
+  })
+  await lifecycleCenter.screenshot({
+    path: testInfo.outputPath(testInfo.project.name.includes('mobile')
+      ? 'model-lifecycle-center-mobile.png'
+      : 'model-lifecycle-center-desktop.png')
+  })
+  await lifecycleEvidenceStyle.evaluate(element => element.remove())
 
   await page.getByRole('button', { name: /Bundle 来源/ }).click()
   const bundleCard = page.getByRole('article').filter({ hasText: 'runtime-console-demo' })
