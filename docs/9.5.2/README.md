@@ -21,6 +21,7 @@ recorded_at: 2026-07-27
 | [结构化模型详情](workitems/OPT-runtime-console-structured-model-detail.md) | READY_FOR_SIGNOFF | 将 describe metadata 转为模型契约、字段目录、物理映射与高级原文 |
 | [Bundle 资源操作产品化](workitems/OPT-runtime-console-bundle-resource-operations.md) | READY_FOR_SIGNOFF | 将 export/save 改为路径安全的向导，并保留显式专家 JSON 覆盖 |
 | [模型生命周期操作中心](workitems/OPT-runtime-console-model-lifecycle-center.md) | READY_FOR_SIGNOFF | 收敛候选校验、选中/全部刷新、generation 诊断与会话历史 |
+| [查询工作台增强](workitems/OPT-runtime-console-query-workbench.md) | READY_FOR_SIGNOFF | 增加 payload intelligence、结构化诊断、空间内历史恢复与 CSV 导出 |
 
 ## 交互原型
 

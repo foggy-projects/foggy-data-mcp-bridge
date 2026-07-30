@@ -324,10 +324,19 @@ async function mockRuntime(page: Page): Promise<MockState> {
             : [{ scope: 'empty', amount: 0 }],
         total: requestNamespace === 'default' ? 2 : 1,
         hasNext: false,
+        pagination: { start: 0, limit: 100 },
+        execution: { provider: 'JDBC', durationMs: 12 },
         warnings: []
       }
     } else if (/^query\/[^/]+\/validate$/.test(path)) {
-      data = { items: [], warnings: [], execution: { status: 'PLAN_READY' } }
+      data = {
+        items: [],
+        total: 0,
+        hasNext: false,
+        pagination: { start: 0, limit: 100 },
+        warnings: [],
+        execution: { status: 'PLAN_READY', durationMs: 4 }
+      }
     } else if (path === 'tables/list') {
       data = {
         dataSource: requestNamespace === 'finance' ? 'analytics' : 'analytics',
@@ -719,6 +728,40 @@ test('namespace context reloads every workbench and rejects stale responses', as
   await expect(page.getByLabel('当前空间 finance')).toBeVisible()
   await page.getByRole('button', { name: '运行查询' }).click()
   await expect(page.getByText('Revenue', { exact: true })).toBeVisible()
+  await expect(page.getByLabel('查询 Payload 摘要')).toContainText('1')
+  await expect(page.getByLabel('查询执行诊断')).toContainText('12 ms')
+  const downloadPromise = page.waitForEvent('download')
+  await page.getByRole('button', { name: '导出 CSV' }).click()
+  const queryDownload = await downloadPromise
+  expect(queryDownload.suggestedFilename()).toBe('FinanceModel-finance.csv')
+  const financeHistory = page.locator('.query-history-list button')
+  await expect(financeHistory).toHaveCount(1)
+  await expect(financeHistory).toContainText('FinanceModel')
+  await page.waitForTimeout(3200)
+  const queryEvidenceStyle = await page.addStyleTag({
+    content: '.console-header { visibility: hidden !important; } .skip-link { display: none !important; }'
+  })
+  await page.screenshot({
+    path: testInfo.outputPath(testInfo.project.name.includes('mobile')
+      ? 'query-workbench-mobile.png'
+      : 'query-workbench-desktop.png'),
+    fullPage: true
+  })
+  await queryEvidenceStyle.evaluate(element => element.remove())
+  await page.getByLabel('查询 DSL JSON').fill('{')
+  await expect(page.getByRole('button', { name: '运行查询' })).toBeDisabled()
+  await expect(page.locator('.payload-error')).toContainText('JSON')
+  await financeHistory.click()
+  await expect(page.getByLabel('查询 DSL JSON')).toHaveValue('{"columns":["amount"]}')
+  await page.getByLabel('查询 DSL JSON').fill('{"columns":["amount"],"slice":[]}')
+  await page.getByRole('button', { name: '格式化 JSON' }).click()
+  await expect(page.getByLabel('查询 DSL JSON')).toHaveValue(/\n/)
+  await page.getByRole('button', { name: '校验', exact: true }).click()
+  await expect(page.getByLabel('查询命令上下文')).toContainText('VALIDATE')
+  await expect(page.locator('.query-history-list button')).toHaveCount(2)
+  await expect.poll(() => state.requests.some(item =>
+    item.path === 'query/FinanceModel/validate' && item.namespace === 'finance'
+  )).toBe(true)
   await expect.poll(() => state.requests.some(item =>
     item.path === 'query/FinanceModel/execute' && item.namespace === 'finance'
   )).toBe(true)
