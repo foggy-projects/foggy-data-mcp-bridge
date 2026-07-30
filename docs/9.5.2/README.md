@@ -15,6 +15,9 @@ recorded_at: 2026-07-27
 | Work item | 状态 | 目标 |
 |---|---|---|
 | [Runtime Web Console MVP](workitems/FEATURE-runtime-web-console-mvp.md) | READY_FOR_SIGNOFF | 已新增可选 `addons/foggy-runtime-console`；`foggy-runtime-api` 承担 access check、`management-all` 与真实鉴权，launcher 通过显式 profile 装配，Console 静态资源同源提供在 `/console/` |
+| [Namespace 资源工作区](workitems/OPT-runtime-console-namespace-workspace.md) | ACCEPTED | 将 Namespace 收敛为“数据与模型空间”，统一 QM/Bundle 浏览与详情交互 |
+| [签收后清理](workitems/REF-runtime-console-post-signoff-cleanup.md) | READY_FOR_SIGNOFF | 已清理不可达旧页面，并补齐交付路径规则与 CJK 体验证据 |
+| [全局 Namespace 上下文一致性](workitems/OPT-runtime-console-global-namespace-context.md) | APPROVED | 保证所有工作台切换空间后重载候选并隔离迟到响应 |
 
 ## 交互原型
 
@@ -24,3 +27,10 @@ recorded_at: 2026-07-27
 `foggy-data-viewer` 结果表格复用、响应式桌面/移动布局与 Maven 静态资源打包。交付状态为
 `READY_FOR_SIGNOFF`，尚未设置 `ACCEPTED`；当前有效整体架构仍以
 [docs/architecture](../architecture/README.md) 为唯一入口。
+
+## 交付证据规则
+
+Implementation Result 中的 `changed_paths` 必须从实际 Git 边界生成，不得只手工列举核心文件。
+提交前使用 `git diff --name-only <base>...HEAD`；尚未提交时同时补充
+`git diff --name-only` 与 `git ls-files --others --exclude-standard`。正式签收以 reviewer 对真实
+commit 和工作树的审计结果为准，不回写或美化历史测试结果。

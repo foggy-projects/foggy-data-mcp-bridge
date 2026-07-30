@@ -349,6 +349,11 @@ test('navigation, datasource creation and query result rendering', async ({ page
 test('namespace workspace keeps route, request scope, cards, drawers and keyboard focus aligned', async ({ page }, testInfo) => {
   testInfo.setTimeout(90_000)
   const state = mockStates.get(page)!
+  const browserErrors: string[] = []
+  page.on('console', message => {
+    if (message.type() === 'error') browserErrors.push(message.text())
+  })
+  page.on('pageerror', error => browserErrors.push(error.message))
   await login(page)
 
   if (testInfo.project.name.includes('mobile')) {
@@ -435,4 +440,5 @@ test('namespace workspace keeps route, request scope, cards, drawers and keyboar
 
   await page.goto('/console/#/models')
   await expect(page).toHaveURL(/#\/namespaces\/models\?ns=finance$/)
+  expect(browserErrors).toEqual([])
 })
