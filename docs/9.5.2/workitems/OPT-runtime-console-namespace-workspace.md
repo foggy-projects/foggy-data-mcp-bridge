@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: optimization
 version: 9.5.2-follow-up
 ticket: runtime-console-namespace-workspace
-status: READY_FOR_SIGNOFF
+status: ACCEPTED
 canonical: true
 execution_mode: ultra
 assurance_level: standard
@@ -389,6 +389,16 @@ N/A。本事项是已确认的体验优化与架构收敛，不把当前信息�
     或 source-seal；改动严格限制在 Console 前端与交付记录，未触发后端或装配验证条件，且契约明确
     禁止默认运行大型 authority/replay。
 - readiness: READY_FOR_SIGNOFF
+
+## Acceptance Status
+
+- acceptance_status: signed-off
+- acceptance_decision: accepted
+- signed_off_by: Codex independent reviewer
+- signed_off_at: 2026-07-30
+- acceptance_record: docs/9.5.2/acceptance/OPT-runtime-console-namespace-workspace-signoff.md
+- blocking_items: none
+- follow_up_required: yes
 
 ## References
 
