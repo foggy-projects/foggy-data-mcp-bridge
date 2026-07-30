@@ -283,7 +283,32 @@ async function mockRuntime(page: Page): Promise<MockState> {
       }
     } else if (path === 'resources/export') {
       data = {
-        resources: [{ path: 'models/orders.qm', sha256: 'mock-sha256' }]
+        namespace: requestNamespace,
+        bundle: requestBody.bundle,
+        rootPath: '/runtime/models/demo',
+        resources: [{
+          path: 'models/orders.qm',
+          type: 'QM',
+          size: 128,
+          sha256: 'mock-sha256',
+          writable: true
+        }],
+        warnings: []
+      }
+    } else if (path === 'resources/save') {
+      data = {
+        namespace: requestNamespace,
+        bundle: requestBody.bundle,
+        rootPath: '/runtime/models/demo',
+        savedCount: Array.isArray(requestBody.files) ? requestBody.files.length : 0,
+        savedResources: [{
+          path: 'models/new-orders.qm',
+          type: 'QM',
+          size: 96,
+          sha256: 'saved-mock-sha256',
+          writable: true
+        }],
+        warnings: ['保存完成；模型校验与刷新尚未执行。']
       }
     } else if (/^query\/[^/]+\/execute$/.test(path)) {
       data = {
@@ -563,9 +588,62 @@ test('namespace workspace keeps route, request scope, cards, drawers and keyboar
   await expect(bundleCard).toContainText('1 visible QM')
   await bundleCard.getByRole('button', { name: '高级操作' }).click()
   const advancedDrawer = page.getByRole('dialog', { name: /Bundle 高级操作/ })
-  await expect(advancedDrawer.getByLabel('Bundle 原始请求 JSON')).toHaveValue(/"bundle": "runtime-console-demo"/)
+  const rawBundlePayload = advancedDrawer.getByLabel('Bundle 原始请求 JSON')
+  await expect(rawBundlePayload).toHaveValue(/"bundle": "runtime-console-demo"/)
+  await expect(rawBundlePayload).toHaveAttribute('readonly')
+  await advancedDrawer.getByText('专家请求 JSON').click()
+  const expertOverride = advancedDrawer.locator('label.operation-check')
+    .filter({ hasText: '使用原始 JSON 覆盖向导' })
+    .getByRole('checkbox')
+  await expertOverride.check()
+  await expect(rawBundlePayload).toBeEditable()
+  await expertOverride.uncheck()
+  await advancedDrawer.getByText('专家请求 JSON').click()
+  await expect(advancedDrawer.getByLabel('Bundle 资源操作摘要')).toContainText('READ / WRITE')
+  await advancedDrawer.getByRole('button', { name: /指定路径/ }).click()
+  await advancedDrawer.getByLabel('资源相对路径').fill('../outside.qm')
+  const exportRequestsBeforeInvalidPath = state.requests.filter(item => item.path === 'resources/export').length
+  await advancedDrawer.getByRole('button', { name: '执行导出' }).click()
+  await expect(advancedDrawer.getByRole('alert')).toContainText('目录穿越')
+  expect(state.requests.filter(item => item.path === 'resources/export')).toHaveLength(exportRequestsBeforeInvalidPath)
+  await advancedDrawer.getByLabel('资源相对路径').fill('models/orders.qm')
+  await advancedDrawer.locator('label.operation-check').filter({ hasText: '包含文件内容' })
+    .getByRole('checkbox')
+    .check()
   await advancedDrawer.getByRole('button', { name: '执行导出' }).click()
   await expect(advancedDrawer.getByText('models/orders.qm')).toBeVisible()
+  await expect.poll(() => state.requests.some(item =>
+    item.path === 'resources/export'
+      && item.namespace === 'default'
+      && Array.isArray(item.body.paths)
+      && item.body.paths[0] === 'models/orders.qm'
+      && item.body.includeContent === true
+  )).toBe(true)
+
+  await advancedDrawer.getByRole('button', { name: /保存资源/ }).click()
+  await advancedDrawer.getByLabel('资源文件 1 相对路径').fill('models/new-orders.qm')
+  await advancedDrawer.getByLabel('资源文件 1 Base SHA-256').fill('mock-sha256')
+  await advancedDrawer.getByLabel('资源文件 1 内容').fill('query NewOrders { columns: ["id"] }')
+  await expect(advancedDrawer).toContainText('保存只写入资源文件，不会自动完成模型校验或刷新')
+  await advancedDrawer.getByRole('button', { name: '确认并保存' }).click()
+  const saveConfirm = page.getByRole('dialog', { name: '确认保存 Bundle 资源' })
+  await saveConfirm.getByRole('button', { name: '确认保存' }).click()
+  await expect(saveConfirm).toBeHidden()
+  await expect(advancedDrawer.getByText('models/new-orders.qm')).toBeVisible()
+  await expect(advancedDrawer).toContainText('模型校验与刷新尚未执行')
+  await expect.poll(() => state.requests.some(item =>
+    item.path === 'resources/save'
+      && item.namespace === 'default'
+      && item.body.validate === false
+      && item.body.refresh === false
+  )).toBe(true)
+  await page.waitForTimeout(3200)
+  await page.screenshot({
+    path: testInfo.outputPath(testInfo.project.name.includes('mobile')
+      ? 'bundle-resource-operations-mobile.png'
+      : 'bundle-resource-operations-desktop.png'),
+    fullPage: true
+  })
   await page.keyboard.press('Escape')
 
   const namespaceInput = page.getByLabel('当前数据与模型空间')

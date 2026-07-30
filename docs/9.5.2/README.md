@@ -19,6 +19,7 @@ recorded_at: 2026-07-27
 | [签收后清理](workitems/REF-runtime-console-post-signoff-cleanup.md) | READY_FOR_SIGNOFF | 已清理不可达旧页面，并补齐交付路径规则与 CJK 体验证据 |
 | [全局 Namespace 上下文一致性](workitems/OPT-runtime-console-global-namespace-context.md) | READY_FOR_SIGNOFF | 所有工作台切换空间后重载候选或清空结果，并以 revision/snapshot 隔离迟到响应 |
 | [结构化模型详情](workitems/OPT-runtime-console-structured-model-detail.md) | READY_FOR_SIGNOFF | 将 describe metadata 转为模型契约、字段目录、物理映射与高级原文 |
+| [Bundle 资源操作产品化](workitems/OPT-runtime-console-bundle-resource-operations.md) | READY_FOR_SIGNOFF | 将 export/save 改为路径安全的向导，并保留显式专家 JSON 覆盖 |
 
 ## 交互原型
 
