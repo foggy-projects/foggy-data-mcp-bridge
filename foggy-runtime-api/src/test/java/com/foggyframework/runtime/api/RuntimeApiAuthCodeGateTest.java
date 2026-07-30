@@ -11,6 +11,7 @@ import com.foggyframework.dataset.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.model.spi.TableModelLoaderManager;
 import com.foggyframework.dataset.model.validation.DetachedModelValidationFactory;
 import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
+import com.foggyframework.runtime.api.config.RuntimeApiAuthScope;
 import com.foggyframework.runtime.api.security.RuntimeApiAuthInterceptor;
 import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
 import org.junit.jupiter.api.Test;
@@ -92,6 +93,34 @@ class RuntimeApiAuthCodeGateTest {
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().path("success").asBoolean()).isTrue();
         assertThat(response.getBody().path("data").path("securityMode").asText()).isEqualTo("auth-code");
+    }
+
+    @Test
+    void shouldAllowAccessCheckOnlyWithValidAuthCodeAndDisableCaching() {
+        ResponseEntity<JsonNode> rejected = restTemplate.getForEntity(
+                url(RuntimeApiRoutes.Full.ACCESS_CHECK),
+                JsonNode.class
+        );
+
+        assertThat(rejected.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(rejected.getHeaders().getCacheControl()).isEqualTo("no-store");
+        assertThat(rejected.getBody()).isNotNull();
+        assertThat(rejected.getBody().path("error").path("code").asText())
+                .isEqualTo("RUNTIME_AUTH_REQUIRED");
+
+        ResponseEntity<JsonNode> accepted = restTemplate.exchange(
+                url(RuntimeApiRoutes.Full.ACCESS_CHECK),
+                HttpMethod.GET,
+                new HttpEntity<>(authHeaders(RuntimeApiAuthInterceptor.AUTH_CODE_HEADER, "runtime-secret")),
+                JsonNode.class
+        );
+
+        assertThat(accepted.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(accepted.getHeaders().getCacheControl()).isEqualTo("no-store");
+        assertThat(accepted.getBody()).isNotNull();
+        assertThat(accepted.getBody().path("data").path("authenticated").asBoolean()).isTrue();
+        assertThat(accepted.getBody().path("data").path("authScope").asText()).isEqualTo("mutations");
+        assertThat(accepted.getBody().toString()).doesNotContain("runtime-secret");
     }
 
     @Test
@@ -232,6 +261,7 @@ class RuntimeApiAuthCodeGateTest {
         assertAllowedByInterceptor("GET", RuntimeApiRoutes.Full.CAPABILITIES);
         assertAllowedByInterceptor("GET", RuntimeApiRoutes.Full.BUNDLES);
         assertAllowedByInterceptor("GET", RuntimeApiRoutes.Full.DATASOURCES);
+        assertAllowedByInterceptor("GET", RuntimeApiRoutes.Full.DATASOURCES_DIAGNOSTICS);
         assertAllowedByInterceptor("GET", route(RuntimeApiRoutes.Full.NAMESPACE_DATASOURCE, "namespace", "dev"));
         assertAllowedByInterceptor("GET", RuntimeApiRoutes.Full.MODELS);
         assertAllowedByInterceptor("POST", route(RuntimeApiRoutes.Full.MODEL_DESCRIBE, "model", "Order"));
@@ -244,6 +274,49 @@ class RuntimeApiAuthCodeGateTest {
         assertAllowedByInterceptor("POST", RuntimeApiRoutes.Full.COMPOSE_VALIDATE);
         assertAllowedByInterceptor("POST", RuntimeApiRoutes.Full.COMPOSE_PREVIEW);
         assertAllowedByInterceptor("POST", RuntimeApiRoutes.Full.COMPOSE_EXECUTE);
+    }
+
+    @Test
+    void shouldRequireAuthCodeForEveryV1OperationInManagementAllScope() throws Exception {
+        String[][] operations = {
+                {"GET", RuntimeApiRoutes.Full.CAPABILITIES},
+                {"GET", RuntimeApiRoutes.Full.ACCESS_CHECK},
+                {"GET", RuntimeApiRoutes.Full.BUNDLES},
+                {"POST", RuntimeApiRoutes.Full.BUNDLES},
+                {"PUT", route(RuntimeApiRoutes.Full.BUNDLE_BY_NAME, "name", "demo")},
+                {"DELETE", route(RuntimeApiRoutes.Full.BUNDLE_BY_NAME, "name", "demo")},
+                {"GET", RuntimeApiRoutes.Full.DATASOURCES},
+                {"GET", RuntimeApiRoutes.Full.DATASOURCES_DIAGNOSTICS},
+                {"POST", RuntimeApiRoutes.Full.DATASOURCES},
+                {"PUT", route(RuntimeApiRoutes.Full.DATASOURCE_BY_NAME, "name", "demo")},
+                {"DELETE", route(RuntimeApiRoutes.Full.DATASOURCE_BY_NAME, "name", "demo")},
+                {"POST", route(RuntimeApiRoutes.Full.DATASOURCE_TEST, "name", "demo")},
+                {"GET", route(RuntimeApiRoutes.Full.NAMESPACE_DATASOURCE, "namespace", "dev")},
+                {"PUT", route(RuntimeApiRoutes.Full.NAMESPACE_DATASOURCE, "namespace", "dev")},
+                {"POST", RuntimeApiRoutes.Full.RESOURCES_EXPORT},
+                {"POST", RuntimeApiRoutes.Full.RESOURCES_SAVE},
+                {"GET", RuntimeApiRoutes.Full.MODELS},
+                {"POST", route(RuntimeApiRoutes.Full.MODEL_DESCRIBE, "model", "Order")},
+                {"POST", RuntimeApiRoutes.Full.MODELS_VALIDATE},
+                {"POST", RuntimeApiRoutes.Full.MODELS_REFRESH},
+                {"POST", route(RuntimeApiRoutes.Full.QUERY_VALIDATE, "model", "Order")},
+                {"POST", route(RuntimeApiRoutes.Full.QUERY_EXECUTE, "model", "Order")},
+                {"POST", RuntimeApiRoutes.Full.TABLES_LIST},
+                {"POST", RuntimeApiRoutes.Full.TABLES_INSPECT},
+                {"POST", RuntimeApiRoutes.Full.SQL_QUERY},
+                {"POST", RuntimeApiRoutes.Full.COMPOSE_VALIDATE},
+                {"POST", RuntimeApiRoutes.Full.COMPOSE_PREVIEW},
+                {"POST", RuntimeApiRoutes.Full.COMPOSE_EXECUTE},
+                {"POST", RuntimeApiRoutes.Full.FSSCRIPT_EXECUTE}
+        };
+
+        RuntimeApiAuthInterceptor interceptor = authInterceptor(
+                "runtime-secret",
+                RuntimeApiAuthScope.MANAGEMENT_ALL
+        );
+        for (String[] operation : operations) {
+            assertRejectedByInterceptor(interceptor, operation[0], operation[1]);
+        }
     }
 
     private String url(String path) {
@@ -262,7 +335,14 @@ class RuntimeApiAuthCodeGateTest {
     }
 
     private static void assertRejectedByInterceptor(String method, String path) throws Exception {
-        RuntimeApiAuthInterceptor interceptor = authInterceptor("runtime-secret");
+        assertRejectedByInterceptor(authInterceptor("runtime-secret"), method, path);
+    }
+
+    private static void assertRejectedByInterceptor(
+            RuntimeApiAuthInterceptor interceptor,
+            String method,
+            String path
+    ) throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest(method, path);
         MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -286,8 +366,16 @@ class RuntimeApiAuthCodeGateTest {
     }
 
     private static RuntimeApiAuthInterceptor authInterceptor(String authCode) {
+        return authInterceptor(authCode, RuntimeApiAuthScope.MUTATIONS);
+    }
+
+    private static RuntimeApiAuthInterceptor authInterceptor(
+            String authCode,
+            RuntimeApiAuthScope authScope
+    ) {
         FoggyRuntimeApiProperties properties = new FoggyRuntimeApiProperties();
         properties.setAuthCode(authCode);
+        properties.setAuthScope(authScope);
         return new RuntimeApiAuthInterceptor(
                 properties,
                 new RuntimeApiResponseFactory(properties),

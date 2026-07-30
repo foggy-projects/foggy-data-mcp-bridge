@@ -1,8 +1,8 @@
 ---
 doc_role: architecture
 status: canonical
-baseline: main-after-9.5.0
-last_reviewed: 2026-07-24
+baseline: main-after-9.5.2-runtime-console
+last_reviewed: 2026-07-29
 ---
 
 # 模块边界
@@ -64,7 +64,7 @@ model-engine ──→ api/core/jdbc/starter/web + dataset/fsscript
 | 模块 | 职责 |
 |---|---|
 | `foggy-dataset-mcp` | MCP 协议、角色 controller、工具注册/调度、审计、语义查询工具 |
-| `foggy-runtime-api` | 稳定运行时管理 API、DTO、数据源/Bundle/模型操作与 auth-code 保护 |
+| `foggy-runtime-api` | 稳定运行时管理 API、DTO、数据源/Bundle/模型操作、access check 与 auth-code scope 保护 |
 | `foggy-mcp-launcher` | 可执行 Spring Boot JAR 和产品装配 |
 | `foggy-dataset-memory-grid-bridge` | 语义查询与 memory-grid 的桥接边界 |
 | `foggy-dataset-memory-grid-duckdb` | DuckDB memory-grid 实现 |
@@ -86,11 +86,17 @@ model-engine ──→ api/core/jdbc/starter/web + dataset/fsscript
 | `addons/foggy-dataset-model-preagg` | 预聚合实现 |
 | `addons/foggy-dataset-graphql` | GraphQL 接入 |
 | `addons/foggy-data-viewer` | 数据浏览 UI/资源 |
+| `addons/foggy-runtime-console` | 可选的同源 Runtime 管理 SPA、静态资源交付与安全启用检查 |
 | `addons/foggy-chart-storage-cloud` | 图表资源云存储 |
 | `addons/foggy-odoo-bridge-java` | launcher 网关模式使用的 Odoo Java TM/QM 模型 |
 
 Addon 必须保持可选：核心查询链不能因为 classpath 缺少某个 addon 而失败。Addon 若参与
 Model SPI，必须提供唯一 identity、精确 capability、对应 port 实现和聚焦契约测试。
+
+Runtime Console 只拥有 Vue 页面、浏览器 session、相对同源 API adapter 和 `/console/` 静态资源
+交付。`X-Foggy-Runtime-Code` 校验、`management-all` 路径策略、RuntimeEnvelope 和业务 Controller
+仍归 `foggy-runtime-api`；`foggy-mcp-launcher` 的 `runtime-console` profile 只装配
+`foggy-runtime-api + foggy-runtime-console`，默认 launcher 不包含该 Console。
 
 Odoo Python 插件属于独立项目，本仓库只维护 Java 模型与网关侧集成。
 
@@ -114,5 +120,6 @@ Odoo Python 插件属于独立项目，本仓库只维护 Java 模型与网关�
 | TM/QM、loader、semantic、compose、pivot、刷新 | model-engine |
 | MCP 协议与 tool 调度 | dataset-mcp / mcp-spi |
 | 数据源、Bundle、模型管理 API | runtime-api |
+| Runtime Web 管理页面与静态交付 | runtime-console addon |
 | 最终可执行装配 | mcp-launcher |
 | backend 特有实现 | 对应 addon |

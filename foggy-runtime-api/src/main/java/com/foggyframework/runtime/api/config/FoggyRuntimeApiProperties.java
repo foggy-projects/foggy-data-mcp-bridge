@@ -13,6 +13,7 @@ public class FoggyRuntimeApiProperties {
     private String schemaVersion = "2026-06-06";
     private String securityMode = "none-dev-test-only";
     private String authCode;
+    private RuntimeApiAuthScope authScope = RuntimeApiAuthScope.MUTATIONS;
     private BundleRegistry bundleRegistry = new BundleRegistry();
     private DatasourceRegistry datasourceRegistry = new DatasourceRegistry();
     private DatasourcePool datasourcePool = new DatasourcePool();
@@ -57,6 +58,14 @@ public class FoggyRuntimeApiProperties {
         this.authCode = authCode;
     }
 
+    public RuntimeApiAuthScope getAuthScope() {
+        return authScope;
+    }
+
+    public void setAuthScope(RuntimeApiAuthScope authScope) {
+        this.authScope = authScope;
+    }
+
     public boolean isAuthCodeConfigured() {
         return StringUtils.hasText(authCode);
     }
@@ -67,6 +76,10 @@ public class FoggyRuntimeApiProperties {
 
     public String getEffectiveSecurityMode() {
         return isAuthCodeRequired() ? "auth-code" : securityMode;
+    }
+
+    public boolean isManagementAllAuthScope() {
+        return authScope == RuntimeApiAuthScope.MANAGEMENT_ALL;
     }
 
     public BundleRegistry getBundleRegistry() {

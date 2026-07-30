@@ -38,6 +38,7 @@ public class RuntimeCapabilitiesController {
     public RuntimeEnvelope<CapabilitiesResponse> capabilities() {
         Map<String, String> capabilities = new LinkedHashMap<>();
         capabilities.put("runtime.capabilities", "supported");
+        capabilities.put("runtime.accessCheck", "supported");
         capabilities.put("models.list", "supported");
         capabilities.put("models.describe", "supported");
         capabilities.put("models.validate", "supported");
@@ -84,6 +85,9 @@ public class RuntimeCapabilitiesController {
             return List.of("Runtime API auth-code mode is enabled, but no auth code is configured.");
         }
         if ("auth-code".equals(properties.getEffectiveSecurityMode())) {
+            if (properties.isManagementAllAuthScope()) {
+                return List.of("Runtime API management-all scope requires an auth code for every /api/v1 operation.");
+            }
             return List.of("Runtime API management operations require an auth code.");
         }
         return List.of("Runtime API is intended for development and testing only.");

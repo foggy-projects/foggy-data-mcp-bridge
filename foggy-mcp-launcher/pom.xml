@@ -167,6 +167,23 @@
                 </dependency>
             </dependencies>
         </profile>
+        <profile>
+            <id>runtime-console</id>
+            <dependencies>
+                <!-- Explicit opt-in assembly for the protected Runtime management API. -->
+                <dependency>
+                    <groupId>com.foggysource</groupId>
+                    <artifactId>foggy-runtime-api</artifactId>
+                    <version>${project.version}</version>
+                </dependency>
+                <!-- Same-origin static Console Addon; disabled until explicitly configured at runtime. -->
+                <dependency>
+                    <groupId>com.foggysource</groupId>
+                    <artifactId>foggy-runtime-console</artifactId>
+                    <version>${project.version}</version>
+                </dependency>
+            </dependencies>
+        </profile>
     </profiles>
 
     <build>

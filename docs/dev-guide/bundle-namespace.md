@@ -192,22 +192,57 @@ foggy:
     enabled: true
     security-mode: auth-code
     auth-code: ${FOGGY_RUNTIME_API_AUTH_CODE}
+    auth-scope: mutations
 ```
 
 请求侧支持 `X-Foggy-Runtime-Code: <code>`，也兼容 `Authorization: Bearer <code>`。使用 `foggy-runtime-cli` 自动化调用时，建议优先通过 `FOGGY_RUNTIME_API_AUTH_CODE` 环境变量传递，避免把授权码直接写入 shell history 或脚本参数。
 
-授权码只保护 Runtime API 管理操作，例如：
+默认 `auth-scope=mutations` 保持历史调用兼容，保护 Runtime API 管理写操作，例如：
 
 - Bundle 添加、更新、移除
 - Datasource 添加、更新、移除、连通性测试
 - Namespace 与 Datasource 绑定管理
 - 资源保存、模型校验、模型刷新等管理探测入口
 
-以下能力不在授权码管理面内，仍按原有部署边界控制：
+默认 scope 下，查询、读取、SQL、Compose 和模型资源读取仍按原有部署与数据权限边界控制。
+原始 FSScript 执行属于作者/管理面，始终要求管理凭据。
 
-- 查询、读取、SQL、compose、fsscript 执行入口
-- 模型资源读取类接口
-- 客户级权限、用户身份、审计、授权码轮换等治理能力
+需要让 auth-code 覆盖全部 `/api/v1/**` 时，显式配置：
+
+```yaml
+foggy:
+  runtime-api:
+    auth-scope: management-all
+```
+
+`management-all` 仍不提供客户级权限、用户身份、审计或授权码轮换。查询受保护 QM 时，数据面
+`Authorization` 与管理 `X-Foggy-Runtime-Code` 是两个独立凭据，不能互相替代。
+
+### 可选 Runtime Web Console
+
+Launcher 默认不包含 Runtime Console。构建时显式启用 Maven profile：
+
+```bash
+mvn -B -ntp -pl foggy-mcp-launcher -am -Pruntime-console package -DskipTests
+```
+
+运行时必须同时满足以下配置，否则 Console fail closed 并阻止应用启动：
+
+```yaml
+foggy:
+  runtime-api:
+    enabled: true
+    security-mode: auth-code
+    auth-code: ${FOGGY_RUNTIME_API_AUTH_CODE}
+    auth-scope: management-all
+  runtime-console:
+    enabled: true
+```
+
+启动后访问 `http(s)://host[:port][/context]/console/`。Console 与 Runtime API 同源运行，不需要
+Node、BFF 或独立前端服务；Node 只用于 Maven 构建静态资源。浏览器端管理 token 只存放在当前
+tab 的 `sessionStorage`，不会进入 URL、`localStorage` 或诊断输出。部署方仍应使用 TLS、限制
+管理网络入口并自行管理共享 auth-code 的生成和轮换。
 
 如果 standalone `foggy-fsscript` 应用显式开启旧版 `/api/bundles/**` Controller，且没有接入 `foggy-runtime-api` 拦截器，部署侧需要自行保护该旧入口的网络访问边界。
 

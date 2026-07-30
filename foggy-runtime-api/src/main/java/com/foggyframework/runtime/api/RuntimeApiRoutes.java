@@ -13,6 +13,7 @@ public final class RuntimeApiRoutes {
     public static final class V1 {
 
         public static final String CAPABILITIES = "/capabilities";
+        public static final String ACCESS_CHECK = "/access/check";
         public static final String BUNDLES = "/bundles";
         public static final String BUNDLE_BY_NAME = BUNDLES + "/{name}";
         public static final String DATASOURCES = "/datasources";
@@ -45,6 +46,7 @@ public final class RuntimeApiRoutes {
     public static final class Full {
 
         public static final String CAPABILITIES = API_V1 + V1.CAPABILITIES;
+        public static final String ACCESS_CHECK = API_V1 + V1.ACCESS_CHECK;
         public static final String BUNDLES = API_V1 + V1.BUNDLES;
         public static final String BUNDLE_BY_NAME = API_V1 + V1.BUNDLE_BY_NAME;
         public static final String DATASOURCES = API_V1 + V1.DATASOURCES;

@@ -1,8 +1,8 @@
 ---
 doc_role: architecture-index
 status: canonical
-baseline: main-after-9.5.0
-last_reviewed: 2026-07-25
+baseline: main-after-9.5.2-runtime-console
+last_reviewed: 2026-07-29
 ---
 
 # Foggy Data MCP Bridge 架构
@@ -33,6 +33,7 @@ flowchart LR
     Launcher[foggy-mcp-launcher]
     MCP[foggy-dataset-mcp]
     Runtime[foggy-runtime-api]
+    Console[foggy-runtime-console Addon]
     SPI[foggy-dataset-model-api]
     Catalog[foggy-dataset-model-core]
     Engine[foggy-dataset-model-engine]
@@ -44,6 +45,8 @@ flowchart LR
     Client --> Launcher
     Launcher --> MCP
     Launcher --> Runtime
+    Launcher -. explicit runtime-console profile .-> Console
+    Console --> Runtime
     MCP --> SPI
     Runtime --> SPI
     SPI --> Catalog
@@ -81,8 +84,10 @@ flowchart LR
 - `get/post` 属于已发布 TM/QM 的作者能力，不向 Runtime 查询 DSL、Compose 或 CTE 调用方开放。
 - CLI 保留管理 `--auth-code`，另增可选数据面 Authorization；配套中英文 analysis Skill 与
   semantic-query Skill 必须同步说明权限、TM/QM 配置和预聚合安全回源。
-- 使用完整 evaluator 的原始 FSScript execute 属于作者/管理面；当前将其留在管理 auth-code
-  之外是待修正缺口，补齐标准 HTTP Bean 时必须同步收紧。
+- 使用完整 evaluator 的原始 FSScript execute 属于作者/管理面，已纳入管理 auth-code 保护。
+- Runtime API 默认 `auth-scope=mutations` 保持历史兼容；显式 `management-all` 会保护全部
+  `/api/v1/**`，并是可选同源 Runtime Console 的强制启用前提。Console token 只保存在当前 tab
+  的 `sessionStorage`，不能替代数据面 `Authorization`。
 - 当前该链路仍有待补齐的 token/identity 传递、动作化模型决策、结构化行权限、成员查询隔离和
   引擎授权签名能力。
 - 预聚合候选只有在能够完整表达有效行权限谓词时才可命中；否则跳过该候选并执行受治理的

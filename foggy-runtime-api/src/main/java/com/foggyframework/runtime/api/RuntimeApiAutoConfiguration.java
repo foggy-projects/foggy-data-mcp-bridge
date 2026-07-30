@@ -2,6 +2,7 @@ package com.foggyframework.runtime.api;
 
 import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
 import com.foggyframework.runtime.api.controller.RuntimeBundlesController;
+import com.foggyframework.runtime.api.controller.RuntimeAccessController;
 import com.foggyframework.runtime.api.controller.RuntimeCapabilitiesController;
 import com.foggyframework.runtime.api.controller.RuntimeComposeController;
 import com.foggyframework.runtime.api.controller.RuntimeDatasourcesController;
@@ -49,6 +50,7 @@ import org.springframework.context.annotation.Import;
         RuntimeModelOperations.class,
         RuntimeNamedDataSourceResolver.class,
         RuntimeBundlesController.class,
+        RuntimeAccessController.class,
         RuntimeCapabilitiesController.class,
         RuntimeComposeController.class,
         RuntimeDatasourcesController.class,

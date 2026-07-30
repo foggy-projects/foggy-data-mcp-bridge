@@ -1,0 +1,855 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Foggy Runtime Console · 9.5.2 Prototype</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #e8eee7;
+      --muted: #89958f;
+      --muted-2: #5e6964;
+      --panel: #111714;
+      --panel-2: #151d19;
+      --panel-3: #1a231f;
+      --line: rgba(191, 217, 200, .13);
+      --line-strong: rgba(191, 217, 200, .24);
+      --lime: #b9f36b;
+      --cyan: #68d9cf;
+      --amber: #f4bd68;
+      --red: #ff7a72;
+      --shadow: 0 24px 80px rgba(0, 0, 0, .34);
+      --radius: 18px;
+      --mono: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", "Noto Sans SC", "Microsoft YaHei", monospace;
+      --sans: "Bahnschrift", "DIN Alternate", "Avenir Next", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { min-width: 320px; background: #0a0e0c; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      font-family: var(--sans);
+      background:
+        radial-gradient(circle at 78% 18%, rgba(104, 217, 207, .07), transparent 28rem),
+        radial-gradient(circle at 18% 88%, rgba(185, 243, 107, .055), transparent 34rem),
+        #0a0e0c;
+      overflow-x: hidden;
+    }
+
+    button, input, select, textarea { font: inherit; }
+    button { color: inherit; }
+    button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+      outline: 2px solid var(--lime);
+      outline-offset: 2px;
+    }
+
+    .noise {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: .035;
+      z-index: 50;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.65'/%3E%3C/svg%3E");
+    }
+
+    .prototype-flag {
+      position: fixed;
+      right: -47px;
+      top: 31px;
+      z-index: 60;
+      width: 190px;
+      padding: 7px 0;
+      transform: rotate(38deg);
+      text-align: center;
+      color: #10150f;
+      background: var(--amber);
+      font: 700 10px/1 var(--mono);
+      letter-spacing: .16em;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, .25);
+    }
+
+    .shell {
+      display: grid;
+      grid-template-columns: 248px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 25px 18px 20px;
+      background: rgba(12, 17, 14, .9);
+      border-right: 1px solid var(--line);
+      backdrop-filter: blur(18px);
+      z-index: 20;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 8px 28px;
+    }
+
+    .brand-mark {
+      position: relative;
+      width: 36px;
+      height: 36px;
+      border: 1px solid rgba(185, 243, 107, .42);
+      border-radius: 12px 4px 12px 4px;
+      background: linear-gradient(145deg, rgba(185, 243, 107, .2), rgba(104, 217, 207, .03));
+      box-shadow: inset 0 0 22px rgba(185, 243, 107, .08);
+    }
+
+    .brand-mark::before, .brand-mark::after {
+      content: "";
+      position: absolute;
+      border-radius: 50%;
+      background: var(--lime);
+    }
+
+    .brand-mark::before { width: 7px; height: 7px; left: 8px; top: 8px; }
+    .brand-mark::after { width: 4px; height: 4px; right: 8px; bottom: 8px; box-shadow: -10px 1px 0 var(--cyan); }
+    .brand-name { font-size: 15px; font-weight: 750; letter-spacing: .02em; }
+    .brand-sub { margin-top: 3px; color: var(--muted); font: 10px/1 var(--mono); letter-spacing: .13em; }
+
+    .nav-label {
+      margin: 4px 10px 9px;
+      color: var(--muted-2);
+      font: 10px/1 var(--mono);
+      letter-spacing: .15em;
+      text-transform: uppercase;
+    }
+
+    .nav { display: grid; gap: 5px; }
+    .nav-button {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 44px;
+      padding: 0 12px;
+      border: 1px solid transparent;
+      border-radius: 11px;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      text-align: left;
+      transition: color .18s ease, background .18s ease, border-color .18s ease, transform .18s ease;
+    }
+
+    .nav-button:hover { color: var(--ink); background: rgba(255, 255, 255, .025); transform: translateX(2px); }
+    .nav-button.active {
+      color: var(--lime);
+      border-color: rgba(185, 243, 107, .14);
+      background: linear-gradient(90deg, rgba(185, 243, 107, .11), rgba(185, 243, 107, .025));
+    }
+    .nav-icon { width: 18px; height: 18px; display: grid; place-items: center; font: 14px/1 var(--mono); }
+    .nav-text { flex: 1; font-size: 13px; font-weight: 650; }
+    .nav-key { color: var(--muted-2); font: 9px/1 var(--mono); }
+
+    .runtime-card {
+      margin-top: auto;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: linear-gradient(145deg, rgba(255, 255, 255, .025), transparent);
+    }
+    .runtime-row { display: flex; align-items: center; gap: 9px; }
+    .pulse-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 0 5px rgba(185, 243, 107, .08); animation: breathe 2.5s ease-in-out infinite; }
+    .runtime-name { font: 600 11px/1.3 var(--mono); }
+    .runtime-url { margin-top: 10px; color: var(--muted); font: 9px/1.45 var(--mono); overflow-wrap: anywhere; }
+    .runtime-meta { display: flex; justify-content: space-between; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); color: var(--muted-2); font: 9px/1 var(--mono); }
+
+    .main { min-width: 0; }
+    .topbar {
+      height: 74px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      padding: 0 34px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(10, 14, 12, .68);
+      backdrop-filter: blur(20px);
+      position: sticky;
+      top: 0;
+      z-index: 15;
+    }
+
+    .crumb { color: var(--muted); font: 10px/1 var(--mono); letter-spacing: .08em; }
+    .crumb strong { color: var(--ink); font-weight: 600; }
+    .top-spacer { flex: 1; }
+    .env-select {
+      height: 34px;
+      padding: 0 30px 0 12px;
+      color: var(--ink);
+      background: var(--panel) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='m3 4.5 3 3 3-3' fill='none' stroke='%2389958f' stroke-width='1.3'/%3E%3C/svg%3E") no-repeat right 9px center;
+      border: 1px solid var(--line-strong);
+      border-radius: 9px;
+      appearance: none;
+      font: 10px/1 var(--mono);
+    }
+    .icon-button {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: var(--panel);
+      color: var(--muted);
+      cursor: pointer;
+      transition: .18s ease;
+    }
+    .icon-button:hover { color: var(--lime); border-color: rgba(185, 243, 107, .35); }
+    .token-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 11px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      color: var(--muted);
+      background: var(--panel);
+      font: 10px/1 var(--mono);
+    }
+    .token-badge span:first-child { color: var(--cyan); }
+
+    .content { padding: 34px; max-width: 1600px; margin: 0 auto; }
+    .page { display: none; animation: page-in .32s ease both; }
+    .page.active { display: block; }
+    .page-head { display: flex; align-items: flex-end; gap: 24px; margin-bottom: 28px; }
+    .eyebrow { margin-bottom: 9px; color: var(--lime); font: 10px/1 var(--mono); letter-spacing: .17em; text-transform: uppercase; }
+    h1 { margin: 0; font-size: clamp(28px, 3vw, 46px); line-height: .98; letter-spacing: -.045em; font-weight: 680; }
+    .page-desc { max-width: 520px; margin: 10px 0 0; color: var(--muted); font-size: 13px; line-height: 1.65; }
+    .page-actions { margin-left: auto; display: flex; gap: 10px; }
+
+    .button {
+      min-height: 38px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 0 15px;
+      border: 1px solid var(--line-strong);
+      border-radius: 10px;
+      background: var(--panel-2);
+      color: var(--ink);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 650;
+      transition: transform .16s ease, border-color .16s ease, background .16s ease;
+    }
+    .button:hover { transform: translateY(-1px); border-color: rgba(185, 243, 107, .35); }
+    .button.primary { border-color: var(--lime); background: var(--lime); color: #10150f; }
+    .button.primary:hover { background: #cafb86; }
+    .button.ghost { background: transparent; }
+    .button.small { min-height: 30px; padding: 0 11px; font: 10px/1 var(--mono); }
+    .button[disabled] { opacity: .45; cursor: wait; transform: none; }
+
+    .metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+    .metric {
+      min-height: 150px;
+      padding: 19px;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: linear-gradient(150deg, rgba(255, 255, 255, .028), rgba(255, 255, 255, .005));
+    }
+    .metric::after {
+      content: "";
+      position: absolute;
+      right: -38px;
+      bottom: -46px;
+      width: 110px;
+      height: 110px;
+      border-radius: 50%;
+      border: 1px solid rgba(255, 255, 255, .05);
+      box-shadow: 0 0 0 17px rgba(255, 255, 255, .015), 0 0 0 34px rgba(255, 255, 255, .008);
+    }
+    .metric-label { color: var(--muted); font-size: 11px; }
+    .metric-value { margin-top: 21px; font: 540 34px/1 var(--mono); letter-spacing: -.05em; }
+    .metric-foot { display: flex; align-items: center; gap: 7px; margin-top: 15px; color: var(--muted-2); font: 9px/1.3 var(--mono); }
+    .up { color: var(--lime); }
+    .metric-accent { position: absolute; top: 0; left: 18px; width: 36px; height: 2px; background: var(--lime); box-shadow: 0 0 14px var(--lime); }
+    .metric:nth-child(2) .metric-accent { background: var(--cyan); box-shadow: 0 0 14px var(--cyan); }
+    .metric:nth-child(3) .metric-accent { background: var(--amber); box-shadow: 0 0 14px var(--amber); }
+
+    .overview-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(320px, .75fr); gap: 14px; margin-top: 14px; }
+    .panel { border: 1px solid var(--line); border-radius: var(--radius); background: rgba(17, 23, 20, .82); overflow: hidden; }
+    .panel-head { min-height: 55px; display: flex; align-items: center; padding: 0 19px; border-bottom: 1px solid var(--line); }
+    .panel-title { font-size: 12px; font-weight: 700; }
+    .panel-kicker { margin-left: 10px; color: var(--muted-2); font: 9px/1 var(--mono); }
+    .panel-head .button { margin-left: auto; }
+    .panel-body { padding: 19px; }
+
+    .traffic-chart { height: 230px; display: flex; flex-direction: column; }
+    .chart-legend { display: flex; gap: 20px; color: var(--muted); font: 9px/1 var(--mono); }
+    .legend-dot { display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: var(--lime); }
+    .legend-dot.cyan { background: var(--cyan); }
+    .bars { flex: 1; display: flex; align-items: flex-end; gap: clamp(5px, 1.2vw, 14px); padding-top: 24px; border-bottom: 1px solid var(--line); background: repeating-linear-gradient(to top, transparent 0 42px, rgba(255,255,255,.025) 42px 43px); }
+    .bar-group { flex: 1; height: 100%; display: flex; align-items: flex-end; justify-content: center; gap: 3px; }
+    .bar { width: 36%; min-width: 4px; border-radius: 3px 3px 0 0; background: linear-gradient(to top, rgba(185, 243, 107, .22), var(--lime)); animation: rise .8s cubic-bezier(.2,.8,.2,1) both; transform-origin: bottom; }
+    .bar.secondary { background: linear-gradient(to top, rgba(104, 217, 207, .12), rgba(104, 217, 207, .68)); }
+    .chart-axis { display: flex; justify-content: space-between; padding-top: 9px; color: var(--muted-2); font: 8px/1 var(--mono); }
+
+    .guard-list { display: grid; gap: 11px; }
+    .guard-item { display: grid; grid-template-columns: 10px 1fr auto; align-items: center; gap: 11px; min-height: 43px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,.015); }
+    .guard-light { width: 7px; height: 7px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 10px rgba(185, 243, 107, .5); }
+    .guard-name { font-size: 11px; }
+    .guard-state { color: var(--muted); font: 9px/1 var(--mono); }
+    .guard-note { margin-top: 13px; padding: 12px; border-left: 2px solid var(--amber); background: rgba(244, 189, 104, .045); color: var(--muted); font-size: 10px; line-height: 1.55; }
+
+    .filter-row { display: flex; gap: 10px; margin-bottom: 14px; }
+    .search-field { flex: 1; max-width: 360px; position: relative; }
+    .search-field input, .field input, .field textarea {
+      width: 100%;
+      color: var(--ink);
+      background: var(--panel);
+      border: 1px solid var(--line-strong);
+      border-radius: 10px;
+      transition: border-color .16s ease;
+    }
+    .search-field input { height: 38px; padding: 0 13px 0 35px; font-size: 12px; }
+    .search-field::before { content: "⌕"; position: absolute; z-index: 1; left: 13px; top: 10px; color: var(--muted); font: 16px/1 var(--mono); }
+    .search-field input:focus, .field input:focus, .field textarea:focus { border-color: rgba(185, 243, 107, .52); }
+    .search-field input::placeholder, .field input::placeholder { color: var(--muted-2); }
+
+    .data-table-wrap { overflow-x: auto; }
+    .data-table { width: 100%; border-collapse: collapse; min-width: 760px; }
+    .data-table th { height: 42px; padding: 0 16px; text-align: left; color: var(--muted-2); background: rgba(255,255,255,.012); border-bottom: 1px solid var(--line); font: 9px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+    .data-table td { height: 59px; padding: 0 16px; border-bottom: 1px solid var(--line); color: #cbd4ce; font-size: 11px; }
+    .data-table tr:last-child td { border-bottom: 0; }
+    .data-table tbody tr { transition: background .16s ease; }
+    .data-table tbody tr:hover { background: rgba(185, 243, 107, .025); }
+    .cell-main { color: var(--ink); font-weight: 650; }
+    .cell-sub { margin-top: 4px; color: var(--muted-2); font: 9px/1 var(--mono); }
+    .status { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font: 9px/1 var(--mono); }
+    .status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--lime); }
+    .status.warn::before { background: var(--amber); }
+    .tag { display: inline-flex; align-items: center; min-height: 22px; padding: 0 8px; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); background: rgba(255,255,255,.018); font: 9px/1 var(--mono); }
+    .row-actions { display: flex; gap: 7px; }
+
+    .model-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .model-card { min-height: 220px; padding: 20px; border: 1px solid var(--line); border-radius: var(--radius); background: linear-gradient(150deg, rgba(255,255,255,.028), rgba(255,255,255,.006)); transition: transform .18s ease, border-color .18s ease; }
+    .model-card:hover { transform: translateY(-3px); border-color: rgba(185, 243, 107, .28); }
+    .model-type { display: flex; align-items: center; justify-content: space-between; color: var(--lime); font: 9px/1 var(--mono); letter-spacing: .12em; }
+    .model-name { margin-top: 29px; font-size: 18px; font-weight: 680; letter-spacing: -.02em; }
+    .model-desc { min-height: 39px; margin-top: 9px; color: var(--muted); font-size: 11px; line-height: 1.55; }
+    .model-stats { display: flex; gap: 22px; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
+    .model-stat strong { display: block; color: var(--ink); font: 500 15px/1 var(--mono); }
+    .model-stat span { display: block; margin-top: 5px; color: var(--muted-2); font: 8px/1 var(--mono); text-transform: uppercase; }
+
+    .workbench { display: grid; grid-template-columns: minmax(350px, .75fr) minmax(0, 1.25fr); min-height: 590px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); overflow: hidden; }
+    .query-pane { min-width: 0; border-right: 1px solid var(--line); display: flex; flex-direction: column; }
+    .query-toolbar, .result-toolbar { min-height: 52px; display: flex; align-items: center; gap: 10px; padding: 0 14px; border-bottom: 1px solid var(--line); }
+    .query-title { font: 10px/1 var(--mono); color: var(--muted); }
+    .query-toolbar .button { margin-left: auto; }
+    .editor-wrap { position: relative; flex: 1; min-height: 370px; background: #0d120f; }
+    .line-numbers { position: absolute; left: 0; top: 0; bottom: 0; width: 42px; padding-top: 19px; color: #3f4a44; border-right: 1px solid rgba(255,255,255,.035); text-align: center; font: 11px/1.85 var(--mono); user-select: none; }
+    #query-editor { position: absolute; inset: 0 0 0 42px; width: calc(100% - 42px); height: 100%; padding: 17px; resize: none; border: 0; border-radius: 0; color: #c8ddd0; background: transparent; font: 11px/1.85 var(--mono); tab-size: 2; }
+    .query-hint { padding: 13px 15px; border-top: 1px solid var(--line); color: var(--muted-2); background: rgba(255,255,255,.012); font: 9px/1.5 var(--mono); }
+    .result-pane { min-width: 0; display: flex; flex-direction: column; }
+    .result-toolbar .result-meta { margin-left: auto; color: var(--muted); font: 9px/1 var(--mono); }
+    .result-area { flex: 1; min-height: 0; overflow: auto; }
+    .result-empty { height: 100%; min-height: 430px; display: grid; place-items: center; color: var(--muted-2); text-align: center; }
+    .result-empty-mark { margin: auto; width: 74px; height: 74px; display: grid; place-items: center; border: 1px dashed var(--line-strong); border-radius: 50%; font: 23px/1 var(--mono); }
+    .result-empty p { margin: 13px 0 0; font-size: 11px; }
+    .result-table { display: none; }
+    .result-table.visible { display: table; }
+    .result-empty.hidden { display: none; }
+
+    .modal-layer {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: rgba(5, 8, 6, .8);
+      backdrop-filter: blur(18px);
+      transition: opacity .35s ease, visibility .35s ease;
+    }
+    .modal-layer.hidden { display: none; opacity: 0; visibility: hidden; }
+    .login-card {
+      width: min(940px, 100%);
+      min-height: 540px;
+      display: grid;
+      grid-template-columns: 1.08fr .92fr;
+      border: 1px solid var(--line-strong);
+      border-radius: 26px;
+      overflow: hidden;
+      background: #101613;
+      box-shadow: var(--shadow);
+    }
+    .login-visual { position: relative; padding: 45px; overflow: hidden; background: #0c110e; }
+    .login-visual::before { content: ""; position: absolute; width: 460px; height: 460px; left: -210px; bottom: -250px; border: 1px solid rgba(185,243,107,.2); border-radius: 50%; box-shadow: 0 0 0 52px rgba(185,243,107,.025), 0 0 0 104px rgba(104,217,207,.018); }
+    .login-visual::after { content: ""; position: absolute; inset: 0; opacity: .18; background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px); background-size: 42px 42px; mask-image: linear-gradient(to bottom, black, transparent 90%); }
+    .login-wordmark { position: relative; z-index: 2; color: var(--lime); font: 10px/1 var(--mono); letter-spacing: .18em; text-transform: uppercase; }
+    .login-visual h2 { position: relative; z-index: 2; max-width: 410px; margin: 80px 0 0; font-size: clamp(40px, 5vw, 64px); line-height: .92; letter-spacing: -.055em; font-weight: 650; }
+    .login-visual h2 em { display: block; color: var(--lime); font-style: normal; }
+    .login-visual p { position: relative; z-index: 2; max-width: 390px; margin: 25px 0 0; color: var(--muted); font-size: 12px; line-height: 1.75; }
+    .scope-line { position: absolute; z-index: 2; left: 45px; bottom: 40px; color: var(--muted-2); font: 9px/1 var(--mono); }
+    .scope-line strong { color: var(--amber); font-weight: 500; }
+    .login-form { display: flex; flex-direction: column; justify-content: center; padding: 48px; background: linear-gradient(145deg, rgba(255,255,255,.025), transparent); }
+    .login-form h3 { margin: 0; font-size: 23px; letter-spacing: -.025em; }
+    .login-form > p { margin: 10px 0 28px; color: var(--muted); font-size: 11px; line-height: 1.6; }
+    .field { margin-bottom: 17px; }
+    .field label { display: block; margin-bottom: 8px; color: var(--muted); font: 9px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+    .field input { height: 44px; padding: 0 13px; font: 11px/1 var(--mono); }
+    .login-help { display: flex; align-items: flex-start; gap: 9px; margin: 4px 0 20px; color: var(--muted-2); font-size: 10px; line-height: 1.5; }
+    .login-help span:first-child { color: var(--cyan); }
+    .login-form .button.primary { width: 100%; min-height: 44px; }
+    .demo-fill { margin-top: 12px; border: 0; background: transparent; color: var(--muted); cursor: pointer; font: 9px/1 var(--mono); text-decoration: underline; text-underline-offset: 3px; }
+    .demo-fill:hover { color: var(--lime); }
+    .login-error { min-height: 20px; margin-top: 11px; color: var(--red); font-size: 10px; text-align: center; }
+
+    .toast {
+      position: fixed;
+      right: 27px;
+      bottom: 27px;
+      z-index: 90;
+      max-width: 360px;
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 13px 16px;
+      border: 1px solid rgba(185,243,107,.32);
+      border-radius: 12px;
+      background: rgba(19, 28, 23, .95);
+      box-shadow: var(--shadow);
+      color: var(--ink);
+      font-size: 11px;
+      transform: translateY(20px);
+      opacity: 0;
+      pointer-events: none;
+      transition: .25s ease;
+    }
+    .toast.visible { transform: translateY(0); opacity: 1; }
+    .toast-mark { color: var(--lime); font: 18px/1 var(--mono); }
+
+    .mobile-nav { display: none; }
+
+    @keyframes breathe { 50% { box-shadow: 0 0 0 8px rgba(185, 243, 107, .025); opacity: .75; } }
+    @keyframes rise { from { transform: scaleY(.1); opacity: .3; } }
+    @keyframes page-in { from { opacity: 0; transform: translateY(7px); } }
+
+    @media (max-width: 1120px) {
+      .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .overview-grid { grid-template-columns: 1fr; }
+      .model-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .workbench { grid-template-columns: 1fr; }
+      .query-pane { border-right: 0; border-bottom: 1px solid var(--line); }
+      .editor-wrap { min-height: 320px; }
+    }
+
+    @media (max-width: 780px) {
+      .shell { display: block; padding-bottom: 70px; }
+      .sidebar { display: none; }
+      .topbar { height: 62px; padding: 0 16px; }
+      .crumb { display: none; }
+      .token-badge span:last-child { display: none; }
+      .content { padding: 24px 16px; }
+      .page-head { align-items: flex-start; flex-direction: column; }
+      .page-actions { margin-left: 0; }
+      .model-grid { grid-template-columns: 1fr; }
+      .login-card { grid-template-columns: 1fr; min-height: 0; }
+      .login-visual { min-height: 250px; padding: 29px; }
+      .login-visual h2 { margin-top: 42px; font-size: 42px; }
+      .login-visual p, .scope-line { display: none; }
+      .login-form { padding: 30px; }
+      .mobile-nav { position: fixed; z-index: 40; display: grid; grid-template-columns: repeat(4, 1fr); left: 12px; right: 12px; bottom: 10px; min-height: 55px; padding: 5px; border: 1px solid var(--line-strong); border-radius: 15px; background: rgba(15,21,17,.94); backdrop-filter: blur(18px); box-shadow: var(--shadow); }
+      .mobile-nav .nav-button { justify-content: center; min-height: 44px; padding: 0; }
+      .mobile-nav .nav-text, .mobile-nav .nav-key { display: none; }
+    }
+
+    @media (max-width: 520px) {
+      .metric-grid { grid-template-columns: 1fr; }
+      .metric { min-height: 126px; }
+      .page-actions { width: 100%; }
+      .page-actions .button { flex: 1; }
+      .env-select { max-width: 145px; }
+      .prototype-flag { display: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="noise" aria-hidden="true"></div>
+  <div class="prototype-flag">9.5.2 PROTOTYPE</div>
+
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true"></div>
+        <div>
+          <div class="brand-name">Foggy Runtime</div>
+          <div class="brand-sub">CONSOLE / 9.5.2</div>
+        </div>
+      </div>
+
+      <div class="nav-label">Runtime</div>
+      <nav class="nav" aria-label="主导航">
+        <button class="nav-button active" data-page="overview"><span class="nav-icon">⌁</span><span class="nav-text">运行概览</span><span class="nav-key">01</span></button>
+        <button class="nav-button" data-page="datasources"><span class="nav-icon">◫</span><span class="nav-text">数据源</span><span class="nav-key">02</span></button>
+        <button class="nav-button" data-page="models"><span class="nav-icon">◇</span><span class="nav-text">语义模型</span><span class="nav-key">03</span></button>
+        <button class="nav-button" data-page="query"><span class="nav-icon">⌘</span><span class="nav-text">查询工作台</span><span class="nav-key">04</span></button>
+      </nav>
+
+      <div class="runtime-card">
+        <div class="runtime-row"><span class="pulse-dot"></span><span class="runtime-name">runtime-local</span></div>
+        <div class="runtime-url">http://127.0.0.1:8080</div>
+        <div class="runtime-meta"><span>v9.5.2-SNAPSHOT</span><span>UP 4h 18m</span></div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="crumb">RUNTIME / <strong id="crumb-title">OVERVIEW</strong></div>
+        <div class="top-spacer"></div>
+        <select class="env-select" aria-label="当前命名空间">
+          <option>sales_analytics</option>
+          <option>retail_demo</option>
+          <option>default</option>
+        </select>
+        <button class="icon-button" id="refresh-button" title="刷新当前页面" aria-label="刷新当前页面">↻</button>
+        <div class="token-badge"><span>◆</span><span>management-all</span></div>
+        <button class="icon-button" id="logout-button" title="退出 Console" aria-label="退出 Console">↗</button>
+      </header>
+
+      <div class="content">
+        <section class="page active" id="page-overview">
+          <div class="page-head">
+            <div>
+              <div class="eyebrow">Runtime pulse</div>
+              <h1>运行概览</h1>
+              <p class="page-desc">单个 Runtime 的状态、管理面健康度与最近查询负载。这里不聚合多实例，也不承担平台级监控。</p>
+            </div>
+            <div class="page-actions">
+              <button class="button ghost" data-page-link="query">打开查询工作台</button>
+              <button class="button primary" id="health-check">执行健康检查</button>
+            </div>
+          </div>
+
+          <div class="metric-grid">
+            <article class="metric"><span class="metric-accent"></span><div class="metric-label">活跃数据源</div><div class="metric-value">04</div><div class="metric-foot"><span class="up">● 全部在线</span><span>· 30 秒前</span></div></article>
+            <article class="metric"><span class="metric-accent"></span><div class="metric-label">已加载模型</div><div class="metric-value">27</div><div class="metric-foot"><span class="up">+ 2</span><span>· 本次启动后</span></div></article>
+            <article class="metric"><span class="metric-accent"></span><div class="metric-label">今日查询</div><div class="metric-value">1,284</div><div class="metric-foot"><span>95P 418 ms</span><span>· 成功率 99.8%</span></div></article>
+            <article class="metric"><span class="metric-accent"></span><div class="metric-label">Runtime 状态</div><div class="metric-value">READY</div><div class="metric-foot"><span class="up">● JVM 正常</span><span>· 612 MB</span></div></article>
+          </div>
+
+          <div class="overview-grid">
+            <section class="panel">
+              <div class="panel-head"><span class="panel-title">最近 12 小时查询流量</span><span class="panel-kicker">REQUESTS / ERRORS</span><button class="button small">导出</button></div>
+              <div class="panel-body traffic-chart">
+                <div class="chart-legend"><span><i class="legend-dot"></i>成功查询</span><span><i class="legend-dot cyan"></i>缓存命中</span></div>
+                <div class="bars" aria-label="查询流量示意图">
+                  <div class="bar-group"><i class="bar" style="height:34%"></i><i class="bar secondary" style="height:16%"></i></div>
+                  <div class="bar-group"><i class="bar" style="height:43%"></i><i class="bar secondary" style="height:24%"></i></div>
+                  <div class="bar-group"><i class="bar" style="height:31%"></i><i class="bar secondary" style="height:19%"></i></div>
+                  <div class="bar-group"><i class="bar" style="height:58%"></i><i class="bar secondary" style="height:31%"></i></div>
+                  <div class="bar-group"><i class="bar" style="height:71%"></i><i class="bar secondary" style="height:38%"></i></div>
+                  <div class="bar-group"><i class="bar" style="height:56%"></i><i class="bar secondary" style="height:30%"></i></div>
+                  <div class="bar-group"><i class="bar" style="height:79%"></i><i class="bar secondary" style="height:47%"></i></div>
+                  <div class="bar-group"><i class="bar" style="height:69%"></i><i class="bar secondary" style="height:36%"></i></div>
+                  <div class="bar-group"><i class="bar" style="height:88%"></i><i class="bar secondary" style="height:54%"></i></div>
+                  <div class="bar-group"><i class="bar" style="height:66%"></i><i class="bar secondary" style="height:41%"></i></div>
+                  <div class="bar-group"><i class="bar" style="height:73%"></i><i class="bar secondary" style="height:48%"></i></div>
+                  <div class="bar-group"><i class="bar" style="height:61%"></i><i class="bar secondary" style="height:39%"></i></div>
+                </div>
+                <div class="chart-axis"><span>08:00</span><span>11:00</span><span>14:00</span><span>17:00</span><span>NOW</span></div>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head"><span class="panel-title">管理面防护</span><span class="panel-kicker">AUTH SCOPE</span></div>
+              <div class="panel-body">
+                <div class="guard-list">
+                  <div class="guard-item"><span class="guard-light"></span><span class="guard-name">Token 校验</span><span class="guard-state">VALID</span></div>
+                  <div class="guard-item"><span class="guard-light"></span><span class="guard-name">GET 管理接口</span><span class="guard-state">PROTECTED</span></div>
+                  <div class="guard-item"><span class="guard-light"></span><span class="guard-name">变更类接口</span><span class="guard-state">PROTECTED</span></div>
+                  <div class="guard-item"><span class="guard-light"></span><span class="guard-name">同源静态资源</span><span class="guard-state">/console/</span></div>
+                </div>
+                <div class="guard-note">原型展示目标态：<strong>foggy.runtime-api.auth-scope=management-all</strong>。页面路由状态不替代服务端鉴权。</div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="page" id="page-datasources">
+          <div class="page-head">
+            <div><div class="eyebrow">Connections</div><h1>数据源</h1><p class="page-desc">查看 Runtime 已注册的数据源、连接状态与模型引用关系。敏感连接参数默认不回显。</p></div>
+            <div class="page-actions"><button class="button ghost">连接说明</button><button class="button primary" id="new-source">新增数据源</button></div>
+          </div>
+          <div class="filter-row"><div class="search-field"><input id="source-search" type="search" placeholder="按名称、类型或地址筛选"></div><button class="button">全部类型⌄</button><button class="button">在线状态⌄</button></div>
+          <section class="panel">
+            <div class="data-table-wrap">
+              <table class="data-table" id="source-table">
+                <thead><tr><th>数据源</th><th>类型</th><th>连接地址</th><th>引用模型</th><th>状态</th><th>最近检查</th><th>操作</th></tr></thead>
+                <tbody>
+                  <tr><td><div class="cell-main">analytics_primary</div><div class="cell-sub">生产分析库</div></td><td><span class="tag">MySQL 8</span></td><td>10.12.4.21:3306 / analytics</td><td>14</td><td><span class="status">在线</span></td><td>28 秒前</td><td><div class="row-actions"><button class="button small source-test">测试</button><button class="button small">详情</button></div></td></tr>
+                  <tr><td><div class="cell-main">retail_dw</div><div class="cell-sub">零售演示仓库</div></td><td><span class="tag">PostgreSQL</span></td><td>dw.internal:5432 / retail</td><td>8</td><td><span class="status">在线</span></td><td>2 分钟前</td><td><div class="row-actions"><button class="button small source-test">测试</button><button class="button small">详情</button></div></td></tr>
+                  <tr><td><div class="cell-main">ops_snapshot</div><div class="cell-sub">本地运维快照</div></td><td><span class="tag">SQLite</span></td><td>./data/ops.db</td><td>3</td><td><span class="status">在线</span></td><td>8 分钟前</td><td><div class="row-actions"><button class="button small source-test">测试</button><button class="button small">详情</button></div></td></tr>
+                  <tr><td><div class="cell-main">archive_ro</div><div class="cell-sub">历史归档只读库</div></td><td><span class="tag">MySQL 5.7</span></td><td>archive.internal:3306 / foggy</td><td>2</td><td><span class="status warn">需关注</span></td><td>31 分钟前</td><td><div class="row-actions"><button class="button small source-test">重试</button><button class="button small">详情</button></div></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section class="page" id="page-models">
+          <div class="page-head">
+            <div><div class="eyebrow">Semantic layer</div><h1>语义模型</h1><p class="page-desc">浏览当前命名空间内加载的 TM / QM，并按模型粒度执行刷新与校验。</p></div>
+            <div class="page-actions"><button class="button ghost" id="validate-all">校验全部</button><button class="button primary" id="refresh-all">刷新模型缓存</button></div>
+          </div>
+          <div class="filter-row"><div class="search-field"><input type="search" placeholder="搜索模型名称"></div><button class="button">TM + QM⌄</button></div>
+          <div class="model-grid">
+            <article class="model-card"><div class="model-type"><span>QUERY MODEL</span><span class="status">READY</span></div><div class="model-name">sales_overview</div><div class="model-desc">销售趋势、渠道、区域与商品维度的统一分析入口。</div><div class="model-stats"><div class="model-stat"><strong>18</strong><span>字段</span></div><div class="model-stat"><strong>06</strong><span>指标</span></div><div class="model-stat"><strong>12ms</strong><span>加载</span></div></div></article>
+            <article class="model-card"><div class="model-type"><span>TABLE MODEL</span><span class="status">READY</span></div><div class="model-name">fact_sales_order</div><div class="model-desc">订单事实表，关联客户、商品、门店与日期维表。</div><div class="model-stats"><div class="model-stat"><strong>32</strong><span>字段</span></div><div class="model-stat"><strong>04</strong><span>关联</span></div><div class="model-stat"><strong>8ms</strong><span>加载</span></div></div></article>
+            <article class="model-card"><div class="model-type"><span>QUERY MODEL</span><span class="status">READY</span></div><div class="model-name">customer_value</div><div class="model-desc">客户贡献、复购与生命周期分层分析模型。</div><div class="model-stats"><div class="model-stat"><strong>14</strong><span>字段</span></div><div class="model-stat"><strong>05</strong><span>指标</span></div><div class="model-stat"><strong>9ms</strong><span>加载</span></div></div></article>
+            <article class="model-card"><div class="model-type"><span>TABLE MODEL</span><span class="status">READY</span></div><div class="model-name">dim_product</div><div class="model-desc">商品分类、品牌、规格与生命周期属性。</div><div class="model-stats"><div class="model-stat"><strong>21</strong><span>字段</span></div><div class="model-stat"><strong>02</strong><span>关联</span></div><div class="model-stat"><strong>6ms</strong><span>加载</span></div></div></article>
+            <article class="model-card"><div class="model-type"><span>QUERY MODEL</span><span class="status">READY</span></div><div class="model-name">inventory_health</div><div class="model-desc">库存周转、缺货风险与库龄分布分析入口。</div><div class="model-stats"><div class="model-stat"><strong>16</strong><span>字段</span></div><div class="model-stat"><strong>07</strong><span>指标</span></div><div class="model-stat"><strong>11ms</strong><span>加载</span></div></div></article>
+            <article class="model-card"><div class="model-type"><span>TABLE MODEL</span><span class="status warn">WARNING</span></div><div class="model-name">dim_region_legacy</div><div class="model-desc">旧版区域维表；存在一个未使用字段与描述缺失。</div><div class="model-stats"><div class="model-stat"><strong>12</strong><span>字段</span></div><div class="model-stat"><strong>01</strong><span>警告</span></div><div class="model-stat"><strong>7ms</strong><span>加载</span></div></div></article>
+          </div>
+        </section>
+
+        <section class="page" id="page-query">
+          <div class="page-head">
+            <div><div class="eyebrow">Query lab</div><h1>查询工作台</h1><p class="page-desc">面向调试与验证的轻量入口。表格结果区可复用 foggy-data-viewer 的公开组件能力。</p></div>
+            <div class="page-actions"><button class="button ghost" id="format-query">格式化</button><button class="button primary" id="top-run-query">运行查询</button></div>
+          </div>
+          <section class="workbench">
+            <div class="query-pane">
+              <div class="query-toolbar"><span class="query-title">QUERY MODEL DSL</span><span class="tag">sales_overview</span><button class="button small" id="run-query">▶ 运行</button></div>
+              <div class="editor-wrap">
+                <div class="line-numbers">1<br>2<br>3<br>4<br>5<br>6<br>7<br>8<br>9<br>10<br>11<br>12</div>
+                <textarea id="query-editor" spellcheck="false" aria-label="查询 DSL">{
+  "queryModel": "sales_overview",
+  "columns": [
+    "regionName",
+    "salesAmount",
+    "orderCount"
+  ],
+  "groupBy": ["regionName"],
+  "orderBy": [
+    { "field": "salesAmount", "direction": "DESC" }
+  ],
+  "limit": 20
+}</textarea>
+              </div>
+              <div class="query-hint">Ctrl / ⌘ + Enter 运行 · Token 仅通过请求头发送 · 查询内容不会进入 URL</div>
+            </div>
+            <div class="result-pane">
+              <div class="result-toolbar"><span class="query-title">RESULT SET</span><span class="tag">TABLE</span><span class="result-meta" id="result-meta">等待运行</span></div>
+              <div class="result-area">
+                <div class="result-empty" id="result-empty"><div><div class="result-empty-mark">⌁</div><p>运行查询后在此查看结果</p></div></div>
+                <table class="data-table result-table" id="result-table">
+                  <thead><tr><th>#</th><th>区域</th><th>销售额</th><th>订单数</th><th>同比</th></tr></thead>
+                  <tbody>
+                    <tr><td>01</td><td><div class="cell-main">华东</div></td><td>¥ 3,842,190.00</td><td>12,481</td><td><span class="up">+18.4%</span></td></tr>
+                    <tr><td>02</td><td><div class="cell-main">华南</div></td><td>¥ 2,917,420.00</td><td>9,826</td><td><span class="up">+11.2%</span></td></tr>
+                    <tr><td>03</td><td><div class="cell-main">华北</div></td><td>¥ 2,403,860.00</td><td>8,017</td><td><span class="up">+6.8%</span></td></tr>
+                    <tr><td>04</td><td><div class="cell-main">西南</div></td><td>¥ 1,786,300.00</td><td>6,242</td><td>−2.1%</td></tr>
+                    <tr><td>05</td><td><div class="cell-main">华中</div></td><td>¥ 1,492,780.00</td><td>5,538</td><td><span class="up">+3.4%</span></td></tr>
+                    <tr><td>06</td><td><div class="cell-main">东北</div></td><td>¥ 982,610.00</td><td>3,781</td><td>−4.7%</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <nav class="mobile-nav" aria-label="移动端主导航">
+    <button class="nav-button active" data-page="overview" aria-label="运行概览"><span class="nav-icon">⌁</span><span class="nav-text">运行概览</span></button>
+    <button class="nav-button" data-page="datasources" aria-label="数据源"><span class="nav-icon">◫</span><span class="nav-text">数据源</span></button>
+    <button class="nav-button" data-page="models" aria-label="语义模型"><span class="nav-icon">◇</span><span class="nav-text">语义模型</span></button>
+    <button class="nav-button" data-page="query" aria-label="查询工作台"><span class="nav-icon">⌘</span><span class="nav-text">查询工作台</span></button>
+  </nav>
+
+  <div class="modal-layer" id="login-modal">
+    <section class="login-card" role="dialog" aria-modal="true" aria-labelledby="login-title">
+      <div class="login-visual">
+        <div class="login-wordmark">Foggy Runtime / Console</div>
+        <h2>One runtime.<em>Clear control.</em></h2>
+        <p>这是 9.5.2 视觉与交互原型。Console 只管理当前 Java Runtime，不引入账号体系、租户门户或独立服务。</p>
+        <div class="scope-line">TARGET AUTH SCOPE / <strong>MANAGEMENT-ALL</strong></div>
+      </div>
+      <form class="login-form" id="login-form">
+        <h3 id="login-title">连接 Runtime</h3>
+        <p>输入 runtime-api token 以校验管理权限。原型不会发出真实网络请求。</p>
+        <div class="field">
+          <label for="runtime-address">Runtime 地址</label>
+          <input id="runtime-address" type="text" value="http://127.0.0.1:8080" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="runtime-token">Runtime API Token</label>
+          <input id="runtime-token" type="password" placeholder="X-Foggy-Runtime-Code" autocomplete="off">
+        </div>
+        <div class="login-help"><span>◆</span><span>Token 仅保存在当前标签页的 sessionStorage；不写入 URL、localStorage 或日志。</span></div>
+        <button class="button primary" type="submit">校验并进入 Console</button>
+        <button class="demo-fill" id="demo-fill" type="button">填入原型演示 Token</button>
+        <div class="login-error" id="login-error" aria-live="polite"></div>
+      </form>
+    </section>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"><span class="toast-mark">✓</span><span id="toast-text">操作已完成</span></div>
+
+  <script>
+    const pageTitles = {
+      overview: "OVERVIEW",
+      datasources: "DATASOURCES",
+      models: "SEMANTIC MODELS",
+      query: "QUERY WORKBENCH"
+    };
+
+    const loginModal = document.getElementById("login-modal");
+    const tokenInput = document.getElementById("runtime-token");
+    const loginError = document.getElementById("login-error");
+    const toast = document.getElementById("toast");
+    let toastTimer;
+
+    function showToast(message) {
+      document.getElementById("toast-text").textContent = message;
+      toast.classList.add("visible");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove("visible"), 2600);
+    }
+
+    function openPage(page) {
+      document.querySelectorAll(".page").forEach(item => item.classList.toggle("active", item.id === `page-${page}`));
+      document.querySelectorAll("[data-page]").forEach(item => item.classList.toggle("active", item.dataset.page === page));
+      document.getElementById("crumb-title").textContent = pageTitles[page];
+      history.replaceState(null, "", `#${page}`);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    document.querySelectorAll("[data-page]").forEach(button => button.addEventListener("click", () => openPage(button.dataset.page)));
+    document.querySelectorAll("[data-page-link]").forEach(button => button.addEventListener("click", () => openPage(button.dataset.pageLink)));
+
+    document.getElementById("demo-fill").addEventListener("click", () => {
+      tokenInput.value = "runtime-demo-token";
+      tokenInput.focus();
+    });
+
+    document.getElementById("login-form").addEventListener("submit", event => {
+      event.preventDefault();
+      const token = tokenInput.value.trim();
+      if (!token) {
+        loginError.textContent = "请输入 Runtime API Token";
+        tokenInput.focus();
+        return;
+      }
+      loginError.textContent = "正在调用 /api/v1/access/check …";
+      const submit = event.currentTarget.querySelector("button[type=submit]");
+      submit.disabled = true;
+      setTimeout(() => {
+        sessionStorage.setItem("foggy-console-prototype-token", token);
+        tokenInput.value = "";
+        loginError.textContent = "";
+        submit.disabled = false;
+        loginModal.classList.add("hidden");
+        showToast("Token 校验通过 · management-all");
+      }, 620);
+    });
+
+    document.getElementById("logout-button").addEventListener("click", () => {
+      sessionStorage.removeItem("foggy-console-prototype-token");
+      loginModal.classList.remove("hidden");
+      setTimeout(() => tokenInput.focus(), 100);
+    });
+
+    document.getElementById("refresh-button").addEventListener("click", event => {
+      event.currentTarget.style.transform = "rotate(270deg)";
+      setTimeout(() => event.currentTarget.style.transform = "", 420);
+      showToast("当前视图已刷新 · 原型模拟");
+    });
+
+    document.getElementById("health-check").addEventListener("click", event => {
+      const button = event.currentTarget;
+      button.disabled = true;
+      button.textContent = "检查中…";
+      setTimeout(() => {
+        button.disabled = false;
+        button.textContent = "执行健康检查";
+        showToast("Runtime 健康检查通过 · 4/4");
+      }, 760);
+    });
+
+    document.getElementById("source-search").addEventListener("input", event => {
+      const keyword = event.target.value.trim().toLowerCase();
+      document.querySelectorAll("#source-table tbody tr").forEach(row => {
+        row.style.display = row.textContent.toLowerCase().includes(keyword) ? "" : "none";
+      });
+    });
+
+    document.querySelectorAll(".source-test").forEach(button => button.addEventListener("click", event => {
+      const target = event.currentTarget;
+      const original = target.textContent;
+      target.disabled = true;
+      target.textContent = "测试中";
+      setTimeout(() => {
+        target.disabled = false;
+        target.textContent = original;
+        showToast("连接测试成功 · 38 ms");
+      }, 680);
+    }));
+
+    document.getElementById("new-source").addEventListener("click", () => showToast("MVP 原型：新增数据源表单待下一版细化"));
+    document.getElementById("validate-all").addEventListener("click", () => showToast("模型校验完成 · 26 通过 / 1 警告"));
+    document.getElementById("refresh-all").addEventListener("click", () => showToast("模型缓存刷新完成 · 27 个模型"));
+
+    function runQuery() {
+      const buttons = [document.getElementById("run-query"), document.getElementById("top-run-query")];
+      buttons.forEach(button => { button.disabled = true; button.dataset.label = button.textContent; button.textContent = "运行中…"; });
+      document.getElementById("result-meta").textContent = "EXECUTING";
+      setTimeout(() => {
+        document.getElementById("result-empty").classList.add("hidden");
+        document.getElementById("result-table").classList.add("visible");
+        document.getElementById("result-meta").textContent = "6 ROWS · 184 ms";
+        buttons.forEach(button => { button.disabled = false; button.textContent = button.dataset.label; });
+        showToast("查询执行成功 · 返回 6 行");
+      }, 840);
+    }
+
+    document.getElementById("run-query").addEventListener("click", runQuery);
+    document.getElementById("top-run-query").addEventListener("click", runQuery);
+    document.getElementById("format-query").addEventListener("click", () => {
+      const editor = document.getElementById("query-editor");
+      try {
+        editor.value = JSON.stringify(JSON.parse(editor.value), null, 2);
+        showToast("查询 DSL 已格式化");
+      } catch {
+        showToast("DSL 格式不完整，暂无法格式化");
+      }
+    });
+
+    document.addEventListener("keydown", event => {
+      if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && loginModal.classList.contains("hidden")) {
+        event.preventDefault();
+        openPage("query");
+        runQuery();
+      }
+      if (event.key === "Escape" && loginModal.classList.contains("hidden")) openPage("overview");
+    });
+
+    const initialPage = location.hash.slice(1);
+    if (pageTitles[initialPage]) openPage(initialPage);
+    if (sessionStorage.getItem("foggy-console-prototype-token")) loginModal.classList.add("hidden");
+    else setTimeout(() => tokenInput.focus(), 120);
+  </script>
+</body>
+</html>

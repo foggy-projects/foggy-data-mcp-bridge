@@ -74,11 +74,19 @@ public class RuntimeApiAuthInterceptor implements HandlerInterceptor {
 
     private boolean isProtectedOperation(HttpServletRequest request) {
         String method = request.getMethod().toUpperCase(Locale.ROOT);
+        String path = normalizedRequestPath(request);
+        if (RuntimeApiRoutes.Full.ACCESS_CHECK.equals(path)) {
+            return true;
+        }
+        if (properties.isManagementAllAuthScope()
+                && (RuntimeApiRoutes.API_V1.equals(path) || pathMatcher.match(RuntimeApiRoutes.API_V1_PATTERN, path))) {
+            return true;
+        }
         String pattern = bestMatchingPattern(request);
         if (isPatternProtected(pattern, method)) {
             return true;
         }
-        return isPathProtected(normalizedRequestPath(request), method);
+        return isPathProtected(path, method);
     }
 
     private String bestMatchingPattern(HttpServletRequest request) {
@@ -174,6 +182,9 @@ public class RuntimeApiAuthInterceptor implements HandlerInterceptor {
         response.setStatus(status);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        if (RuntimeApiRoutes.Full.ACCESS_CHECK.equals(normalizedRequestPath(request))) {
+            response.setHeader("Cache-Control", "no-store");
+        }
         RuntimeEnvelope<Object> envelope = responses.fail(
                 code,
                 PHASE,

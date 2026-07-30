@@ -54,6 +54,15 @@ Runtime API 的管理面具备数据源、Bundle、TM/QM 验证、刷新和发�
 Runtime 不再对已获发布权限的模型作者额外设置语义层网络沙箱；部署方仍可通过基础 HTTP Bean、
 代理或基础设施网络策略实施统一的超时、审计和出口治理。
 
+Runtime auth-code 支持两个明确 scope：
+
+- `mutations`（默认）保持历史兼容，只保护既有管理写操作和作者级 FSScript；
+- `management-all` 保护全部 `/api/v1/**`，包括管理读取、模型描述、查询、表检查、SQL 和 Compose。
+
+`management-all` 是 Runtime Console 的外层共享管理 gate，不是业务用户身份。Console 调用
+`GET /api/v1/access/check` 校验 `X-Foggy-Runtime-Code`，但受保护 QM 仍按独立、可选的
+`Authorization` 求值。管理 code 不得被复制或提升为数据面 Authorization。
+
 原始 `/api/v1/fsscript/execute` 可以执行请求方提交的脚本，能力等级等同于模型作者脚本，而不是
 普通数据查询。因此该入口必须归入作者/管理面并要求管理凭据。若部署确实需要向数据面保留某种
 脚本表达式入口，则必须使用独立的受限 evaluator，排除 `get/post`、Spring Bean import 和其他
