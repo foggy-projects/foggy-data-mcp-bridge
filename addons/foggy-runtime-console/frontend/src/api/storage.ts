@@ -16,11 +16,12 @@ export function clearRuntimeToken(): void {
 }
 
 export function readNamespace(): string {
-  return sessionStorage.getItem(NAMESPACE_KEY) || 'default'
+  const stored = sessionStorage.getItem(NAMESPACE_KEY)
+  return stored === null ? 'default' : stored
 }
 
 export function writeNamespace(namespace: string): void {
-  sessionStorage.setItem(NAMESPACE_KEY, namespace.trim() || 'default')
+  sessionStorage.setItem(NAMESPACE_KEY, namespace.trim())
 }
 
 export function setDataAuthorization(value: string | null): void {

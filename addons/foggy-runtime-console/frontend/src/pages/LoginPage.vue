@@ -97,35 +97,60 @@ async function submit(): Promise<void> {
 }
 
 .login-frame {
-  width: min(980px, 100%);
-  min-height: 570px;
+  position: relative;
+  width: min(1040px, 100%);
+  min-height: 580px;
   display: grid;
-  grid-template-columns: 1.08fr 0.92fr;
+  grid-template-columns: 1.12fr 0.88fr;
   border: 1px solid var(--console-line-strong);
-  border-radius: 27px;
+  border-radius: 0;
   overflow: hidden;
-  background: #101613;
-  box-shadow: var(--console-shadow);
+  background: var(--console-panel);
+  box-shadow: none;
+}
+
+.login-frame::before,
+.login-frame::after {
+  position: absolute;
+  z-index: 3;
+  width: 32px;
+  height: 32px;
+  content: "";
+  pointer-events: none;
+}
+
+.login-frame::before {
+  top: -1px;
+  left: -1px;
+  border-top: 3px solid var(--console-paper);
+  border-left: 3px solid var(--console-paper);
+}
+
+.login-frame::after {
+  right: -1px;
+  bottom: -1px;
+  border-right: 3px solid var(--console-paper);
+  border-bottom: 3px solid var(--console-paper);
 }
 
 .login-story {
   position: relative;
   overflow: hidden;
   padding: 48px;
-  background: #0c110e;
+  border-right: 1px solid var(--console-line-strong);
+  background: var(--console-panel);
 }
 
 .login-story::before {
   position: absolute;
-  width: 490px;
-  height: 490px;
-  left: -215px;
-  bottom: -265px;
-  border: 1px solid rgba(185, 243, 107, 0.22);
-  border-radius: 50%;
-  box-shadow:
-    0 0 0 54px rgba(185, 243, 107, 0.027),
-    0 0 0 108px rgba(104, 217, 207, 0.018);
+  right: 42px;
+  bottom: 48px;
+  width: 164px;
+  height: 164px;
+  border: 1px solid var(--console-line-strong);
+  background:
+    linear-gradient(90deg, transparent 49.5%, var(--console-line-strong) 49.5% 50.5%, transparent 50.5%),
+    linear-gradient(transparent 49.5%, var(--console-line-strong) 49.5% 50.5%, transparent 50.5%);
   content: "";
 }
 
@@ -133,12 +158,11 @@ async function submit(): Promise<void> {
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(var(--console-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--console-line) 1px, transparent 1px);
-  background-size: 42px 42px;
-  mask-image: linear-gradient(to bottom, black, transparent 90%);
+    linear-gradient(var(--console-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--console-grid-line) 1px, transparent 1px);
+  background-size: 32px 32px;
   content: "";
-  opacity: 0.18;
+  opacity: 0.55;
 }
 
 .login-wordmark,
@@ -151,25 +175,43 @@ async function submit(): Promise<void> {
 
 .login-wordmark,
 .login-kicker {
-  color: var(--console-lime);
-  font: 650 10px/1 var(--console-mono);
-  letter-spacing: 0.18em;
+  color: var(--console-muted);
+  font: 700 9px/1 var(--console-mono);
+  letter-spacing: 0.2em;
   text-transform: uppercase;
 }
 
+.login-wordmark {
+  display: inline-flex;
+  gap: 12px;
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--console-line-strong);
+}
+
+.login-wordmark::before {
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--console-paper);
+  background: var(--console-paper);
+  content: "";
+}
+
 .login-story h1 {
-  max-width: 430px;
-  margin: 86px 0 0;
-  font-size: clamp(43px, 5vw, 67px);
-  line-height: 0.91;
-  letter-spacing: -0.055em;
-  font-weight: 680;
+  max-width: 470px;
+  margin: 82px 0 0;
+  font-size: clamp(43px, 5vw, 66px);
+  line-height: 0.94;
+  letter-spacing: -0.052em;
+  font-weight: 720;
 }
 
 .login-story h1 em {
   display: block;
-  color: var(--console-lime);
+  color: var(--console-paper);
   font-style: normal;
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 1px var(--console-paper);
 }
 
 .login-story p {
@@ -181,7 +223,8 @@ async function submit(): Promise<void> {
 }
 
 .login-story code {
-  color: var(--console-amber);
+  color: var(--console-paper);
+  font-family: var(--console-mono);
 }
 
 .login-scope {
@@ -189,31 +232,49 @@ async function submit(): Promise<void> {
   left: 48px;
   bottom: 43px;
   color: var(--console-dim);
-  font: 10px/1 var(--console-mono);
+  font: 9px/1 var(--console-mono);
+  letter-spacing: 0.06em;
 }
 
 .login-scope strong {
-  color: var(--console-amber);
+  color: var(--console-paper);
 }
 
 .login-form {
+  position: relative;
   display: flex;
   flex-direction: column;
   justify-content: center;
   padding: 52px;
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.027), transparent);
+  background:
+    repeating-linear-gradient(
+      135deg,
+      transparent 0 10px,
+      var(--console-hatch-line) 10px 11px
+    ),
+    var(--console-panel-2);
+}
+
+.login-form::before {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  color: var(--console-dim);
+  content: "AUTH / 01";
+  font: 8px/1 var(--console-mono);
+  letter-spacing: 0.15em;
 }
 
 .login-form h2 {
-  margin: 13px 0 0;
-  font-size: 27px;
-  letter-spacing: -0.025em;
+  margin: 15px 0 0;
+  font-size: 28px;
+  letter-spacing: -0.03em;
 }
 
 .login-form > p {
   margin: 11px 0 31px;
   color: var(--console-muted);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.65;
 }
 
@@ -223,12 +284,13 @@ async function submit(): Promise<void> {
   gap: 9px;
   margin: 17px 0 21px;
   color: var(--console-dim);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.55;
 }
 
 .login-help > span:first-child {
-  color: var(--console-cyan);
+  color: var(--console-paper);
+  font-size: 9px;
 }
 
 .login-submit {
@@ -238,8 +300,8 @@ async function submit(): Promise<void> {
 .login-error {
   min-height: 42px;
   padding-top: 13px;
-  color: var(--console-red);
-  font-size: 12px;
+  color: var(--console-text);
+  font-size: 13px;
   line-height: 1.4;
   text-align: center;
 }
@@ -256,10 +318,12 @@ async function submit(): Promise<void> {
   .login-story {
     min-height: 250px;
     padding: 30px;
+    border-right: 0;
+    border-bottom: 1px solid var(--console-line-strong);
   }
 
   .login-story h1 {
-    margin-top: 43px;
+    margin-top: 42px;
     font-size: 43px;
   }
 
@@ -270,6 +334,25 @@ async function submit(): Promise<void> {
 
   .login-form {
     padding: 32px 30px;
+  }
+}
+
+@media (max-width: 460px) {
+  .login-screen {
+    padding: 10px;
+  }
+
+  .login-story {
+    min-height: 220px;
+    padding: 24px;
+  }
+
+  .login-story h1 {
+    font-size: 36px;
+  }
+
+  .login-form {
+    padding: 30px 22px 24px;
   }
 }
 </style>

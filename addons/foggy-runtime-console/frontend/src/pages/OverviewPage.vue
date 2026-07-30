@@ -89,25 +89,21 @@ onMounted(loadOverview)
 
   <section class="overview-metrics" aria-label="Runtime 关键指标">
     <article class="console-card metric-card">
-      <span class="metric-line" />
       <div class="metric-label">Runtime 状态</div>
       <div class="metric-value">{{ loading ? '···' : capabilities?.enabled ? 'READY' : 'OFFLINE' }}</div>
       <div class="metric-foot">{{ capabilities?.engine || 'java' }} · {{ capabilities?.runtimeApiVersion || 'runtime-api/v1' }}</div>
     </article>
     <article class="console-card metric-card">
-      <span class="metric-line cyan" />
       <div class="metric-label">管理能力</div>
       <div class="metric-value">{{ loading ? '···' : capabilityCount }}</div>
       <div class="metric-foot">API capabilities</div>
     </article>
     <article class="console-card metric-card">
-      <span class="metric-line amber" />
       <div class="metric-label">已注册数据源</div>
       <div class="metric-value">{{ loading ? '···' : datasourceCount ?? 'N/A' }}</div>
       <div class="metric-foot">当前 Registry 可见</div>
     </article>
     <article class="console-card metric-card">
-      <span class="metric-line" />
       <div class="metric-label">可见模型</div>
       <div class="metric-value">{{ loading ? '···' : modelCount ?? 'N/A' }}</div>
       <div class="metric-foot">namespace / {{ session.namespace.value }}</div>
@@ -155,68 +151,50 @@ onMounted(loadOverview)
 .overview-metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
+  gap: 12px;
+  counter-reset: metric;
 }
 
 .metric-card {
   position: relative;
-  min-height: 160px;
+  min-height: 154px;
   overflow: hidden;
-  padding: 21px;
+  padding: 20px;
+  counter-increment: metric;
 }
 
 .metric-card::after {
   position: absolute;
-  right: -40px;
-  bottom: -50px;
-  width: 116px;
-  height: 116px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 50%;
-  box-shadow: 0 0 0 18px rgba(255, 255, 255, 0.015), 0 0 0 36px rgba(255, 255, 255, 0.008);
-  content: "";
-}
-
-.metric-line {
-  position: absolute;
-  top: 0;
-  left: 20px;
-  width: 38px;
-  height: 2px;
-  background: var(--console-lime);
-  box-shadow: 0 0 14px var(--console-lime);
-}
-
-.metric-line.cyan {
-  background: var(--console-cyan);
-}
-
-.metric-line.amber {
-  background: var(--console-amber);
+  top: 17px;
+  right: 18px;
+  color: var(--console-dim);
+  content: "M-" counter(metric, decimal-leading-zero);
+  font: 8px/1 var(--console-mono);
+  letter-spacing: 0.12em;
 }
 
 .metric-label {
   color: var(--console-muted);
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .metric-value {
   margin-top: 25px;
-  font: 520 35px/1 var(--console-mono);
-  letter-spacing: -0.05em;
+  font: 540 33px/1 var(--console-mono);
+  letter-spacing: -0.045em;
 }
 
 .metric-foot {
   margin-top: 18px;
   color: var(--console-dim);
-  font: 11px/1.35 var(--console-mono);
+  font: 12px/1.35 var(--console-mono);
 }
 
 .overview-details {
   display: grid;
   grid-template-columns: minmax(0, 1.5fr) minmax(330px, 0.7fr);
-  gap: 14px;
-  margin-top: 14px;
+  gap: 12px;
+  margin-top: 12px;
 }
 
 .capability-grid {
@@ -234,20 +212,20 @@ onMounted(loadOverview)
   gap: 12px;
   padding: 0 13px;
   border: 1px solid var(--console-line);
-  border-radius: 10px;
+  border-radius: 0;
   color: var(--console-muted);
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .capability-item strong,
 .guard-item strong {
   color: var(--console-text);
-  font: 600 11px/1 var(--console-mono);
+  font: 600 12px/1 var(--console-mono);
 }
 
 .guard-list {
   display: grid;
-  gap: 11px;
+  gap: 9px;
 }
 
 @media (max-width: 1180px) {

@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import PageHeader from '@/components/PageHeader.vue'
 import RuntimeResultTable from '@/components/RuntimeResultTable.vue'
 import { runtimeApi, RuntimeRequestError } from '@/api/client'
 import { useRuntimeSession } from '@/stores/session'
 import { normalizeResultRows, prettyJson } from '@/utils/json'
+import { useContextRail } from '@/stores/contextRail'
 
 interface ModelItem {
   model: string
@@ -52,6 +53,7 @@ interface LifecycleResult {
 }
 
 const session = useRuntimeSession()
+const contextRail = useContextRail()
 const loading = ref(true)
 const busy = ref('')
 const errorMessage = ref('')
@@ -77,9 +79,34 @@ function errorText(error: unknown): string {
   return error instanceof RuntimeRequestError ? error.message : '模型操作失败。'
 }
 
+function syncContextRail(): void {
+  contextRail.setContext({
+    route: 'models',
+    eyebrow: 'Semantic catalog',
+    title: 'Model List',
+    description: '选择模型并在右侧读取完整语义描述。',
+    loading: loading.value,
+    filterable: true,
+    emptyText: '当前 namespace 没有可见模型。',
+    sections: [{
+      id: 'models',
+      label: `${models.value.length} query models`,
+      items: models.value.map(item => ({
+        id: item.model,
+        label: item.caption || item.model,
+        meta: item.model,
+        badge: item.fieldCount == null ? undefined : `${item.fieldCount} fields`,
+        active: describeModel.value === item.model,
+        action: () => void describe(item)
+      }))
+    }]
+  })
+}
+
 async function load(): Promise<void> {
   loading.value = true
   errorMessage.value = ''
+  syncContextRail()
   try {
     const result = await runtimeApi.get<ModelCatalog>('models', {
       format: 'json',
@@ -91,6 +118,7 @@ async function load(): Promise<void> {
     errorMessage.value = errorText(error)
   } finally {
     loading.value = false
+    syncContextRail()
   }
 }
 
@@ -104,6 +132,7 @@ async function describe(item: ModelItem): Promise<void> {
   busy.value = `describe:${item.model}`
   describeModel.value = item.model
   describeOutput.value = ''
+  syncContextRail()
   try {
     const result = await runtimeApi.post<Record<string, unknown>>(
       `models/${encodeURIComponent(item.model)}/describe`,
@@ -116,6 +145,7 @@ async function describe(item: ModelItem): Promise<void> {
     ElMessage.error(errorText(error))
   } finally {
     busy.value = ''
+    syncContextRail()
   }
 }
 
@@ -187,7 +217,18 @@ async function refreshModels(scope: 'selected' | 'all'): Promise<void> {
   }
 }
 
+contextRail.setContext({
+  route: 'models',
+  eyebrow: 'Semantic catalog',
+  title: 'Model List',
+  description: '选择模型并在右侧读取完整语义描述。',
+  loading: true,
+  filterable: true,
+  emptyText: '当前 namespace 没有可见模型。',
+  sections: []
+})
 onMounted(load)
+onBeforeUnmount(() => contextRail.clearContext('models'))
 </script>
 
 <template>
@@ -301,14 +342,26 @@ onMounted(load)
 .model-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
-  gap: 14px;
+  gap: 12px;
+  counter-reset: model-card;
 }
 
 .model-card {
-  min-height: 286px;
+  min-height: 272px;
   display: flex;
   flex-direction: column;
   padding: 20px;
+  counter-increment: model-card;
+}
+
+.model-card::after {
+  position: absolute;
+  right: 15px;
+  bottom: 14px;
+  color: var(--console-dim);
+  content: "QM-" counter(model-card, decimal-leading-zero);
+  font: 8px/1 var(--console-mono);
+  letter-spacing: 0.1em;
 }
 
 .model-card-top {
@@ -327,8 +380,8 @@ onMounted(load)
 
 .model-code {
   margin-top: 13px;
-  color: var(--console-lime);
-  font: 11px/1.4 var(--console-mono);
+  color: var(--console-muted);
+  font: 12px/1.4 var(--console-mono);
 }
 
 .model-card h2 {
@@ -340,7 +393,7 @@ onMounted(load)
   flex: 1;
   margin: 0 0 18px;
   color: var(--console-muted);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.6;
 }
 
@@ -350,12 +403,12 @@ onMounted(load)
   gap: 7px 12px;
   margin-bottom: 16px;
   color: var(--console-dim);
-  font: 10px/1.4 var(--console-mono);
+  font: 11px/1.4 var(--console-mono);
 }
 
 .model-detail-grid,
 .lifecycle-panel {
-  margin-top: 14px;
+  margin-top: 12px;
 }
 
 .describe-output {

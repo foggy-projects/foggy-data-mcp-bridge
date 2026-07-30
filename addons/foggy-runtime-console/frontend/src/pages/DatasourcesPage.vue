@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { ElDialog, ElMessage, ElMessageBox } from 'element-plus'
 import PageHeader from '@/components/PageHeader.vue'
 import { runtimeApi, RuntimeRequestError } from '@/api/client'
-import { useRuntimeSession } from '@/stores/session'
+import { useContextRail } from '@/stores/contextRail'
 
 interface Datasource {
   name: string
@@ -42,12 +42,13 @@ interface DatasourceForm {
   enabled: boolean
 }
 
-const session = useRuntimeSession()
+const contextRail = useContextRail()
 const loading = ref(true)
 const busyName = ref('')
 const errorMessage = ref('')
 const search = ref('')
 const datasources = ref<Datasource[]>([])
+const activeDatasource = ref('')
 const diagnostics = ref<DatasourceDiagnostics | null>(null)
 const dialogOpen = ref(false)
 const editingName = ref('')
@@ -60,11 +61,6 @@ const form = reactive<DatasourceForm>({
   passwordRef: '',
   enabled: true
 })
-const binding = reactive({
-  namespace: session.namespace.value,
-  dataSource: ''
-})
-
 const filteredDatasources = computed(() => {
   const keyword = search.value.trim().toLowerCase()
   if (!keyword) return datasources.value
@@ -78,9 +74,40 @@ function errorText(error: unknown): string {
   return error instanceof RuntimeRequestError ? error.message : 'Runtime 数据源操作失败。'
 }
 
+function syncContextRail(): void {
+  contextRail.setContext({
+    route: 'datasources',
+    eyebrow: 'Connections',
+    title: 'Datasource List',
+    description: '只管理 Runtime 连接；Namespace 关系在独立工作区维护。',
+    loading: loading.value,
+    filterable: true,
+    emptyText: '没有可用的数据源。',
+    sections: [
+      {
+        id: 'datasources',
+        label: `${datasources.value.length} connections`,
+        items: datasources.value.map(item => ({
+          id: item.name,
+          label: item.name,
+          meta: item.jdbcUrl || item.source || item.type,
+          badge: item.type,
+          active: activeDatasource.value === item.name,
+          action: () => {
+            activeDatasource.value = item.name
+            search.value = item.name
+            syncContextRail()
+          }
+        }))
+      }
+    ]
+  })
+}
+
 async function load(): Promise<void> {
   loading.value = true
   errorMessage.value = ''
+  syncContextRail()
   try {
     const [list, detail] = await Promise.all([
       runtimeApi.get<DatasourceList>('datasources'),
@@ -88,13 +115,11 @@ async function load(): Promise<void> {
     ])
     datasources.value = list.datasources || []
     diagnostics.value = detail
-    if (!binding.dataSource && datasources.value.length) {
-      binding.dataSource = datasources.value[0]?.name || ''
-    }
   } catch (error) {
     errorMessage.value = errorText(error)
   } finally {
     loading.value = false
+    syncContextRail()
   }
 }
 
@@ -117,6 +142,8 @@ function openCreate(): void {
 }
 
 function openEdit(item: Datasource): void {
+  activeDatasource.value = item.name
+  syncContextRail()
   editingName.value = item.name
   Object.assign(form, {
     name: item.name,
@@ -191,37 +218,25 @@ async function removeDatasource(item: Datasource): Promise<void> {
   }
 }
 
-async function bindNamespace(): Promise<void> {
-  if (!binding.namespace.trim() || !binding.dataSource) {
-    ElMessage.warning('请选择 namespace 与数据源。')
-    return
-  }
-  try {
-    await ElMessageBox.confirm(
-      `将 namespace ${binding.namespace} 绑定到 ${binding.dataSource}？`,
-      '确认 namespace 绑定',
-      { confirmButtonText: '确认绑定', cancelButtonText: '取消', type: 'warning' }
-    )
-    await runtimeApi.put(
-      `namespaces/${encodeURIComponent(binding.namespace)}/datasource`,
-      { namespace: binding.namespace, dataSource: binding.dataSource }
-    )
-    session.setNamespace(binding.namespace)
-    ElMessage.success('Namespace 绑定已更新。')
-    await load()
-  } catch (error) {
-    if (error !== 'cancel' && error !== 'close') ElMessage.error(errorText(error))
-  }
-}
-
+contextRail.setContext({
+  route: 'datasources',
+  eyebrow: 'Connections',
+  title: 'Datasource List',
+  description: '只管理 Runtime 连接；Namespace 关系在独立工作区维护。',
+  loading: true,
+  filterable: true,
+  emptyText: '没有可用的数据源。',
+  sections: []
+})
 onMounted(load)
+onBeforeUnmount(() => contextRail.clearContext('datasources'))
 </script>
 
 <template>
   <PageHeader
     eyebrow="Connections"
-    title="数据源与命名空间"
-    description="管理 Runtime 数据源、连接测试和 namespace 绑定。密码从不回显，危险操作需要显式确认。"
+    title="数据源"
+    description="管理 Runtime 数据源与连接测试。Namespace 默认绑定已移至独立 Namespace 工作区。"
   >
     <template #actions>
       <button class="console-button ghost" type="button" :disabled="loading" @click="load">重新读取</button>
@@ -243,8 +258,7 @@ onMounted(load)
     </span>
   </div>
 
-  <div class="split-grid">
-    <section class="console-panel">
+  <section class="console-panel datasource-registry-panel">
       <div class="console-panel-head">
         <span class="console-panel-title">数据源 Registry</span>
         <span class="console-panel-kicker">{{ filteredDatasources.length }} ITEMS</span>
@@ -280,32 +294,7 @@ onMounted(load)
           <div><strong>没有匹配的数据源</strong>调整搜索条件，或创建第一个 Runtime 数据源。</div>
         </div>
       </div>
-    </section>
-
-    <aside class="console-panel">
-      <div class="console-panel-head">
-        <span class="console-panel-title">Namespace 绑定</span>
-        <span class="console-panel-kicker">X-NS</span>
-      </div>
-      <div class="console-panel-body dialog-form">
-        <label class="console-field">
-          <span class="console-label">Namespace</span>
-          <input v-model="binding.namespace" class="console-input" autocomplete="off">
-        </label>
-        <label class="console-field">
-          <span class="console-label">数据源</span>
-          <select v-model="binding.dataSource" class="console-select">
-            <option v-for="item in datasources" :key="item.name" :value="item.name">{{ item.name }}</option>
-          </select>
-        </label>
-        <button class="console-button primary" type="button" @click="bindNamespace">保存绑定</button>
-        <div class="notice">绑定会改变该 namespace 后续表检查、SQL 和模型操作使用的数据源。</div>
-        <div v-for="(source, namespace) in diagnostics?.namespaceBindings" :key="namespace" class="binding-row">
-          <span>{{ namespace }}</span><strong>{{ source }}</strong>
-        </div>
-      </div>
-    </aside>
-  </div>
+  </section>
 
   <ElDialog v-model="dialogOpen" :title="editingName ? '编辑数据源' : '新增数据源'" width="min(680px, 94vw)" destroy-on-close>
     <form class="dialog-form" @submit.prevent="saveDatasource">
@@ -348,21 +337,7 @@ onMounted(load)
 </template>
 
 <style scoped>
-.binding-row {
-  min-height: 42px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 0 12px;
-  border: 1px solid var(--console-line);
-  border-radius: 10px;
-  color: var(--console-muted);
-  font-size: 12px;
-}
-
-.binding-row strong {
-  color: var(--console-text);
-  font: 600 11px/1 var(--console-mono);
+.datasource-registry-panel {
+  min-height: 424px;
 }
 </style>

@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { ElDialog, ElMessage, ElMessageBox } from 'element-plus'
 import PageHeader from '@/components/PageHeader.vue'
 import RuntimeResultTable from '@/components/RuntimeResultTable.vue'
 import { runtimeApi, RuntimeRequestError } from '@/api/client'
 import { useRuntimeSession } from '@/stores/session'
+import { useContextRail } from '@/stores/contextRail'
 
 interface Bundle {
   name: string
@@ -26,10 +27,12 @@ interface BundleList {
 }
 
 const session = useRuntimeSession()
+const contextRail = useContextRail()
 const loading = ref(true)
 const errorMessage = ref('')
 const search = ref('')
 const bundles = ref<Bundle[]>([])
+const activeBundle = ref('')
 const dialogOpen = ref(false)
 const editingName = ref('')
 const resourceBusy = ref(false)
@@ -64,16 +67,49 @@ function errorText(error: unknown): string {
   return error instanceof RuntimeRequestError ? error.message : 'Bundle 操作失败。'
 }
 
+function syncContextRail(): void {
+  contextRail.setContext({
+    route: 'bundles',
+    eyebrow: 'Runtime registry',
+    title: 'Bundle List',
+    description: '快速定位已注册的模型资源目录。',
+    loading: loading.value,
+    filterable: true,
+    emptyText: '尚未注册 Bundle。',
+    sections: [{
+      id: 'bundles',
+      label: `${bundles.value.length} registered`,
+      items: bundles.value.map(item => ({
+        id: item.name,
+        label: item.name,
+        meta: item.path,
+        badge: item.status || 'registered',
+        active: activeBundle.value === item.name,
+        action: () => {
+          activeBundle.value = item.name
+          search.value = item.name
+          syncContextRail()
+        }
+      }))
+    }]
+  })
+}
+
 async function load(): Promise<void> {
   loading.value = true
   errorMessage.value = ''
+  syncContextRail()
   try {
     const result = await runtimeApi.get<BundleList>('bundles')
     bundles.value = result.bundles || []
+    if (activeBundle.value && !bundles.value.some(item => item.name === activeBundle.value)) {
+      activeBundle.value = ''
+    }
   } catch (error) {
     errorMessage.value = errorText(error)
   } finally {
     loading.value = false
+    syncContextRail()
   }
 }
 
@@ -96,6 +132,8 @@ function openCreate(): void {
 }
 
 function openEdit(item: Bundle): void {
+  activeBundle.value = item.name
+  syncContextRail()
   editingName.value = item.name
   Object.assign(form, {
     name: item.name,
@@ -209,7 +247,18 @@ async function executeResourceOperation(): Promise<void> {
   }
 }
 
+contextRail.setContext({
+  route: 'bundles',
+  eyebrow: 'Runtime registry',
+  title: 'Bundle List',
+  description: '快速定位已注册的模型资源目录。',
+  loading: true,
+  filterable: true,
+  emptyText: '尚未注册 Bundle。',
+  sections: []
+})
 onMounted(load)
+onBeforeUnmount(() => contextRail.clearContext('bundles'))
 </script>
 
 <template>

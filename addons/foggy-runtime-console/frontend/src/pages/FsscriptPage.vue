@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import PageHeader from '@/components/PageHeader.vue'
 import RuntimeResultTable from '@/components/RuntimeResultTable.vue'
+import ExecutionToolTabs from '@/components/ExecutionToolTabs.vue'
 import { runtimeApi, RuntimeRequestError } from '@/api/client'
 import { useRuntimeSession } from '@/stores/session'
 import { normalizeResultRows, parseJsonObject, prettyJson } from '@/utils/json'
@@ -88,6 +89,7 @@ async function execute(): Promise<void> {
 </script>
 
 <template>
+  <ExecutionToolTabs />
   <PageHeader
     eyebrow="Advanced runtime"
     title="Fsscript"
@@ -139,7 +141,14 @@ async function execute(): Promise<void> {
   grid-template-columns: 72px 1fr;
   gap: 22px;
   padding: 24px;
-  border-color: rgba(255, 129, 121, 0.32);
+  border: 3px double var(--console-line-strong);
+  background:
+    repeating-linear-gradient(
+      135deg,
+      transparent 0 9px,
+      var(--console-hatch-line) 9px 10px
+    ),
+    var(--console-panel);
 }
 
 .risk-mark {
@@ -147,9 +156,9 @@ async function execute(): Promise<void> {
   height: 64px;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(255, 129, 121, 0.55);
-  border-radius: 50%;
-  color: var(--console-red);
+  border: 3px double var(--console-paper);
+  border-radius: 0;
+  color: var(--console-paper);
   font: 700 30px/1 var(--console-mono);
 }
 
@@ -161,7 +170,7 @@ async function execute(): Promise<void> {
 .risk-gate p {
   max-width: 800px;
   color: var(--console-muted);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.65;
 }
 
@@ -172,7 +181,7 @@ async function execute(): Promise<void> {
   gap: 10px;
   margin: 12px 0;
   color: var(--console-text);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .fsscript-workbench {

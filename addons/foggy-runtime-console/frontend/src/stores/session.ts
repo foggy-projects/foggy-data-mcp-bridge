@@ -67,7 +67,7 @@ export function useRuntimeSession() {
   }
 
   function setNamespace(value: string): void {
-    const normalized = value.trim() || 'default'
+    const normalized = value.trim()
     namespace.value = normalized
     writeNamespace(normalized)
   }

@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import PageHeader from '@/components/PageHeader.vue'
 import RuntimeResultTable from '@/components/RuntimeResultTable.vue'
+import ExecutionToolTabs from '@/components/ExecutionToolTabs.vue'
 import { runtimeApi, RuntimeRequestError } from '@/api/client'
 import { useRuntimeSession } from '@/stores/session'
 import { normalizeResultRows, parseJsonObject, prettyJson } from '@/utils/json'
@@ -91,6 +92,7 @@ async function run(mode: 'validate' | 'preview' | 'execute'): Promise<void> {
 </script>
 
 <template>
+  <ExecutionToolTabs />
   <PageHeader
     eyebrow="Governed composition"
     title="Compose / CTE"

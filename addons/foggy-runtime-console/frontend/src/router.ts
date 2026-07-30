@@ -15,8 +15,23 @@ const routes: RouteRecordRaw[] = [
       { path: '', redirect: '/overview' },
       { path: 'overview', name: 'overview', component: () => import('@/pages/OverviewPage.vue') },
       { path: 'datasources', name: 'datasources', component: () => import('@/pages/DatasourcesPage.vue') },
-      { path: 'bundles', name: 'bundles', component: () => import('@/pages/BundlesPage.vue') },
-      { path: 'models', name: 'models', component: () => import('@/pages/ModelsPage.vue') },
+      { path: 'namespaces/:workspace?', name: 'namespaces', component: () => import('@/pages/NamespacesPage.vue') },
+      {
+        path: 'bundles',
+        redirect: () => ({
+          name: 'namespaces',
+          params: { workspace: 'bundles' },
+          query: { ns: useRuntimeSession().namespace.value }
+        })
+      },
+      {
+        path: 'models',
+        redirect: () => ({
+          name: 'namespaces',
+          params: { workspace: 'models' },
+          query: { ns: useRuntimeSession().namespace.value }
+        })
+      },
       { path: 'query', name: 'query', component: () => import('@/pages/QueryPage.vue') },
       { path: 'tables', name: 'tables', component: () => import('@/pages/TablesPage.vue') },
       { path: 'compose', name: 'compose', component: () => import('@/pages/ComposePage.vue') },

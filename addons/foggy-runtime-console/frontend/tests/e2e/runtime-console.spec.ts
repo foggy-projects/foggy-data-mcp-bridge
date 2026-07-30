@@ -2,9 +2,14 @@ import { expect, test, type Page, type Route } from '@playwright/test'
 
 interface MockState {
   datasources: Array<Record<string, unknown>>
+  namespaceBindings: Record<string, string>
+  bundles: Array<Record<string, unknown>>
+  namespaceHeaders: string[]
+  refreshScopes: string[]
 }
 
 const acceptedToken = 'e2e-runtime-token'
+const mockStates = new WeakMap<Page, MockState>()
 
 function envelope(data: unknown) {
   return {
@@ -35,7 +40,34 @@ async function mockRuntime(page: Page): Promise<MockState> {
       canUpdate: true,
       canRemove: true,
       canTest: true
-    }]
+    }],
+    namespaceBindings: { default: 'analytics', finance: 'analytics' },
+    bundles: [
+      {
+        name: 'runtime-console-demo',
+        namespace: 'default',
+        path: '/runtime/models/demo',
+        watch: true,
+        enabled: true,
+        source: 'runtime-registry',
+        status: 'active',
+        canUpdate: true,
+        canRemove: true
+      },
+      {
+        name: 'finance-models',
+        namespace: 'finance',
+        path: '/runtime/models/finance',
+        watch: false,
+        enabled: true,
+        source: 'runtime-registry',
+        status: 'ready',
+        canUpdate: true,
+        canRemove: true
+      }
+    ],
+    namespaceHeaders: [],
+    refreshScopes: []
   }
 
   await page.route('**/api/v1/**', async route => {
@@ -78,6 +110,7 @@ async function mockRuntime(page: Page): Promise<MockState> {
       })
       return
     }
+    state.namespaceHeaders.push(request.headers()['x-ns'] || '')
 
     let data: unknown = {}
     if (path === 'capabilities') {
@@ -100,7 +133,7 @@ async function mockRuntime(page: Page): Promise<MockState> {
         registryEnabled: true,
         registryExists: true,
         managedDatasourceCount: state.datasources.length,
-        namespaceBindings: { default: 'analytics' }
+        namespaceBindings: state.namespaceBindings
       }
     } else if (path === 'datasources' && request.method() === 'GET') {
       data = { datasources: state.datasources, warnings: [] }
@@ -116,6 +149,11 @@ async function mockRuntime(page: Page): Promise<MockState> {
         canTest: true
       })
       data = { name: body.name, created: true }
+    } else if (/^namespaces\/[^/]+\/datasource$/.test(path) && request.method() === 'PUT') {
+      const body = await jsonBody(route)
+      const namespace = decodeURIComponent(path.split('/')[1] || '')
+      state.namespaceBindings[namespace] = String(body.dataSource || '')
+      data = { namespace, dataSource: state.namespaceBindings[namespace] }
     } else if (path === 'models') {
       data = {
         format: 'json',
@@ -127,12 +165,48 @@ async function mockRuntime(page: Page): Promise<MockState> {
             model: 'OrderModel',
             caption: '订单分析',
             description: '用于订单趋势与履约分析。',
+            namespace: request.headers()['x-ns'] || '',
             sourceKnown: true,
-            bundleName: 'sales',
+            bundleName: request.headers()['x-ns'] === 'finance' ? 'finance-models' : 'runtime-console-demo',
+            sourceNamespace: request.headers()['x-ns'] || '',
+            resourceIdentity: 'qm:OrderModel',
+            physicalTables: ['public.orders'],
             fieldCount: 12,
             primaryTimeField: 'createdAt'
           }]
         }
+      }
+    } else if (path === 'models/OrderModel/describe') {
+      data = {
+        content: JSON.stringify({
+          model: 'OrderModel',
+          fields: [{ name: 'amount', type: 'DECIMAL' }],
+          examples: [{ columns: ['amount'] }]
+        }, null, 2)
+      }
+    } else if (path === 'models/refresh') {
+      const body = await jsonBody(route)
+      const models = Array.isArray(body.models) ? body.models : []
+      state.refreshScopes.push(models.length ? 'selected' : 'all')
+      data = {
+        catalogState: 'PUBLISHED',
+        beforeCatalogGeneration: 'g-1',
+        afterCatalogGeneration: 'g-2',
+        refreshedCount: models.length || 1,
+        failedCount: 0,
+        warnings: []
+      }
+    } else if (path === 'models/validate') {
+      data = {
+        valid: true,
+        catalogState: 'CANDIDATE_VALID',
+        validFiles: 2,
+        invalidFiles: 0,
+        warnings: []
+      }
+    } else if (path === 'resources/export') {
+      data = {
+        resources: [{ path: 'models/orders.qm', sha256: 'mock-sha256' }]
       }
     } else if (path === 'query/OrderModel/execute') {
       data = {
@@ -152,8 +226,8 @@ async function mockRuntime(page: Page): Promise<MockState> {
         tables: [{ schema: 'public', name: 'orders', type: 'TABLE' }],
         warnings: []
       }
-    } else if (path === 'bundles') {
-      data = { bundles: [], warnings: [] }
+    } else if (path === 'bundles' && request.method() === 'GET') {
+      data = { bundles: state.bundles, warnings: [] }
     }
 
     await route.fulfill({
@@ -173,7 +247,7 @@ async function login(page: Page): Promise<void> {
 }
 
 test.beforeEach(async ({ page }) => {
-  await mockRuntime(page)
+  mockStates.set(page, await mockRuntime(page))
 })
 
 test('invalid login, valid login, reload revalidation and logout', async ({ page }) => {
@@ -208,15 +282,18 @@ test('navigation, datasource creation and query result rendering', async ({ page
   if (testInfo.project.name.includes('mobile')) {
     await page.getByRole('button', { name: '打开主导航' }).click()
     await page.getByRole('navigation', { name: '移动端 Runtime Console 主导航' })
-      .getByRole('button', { name: /数据源与命名空间/ })
+      .getByRole('button', { name: /数据源/ })
       .click()
   } else {
-    await page.getByRole('complementary', { name: 'Runtime Console 主导航' })
-      .getByRole('navigation')
-      .getByRole('button', { name: /数据源与命名空间/ })
+    await page.getByRole('navigation', { name: 'Runtime Console 主导航' })
+      .getByRole('button', { name: /数据源/ })
       .click()
   }
-  await expect(page.getByRole('heading', { name: '数据源与命名空间' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '数据源', exact: true })).toBeVisible()
+  if (!testInfo.project.name.includes('mobile')) {
+    const contextRail = page.getByRole('complementary', { name: '当前页面资源导航' })
+    await expect(contextRail).toContainText('Datasource List')
+  }
 
   await page.getByRole('button', { name: '新增数据源' }).click()
   const dialog = page.getByRole('dialog', { name: '新增数据源' })
@@ -225,6 +302,33 @@ test('navigation, datasource creation and query result rendering', async ({ page
   await dialog.getByRole('button', { name: '保存数据源' }).click()
   await expect(page.getByRole('table').getByText('warehouse', { exact: true })).toBeVisible()
 
+  if (testInfo.project.name.includes('mobile')) {
+    await page.getByRole('button', { name: '打开主导航' }).click()
+    await page.getByRole('navigation', { name: '移动端 Runtime Console 主导航' })
+      .getByRole('button', { name: /数据与模型空间/ })
+      .click()
+  } else {
+    const topNavigation = page.getByRole('navigation', { name: 'Runtime Console 主导航' })
+    await expect(topNavigation.getByRole('button')).toHaveCount(6)
+    await topNavigation.getByRole('button', { name: /数据与模型空间/ }).click()
+  }
+  await expect(page.getByRole('heading', { name: '数据与模型空间 · default' })).toBeVisible()
+  if (testInfo.project.name.includes('mobile')) {
+    await page.getByRole('button', { name: /资源列表 空间索引/ }).click()
+    const resourceDrawer = page.getByRole('dialog', { name: '空间索引' })
+    await expect(resourceDrawer.getByRole('button', { name: /default.*1 Bundle.*analytics.*CURRENT/ })).toBeVisible()
+    await resourceDrawer.getByRole('button', { name: /default.*1 Bundle.*analytics.*CURRENT/ }).click()
+  }
+  await page.getByRole('button', { name: /^04 空间设置$/ }).click()
+  await expect(page.getByLabel('默认数据源')).toHaveValue('analytics')
+  await page.getByRole('button', { name: '保存默认绑定' }).click()
+  await page.getByRole('dialog', { name: '确认空间默认数据源' })
+    .getByRole('button', { name: '保存绑定' })
+    .click()
+  await expect(page.locator('.el-message').filter({ hasText: '空间默认数据源已更新' })).toBeVisible()
+  await page.getByRole('button', { name: /^03 Bundle 来源/ }).click()
+  await expect(page.getByRole('heading', { name: 'runtime-console-demo' })).toBeVisible()
+
   await page.goto('/console/#/query')
   await expect(page.getByRole('heading', { name: '查询 DSL' })).toBeVisible()
   await page.getByLabel('QM 模型').fill('OrderModel')
@@ -232,4 +336,103 @@ test('navigation, datasource creation and query result rendering', async ({ page
   await page.getByRole('button', { name: '运行查询' }).click()
   await expect(page.getByText('Alice', { exact: true })).toBeVisible()
   await expect(page.getByText('Bob', { exact: true })).toBeVisible()
+
+  await page.goto('/console/#/compose')
+  await expect(page.getByRole('heading', { name: 'Compose / CTE' })).toBeVisible()
+  await expect(page.getByRole('navigation', { name: '执行工具类型' }).getByRole('button')).toHaveCount(2)
+  await page.getByRole('navigation', { name: '执行工具类型' })
+    .getByRole('button', { name: /FSScript/ })
+    .click()
+  await expect(page.getByRole('heading', { name: 'Fsscript', exact: true })).toBeVisible()
+})
+
+test('namespace workspace keeps route, request scope, cards, drawers and keyboard focus aligned', async ({ page }, testInfo) => {
+  testInfo.setTimeout(90_000)
+  const state = mockStates.get(page)!
+  await login(page)
+
+  if (testInfo.project.name.includes('mobile')) {
+    await page.getByRole('button', { name: '打开主导航' }).click()
+    await page.getByRole('navigation', { name: '移动端 Runtime Console 主导航' })
+      .getByRole('button', { name: /数据与模型空间/ })
+      .click()
+  } else {
+    await page.getByRole('navigation', { name: 'Runtime Console 主导航' })
+      .getByRole('button', { name: /数据与模型空间/ })
+      .click()
+  }
+
+  await expect(page).toHaveURL(/#\/namespaces\?ns=default$/)
+  await expect(page.getByRole('heading', { name: '数据与模型空间 · default' })).toBeVisible()
+  await expect(page.getByText('DEFAULT DATASOURCE').locator('..')).toContainText('analytics')
+  await expect(page.getByText('BUNDLE SOURCES').locator('..')).toContainText('1')
+  await expect(page.getByText('VISIBLE QM').locator('..')).toContainText('1')
+
+  await page.getByRole('button', { name: /分析模型（QM）/ }).click()
+  await expect(page).toHaveURL(/#\/namespaces\/models\?ns=default$/)
+  const modelCard = page.getByRole('article').filter({ hasText: 'OrderModel' })
+  await expect(modelCard).toContainText('订单分析')
+  await expect(modelCard).toContainText('12 fields')
+  await expect(modelCard).toContainText('runtime-console-demo')
+  await expect(modelCard).toContainText('createdAt')
+  await expect(modelCard).toContainText('SOURCE KNOWN')
+
+  const detailButton = modelCard.getByRole('button', { name: '查看详情' })
+  await detailButton.click()
+  const detailDrawer = page.getByRole('dialog', { name: /模型详情/ })
+  await expect(detailDrawer).toContainText('public.orders')
+  await expect(detailDrawer).toContainText('当前 Runtime API 未提供 typed 模型依赖')
+  await expect(detailDrawer).toContainText('"amount"')
+  if (testInfo.project.name.includes('mobile')) {
+    const box = await detailDrawer.boundingBox()
+    expect(box?.width).toBeLessThanOrEqual(420)
+  }
+  await page.keyboard.press('Escape')
+  await expect(detailDrawer).toBeHidden()
+  await expect(detailButton).toBeFocused()
+
+  await modelCard.getByLabel('选择 OrderModel').check()
+  await page.getByRole('button', { name: '刷新已选' }).click()
+  await page.getByRole('dialog', { name: '确认模型刷新' }).getByRole('button', { name: '确认刷新' }).click()
+  await expect.poll(() => state.refreshScopes).toContain('selected')
+  await page.getByRole('button', { name: '刷新全部' }).click()
+  await page.getByRole('dialog', { name: '确认模型刷新' }).getByRole('button', { name: '确认刷新' }).click()
+  await expect.poll(() => state.refreshScopes).toContain('all')
+
+  await page.getByText('模型维护工具 · 路径校验与生命周期诊断').click()
+  await page.getByLabel('模型路径').fill('/runtime/models/demo')
+  await page.getByRole('button', { name: '校验路径' }).click()
+  await expect(page.getByText('CANDIDATE_VALID')).toBeVisible()
+
+  await page.getByRole('button', { name: /Bundle 来源/ }).click()
+  const bundleCard = page.getByRole('article').filter({ hasText: 'runtime-console-demo' })
+  await expect(bundleCard).toContainText('1 visible QM')
+  await bundleCard.getByRole('button', { name: '高级操作' }).click()
+  const advancedDrawer = page.getByRole('dialog', { name: /Bundle 高级操作/ })
+  await expect(advancedDrawer.getByLabel('Bundle 原始请求 JSON')).toHaveValue(/"bundle": "runtime-console-demo"/)
+  await advancedDrawer.getByRole('button', { name: '执行导出' }).click()
+  await expect(advancedDrawer.getByText('models/orders.qm')).toBeVisible()
+  await page.keyboard.press('Escape')
+
+  const namespaceInput = page.getByLabel('当前数据与模型空间')
+  await namespaceInput.fill('finance')
+  await namespaceInput.press('Enter')
+  await namespaceInput.blur()
+  await expect(page).toHaveURL(/#\/namespaces\/bundles\?ns=finance$/)
+  await expect(page.getByRole('heading', { name: '数据与模型空间 · finance' })).toBeVisible()
+  await page.getByRole('button', { name: /分析模型（QM）/ }).click()
+  await page.reload()
+  await expect(page).toHaveURL(/#\/namespaces\/models\?ns=finance$/)
+  await expect(page.getByRole('heading', { name: '数据与模型空间 · finance' })).toBeVisible()
+  await expect.poll(() => state.namespaceHeaders.at(-1)).toBe('finance')
+
+  await page.screenshot({
+    path: testInfo.outputPath(testInfo.project.name.includes('mobile')
+      ? 'namespace-workspace-mobile.png'
+      : 'namespace-workspace-desktop.png'),
+    fullPage: true
+  })
+
+  await page.goto('/console/#/models')
+  await expect(page).toHaveURL(/#\/namespaces\/models\?ns=finance$/)
 })

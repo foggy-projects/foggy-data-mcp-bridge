@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import PageHeader from '@/components/PageHeader.vue'
 import RuntimeResultTable from '@/components/RuntimeResultTable.vue'
 import { runtimeApi, RuntimeRequestError } from '@/api/client'
 import { normalizeResultRows, parseJsonObject, prettyJson } from '@/utils/json'
+import { useContextRail } from '@/stores/contextRail'
 
 interface ModelCatalog {
   data?: { models?: string[] }
@@ -21,13 +22,14 @@ interface QueryResponse {
 }
 
 const models = ref<string[]>([])
+const contextRail = useContextRail()
 const model = ref('')
 const mode = ref<'validate' | 'execute'>('execute')
 const payload = ref(prettyJson({
-  columns: [],
+  columns: ['orderStatus', 'sum(payAmount) as totalPay'],
   slice: [],
-  groupBy: [],
-  orderBy: [],
+  groupBy: [{ field: 'orderStatus' }],
+  orderBy: [{ field: 'totalPay', dir: 'desc' }],
   page: { start: 0, limit: 100 }
 }))
 const busy = ref(false)
@@ -39,11 +41,41 @@ function errorText(error: unknown): string {
   return error instanceof RuntimeRequestError ? error.message : '语义查询失败。'
 }
 
+function syncContextRail(): void {
+  contextRail.setContext({
+    route: 'query',
+    eyebrow: 'Semantic workbench',
+    title: 'Query Models',
+    description: '选择模型后在右侧编写并运行受治理查询 DSL。',
+    loading: false,
+    filterable: true,
+    emptyText: '当前 namespace 没有可查询模型。',
+    sections: [{
+      id: 'models',
+      label: `${models.value.length} available`,
+      items: models.value.map(item => ({
+        id: item,
+        label: item,
+        meta: 'semantic query model',
+        badge: 'QM',
+        active: model.value === item,
+        action: () => {
+          model.value = item
+          syncContextRail()
+        }
+      }))
+    }]
+  })
+}
+
 async function loadModels(): Promise<void> {
   try {
     const result = await runtimeApi.get<ModelCatalog>('models', { format: 'json', fieldLimit: 0 })
     models.value = result.data?.models || []
-    model.value ||= models.value[0] || ''
+    model.value ||= models.value.includes('FactOrderQueryModel')
+      ? 'FactOrderQueryModel'
+      : models.value[0] || ''
+    syncContextRail()
   } catch (error) {
     ElMessage.error(errorText(error))
   }
@@ -88,7 +120,18 @@ async function run(nextMode = mode.value): Promise<void> {
   }
 }
 
+contextRail.setContext({
+  route: 'query',
+  eyebrow: 'Semantic workbench',
+  title: 'Query Models',
+  description: '选择模型后在右侧编写并运行受治理查询 DSL。',
+  loading: true,
+  filterable: true,
+  emptyText: '当前 namespace 没有可查询模型。',
+  sections: []
+})
 onMounted(loadModels)
+onBeforeUnmount(() => contextRail.clearContext('query'))
 </script>
 
 <template>

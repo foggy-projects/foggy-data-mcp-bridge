@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import PageHeader from '@/components/PageHeader.vue'
 import RuntimeResultTable from '@/components/RuntimeResultTable.vue'
 import { runtimeApi, RuntimeRequestError } from '@/api/client'
 import { normalizeResultRows, prettyJson } from '@/utils/json'
+import { useContextRail } from '@/stores/contextRail'
 
 interface DatasourceList {
   datasources?: Array<{ name: string; enabled?: boolean }>
@@ -33,7 +34,9 @@ interface SqlResponse {
 }
 
 const datasources = ref<string[]>([])
+const contextRail = useContextRail()
 const tables = ref<TableInfo[]>([])
+const activeTable = ref('')
 const busy = ref('')
 const inspectRows = ref<Record<string, unknown>[]>([])
 const inspectMeta = ref('')
@@ -52,11 +55,53 @@ function errorText(error: unknown): string {
   return error instanceof RuntimeRequestError ? error.message : '表操作失败。'
 }
 
+function syncContextRail(): void {
+  contextRail.setContext({
+    route: 'tables',
+    eyebrow: 'Database inspector',
+    title: 'Schema Browser',
+    description: '切换数据源，或直接检查表结构。',
+    loading: busy.value === 'list',
+    filterable: true,
+    emptyText: '当前筛选条件下没有表。',
+    sections: [
+      {
+        id: 'datasources',
+        label: 'Datasources',
+        items: datasources.value.map(item => ({
+          id: `datasource:${item}`,
+          label: item,
+          meta: item === form.dataSource ? 'current connection' : 'switch connection',
+          badge: 'source',
+          active: item === form.dataSource,
+          action: () => {
+            form.dataSource = item
+            void listTables()
+          }
+        }))
+      },
+      {
+        id: 'tables',
+        label: `${tables.value.length} tables / views`,
+        items: tables.value.map(item => ({
+          id: `${item.schema || ''}.${item.name}`,
+          label: item.name,
+          meta: item.schema || 'default schema',
+          badge: item.type || 'table',
+          active: activeTable.value === item.name,
+          action: () => void inspectTable(item)
+        }))
+      }
+    ]
+  })
+}
+
 async function loadDatasources(): Promise<void> {
   try {
     const result = await runtimeApi.get<DatasourceList>('datasources')
     datasources.value = (result.datasources || []).filter(item => item.enabled !== false).map(item => item.name)
     form.dataSource ||= datasources.value[0] || ''
+    syncContextRail()
   } catch (error) {
     ElMessage.error(errorText(error))
   }
@@ -64,6 +109,7 @@ async function loadDatasources(): Promise<void> {
 
 async function listTables(): Promise<void> {
   busy.value = 'list'
+  syncContextRail()
   try {
     const result = await runtimeApi.post<TableListResponse>('tables/list', form)
     tables.value = result.tables || []
@@ -72,12 +118,15 @@ async function listTables(): Promise<void> {
     ElMessage.error(errorText(error))
   } finally {
     busy.value = ''
+    syncContextRail()
   }
 }
 
 async function inspectTable(item: TableInfo): Promise<void> {
   busy.value = `inspect:${item.name}`
+  activeTable.value = item.name
   inspectRows.value = []
+  syncContextRail()
   try {
     const result = await runtimeApi.post<Record<string, unknown>>('tables/inspect', {
       dataSource: form.dataSource || undefined,
@@ -100,6 +149,7 @@ async function inspectTable(item: TableInfo): Promise<void> {
     ElMessage.error(errorText(error))
   } finally {
     busy.value = ''
+    syncContextRail()
   }
 }
 
@@ -132,10 +182,21 @@ async function runSql(): Promise<void> {
   }
 }
 
+contextRail.setContext({
+  route: 'tables',
+  eyebrow: 'Database inspector',
+  title: 'Schema Browser',
+  description: '切换数据源，或直接检查表结构。',
+  loading: true,
+  filterable: true,
+  emptyText: '当前筛选条件下没有表。',
+  sections: []
+})
 onMounted(async () => {
   await loadDatasources()
   await listTables()
 })
+onBeforeUnmount(() => contextRail.clearContext('tables'))
 </script>
 
 <template>
