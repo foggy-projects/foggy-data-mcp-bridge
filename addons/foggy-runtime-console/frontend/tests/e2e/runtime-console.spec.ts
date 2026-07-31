@@ -546,6 +546,7 @@ test('namespace workspace keeps route, request scope, cards, drawers and keyboar
 
   await expect(page).toHaveURL(/#\/namespaces\?ns=default$/)
   await expect(page.getByRole('heading', { name: '数据与模型空间 · default' })).toBeVisible()
+  await expect(page.getByText('输入其他空间', { exact: true })).toHaveCount(0)
   await expect(page.getByText('DEFAULT DATASOURCE').locator('..')).toContainText('analytics')
   await expect(page.getByText('BUNDLE SOURCES').locator('..')).toContainText('1')
   await expect(page.getByText('VISIBLE QM').locator('..')).toContainText('1')

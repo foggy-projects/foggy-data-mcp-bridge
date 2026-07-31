@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElDialog, ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import PageHeader from '@/components/PageHeader.vue'
 import ModelCatalog from '@/features/models/ModelCatalog.vue'
 import BundleCatalog from '@/features/bundles/BundleCatalog.vue'
@@ -18,8 +18,6 @@ const router = useRouter()
 const session = useRuntimeSession()
 const contextRail = useContextRail()
 const data = useNamespaceWorkspaceData()
-const namespaceDialogOpen = ref(false)
-const namespaceCandidate = ref('')
 const bindingBusy = ref(false)
 const binding = reactive({ dataSource: '' })
 
@@ -91,21 +89,6 @@ async function selectNamespace(namespace: string): Promise<void> {
   })
 }
 
-function openNamespaceDialog(): void {
-  namespaceCandidate.value = ''
-  namespaceDialogOpen.value = true
-}
-
-async function confirmNamespace(): Promise<void> {
-  const normalized = namespaceCandidate.value.trim()
-  if (!normalized) {
-    ElMessage.warning('请输入 Namespace 名称；空 Namespace 可从已发现的空间列表进入。')
-    return
-  }
-  namespaceDialogOpen.value = false
-  await selectNamespace(normalized)
-}
-
 function syncBinding(): void {
   binding.dataSource = selectedBinding.value || data.datasources.value[0]?.name || ''
 }
@@ -131,17 +114,6 @@ function syncContextRail(): void {
           active: item.current,
           action: () => void selectNamespace(item.name)
         }))
-      },
-      {
-        id: 'namespace-actions',
-        label: 'Context',
-        items: [{
-          id: 'open-namespace',
-          label: '输入其他空间',
-          meta: '仅切换上下文，不创建 Namespace 实体',
-          badge: '+',
-          action: openNamespaceDialog
-        }]
       }
     ]
   })
@@ -337,17 +309,6 @@ onBeforeUnmount(() => contextRail.clearContext('namespaces'))
       </button>
     </form>
   </section>
-
-  <ElDialog v-model="namespaceDialogOpen" title="输入其他数据与模型空间" width="min(520px, 94vw)">
-    <form class="dialog-form" @submit.prevent="confirmNamespace">
-      <label class="console-field">
-        <span class="console-label">Namespace 技术名称</span>
-        <input v-model="namespaceCandidate" class="console-input" autocomplete="off" placeholder="例如 tms-ai">
-      </label>
-      <div class="notice">此操作只切换上下文。空间仍由默认绑定或 Bundle 关系推导，不会创建实体。</div>
-      <button class="console-button primary" type="submit">切换到此空间</button>
-    </form>
-  </ElDialog>
 </template>
 
 <style scoped>
