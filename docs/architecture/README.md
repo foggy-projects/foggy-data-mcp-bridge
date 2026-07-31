@@ -21,6 +21,8 @@ last_reviewed: 2026-07-29
 - [Model SPI v2 与扩展](extension-spi.md)：稳定查询 API、provider capability、catalog 和 TCK 契约。
 - [Runtime 内生权限与预聚合](runtime-permissions-and-preaggregation.md)：Runtime API 直连与可信宿主的
   权限边界、TM/QM 内生权限目标，以及行权限对预聚合候选的约束。
+- [Runtime Console 产品章程](../design/runtime-console-product-charter.md)：Console 的目标用户、产品定位、
+  信息架构、视觉原则和跨迭代能力边界。
 
 专题设计仍可保留在 `docs/design/` 或对应版本目录，但必须明确它是专题说明还是历史决策，
 不能替代这里的整体架构。

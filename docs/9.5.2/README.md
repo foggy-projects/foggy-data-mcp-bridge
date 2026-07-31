@@ -12,6 +12,10 @@ recorded_at: 2026-07-27
 `X-Foggy-Runtime-Code` 作为进入和操作凭据，不引入账号、RBAC、审计、版本管理、独立 BFF
 或独立 Node 部署。
 
+Runtime Console 后续迭代持续遵守
+[Runtime Console 产品章程](../design/runtime-console-product-charter.md)。该章程固定目标用户、产品定位、
+信息架构、视觉原则和能力准入边界；9.5.2 workitem 保留本迭代的实现与验收历史。
+
 | Work item | 状态 | 目标 |
 |---|---|---|
 | [Runtime Web Console MVP](workitems/FEATURE-runtime-web-console-mvp.md) | READY_FOR_SIGNOFF | 已新增可选 `addons/foggy-runtime-console`；`foggy-runtime-api` 承担 access check、`management-all` 与真实鉴权，launcher 通过显式 profile 装配，Console 静态资源同源提供在 `/console/` |
