@@ -18,6 +18,7 @@ import com.foggyframework.runtime.api.service.ManagedDataSourcePoolManager;
 import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
 import com.foggyframework.runtime.api.service.RuntimeBundleModelConflictDetector;
 import com.foggyframework.runtime.api.service.RuntimeBundleRegistryService;
+import com.foggyframework.runtime.api.service.RuntimeCandidateQueryService;
 import com.foggyframework.runtime.api.service.RuntimeComposeContextFactory;
 import com.foggyframework.runtime.api.service.RuntimeComposeDialectResolver;
 import com.foggyframework.runtime.api.service.RuntimeComposeRunner;
@@ -42,6 +43,7 @@ import org.springframework.context.annotation.Import;
         RuntimeApiResponseFactory.class,
         RuntimeBundleModelConflictDetector.class,
         RuntimeBundleRegistryService.class,
+        RuntimeCandidateQueryService.class,
         RuntimeComposeContextFactory.class,
         RuntimeComposeDialectResolver.class,
         RuntimeComposeRunner.class,

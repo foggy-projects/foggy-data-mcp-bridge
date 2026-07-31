@@ -21,8 +21,9 @@ Runtime Console 应提供 TM/QM/FSScript 的有界手工创作闭环，但不建
 验证证据，不持久化第二套已编译 catalog。每次 validate/query 都从不可变 candidate revision
 构造 request-local catalog，用完即释放。
 
-当前 detached validation 已经证明这种 overlay 可以工作；当前缺失的是受治理的 candidate query
-执行原语、完整 Bundle capability inventory 和工作区 revision/publish 契约。
+detached validation 已经证明这种 overlay 可以工作；9.5.3 进一步实现了受治理的内部 candidate
+query 执行原语。当前缺失的是完整 Bundle capability inventory、工作区 store/resource/revision API
+和后续 publish 契约。
 
 ## 2. 进一步简化后的边界
 
@@ -104,27 +105,31 @@ external Bundle。
 | 草稿 QM 依赖真实 JAR TM/FSScript | 支持 | `reusable-now` | 动态 JAR + Spring `jar:` Resource 探针 |
 | 草稿对 live 同名资源的优先级 | source 明确优先 | `reusable-now`，需策略 guard | detached context 先查 source、再 fallback live |
 | 成功/失败验证隔离 | live catalog、cache、Bundle inventory、source revision 均不变 | `reusable-now` | focused isolation assertions |
-| candidate query | 当前没有调用边界 | `new-runtime-primitive` | detached session 仅暴露 TM/QM validate；Runtime query 固定注入 live semantic service/loader/facade |
+| candidate query | 已有 engine/Runtime 内部调用边界；无 REST route | `delivered-internal-primitive` | `CandidateQuerySession`、`RuntimeCandidateQueryService`、真实 SQLite focused tests |
 | Bundle inventory | 只列 external，JAR/classpath 不可见 | `small-extension` | `listExternalBundles()` 调用链 |
 | Bundle Namespace cardinality | 当前单值 | `new-runtime-primitive`（多 mount） | `BundleDefinition#getNamespace()` |
 | `.fsscript` export/save | 当前不允许 | `small-extension` | resource allowlist 只有 TM/QM/model-list |
 | configured external 写入 | 禁止 | `reusable-now` | save 仅接受 Runtime registry record |
 | Runtime-managed external 写入 | 支持低层保存 | `reusable-now`，不直接作为 publish | SHA 冲突检查与原子单文件写 |
 
-### Candidate query 的最小缺失边界
+### Candidate query 已实现边界
 
-不能把当前 `/query/{model}` 直接指向草稿文件。现有 semantic service 与 query facade 都绑定 live
-`QueryModelLoader`、`SystemBundlesContext`、catalog identity、权限/过滤链和 cache。需要一个
-Runtime 内部的 request-local candidate execution port，至少保证：
+当前 `/query/{model}` 仍只服务 live catalog，没有被改造成草稿入口。新增的 Runtime 内部
+request-local candidate execution port 显式携带 detached catalog resolution 和 Bundle view，并保证：
 
 - candidate TM/QM/FSScript 与只读依赖来自同一 detached session；
 - validate、SQL generation 和 execute 始终使用 candidate model identity；
 - 数据源 binding、Namespace 和 Authorization 沿用目标 Runtime 的既有规则；
 - 权限、result filter、query execution step 和安全限制不被旁路；
-- candidate cache key 与 live catalog 隔离，session 关闭后可完全释放；
-- 响应携带 `candidateRevision`、base source revision 和诊断证据。
+- candidate 不访问共享 L1/L2 cache，不启用 pre-aggregation/hybrid query，session 关闭后释放
+  request-local 引用；
+- source/content revision 在执行前后校验，其他 Bundle 同名覆盖 fail closed；
+- 响应携带 `candidateRevision`、base source revision、phase 和诊断证据；
+- pivot、Compose/CTE、Semantic SQL、memory-grid 和 synthetic member 在具备完整 request-local pin
+  前返回稳定 unsupported 错误。
 
-这是工作区闭环的核心阻断项，应先于编辑 UI 实现。
+该端口没有新增 REST、临时 Namespace、持久 candidate catalog 或 workspace 状态。它解除查询侧
+核心阻断，但不能被描述为已经交付工作区、资源编辑或发布能力。
 
 ## 6. 创建、验证和发布流程
 
@@ -152,8 +157,8 @@ Runtime 内部的 request-local candidate execution port，至少保证：
 
 | 顺序 | 建议 workitem | 交付边界 | 进入条件 |
 |---:|---|---|---|
-| 1 | Runtime candidate-query overlay | request-local candidate resolve/validate/query port、权限与 cache 隔离、stale source guard；无 UI | 本技术探针独立验收 |
-| 2 | Runtime authoring workspace API | 内部 workspace store、内容 revision、单 writable Bundle、TM/QM/FSScript 资源、diff/validate/query；无 Git | 1 的真实数据库 focused tests 通过 |
+| 1 | Runtime candidate-query overlay | request-local candidate resolve/validate/query port、权限与 cache 隔离、stale source guard；无 UI；已实现并完成独立验收 | 本技术探针独立验收 |
+| 2 | Runtime authoring workspace API | 内部 workspace store、内容 revision、单 writable Bundle、TM/QM/FSScript 资源、diff/validate/query；无 Git | 1 独立验收通过 |
 | 3 | Console 最小手工闭环 | 创建/打开工作区、资源树、轻量编辑、diff、诊断、validate/query、开发环境 publish/恢复 | 2 的 API 契约冻结 |
 | 4 | Release package 与生产 promotion | 不可变导出/导入、生产 revalidate、apply、rollback 与证据 | 3 的开发闭环验收 |
 | 5 | 可选 Git adapter | clone/branch/commit/push、commit 与 candidate revision 映射；无 Git 路径保持完整 | 4 的 revision 契约稳定 |
@@ -165,13 +170,20 @@ Runtime 内部的 request-local candidate execution port，至少保证：
 
 ## 8. 下一 workitem 的必须通过项
 
-顺序 1 是当前唯一技术阻断项。其交付契约至少应要求：
+顺序 2 是 candidate-query overlay 验收后的下一 workitem。其交付契约至少应要求：
 
-- candidate QM 查询结果确实来自草稿覆盖，而不是同名 live QM；
-- 草稿依赖 external/JAR TM 以及相关 FSScript；
-- validate 和 execute 使用相同 candidate revision；
-- Namespace、datasource binding、Authorization 和权限流水线与 live 查询语义一致；
-- 成功、DSL 失败、数据库失败和 session close 都不改变 live catalog/source revision；
-- live source 在请求前发生变化时拒绝旧 candidate，而不是静默重建；
-- JAR 同名覆盖被 workspace policy 拒绝；
-- 不新增临时 Namespace、持久 candidate catalog 或绕过 Runtime query policy 的捷径。
+- workspace 使用不可猜测 identity，固定一个目标 Namespace、一个 enabled Runtime-managed writable
+  Bundle、`baseBundleRevision` 和 `baseNamespaceSourceRevision`；
+- store 只持久化草稿源码、内容寻址 revision、状态和验证证据，不持久化 candidate catalog、查询
+  结果或临时 Namespace；
+- resource contract 首期只允许 `.tm`、`.qm`、`.fsscript`，并具备规范化路径、symlink/traversal、
+  数量/大小、原子 batch 和 optimistic revision guard；
+- save、diff、validate 和 query 是不同动作；每次内容变化都生成新 revision 并使旧验证证据失效；
+- validate/query 只能调用已验收的 candidate port，并固定调用方提交的 candidate/base revision，
+  不能重新读取可移动目录状态或回退 live QM；
+- 依赖 source revision 漂移后 workspace 明确进入 `STALE`，需要 rebase/revalidate；configured external
+  与 JAR/classpath 始终只读且不可被同名遮蔽；
+- Runtime API 返回事实型 Bundle capability 和稳定 workspace/error envelope，Console 不从路径猜测
+  editable/workspaceEligible；
+- 本阶段不实现 publish/apply/rollback、Git、Console、Agent、JAR 多 Namespace 或跨 Runtime 编排，
+  这些能力继续由后续独立 workitem 冻结。

@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.model.plugins.result_set_filter;
 
+import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
@@ -216,6 +217,13 @@ public class ModelResultContext {
      * 查询缓存配置
      */
     QueryCacheConfig cacheConfig;
+
+    /**
+     * Optional request-local Bundle view paired with a pre-pinned model.
+     * Live requests leave this null and continue to use the application
+     * {@link SystemBundlesContext}.
+     */
+    SystemBundlesContext executionBundlesContext;
 
     // ==========================================
     // 查询流程控制
@@ -541,6 +549,7 @@ public class ModelResultContext {
                     .l1Enabled(false)
                     .l2Enabled(false)
                     .preAggEnabled(false)
+                    .hybridQueryEnabled(false)
                     .build();
         }
     }

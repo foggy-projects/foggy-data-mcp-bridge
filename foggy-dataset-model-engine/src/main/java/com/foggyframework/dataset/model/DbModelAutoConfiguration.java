@@ -2,9 +2,12 @@ package com.foggyframework.dataset.model;
 
 
 import com.foggyframework.bundle.SystemBundlesContext;
+import com.foggyframework.bundle.SystemBundlesContextImpl;
 import com.foggyframework.dataset.DataSetAutoConfiguration;
 import com.foggyframework.dataset.model.config.DatasetProperties;
 import com.foggyframework.dataset.model.config.SemanticProperties;
+import com.foggyframework.dataset.model.candidate.CandidateQueryFactory;
+import com.foggyframework.dataset.model.candidate.DefaultCandidateQueryFactory;
 import com.foggyframework.dataset.model.backend.JdbcEngineBackendProvider;
 import com.foggyframework.dataset.model.api.QueryFacade;
 import com.foggyframework.dataset.model.engine.pivot.LocalPivotOuterCacheInvalidationBroadcaster;
@@ -194,6 +197,32 @@ public class DbModelAutoConfiguration {
     ) {
         return new DefaultDetachedModelValidationFactory(
                 systemBundlesContext, tableModelLoaderManager, queryModelLoader);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(CandidateQueryFactory.class)
+    public CandidateQueryFactory candidateQueryFactory(
+            SystemBundlesContext systemBundlesContext,
+            DetachedModelValidationFactory detachedModelValidationFactory,
+            SemanticQueryServiceV3 semanticQueryServiceV3,
+            ObjectProvider<CommittedSourceRevisionRegistry> sourceRegistryProvider
+    ) {
+        CommittedSourceRevisionRegistry sourceRegistry =
+                sourceRegistryProvider.getIfAvailable();
+        if (sourceRegistry == null
+                && systemBundlesContext instanceof SystemBundlesContextImpl context) {
+            sourceRegistry = context.getSourceRevisionRegistry();
+        }
+        if (sourceRegistry == null) {
+            throw new IllegalStateException(
+                    "Candidate query requires CommittedSourceRevisionRegistry");
+        }
+        return new DefaultCandidateQueryFactory(
+                systemBundlesContext,
+                detachedModelValidationFactory,
+                semanticQueryServiceV3,
+                sourceRegistry
+        );
     }
 
     @Bean

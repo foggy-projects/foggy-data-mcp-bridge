@@ -35,6 +35,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.context.support.GenericApplicationContext;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import javax.sql.DataSource;
 import java.io.IOException;
@@ -243,6 +244,79 @@ class DetachedModelAuthoringFoundationProbeTest {
             }
         }).isInstanceOf(RuntimeException.class);
 
+        assertLiveStateUnchanged(fixture, before);
+    }
+
+    @Test
+    void closeClearsRequestLocalAuthorityAndPreventsSessionReuse(
+            @TempDir Path tempDirectory
+    ) throws Exception {
+        Path liveDirectory = createLiveExternalBundle(tempDirectory);
+        Path jar = createJarBundle(tempDirectory);
+        Fixture fixture = fixture(liveDirectory, jar);
+        LiveState before = fixture.captureLiveState();
+        Path draft = tempDirectory.resolve("draft-close-cleanup");
+        write(draft.resolve("model/ClosableModel.tm"), """
+                export const model = {
+                    name: 'ClosableModel',
+                    type: 'jdbc',
+                    tableName: 'closable_table'
+                };
+                """);
+        write(draft.resolve("query/ClosableQuery.qm"), """
+                const dependency = loadTableModel('ClosableModel');
+                export const queryModel = {
+                    name: 'ClosableQuery',
+                    model: dependency
+                };
+                """);
+
+        DetachedModelValidationSession session = fixture.factory().open(
+                "closable-draft", NAMESPACE, draft.toString());
+        Bundle source = session.sourceBundle();
+        BundleResource query = source.findBundleResource("ClosableQuery.qm", true);
+        session.resolveQueryModel("ClosableQuery", NAMESPACE);
+        CatalogSnapshotStore detachedCatalog = (CatalogSnapshotStore)
+                ReflectionTestUtils.getField(session, "detachedCatalog");
+        RootFsscriptLoader detachedRoot = (RootFsscriptLoader)
+                ReflectionTestUtils.getField(session, "rootFsscriptLoader");
+        FileFsscriptLoader detachedFile = (FileFsscriptLoader)
+                ReflectionTestUtils.getField(session, "fileFsscriptLoader");
+        com.foggyframework.bundle.SystemBundlesContext executionContext =
+                session.executionBundlesContext();
+        assertThat(source.loadFsscript(
+                "ClosableQuery.qm", detachedFile, true)).isNotNull();
+
+        assertThat(detachedCatalog).isNotNull();
+        assertThat(detachedCatalog.current(NAMESPACE)).isPresent();
+        assertThat(detachedRoot.getPath2Fsscript()).isNotEmpty();
+        assertThat(((ExternalFileBundle) source).getName2Path()).isNotEmpty();
+        assertThat(executionContext.getApplicationContext()).isNotNull();
+
+        session.close();
+        session.close();
+
+        assertThat(detachedCatalog.current(NAMESPACE)).isEmpty();
+        assertThat(detachedRoot.getPath2Fsscript()).isEmpty();
+        assertThat(((ExternalFileBundle) source).getName2Path()).isEmpty();
+        assertThat(executionContext.getApplicationContext()).isNull();
+        assertThat(ReflectionTestUtils.getField(session, "detachedCatalog")).isNull();
+        assertThat(ReflectionTestUtils.getField(session, "rootFsscriptLoader")).isNull();
+        assertThat(ReflectionTestUtils.getField(session, "fileFsscriptLoader")).isNull();
+        assertThat(ReflectionTestUtils.getField(
+                session, "detachedTableModelLoaderManager")).isNull();
+        assertThat(ReflectionTestUtils.getField(
+                session, "detachedQueryModelLoader")).isNull();
+        assertThatThrownBy(() -> session.validateQueryModel(query))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("closed");
+        assertThatThrownBy(() -> session.resolveQueryModel(
+                "ClosableQuery", NAMESPACE))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("closed");
+        assertThatThrownBy(session::executionBundlesContext)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("closed");
         assertLiveStateUnchanged(fixture, before);
     }
 

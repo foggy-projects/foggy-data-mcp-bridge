@@ -2,6 +2,9 @@ package com.foggyframework.dataset.model.validation;
 
 import com.foggyframework.bundle.Bundle;
 import com.foggyframework.bundle.BundleResource;
+import com.foggyframework.bundle.SystemBundlesContext;
+import com.foggyframework.dataset.model.lifecycle.catalog.CatalogResolution;
+import com.foggyframework.dataset.model.spi.QueryModel;
 
 /**
  * Request-local validation session whose model/script state cannot publish to
@@ -16,6 +19,20 @@ public interface DetachedModelValidationSession extends AutoCloseable {
     void validateTableModel(BundleResource resource, String namespace);
 
     void validateQueryModel(BundleResource resource);
+
+    /**
+     * Resolve a query model from the request-local catalog used by this
+     * detached session.
+     */
+    CatalogResolution<QueryModel> resolveQueryModel(
+            String queryModelName,
+            String namespace
+    );
+
+    /**
+     * Read-only Bundle view paired with the detached model resolution.
+     */
+    SystemBundlesContext executionBundlesContext();
 
     @Override
     void close();

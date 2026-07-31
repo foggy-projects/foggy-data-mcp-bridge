@@ -24,6 +24,8 @@ import com.foggyframework.dataset.model.engine.pivot.PivotOuterCacheSafeProvider
 import com.foggyframework.dataset.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.model.impl.model.AggregateRelationDiagnostic;
 import com.foggyframework.dataset.model.impl.model.AggregateRelationQueryObject;
+import com.foggyframework.dataset.model.lifecycle.catalog.CatalogResolution;
+import com.foggyframework.dataset.model.lifecycle.identity.CatalogIdentity;
 import com.foggyframework.dataset.model.port.AdvancedQueryExecutionPort;
 import com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.model.semantic.domain.DomainTransportPlanSpec;
@@ -252,7 +254,8 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         context.originalRequest = request;
 
         // 2. 构建初始JDBC请求
-        PagingRequest<DbQueryRequestDef> jdbcRequest = buildJdbcRequest(model, request, context, namespace);
+        PagingRequest<DbQueryRequestDef> jdbcRequest = buildJdbcRequest(
+                model, request, context, namespace, reqContext);
 
         // 3. 创建ModelResultContext，标记为语义查询，设置SecurityContext、Namespace和列权限
         ModelResultContext resultContext = buildSemanticResultContext(jdbcRequest, request, reqContext);
@@ -306,7 +309,9 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                 jdbcRequest.getParam(),
                 queryResult,
                 context,
-                dbQueryResult != null && dbQueryResult.getQueryEngine() != null ? dbQueryResult.getQueryEngine().getJdbcQueryModel() : queryModelLoader.getJdbcQueryModel(model, reqContext.getNamespace())
+                dbQueryResult != null && dbQueryResult.getQueryEngine() != null
+                        ? dbQueryResult.getQueryEngine().getJdbcQueryModel()
+                        : resolveQueryModel(model, reqContext.getNamespace(), reqContext)
         );
 
         // 7. 添加调试信息
@@ -344,7 +349,8 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             throw RX.throwB("TERMINAL_PLAN_NOT_EXECUTABLE: CLARIFY/REJECT terminal plans must not enter SQL generation.");
         }
         if (isSemanticSqlPlan(request)) {
-            QueryModel queryModel = queryModelLoader.getJdbcQueryModel(model, context.getNamespace());
+            QueryModel queryModel = resolveQueryModel(
+                    model, context.getNamespace(), context);
             semanticSqlAstValidation(model, request, queryModel, context);
             Map<String, Object> dslPlan = SemanticSqlToDslMapper.map(model, request.getSemanticSql(), queryModel, context);
             if (semanticSqlCompileToDslEnabled(request)) {
@@ -380,7 +386,8 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         qctx.originalRequest = request;
 
         // 2. 构建初始JDBC请求
-        PagingRequest<DbQueryRequestDef> jdbcRequest = buildJdbcRequest(model, request, qctx, namespace);
+        PagingRequest<DbQueryRequestDef> jdbcRequest = buildJdbcRequest(
+                model, request, qctx, namespace, context);
 
         // 3. 创建ModelResultContext（含列权限）
         ModelResultContext resultContext = buildSemanticResultContext(jdbcRequest, request, context);
@@ -460,6 +467,12 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             if (context.getCatalogResolution() != null) {
                 resultContext.pinCatalogResolution(
                         context.getCatalogResolution(), context.getNamespace());
+            }
+            if (context.getExecutionBundlesContext() != null) {
+                resultContext.setExecutionBundlesContext(
+                        context.getExecutionBundlesContext());
+                resultContext.setCacheConfig(
+                        ModelResultContext.QueryCacheConfig.noOptimization());
             }
         }
 
@@ -1030,7 +1043,8 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         }
         validateTimeWindowResultStageBoundary(request);
 
-        QueryModel queryModel = queryModelLoader.getJdbcQueryModel(model, namespace);
+        QueryModel queryModel = resolveQueryModel(
+                model, namespace, requestContext);
         if (queryModel == null) {
             throw RX.throwB("模型不存在: " + model);
         }
@@ -1039,7 +1053,8 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         context.model = model;
         context.originalRequest = request;
 
-        PagingRequest<DbQueryRequestDef> jdbcRequest = buildJdbcRequest(model, request, context, namespace);
+        PagingRequest<DbQueryRequestDef> jdbcRequest = buildJdbcRequest(
+                model, request, context, namespace, requestContext);
         addRawMeasureSelectionWarnings(
                 jdbcRequest.getParam().getColumns(),
                 jdbcRequest.getParam().getGroupBy() != null && !jdbcRequest.getParam().getGroupBy().isEmpty(),
@@ -1267,8 +1282,13 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
     /**
      * 构建JDBC查询请求（V3版本：直接透传字段名）
      */
-    private PagingRequest<DbQueryRequestDef> buildJdbcRequest(String model, SemanticQueryRequest request,
-                                                               QueryContextV3 context, String namespace) {
+    private PagingRequest<DbQueryRequestDef> buildJdbcRequest(
+            String model,
+            SemanticQueryRequest request,
+            QueryContextV3 context,
+            String namespace,
+            SemanticRequestContext requestContext
+    ) {
         DbQueryRequestDef queryDef = new DbQueryRequestDef();
         queryDef.setQueryModel(model);
         queryDef.setReturnTotal(request.getReturnTotal());
@@ -1280,7 +1300,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                 : new HashMap<>(request.getExtData()));
 
         // 获取模型定义用于字段校验（带命名空间）
-        QueryModel queryModel = queryModelLoader.getJdbcQueryModel(model, namespace);
+        QueryModel queryModel = resolveQueryModel(model, namespace, requestContext);
 
         // --- Case-insensitive canonical field resolution ---
         if (CaseInsensitiveFieldResolver.isEnabled() && queryModel != null) {
@@ -1393,6 +1413,31 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         }
 
         return pagingRequest;
+    }
+
+    private QueryModel resolveQueryModel(
+            String model,
+            String namespace,
+            SemanticRequestContext requestContext
+    ) {
+        CatalogResolution<QueryModel> pinned = requestContext == null
+                ? null
+                : requestContext.getCatalogResolution();
+        if (pinned == null) {
+            return queryModelLoader.getJdbcQueryModel(model, namespace);
+        }
+        if (!pinned.canonicalName().equals(model)) {
+            throw new IllegalStateException(
+                    "CANDIDATE_MODEL_MISMATCH: requested model does not match "
+                            + "the request-local catalog resolution");
+        }
+        String canonicalNamespace = CatalogIdentity.canonicalNamespace(namespace);
+        if (!canonicalNamespace.equals(pinned.catalogIdentity().namespace())) {
+            throw new IllegalStateException(
+                    "CANDIDATE_NAMESPACE_MISMATCH: request-local catalog resolution "
+                            + "belongs to another namespace");
+        }
+        return pinned.model();
     }
 
     /**

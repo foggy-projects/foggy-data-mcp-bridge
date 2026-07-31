@@ -12,10 +12,12 @@ import com.foggyframework.dataset.model.def.query.DbQueryModelDef;
 import com.foggyframework.dataset.model.engine.query_model.QueryModelLoaderImpl;
 import com.foggyframework.dataset.model.impl.loader.TableModelLoaderManagerImpl;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogSnapshotStore;
+import com.foggyframework.dataset.model.lifecycle.catalog.CatalogResolution;
 import com.foggyframework.dataset.model.proxy.LoadTableModelFunction;
 import com.foggyframework.dataset.model.spi.DetachedQueryModelBuilderFactory;
 import com.foggyframework.dataset.model.spi.QueryModelBuilder;
 import com.foggyframework.dataset.model.spi.QueryModelLoader;
+import com.foggyframework.dataset.model.spi.QueryModel;
 import com.foggyframework.dataset.model.spi.TableModelLoader;
 import com.foggyframework.dataset.model.spi.TableModelLoaderManager;
 import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
@@ -59,6 +61,8 @@ final class DetachedModelValidationSessionImpl
     private FileFsscriptLoader fileFsscriptLoader;
     private TableModelLoaderManager detachedTableModelLoaderManager;
     private QueryModelLoader detachedQueryModelLoader;
+    private CatalogSnapshotStore detachedCatalog;
+    private boolean closed;
 
     DetachedModelValidationSessionImpl(
             SystemBundlesContext liveBundlesContext,
@@ -89,6 +93,7 @@ final class DetachedModelValidationSessionImpl
 
     @Override
     public Bundle sourceBundle() {
+        requireOpen();
         return sourceBundle;
     }
 
@@ -113,14 +118,57 @@ final class DetachedModelValidationSessionImpl
     }
 
     @Override
-    public void close() {
-        if (rootFsscriptLoader != null) {
-            rootFsscriptLoader.clear();
+    public CatalogResolution<QueryModel> resolveQueryModel(
+            String queryModelName,
+            String namespace
+    ) {
+        ensureLoaders();
+        if (detachedQueryModelLoader == null) {
+            throw new IllegalStateException(
+                    "Detached query resolution requires production TM/QM loaders");
         }
-        sourceBundle.clearCache();
+        return detachedQueryModelLoader.resolveJdbcQueryModel(
+                queryModelName, namespace);
+    }
+
+    @Override
+    public SystemBundlesContext executionBundlesContext() {
+        ensureLoaders();
+        return detachedBundlesContext;
+    }
+
+    @Override
+    public void close() {
+        if (closed) {
+            return;
+        }
+        closed = true;
+        RuntimeException cleanupFailure = null;
+        try {
+            if (detachedCatalog != null) {
+                cleanupFailure = cleanup(
+                        cleanupFailure, detachedCatalog::clearAll);
+            }
+            if (rootFsscriptLoader != null) {
+                cleanupFailure = cleanup(
+                        cleanupFailure, rootFsscriptLoader::clear);
+            }
+            cleanupFailure = cleanup(cleanupFailure, sourceBundle::clearCache);
+        } finally {
+            detachedBundlesContext.setApplicationContext(null);
+            rootFsscriptLoader = null;
+            fileFsscriptLoader = null;
+            detachedTableModelLoaderManager = null;
+            detachedQueryModelLoader = null;
+            detachedCatalog = null;
+        }
+        if (cleanupFailure != null) {
+            throw cleanupFailure;
+        }
     }
 
     private void ensureLoaders() {
+        requireOpen();
         if (fileFsscriptLoader != null) {
             return;
         }
@@ -144,7 +192,7 @@ final class DetachedModelValidationSessionImpl
 
         if (liveTableModelLoaderManager instanceof TableModelLoaderManagerImpl liveTableManager
                 && liveQueryModelLoader instanceof QueryModelLoaderImpl liveQueryLoader) {
-            CatalogSnapshotStore detachedCatalog = new CatalogSnapshotStore();
+            detachedCatalog = new CatalogSnapshotStore();
             detachedTableModelLoaderManager = detachedTableModelLoaderManager(
                     liveTableManager,
                     detachedCatalog
@@ -154,6 +202,29 @@ final class DetachedModelValidationSessionImpl
                     (TableModelLoaderManagerImpl) detachedTableModelLoaderManager,
                     detachedCatalog
             );
+        }
+    }
+
+    private void requireOpen() {
+        if (closed) {
+            throw new IllegalStateException(
+                    "Detached model validation session is closed");
+        }
+    }
+
+    private static RuntimeException cleanup(
+            RuntimeException previous,
+            Runnable action
+    ) {
+        try {
+            action.run();
+            return previous;
+        } catch (RuntimeException failure) {
+            if (previous == null) {
+                return failure;
+            }
+            previous.addSuppressed(failure);
+            return previous;
         }
     }
 
@@ -395,7 +466,14 @@ final class DetachedModelValidationSessionImpl
 
         @Override
         public List<Bundle> getBundleList() {
-            return List.of(sourceBundle);
+            List<Bundle> bundles = new ArrayList<>();
+            bundles.add(sourceBundle);
+            for (Bundle bundle : live.getBundleList()) {
+                if (bundle != null && !sourceBundle.getName().equals(bundle.getName())) {
+                    bundles.add(bundle);
+                }
+            }
+            return List.copyOf(bundles);
         }
 
         @Override

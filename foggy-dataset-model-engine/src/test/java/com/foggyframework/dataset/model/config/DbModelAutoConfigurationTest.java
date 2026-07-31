@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.model.config;
 
 import com.foggyframework.dataset.model.engine.formula.SqlFormulaService;
+import com.foggyframework.dataset.model.candidate.CandidateQueryFactory;
 import com.foggyframework.dataset.model.plugins.query_execution.QueryExecutionStepExecutor;
 import com.foggyframework.dataset.model.plugins.result_set_filter.DataSetResultFilterManager;
 import com.foggyframework.dataset.model.semantic.permission.AuthorizationSignatureService;
@@ -64,6 +65,14 @@ class DbModelAutoConfigurationTest {
         DetachedModelValidationFactory factory =
                 applicationContext.getBean(DetachedModelValidationFactory.class);
         assertNotNull(factory, "DetachedModelValidationFactory should be registered");
+    }
+
+    @Test
+    @DisplayName("CandidateQueryFactory Bean 已注册")
+    void testCandidateQueryFactoryRegistered() {
+        CandidateQueryFactory factory =
+                applicationContext.getBean(CandidateQueryFactory.class);
+        assertNotNull(factory, "CandidateQueryFactory should be registered");
     }
 
     @Test

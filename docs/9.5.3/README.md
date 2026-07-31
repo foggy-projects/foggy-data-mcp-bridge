@@ -19,6 +19,7 @@ catalog、Git 凭据管理、跨 Runtime 编排或 Agent。
 | Work item | 状态 | 目标 |
 |---|---|---|
 | [模型创作基础技术探针](workitems/SPIKE-runtime-model-authoring-foundations.md) | ACCEPTED | 已用真实 external/JAR/FSScript 路径确认 detached overlay 与隔离能力，并完成当前缺口分类 |
+| [Runtime candidate-query overlay](workitems/FEATURE-runtime-candidate-query-overlay.md) | ACCEPTED | 已验收 request-local candidate resolve/validate/query 原语，复用权限与执行链并隔离 live catalog/cache |
 
 技术基线和建议交付顺序见
 [Runtime 模型创作工作区设计与路线](runtime-model-authoring-design.md)。
@@ -40,15 +41,17 @@ catalog、Git 凭据管理、跨 Runtime 编排或 Agent。
   TM 及其 FSScript；source overlay；成功/失败后的 live catalog/cache/source revision 隔离。
 - `small-extension`：完整 Bundle capability inventory、JAR/classpath 可见性、工作区
   `.fsscript` resource contract。
-- `new-runtime-primitive`：受治理的 request-local candidate query、workspace revision/publish
-  边界，以及后续显式 JAR 多 Namespace binding。
+- `delivered-internal-primitive`：受治理的 request-local candidate query 已实现为 engine/Runtime
+  内部端口；当前不新增 REST route，并显式拒绝尚未安全 pin 的高级查询模式。
+- `new-runtime-primitive`：workspace revision/publish 边界，以及后续显式 JAR 多 Namespace
+  binding。
 - 当前 `/resources/save` 只适合作为 Runtime-managed external Bundle 的低层写入能力，不能直接
   充当“保存草稿并发布”。
 
 ## 建议推进顺序
 
-1. Runtime candidate-query overlay。
-2. Runtime authoring workspace/revision API。
+1. Runtime candidate-query overlay（已实现并完成独立验收）。
+2. Runtime authoring workspace/revision API（下一 workitem）。
 3. Console 最小手工创作与开发环境发布闭环。
 4. release package、生产验证、apply 与 rollback。
 5. 可选 Git adapter。

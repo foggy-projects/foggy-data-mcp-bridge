@@ -2,7 +2,7 @@
 doc_role: architecture
 status: canonical
 baseline: main-after-9.5.0
-last_reviewed: 2026-07-25
+last_reviewed: 2026-07-31
 ---
 
 # 运行时与模型生命周期
@@ -102,7 +102,34 @@ stateDiagram-v2
 刷新失败时，已发布 generation 保持可用；查询不能观察到半构建 candidate。成功刷新后，
 catalog identity、namespace、source revision、binding generation 和发布 generation 必须一致。
 
-## 6. 查询与执行
+## 6. Request-local candidate 查询
+
+9.5.3 增加了 engine/Runtime 内部 candidate execution port，供后续 authoring workspace 对一个
+不可变草稿 Bundle revision 执行 validate 和普通 JDBC semantic query。它不是新的 REST API，
+也不承担 workspace 保存、publish 或 refresh。
+
+该路径遵循以下不变量：
+
+- Runtime 入口只接受 enabled Runtime-managed external Bundle，并校验目标 Namespace；
+- 草稿 identity 是 TM/QM/FSScript 相对路径与字节的内容寻址 revision，同时固定创建时的
+  Namespace source revision；
+- detached production loader 构造 request-local TM/QM/FSScript、catalog resolution 和只读
+  Bundle view；validate 与 execute 固定使用同一个 model instance 和 catalog identity；
+- source overlay 只可替换 selected Bundle 自身的 TM/QM；遮蔽其他 Runtime-managed、configured
+  external 或 JAR/classpath Bundle 的同名资源必须 fail closed；
+- 数据源、opaque Authorization、模型动作权限、字段/行权限、物理列 guard 和 JDBC 执行继续
+  复用目标 Namespace 的既有流水线；
+- candidate 禁用共享 L1/L2 cache、pre-aggregation 和 hybrid query，不发布 catalog，不修改
+  Bundle inventory 或 committed source revision；
+- 每次语义调用前后都重新检查 live source revision 和草稿内容 revision；任一漂移返回稳定 stale
+  错误，不能回退到 live 同名模型；
+- pivot、Compose/CTE、Semantic SQL、memory-grid、synthetic member 等尚未具备完整 request-local
+  dependency pin 的模式显式拒绝；session close 释放候选 model/catalog/script 引用。
+
+该机制不创建临时 Namespace，也不把 candidate catalog 持久化为第二套运行时真值。工作区
+revision/store、`.fsscript` 资源契约、发布与恢复仍属于后续 lifecycle workitem。
+
+## 7. 查询与执行
 
 主流程：
 
@@ -131,7 +158,7 @@ Compose、pivot、semantic planner 和 memory-grid routing 是 engine 能力，�
 脚本能力，必须放在作者/管理面并由管理凭据保护；普通查询身份不能借该入口执行 `get/post` 或
 导入宿主 Bean。
 
-## 7. 缓存与失效
+## 8. 缓存与失效
 
 查询缓存 provider 当前只声明 `CACHE_INVALIDATION`。这表示它实现按契约触发失效，不表示它
 拥有模型加载、原子刷新或 namespace 管理能力。
@@ -144,7 +171,7 @@ Compose、pivot、semantic planner 和 memory-grid routing 是 engine 能力，�
 超过权限决策 expiry。预聚合物理表默认按 `GLOBAL` 处理，不能使用某个用户权限快照构建后全局
 共享；`SECURITY_SCOPED` 未完整实现 scope identity、刷新和匹配时必须 fail fast。
 
-## 8. 错误契约
+## 9. 错误契约
 
 以下情况必须显式、可诊断地失败：
 

@@ -175,7 +175,8 @@ public class QueryFacadeImpl implements AdvancedQueryFacade {
             }
 
             // 4. 执行查询（内部包含 L2 缓存逻辑）
-            DbQueryResult dbQueryResult = jdbcQueryModel.query(systemBundlesContext, context);
+            DbQueryResult dbQueryResult = jdbcQueryModel.query(
+                    executionBundlesContext(context), context);
             QueryEngine queryEngine = dbQueryResult.getQueryEngine();
 
             // Query execution must remain attached to the exact model instance
@@ -244,7 +245,7 @@ public class QueryFacadeImpl implements AdvancedQueryFacade {
 
             // 3. 仅生成 SQL，不执行
             if (queryModel instanceof JdbcQueryModelImpl jdbcImpl) {
-                return jdbcImpl.generateSql(systemBundlesContext, context);
+                return jdbcImpl.generateSql(executionBundlesContext(context), context);
             }
 
             throw new UnsupportedOperationException(
@@ -274,7 +275,8 @@ public class QueryFacadeImpl implements AdvancedQueryFacade {
             }
 
             if (queryModel instanceof JdbcQueryModelImpl jdbcImpl) {
-                return jdbcImpl.prepareManagedRelation(systemBundlesContext, context, options);
+                return jdbcImpl.prepareManagedRelation(
+                        executionBundlesContext(context), context, options);
             }
 
             throw new com.foggyframework.dataset.model.engine.pivot.sql.PivotPushdownUnsupportedException(
@@ -287,6 +289,16 @@ public class QueryFacadeImpl implements AdvancedQueryFacade {
             String queryModelName,
             String namespace
     ) {
+        if (context.getExecutionBundlesContext() != null) {
+            if (context.getCatalogIdentity() == null
+                    || context.getQueryModel() == null
+                    || !queryModelName.equals(context.getCanonicalModelName())) {
+                throw new IllegalStateException(
+                        "CANDIDATE_MODEL_RESOLUTION_REQUIRED: request-local execution "
+                                + "requires one matching catalog resolution");
+            }
+            return context.getQueryModel();
+        }
         CatalogResolution<QueryModel> resolution =
                 queryModelLoader.resolveJdbcQueryModel(queryModelName, namespace);
         // Compatibility for external/legacy QueryModelLoader implementations
@@ -299,6 +311,12 @@ public class QueryFacadeImpl implements AdvancedQueryFacade {
         }
         context.pinCatalogResolution(resolution, namespace);
         return resolution.model();
+    }
+
+    private SystemBundlesContext executionBundlesContext(ModelResultContext context) {
+        return context != null && context.getExecutionBundlesContext() != null
+                ? context.getExecutionBundlesContext()
+                : systemBundlesContext;
     }
 
     @Override
