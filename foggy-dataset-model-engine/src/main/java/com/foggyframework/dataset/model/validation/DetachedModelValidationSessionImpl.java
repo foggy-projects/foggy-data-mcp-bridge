@@ -108,6 +108,15 @@ final class DetachedModelValidationSessionImpl
     }
 
     @Override
+    public void validateFsscript(BundleResource resource) {
+        ensureLoaders();
+        if (fileFsscriptLoader.findLoadFsscript(resource) == null) {
+            throw new IllegalStateException(
+                    "FSScript could not be loaded: " + relativeName(resource));
+        }
+    }
+
+    @Override
     public void validateQueryModel(BundleResource resource) {
         ensureLoaders();
         if (detachedQueryModelLoader != null) {
@@ -562,7 +571,42 @@ final class DetachedModelValidationSessionImpl
                     return resource;
                 }
             }
-            return live.findResourceByName(name, namespace, errorIfNotFound);
+            return findLiveDependencyResource(name, namespace, errorIfNotFound);
+        }
+
+        private BundleResource findLiveDependencyResource(
+                String name,
+                String namespace,
+                boolean errorIfNotFound
+        ) {
+            String requestedNamespace = canonicalNamespace(namespace);
+            List<BundleResource> matches = new ArrayList<>();
+            for (Bundle bundle : live.getBundleList()) {
+                if (bundle == null || sourceBundle.getName().equals(bundle.getName())
+                        || bundle.getDefinition() == null
+                        || !requestedNamespace.equals(canonicalNamespace(
+                        bundle.getDefinition().getNamespace()))) {
+                    continue;
+                }
+                Resource[] resources = bundle.findResources("**/" + name);
+                if (resources != null) {
+                    for (Resource resource : resources) {
+                        matches.add(new BundleResource(bundle, resource));
+                    }
+                }
+            }
+            if (matches.size() == 1) {
+                return matches.get(0);
+            }
+            if (matches.size() > 1) {
+                throw new IllegalStateException(
+                        "Multiple detached dependency resources found: " + name);
+            }
+            if (errorIfNotFound) {
+                throw new IllegalStateException(
+                        "Detached dependency resource not found: " + name);
+            }
+            return null;
         }
 
         @Override

@@ -20,6 +20,7 @@ catalog、Git 凭据管理、跨 Runtime 编排或 Agent。
 |---|---|---|
 | [模型创作基础技术探针](workitems/SPIKE-runtime-model-authoring-foundations.md) | ACCEPTED | 已用真实 external/JAR/FSScript 路径确认 detached overlay 与隔离能力，并完成当前缺口分类 |
 | [Runtime candidate-query overlay](workitems/FEATURE-runtime-candidate-query-overlay.md) | ACCEPTED | 已验收 request-local candidate resolve/validate/query 原语，复用权限与执行链并隔离 live catalog/cache |
+| [Runtime authoring workspace API](workitems/FEATURE-runtime-authoring-workspace-api.md) | READY_FOR_SIGNOFF | Runtime-local workspace、不可变 revision、TM/QM/FSScript、diff/validate/query、安全与兼容实现已完成，待独立验收 |
 
 技术基线和建议交付顺序见
 [Runtime 模型创作工作区设计与路线](runtime-model-authoring-design.md)。
@@ -51,7 +52,7 @@ catalog、Git 凭据管理、跨 Runtime 编排或 Agent。
 ## 建议推进顺序
 
 1. Runtime candidate-query overlay（已实现并完成独立验收）。
-2. Runtime authoring workspace/revision API（下一 workitem）。
+2. Runtime authoring workspace/revision API（实现完成，待独立验收）。
 3. Console 最小手工创作与开发环境发布闭环。
 4. release package、生产验证、apply 与 rollback。
 5. 可选 Git adapter。

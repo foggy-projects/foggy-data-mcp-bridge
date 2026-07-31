@@ -17,6 +17,7 @@ public class FoggyRuntimeApiProperties {
     private BundleRegistry bundleRegistry = new BundleRegistry();
     private DatasourceRegistry datasourceRegistry = new DatasourceRegistry();
     private DatasourcePool datasourcePool = new DatasourcePool();
+    private AuthoringWorkspaces authoringWorkspaces = new AuthoringWorkspaces();
 
     public boolean isEnabled() {
         return enabled;
@@ -104,6 +105,80 @@ public class FoggyRuntimeApiProperties {
 
     public void setDatasourcePool(DatasourcePool datasourcePool) {
         this.datasourcePool = datasourcePool;
+    }
+
+    public AuthoringWorkspaces getAuthoringWorkspaces() {
+        return authoringWorkspaces;
+    }
+
+    public void setAuthoringWorkspaces(AuthoringWorkspaces authoringWorkspaces) {
+        this.authoringWorkspaces = authoringWorkspaces;
+    }
+
+    public static class AuthoringWorkspaces {
+        private String path = ".foggy-runtime/authoring-workspaces";
+        private int maxActiveWorkspaces = 128;
+        private int maxResourcesPerRevision = 512;
+        private long maxResourceBytes = 1048576L;
+        private long maxRevisionBytes = 16777216L;
+        private int maxBatchOperations = 128;
+        private int maxPathBytes = 512;
+
+        public String getPath() {
+            return path;
+        }
+
+        public void setPath(String path) {
+            this.path = path;
+        }
+
+        public int getMaxActiveWorkspaces() {
+            return maxActiveWorkspaces;
+        }
+
+        public void setMaxActiveWorkspaces(int maxActiveWorkspaces) {
+            this.maxActiveWorkspaces = maxActiveWorkspaces;
+        }
+
+        public int getMaxResourcesPerRevision() {
+            return maxResourcesPerRevision;
+        }
+
+        public void setMaxResourcesPerRevision(int maxResourcesPerRevision) {
+            this.maxResourcesPerRevision = maxResourcesPerRevision;
+        }
+
+        public long getMaxResourceBytes() {
+            return maxResourceBytes;
+        }
+
+        public void setMaxResourceBytes(long maxResourceBytes) {
+            this.maxResourceBytes = maxResourceBytes;
+        }
+
+        public long getMaxRevisionBytes() {
+            return maxRevisionBytes;
+        }
+
+        public void setMaxRevisionBytes(long maxRevisionBytes) {
+            this.maxRevisionBytes = maxRevisionBytes;
+        }
+
+        public int getMaxBatchOperations() {
+            return maxBatchOperations;
+        }
+
+        public void setMaxBatchOperations(int maxBatchOperations) {
+            this.maxBatchOperations = maxBatchOperations;
+        }
+
+        public int getMaxPathBytes() {
+            return maxPathBytes;
+        }
+
+        public void setMaxPathBytes(int maxPathBytes) {
+            this.maxPathBytes = maxPathBytes;
+        }
     }
 
     public static class BundleRegistry {

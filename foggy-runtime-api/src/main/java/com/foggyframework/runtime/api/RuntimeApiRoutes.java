@@ -38,6 +38,25 @@ public final class RuntimeApiRoutes {
         public static final String COMPOSE_EXECUTE = COMPOSE + "/execute";
         public static final String FSSCRIPT = "/fsscript";
         public static final String FSSCRIPT_EXECUTE = FSSCRIPT + "/execute";
+        public static final String AUTHORING_WORKSPACES = "/authoring/workspaces";
+        public static final String AUTHORING_WORKSPACE =
+                AUTHORING_WORKSPACES + "/{workspaceId}";
+        public static final String AUTHORING_RESOURCES =
+                AUTHORING_WORKSPACE + "/resources";
+        public static final String AUTHORING_RESOURCE_CONTENT =
+                AUTHORING_RESOURCES + "/content";
+        public static final String AUTHORING_RESOURCES_SAVE =
+                AUTHORING_RESOURCES + "/save";
+        public static final String AUTHORING_RESOURCES_DELETE =
+                AUTHORING_RESOURCES + "/delete";
+        public static final String AUTHORING_DIFF =
+                AUTHORING_WORKSPACE + "/diff";
+        public static final String AUTHORING_VALIDATE =
+                AUTHORING_WORKSPACE + "/validate";
+        public static final String AUTHORING_QUERY_VALIDATE =
+                AUTHORING_WORKSPACE + "/query/{model}/validate";
+        public static final String AUTHORING_QUERY_EXECUTE =
+                AUTHORING_WORKSPACE + "/query/{model}/execute";
 
         private V1() {
         }
@@ -69,6 +88,27 @@ public final class RuntimeApiRoutes {
         public static final String COMPOSE_PREVIEW = API_V1 + V1.COMPOSE_PREVIEW;
         public static final String COMPOSE_EXECUTE = API_V1 + V1.COMPOSE_EXECUTE;
         public static final String FSSCRIPT_EXECUTE = API_V1 + V1.FSSCRIPT_EXECUTE;
+        public static final String AUTHORING_WORKSPACES =
+                API_V1 + V1.AUTHORING_WORKSPACES;
+        public static final String AUTHORING_WORKSPACES_PATTERN =
+                AUTHORING_WORKSPACES + "/**";
+        public static final String AUTHORING_WORKSPACE =
+                API_V1 + V1.AUTHORING_WORKSPACE;
+        public static final String AUTHORING_RESOURCES =
+                API_V1 + V1.AUTHORING_RESOURCES;
+        public static final String AUTHORING_RESOURCE_CONTENT =
+                API_V1 + V1.AUTHORING_RESOURCE_CONTENT;
+        public static final String AUTHORING_RESOURCES_SAVE =
+                API_V1 + V1.AUTHORING_RESOURCES_SAVE;
+        public static final String AUTHORING_RESOURCES_DELETE =
+                API_V1 + V1.AUTHORING_RESOURCES_DELETE;
+        public static final String AUTHORING_DIFF = API_V1 + V1.AUTHORING_DIFF;
+        public static final String AUTHORING_VALIDATE =
+                API_V1 + V1.AUTHORING_VALIDATE;
+        public static final String AUTHORING_QUERY_VALIDATE =
+                API_V1 + V1.AUTHORING_QUERY_VALIDATE;
+        public static final String AUTHORING_QUERY_EXECUTE =
+                API_V1 + V1.AUTHORING_QUERY_EXECUTE;
         public static final String LEGACY_BUNDLE_ADD = LEGACY_BUNDLES_API + "/add";
         public static final String LEGACY_BUNDLE_REMOVE = LEGACY_BUNDLES_API + "/remove/{bundleName}";
 

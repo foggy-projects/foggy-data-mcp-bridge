@@ -221,6 +221,43 @@ class DetachedModelAuthoringFoundationProbeTest {
     }
 
     @Test
+    void candidateDeletionDoesNotFallBackToSelectedLiveBundle(
+            @TempDir Path tempDirectory
+    ) throws Exception {
+        Path liveDirectory = createLiveExternalBundle(tempDirectory);
+        write(liveDirectory.resolve("query/SelectedLiveOnlyQuery.qm"), """
+                const dependency = loadTableModel('OverlayModel');
+                export const queryModel = {
+                    name: 'SelectedLiveOnlyQuery',
+                    model: dependency
+                };
+                """);
+        Path jar = createJarBundle(tempDirectory);
+        Fixture fixture = fixture(liveDirectory, jar);
+        LiveState before = fixture.captureLiveState();
+        Path candidate = tempDirectory.resolve("candidate-deletion");
+        write(candidate.resolve("shared/marker.fsscript"), """
+                export const marker = 'candidate-only';
+                """);
+
+        try (DetachedModelValidationSession session = fixture.factory().open(
+                "live-external", NAMESPACE, candidate.toString())) {
+            assertThat(session.executionBundlesContext().findResourceByName(
+                    "OverlayModel.tm", NAMESPACE, false)).isNull();
+            assertThat(session.executionBundlesContext().findResourceByName(
+                    "SelectedLiveOnlyQuery.qm", NAMESPACE, false)).isNull();
+            assertThat(session.executionBundlesContext().findResourceByName(
+                    "live-marker.fsscript", NAMESPACE, false)).isNull();
+            assertThat(session.executionBundlesContext().findResourceByName(
+                    "JarDependencyModel.tm", NAMESPACE, false))
+                    .extracting(resource -> resource.getBundle().getName())
+                    .isEqualTo("read-only-jar");
+        }
+
+        assertLiveStateUnchanged(fixture, before);
+    }
+
+    @Test
     void failedDetachedValidationDoesNotMutateLiveCatalogOrScriptCache(
             @TempDir Path tempDirectory
     ) throws Exception {

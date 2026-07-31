@@ -3,6 +3,7 @@ package com.foggyframework.runtime.api.controller;
 import com.foggyframework.runtime.api.RuntimeApiRoutes;
 import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
 import com.foggyframework.runtime.api.dto.CapabilitiesResponse;
+import com.foggyframework.runtime.api.dto.AuthoringWorkspaceLimits;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
 import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
 import com.foggyframework.runtime.api.service.RuntimeDatasourceRegistryService;
@@ -66,6 +67,11 @@ public class RuntimeCapabilitiesController {
         capabilities.put("compose.execute", "supported");
         capabilities.put("fsscript.execute", "supported");
         capabilities.put("fsscript.cteBridge", "supported");
+        capabilities.put("authoring.workspaces", "supported");
+        capabilities.put("authoring.resources", "supported");
+        capabilities.put("authoring.diff", "supported");
+        capabilities.put("authoring.validate", "supported");
+        capabilities.put("authoring.query", "supported");
 
         CapabilitiesResponse response = new CapabilitiesResponse(
                 responses.engine(),
@@ -74,7 +80,8 @@ public class RuntimeCapabilitiesController {
                 properties.isEnabled(),
                 properties.getEffectiveSecurityMode(),
                 capabilities,
-                warnings()
+                warnings(),
+                authoringLimits()
         );
 
         return responses.ok(response);
@@ -91,5 +98,19 @@ public class RuntimeCapabilitiesController {
             return List.of("Runtime API management operations require an auth code.");
         }
         return List.of("Runtime API is intended for development and testing only.");
+    }
+
+    private AuthoringWorkspaceLimits authoringLimits() {
+        FoggyRuntimeApiProperties.AuthoringWorkspaces configured =
+                properties.getAuthoringWorkspaces() == null
+                        ? new FoggyRuntimeApiProperties.AuthoringWorkspaces()
+                        : properties.getAuthoringWorkspaces();
+        return new AuthoringWorkspaceLimits(
+                configured.getMaxActiveWorkspaces(),
+                configured.getMaxResourcesPerRevision(),
+                configured.getMaxResourceBytes(),
+                configured.getMaxRevisionBytes(),
+                configured.getMaxBatchOperations(),
+                configured.getMaxPathBytes());
     }
 }

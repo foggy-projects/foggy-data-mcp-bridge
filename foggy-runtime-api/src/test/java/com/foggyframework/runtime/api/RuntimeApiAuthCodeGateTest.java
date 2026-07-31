@@ -47,6 +47,7 @@ import static org.mockito.Mockito.when;
                 "foggy.runtime-api.auth-code=runtime-secret",
                 "foggy.runtime-api.bundle-registry.path=target/runtime-api-auth-test-bundles-${random.uuid}.json",
                 "foggy.runtime-api.datasource-registry.path=target/runtime-api-auth-test-datasources-${random.uuid}.json",
+                "foggy.runtime-api.authoring-workspaces.path=target/runtime-api-auth-test-workspaces-${random.uuid}",
                 "spring.autoconfigure.exclude=com.foggyframework.dataset.model.DbModelAutoConfiguration,"
                         + "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration"
         }
@@ -136,6 +137,40 @@ class RuntimeApiAuthCodeGateTest {
         assertThat(response.getBody().path("success").asBoolean()).isFalse();
         assertThat(response.getBody().path("error").path("code").asText()).isEqualTo("RUNTIME_AUTH_REQUIRED");
         verify(systemBundlesContext, never()).addExternalBundle(eq("runtime-auth-demo"), eq("dev"), eq("."), anyBoolean());
+    }
+
+    @Test
+    void shouldExposeWorkspaceRoutesOnlyAfterManagementAuthentication() {
+        ResponseEntity<JsonNode> rejected = restTemplate.getForEntity(
+                url(RuntimeApiRoutes.Full.AUTHORING_WORKSPACES),
+                JsonNode.class);
+        assertThat(rejected.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+
+        ResponseEntity<JsonNode> listed = restTemplate.exchange(
+                url(RuntimeApiRoutes.Full.AUTHORING_WORKSPACES),
+                HttpMethod.GET,
+                new HttpEntity<>(authHeaders(
+                        RuntimeApiAuthInterceptor.AUTH_CODE_HEADER,
+                        "runtime-secret")),
+                JsonNode.class);
+        assertThat(listed.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(listed.getBody()).isNotNull();
+        assertThat(listed.getBody().path("success").asBoolean()).isTrue();
+        assertThat(listed.getBody().path("data").path("workspaces"))
+                .isEmpty();
+
+        ResponseEntity<JsonNode> invalidCreate = restTemplate.exchange(
+                url(RuntimeApiRoutes.Full.AUTHORING_WORKSPACES),
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of(), authHeaders(
+                        RuntimeApiAuthInterceptor.AUTH_CODE_HEADER,
+                        "runtime-secret")),
+                JsonNode.class);
+        assertThat(invalidCreate.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(invalidCreate.getBody().path("success").asBoolean())
+                .isFalse();
+        assertThat(invalidCreate.getBody().path("error").path("code").asText())
+                .isEqualTo("WORKSPACE_INVALID_REQUEST");
     }
 
     @Test
@@ -254,6 +289,52 @@ class RuntimeApiAuthCodeGateTest {
         assertRejectedByInterceptor("POST", RuntimeApiRoutes.Full.FSSCRIPT_EXECUTE);
         assertRejectedByInterceptor("POST", RuntimeApiRoutes.Full.LEGACY_BUNDLE_ADD);
         assertRejectedByInterceptor("DELETE", route(RuntimeApiRoutes.Full.LEGACY_BUNDLE_REMOVE, "bundleName", "demo"));
+        assertWorkspaceOperationsRejectedByInterceptor(
+                authInterceptor("runtime-secret"));
+    }
+
+    @Test
+    void shouldFailClosedForEveryWorkspaceRouteEvenWhenGlobalAuthIsDisabled()
+            throws Exception {
+        FoggyRuntimeApiProperties properties = new FoggyRuntimeApiProperties();
+        RuntimeApiAuthInterceptor interceptor = new RuntimeApiAuthInterceptor(
+                properties,
+                new RuntimeApiResponseFactory(properties),
+                new ObjectMapper());
+        String path = RuntimeApiRoutes.Full.AUTHORING_WORKSPACES;
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", path);
+        request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer business-token");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        boolean allowed = interceptor.preHandle(request, response, new Object());
+
+        assertThat(allowed).isFalse();
+        assertThat(response.getStatus())
+                .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE.value());
+        JsonNode body = new ObjectMapper().readTree(
+                response.getContentAsString());
+        assertThat(body.path("error").path("code").asText())
+                .isEqualTo("RUNTIME_AUTH_CODE_NOT_CONFIGURED");
+        assertThat(body.toString()).doesNotContain("business-token");
+    }
+
+    @Test
+    void shouldRequireManagementHeaderForAllWorkspaceMethodsAndIgnoreAuthorization()
+            throws Exception {
+        RuntimeApiAuthInterceptor interceptor = authInterceptor("runtime-secret");
+        assertWorkspaceOperationsRejectedByInterceptor(interceptor);
+
+        MockHttpServletRequest request = new MockHttpServletRequest(
+                "POST", route(RuntimeApiRoutes.Full.AUTHORING_QUERY_EXECUTE,
+                "workspaceId", "workspace-1")
+                .replace("{model}", "Order"));
+        request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer runtime-secret");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        assertThat(interceptor.preHandle(request, response, new Object()))
+                .isFalse();
+        assertThat(response.getStatus())
+                .isEqualTo(HttpStatus.UNAUTHORIZED.value());
     }
 
     @Test
@@ -363,6 +444,44 @@ class RuntimeApiAuthCodeGateTest {
 
         assertThat(allowed).as(method + " " + path).isTrue();
         assertThat(response.getStatus()).as(method + " " + path).isEqualTo(200);
+    }
+
+    private static void assertWorkspaceOperationsRejectedByInterceptor(
+            RuntimeApiAuthInterceptor interceptor
+    ) throws Exception {
+        String workspace = route(RuntimeApiRoutes.Full.AUTHORING_WORKSPACE,
+                "workspaceId", "workspace-1");
+        String resources = route(RuntimeApiRoutes.Full.AUTHORING_RESOURCES,
+                "workspaceId", "workspace-1");
+        String content = route(
+                RuntimeApiRoutes.Full.AUTHORING_RESOURCE_CONTENT,
+                "workspaceId", "workspace-1");
+        String save = route(RuntimeApiRoutes.Full.AUTHORING_RESOURCES_SAVE,
+                "workspaceId", "workspace-1");
+        String delete = route(RuntimeApiRoutes.Full.AUTHORING_RESOURCES_DELETE,
+                "workspaceId", "workspace-1");
+        String diff = route(RuntimeApiRoutes.Full.AUTHORING_DIFF,
+                "workspaceId", "workspace-1");
+        String validate = route(RuntimeApiRoutes.Full.AUTHORING_VALIDATE,
+                "workspaceId", "workspace-1");
+        String queryValidate = route(
+                RuntimeApiRoutes.Full.AUTHORING_QUERY_VALIDATE,
+                "workspaceId", "workspace-1").replace("{model}", "Order");
+        String queryExecute = route(
+                RuntimeApiRoutes.Full.AUTHORING_QUERY_EXECUTE,
+                "workspaceId", "workspace-1").replace("{model}", "Order");
+        for (String[] operation : new String[][]{
+                {"POST", RuntimeApiRoutes.Full.AUTHORING_WORKSPACES},
+                {"GET", RuntimeApiRoutes.Full.AUTHORING_WORKSPACES},
+                {"GET", workspace}, {"DELETE", workspace},
+                {"GET", resources}, {"GET", content},
+                {"POST", save}, {"POST", delete}, {"POST", diff},
+                {"POST", validate}, {"POST", queryValidate},
+                {"POST", queryExecute}
+        }) {
+            assertRejectedByInterceptor(
+                    interceptor, operation[0], operation[1]);
+        }
     }
 
     private static RuntimeApiAuthInterceptor authInterceptor(String authCode) {

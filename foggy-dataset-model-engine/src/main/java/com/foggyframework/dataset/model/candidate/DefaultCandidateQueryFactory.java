@@ -20,18 +20,12 @@ import com.foggyframework.dataset.model.validation.DetachedModelValidationSessio
 import com.foggyframework.fsscript.lifecycle.CommittedSourceRevisionRegistry;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -41,8 +35,6 @@ import java.util.stream.Stream;
 /** Production candidate-query adapter backed by detached TM/QM loaders. */
 public final class DefaultCandidateQueryFactory implements CandidateQueryFactory {
 
-    private static final List<String> SOURCE_SUFFIXES =
-            List.of(".tm", ".qm", ".fsscript");
     private static final List<String> ISOLATION_DIAGNOSTICS = List.of(
             "REQUEST_LOCAL_CATALOG_PINNED",
             "SHARED_L1_CACHE_DISABLED",
@@ -316,17 +308,14 @@ public final class DefaultCandidateQueryFactory implements CandidateQueryFactory
             CandidateSourceSnapshot snapshot,
             String phase
     ) {
-        Set<String> modelNames = new HashSet<>();
+        Set<String> resourceNames = new HashSet<>();
         for (Path file : snapshot.files()) {
             String filename = file.getFileName().toString();
-            if (!(filename.endsWith(".tm") || filename.endsWith(".qm"))) {
-                continue;
-            }
-            if (!modelNames.add(filename)) {
+            if (!resourceNames.add(filename)) {
                 throw failure(
                         CandidateQueryErrorCode.CANDIDATE_SOURCE_INVALID,
                         phase,
-                        "Candidate source contains duplicate model filenames",
+                        "Candidate source contains duplicate resource filenames",
                         filename
                 );
             }
@@ -338,7 +327,7 @@ public final class DefaultCandidateQueryFactory implements CandidateQueryFactory
                 CandidateQueryException failure = failure(
                         CandidateQueryErrorCode.CANDIDATE_OVERLAY_FORBIDDEN,
                         phase,
-                        "Candidate model ownership is ambiguous in the live namespace",
+                        "Candidate resource ownership is ambiguous in the live namespace",
                         filename
                 );
                 failure.addSuppressed(ambiguous);
@@ -351,7 +340,7 @@ public final class DefaultCandidateQueryFactory implements CandidateQueryFactory
                 throw failure(
                         CandidateQueryErrorCode.CANDIDATE_OVERLAY_FORBIDDEN,
                         phase,
-                        "Candidate model would shadow a resource owned by another Bundle",
+                        "Candidate resource would shadow a resource owned by another Bundle",
                         filename
                 );
             }
@@ -389,7 +378,8 @@ public final class DefaultCandidateQueryFactory implements CandidateQueryFactory
                                 safeRelative(root, path)
                         );
                     }
-                    if (Files.isRegularFile(path) && isCandidateSource(path)) {
+                    if (Files.isRegularFile(path)
+                            && CandidateContentRevision.isCandidateResource(path)) {
                         files.add(path);
                     }
                 }
@@ -403,7 +393,8 @@ public final class DefaultCandidateQueryFactory implements CandidateQueryFactory
                 );
             }
             return new CandidateSourceSnapshot(
-                    root, List.copyOf(files), contentRevision(root, files));
+                    root, List.copyOf(files),
+                    CandidateContentRevision.calculate(root, files));
         } catch (CandidateQueryException failure) {
             throw failure;
         } catch (IOException | RuntimeException failure) {
@@ -412,40 +403,6 @@ public final class DefaultCandidateQueryFactory implements CandidateQueryFactory
             invalid.addSuppressed(failure);
             throw invalid;
         }
-    }
-
-    private static String contentRevision(Path root, List<Path> files)
-            throws IOException {
-        MessageDigest digest;
-        try {
-            digest = MessageDigest.getInstance("SHA-256");
-        } catch (NoSuchAlgorithmException impossible) {
-            throw new IllegalStateException("SHA-256 is unavailable", impossible);
-        }
-        byte[] buffer = new byte[8192];
-        for (Path file : files) {
-            byte[] relative = safeRelative(root, file)
-                    .getBytes(StandardCharsets.UTF_8);
-            digest.update(ByteBuffer.allocate(Integer.BYTES)
-                    .putInt(relative.length).array());
-            digest.update(relative);
-            long size = Files.size(file);
-            digest.update(ByteBuffer.allocate(Long.BYTES).putLong(size).array());
-            try (InputStream input = Files.newInputStream(file)) {
-                int read;
-                while ((read = input.read(buffer)) >= 0) {
-                    if (read > 0) {
-                        digest.update(buffer, 0, read);
-                    }
-                }
-            }
-        }
-        return "sha256:" + HexFormat.of().formatHex(digest.digest());
-    }
-
-    private static boolean isCandidateSource(Path path) {
-        String filename = path.getFileName().toString();
-        return SOURCE_SUFFIXES.stream().anyMatch(filename::endsWith);
     }
 
     private static void requireSupportedRequest(

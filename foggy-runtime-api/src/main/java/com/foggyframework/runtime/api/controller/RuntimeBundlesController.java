@@ -2,6 +2,7 @@ package com.foggyframework.runtime.api.controller;
 
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.bundle.external.ExternalBundleDefinition;
+import com.foggyframework.bundle.external.ExternalBundleResourceSupport;
 import com.foggyframework.core.bundle.BundleDefinition;
 import com.foggyframework.runtime.api.RuntimeApiRoutes;
 import com.foggyframework.runtime.api.dto.BundleInfo;
@@ -12,6 +13,7 @@ import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
 import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
 import com.foggyframework.runtime.api.service.RuntimeBundleModelConflictDetector;
 import com.foggyframework.runtime.api.service.RuntimeBundleModelConflictDetector.ModelNameConflict;
+import com.foggyframework.runtime.api.service.RuntimeBundleInventoryService;
 import com.foggyframework.runtime.api.service.RuntimeBundleRegistryService;
 import com.foggyframework.runtime.api.service.RuntimeBundleRegistryService.RuntimeBundleRecord;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -40,6 +42,7 @@ public class RuntimeBundlesController {
     private final SystemBundlesContext systemBundlesContext;
     private final RuntimeBundleRegistryService registryService;
     private final RuntimeBundleModelConflictDetector modelConflictDetector;
+    private final RuntimeBundleInventoryService inventoryService;
 
     public RuntimeBundlesController(
             RuntimeApiResponseFactory responses,
@@ -51,28 +54,14 @@ public class RuntimeBundlesController {
         this.systemBundlesContext = systemBundlesContext;
         this.registryService = registryService;
         this.modelConflictDetector = modelConflictDetector;
+        this.inventoryService = new RuntimeBundleInventoryService(
+                systemBundlesContext, registryService);
     }
 
     @GetMapping(RuntimeApiRoutes.V1.BUNDLES)
     public RuntimeEnvelope<BundleListResponse> listBundles() {
-        Map<String, RuntimeBundleRecord> managedRecords = new LinkedHashMap<>();
-        for (RuntimeBundleRecord record : registryService.listRecords()) {
-            managedRecords.put(record.name(), record);
-        }
-
-        Map<String, BundleInfo> bundles = new LinkedHashMap<>();
-        for (BundleDefinition definition : systemBundlesContext.listExternalBundles()) {
-            BundleInfo info = infoFromDefinition(definition, managedRecords.containsKey(definition.getName()), "active", null);
-            bundles.put(info.name(), info);
-        }
-
-        for (RuntimeBundleRecord record : managedRecords.values()) {
-            if (!bundles.containsKey(record.name())) {
-                bundles.put(record.name(), infoFromRecord(record, "inactive", "Runtime-managed bundle is not currently registered."));
-            }
-        }
-
-        return responses.ok(new BundleListResponse(List.copyOf(bundles.values()), List.of()));
+        return responses.ok(new BundleListResponse(
+                inventoryService.list(), List.of()));
     }
 
     @PostMapping(RuntimeApiRoutes.V1.BUNDLES)
@@ -244,7 +233,12 @@ public class RuntimeBundlesController {
         if (booleanOr(request != null ? request.refresh() : null, false)) {
             warnings.add("refresh flag accepted but Stage 1 bundle API does not run model refresh yet; run models refresh explicitly.");
         }
-        BundleInfo info = infoFromRecord(record, enabled ? "active" : "disabled", null);
+        RuntimeBundleRecord savedRecord = record;
+        BundleInfo info = inventoryService.list().stream()
+                .filter(candidate -> name.equals(candidate.name()))
+                .findFirst()
+                .orElseGet(() -> infoFromRecord(
+                        savedRecord, enabled ? "inactive" : "disabled", null));
         return responses.ok(new BundleMutationResponse(info, warnings));
     }
 
@@ -309,32 +303,14 @@ public class RuntimeBundlesController {
         }
     }
 
-    private BundleInfo infoFromDefinition(BundleDefinition definition, boolean managed, String status, String message) {
-        String path = null;
-        Boolean watch = null;
-        if (definition instanceof ExternalBundleDefinition external) {
-            path = external.getPath();
-            watch = external.isWatch();
-        }
-        return new BundleInfo(
-                definition.getName(),
-                definition.getNamespace(),
-                path,
-                watch,
-                true,
-                managed ? "runtime-registry" : "config",
-                managed,
-                managed,
-                managed,
-                status,
-                message
-        );
-    }
-
     private BundleInfo infoFromRecord(RuntimeBundleRecord record, String status, String message) {
+        String namespace = canonicalNamespace(record.namespace());
+        String sourceType = ExternalBundleResourceSupport
+                .isSpringResourceLocation(record.path())
+                ? "external-resource" : "external-filesystem";
         return new BundleInfo(
                 record.name(),
-                record.namespace(),
+                namespace,
                 record.path(),
                 record.watch(),
                 record.enabled(),
@@ -343,7 +319,13 @@ public class RuntimeBundlesController {
                 true,
                 true,
                 status,
-                message
+                message,
+                sourceType,
+                false,
+                false,
+                List.of(namespace),
+                RuntimeBundleInventoryService.sourceIdentity(
+                        record.name(), namespace, sourceType, record.path())
         );
     }
 

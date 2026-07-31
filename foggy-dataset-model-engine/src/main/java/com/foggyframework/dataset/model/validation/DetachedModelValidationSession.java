@@ -18,6 +18,9 @@ public interface DetachedModelValidationSession extends AutoCloseable {
 
     void validateTableModel(BundleResource resource, String namespace);
 
+    /** Load and parse one request-local FSScript and its imports. */
+    void validateFsscript(BundleResource resource);
+
     void validateQueryModel(BundleResource resource);
 
     /**

@@ -102,11 +102,12 @@ stateDiagram-v2
 刷新失败时，已发布 generation 保持可用；查询不能观察到半构建 candidate。成功刷新后，
 catalog identity、namespace、source revision、binding generation 和发布 generation 必须一致。
 
-## 6. Request-local candidate 查询
+## 6. Request-local candidate 与 authoring workspace
 
-9.5.3 增加了 engine/Runtime 内部 candidate execution port，供后续 authoring workspace 对一个
-不可变草稿 Bundle revision 执行 validate 和普通 JDBC semantic query。它不是新的 REST API，
-也不承担 workspace 保存、publish 或 refresh。
+9.5.3 增加了 engine/Runtime 内部 candidate execution port，以及建立在该端口上的 Runtime-local
+authoring workspace API。candidate port 对一个不可变草稿 Bundle revision 执行 validate 和普通
+JDBC semantic query；workspace API 负责持久草稿、revision、diff、完整验证和受治理查询，但仍不承担
+publish、apply 或 refresh。
 
 该路径遵循以下不变量：
 
@@ -115,7 +116,7 @@ catalog identity、namespace、source revision、binding generation 和发布 ge
   Namespace source revision；
 - detached production loader 构造 request-local TM/QM/FSScript、catalog resolution 和只读
   Bundle view；validate 与 execute 固定使用同一个 model instance 和 catalog identity；
-- source overlay 只可替换 selected Bundle 自身的 TM/QM；遮蔽其他 Runtime-managed、configured
+- source overlay 只可替换 selected Bundle 自身的 TM/QM/FSScript；遮蔽其他 Runtime-managed、configured
   external 或 JAR/classpath Bundle 的同名资源必须 fail closed；
 - 数据源、opaque Authorization、模型动作权限、字段/行权限、物理列 guard 和 JDBC 执行继续
   复用目标 Namespace 的既有流水线；
@@ -126,8 +127,31 @@ catalog identity、namespace、source revision、binding generation 和发布 ge
 - pivot、Compose/CTE、Semantic SQL、memory-grid、synthetic member 等尚未具备完整 request-local
   dependency pin 的模式显式拒绝；session close 释放候选 model/catalog/script 引用。
 
-该机制不创建临时 Namespace，也不把 candidate catalog 持久化为第二套运行时真值。工作区
-revision/store、`.fsscript` 资源契约、发布与恢复仍属于后续 lifecycle workitem。
+该机制不创建临时 Namespace，也不把 candidate catalog 持久化为第二套运行时真值。
+
+Runtime authoring workspace 进一步遵循以下边界：
+
+- 一个 workspace 固定一个显式 Namespace 和一个 enabled Runtime-managed external filesystem Bundle；
+  configured external、JAR/classpath、inactive、路径不一致或含 symlink 的来源不可创建 workspace；
+- create 复制 `.tm`、`.qm`、`.fsscript` 的完整 base snapshot，同时固定 Bundle content revision、
+  Namespace committed source revision 和 opaque source identity；复制窗口任一来源漂移都不留下 workspace；
+- base 与 current candidate 都是 canonical content hash 标识的 immutable revision。save/delete 先完整校验
+  path、类型、overlay、quota 和 expected head，再 staging、原子提交 metadata/head；同一进程内竞争只允许
+  一个请求提交；
+- `DRAFT`、`VALIDATED`、`STALE`、`DISCARDED` 是当前完整状态集。内容变化使 validation evidence 失效；
+  source content/identity/committed revision 漂移持久转为 `STALE`；discard 是终态；
+- validate 遍历全部 FSScript、TM 和 QM。query validate/execute 只接受 exact current、已完成完整验证的
+  revision，并由服务端组装 immutable candidate path、source Bundle、Namespace 与 base source revision；
+- 每个 workspace route 都要求 Runtime 管理 auth-code；业务 `Authorization` 仅独立透传给 candidate 数据面，
+  不能代替或提升管理认证；
+- store 是 versioned Runtime-local filesystem state，只长期保留 base 与 current head。path traversal、非严格
+  UTF-8、case collision、symlink、quota、hash/metadata corruption 均 fail closed；多进程或共享 NFS writer
+  不在当前一致性承诺内；
+- validate/query 的成功、失败、权限拒绝、database failure、revision/source race 和 close 均不能修改 live
+  catalog、共享 FSScript/query cache、Bundle inventory 或 committed source revision。
+
+当前 API 不提供 revision history、rebase、publish/apply/rollback、Git、JAR fork/binding 或高级 candidate
+query mode。这些仍需后续独立 lifecycle workitem 冻结契约，不能从 workspace 已验证状态推断为已发布。
 
 ## 7. 查询与执行
 

@@ -2,6 +2,7 @@ package com.foggyframework.runtime.api;
 
 import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
 import com.foggyframework.runtime.api.controller.RuntimeBundlesController;
+import com.foggyframework.runtime.api.controller.RuntimeAuthoringWorkspacesController;
 import com.foggyframework.runtime.api.controller.RuntimeAccessController;
 import com.foggyframework.runtime.api.controller.RuntimeCapabilitiesController;
 import com.foggyframework.runtime.api.controller.RuntimeComposeController;
@@ -17,6 +18,9 @@ import com.foggyframework.runtime.api.service.HikariManagedDataSourcePoolFactory
 import com.foggyframework.runtime.api.service.ManagedDataSourcePoolManager;
 import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
 import com.foggyframework.runtime.api.service.RuntimeBundleModelConflictDetector;
+import com.foggyframework.runtime.api.service.RuntimeAuthoringWorkspaceService;
+import com.foggyframework.runtime.api.service.RuntimeAuthoringWorkspaceStore;
+import com.foggyframework.runtime.api.service.RuntimeBundleInventoryService;
 import com.foggyframework.runtime.api.service.RuntimeBundleRegistryService;
 import com.foggyframework.runtime.api.service.RuntimeCandidateQueryService;
 import com.foggyframework.runtime.api.service.RuntimeComposeContextFactory;
@@ -41,6 +45,9 @@ import org.springframework.context.annotation.Import;
         HikariManagedDataSourcePoolFactory.class,
         ManagedDataSourcePoolManager.class,
         RuntimeApiResponseFactory.class,
+        RuntimeAuthoringWorkspaceStore.class,
+        RuntimeBundleInventoryService.class,
+        RuntimeAuthoringWorkspaceService.class,
         RuntimeBundleModelConflictDetector.class,
         RuntimeBundleRegistryService.class,
         RuntimeCandidateQueryService.class,
@@ -52,6 +59,7 @@ import org.springframework.context.annotation.Import;
         RuntimeModelOperations.class,
         RuntimeNamedDataSourceResolver.class,
         RuntimeBundlesController.class,
+        RuntimeAuthoringWorkspacesController.class,
         RuntimeAccessController.class,
         RuntimeCapabilitiesController.class,
         RuntimeComposeController.class,

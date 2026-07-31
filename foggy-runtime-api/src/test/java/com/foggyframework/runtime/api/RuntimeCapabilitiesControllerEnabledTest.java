@@ -3,8 +3,10 @@ package com.foggyframework.runtime.api;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.foggyframework.bundle.Bundle;
 import com.foggyframework.bundle.BundleResource;
+import com.foggyframework.bundle.BundleImpl;
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.bundle.external.ExternalBundleDefinition;
+import com.foggyframework.bundle.external.ExternalFileBundle;
 import com.foggyframework.core.bundle.BundleDefinition;
 import com.foggyframework.dataset.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogAdmissionState;
@@ -77,6 +79,7 @@ import static org.mockito.Mockito.when;
                 "foggy.runtime-api.enabled=true",
                 "foggy.runtime-api.bundle-registry.path=target/runtime-api-test-bundles-${random.uuid}.json",
                 "foggy.runtime-api.datasource-registry.path=target/runtime-api-test-datasources-${random.uuid}.json",
+                "foggy.runtime-api.authoring-workspaces.path=target/runtime-api-test-workspaces-${random.uuid}",
                 "spring.autoconfigure.exclude=com.foggyframework.dataset.model.DbModelAutoConfiguration,"
                         + "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration"
         }
@@ -164,6 +167,15 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(body.path("data").path("capabilities").path("compose.execute").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("fsscript.execute").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("fsscript.cteBridge").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("authoring.workspaces").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("authoring.resources").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("authoring.diff").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("authoring.validate").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("authoring.query").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("authoringWorkspaceLimits")
+                .path("maxActiveWorkspaces").asInt()).isEqualTo(128);
+        assertThat(body.path("data").path("authoringWorkspaceLimits")
+                .path("maxResourceBytes").asLong()).isEqualTo(1048576L);
     }
 
     @Test
@@ -789,10 +801,54 @@ class RuntimeCapabilitiesControllerEnabledTest {
     }
 
     @Test
+    void shouldExposeLiveExternalJarAndClasspathBundleSourceFacts()
+            throws Exception {
+        Path externalPath = Files.createTempDirectory(
+                "runtime-api-inventory-external");
+        Bundle external = externalBundle(
+                "configured-live", "dev", externalPath.toString());
+        Bundle jar = classBundle(
+                "jar-live", "dev", BundleImpl.MODE_JAR, "jar:file:/opaque!/");
+        Bundle classpath = classBundle(
+                "classpath-live", "dev", BundleImpl.MODE_CLASSPATH,
+                "file:/opaque/");
+        when(systemBundlesContext.getBundleList()).thenReturn(
+                List.of(external, jar, classpath));
+        when(systemBundlesContext.listExternalBundles()).thenReturn(List.of());
+
+        ResponseEntity<JsonNode> response = restTemplate.getForEntity(
+                "http://localhost:" + port + "/api/v1/bundles",
+                JsonNode.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode bundles = response.getBody().path("data").path("bundles");
+        JsonNode externalInfo = findBundle(bundles, "configured-live");
+        JsonNode jarInfo = findBundle(bundles, "jar-live");
+        JsonNode classpathInfo = findBundle(bundles, "classpath-live");
+        assertThat(externalInfo.path("sourceType").asText())
+                .isEqualTo("external-filesystem");
+        assertThat(externalInfo.path("workspaceEligible").asBoolean())
+                .isFalse();
+        assertThat(jarInfo.path("sourceType").asText()).isEqualTo("jar");
+        assertThat(jarInfo.path("path").isNull()).isTrue();
+        assertThat(classpathInfo.path("sourceType").asText())
+                .isEqualTo("classpath");
+        assertThat(classpathInfo.path("namespaceBindings").get(0).asText())
+                .isEqualTo("dev");
+        assertThat(jarInfo.path("sourceIdentity").asText())
+                .startsWith("sha256:");
+    }
+
+    @Test
     void shouldAddRuntimeManagedBundle() throws Exception {
         Path modelsDir = Files.createTempDirectory("runtime-api-bundle-test");
+        Bundle live = externalBundle(
+                "runtime-demo", "dev", modelsDir.toString());
         when(systemBundlesContext.addExternalBundle("runtime-demo", "dev", modelsDir.toString(), true))
                 .thenReturn(true);
+        when(systemBundlesContext.getBundleList()).thenReturn(List.of(live));
+        when(systemBundlesContext.getBundleByName("runtime-demo", false))
+                .thenReturn(live);
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
                 "http://localhost:" + port + "/api/v1/bundles",
@@ -812,6 +868,15 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(body.path("data").path("bundle").path("name").asText()).isEqualTo("runtime-demo");
         assertThat(body.path("data").path("bundle").path("source").asText()).isEqualTo("runtime-registry");
         assertThat(body.path("data").path("bundle").path("managedByRuntimeApi").asBoolean()).isTrue();
+        JsonNode bundle = body.path("data").path("bundle");
+        assertThat(bundle.path("sourceType").asText())
+                .isEqualTo("external-filesystem");
+        assertThat(bundle.path("editable").asBoolean()).isTrue();
+        assertThat(bundle.path("workspaceEligible").asBoolean()).isTrue();
+        assertThat(bundle.path("namespaceBindings").get(0).asText())
+                .isEqualTo("dev");
+        assertThat(bundle.path("sourceIdentity").asText())
+                .startsWith("sha256:");
         verify(systemBundlesContext).addExternalBundle("runtime-demo", "dev", modelsDir.toString(), true);
     }
 
@@ -1834,6 +1899,49 @@ class RuntimeCapabilitiesControllerEnabledTest {
             }
         }
         throw new AssertionError("Datasource not found: " + name);
+    }
+
+    private static JsonNode findBundle(JsonNode bundles, String name) {
+        for (JsonNode bundle : bundles) {
+            if (name.equals(bundle.path("name").asText())) {
+                return bundle;
+            }
+        }
+        throw new AssertionError("Bundle not found: " + name);
+    }
+
+    private static Bundle externalBundle(
+            String name,
+            String namespace,
+            String path
+    ) {
+        SystemBundlesContext context = mock(SystemBundlesContext.class);
+        ExternalBundleDefinition definition = new ExternalBundleDefinition(
+                name, namespace, path, false);
+        ExternalFileBundle bundle = new ExternalFileBundle(context);
+        bundle.setName(name);
+        bundle.setBundleDefinition(definition);
+        bundle.setBasePath(path);
+        bundle.setRootPath(path);
+        return bundle;
+    }
+
+    private static Bundle classBundle(
+            String name,
+            String namespace,
+            int mode,
+            String root
+    ) {
+        BundleDefinition definition = mock(BundleDefinition.class);
+        when(definition.getName()).thenReturn(name);
+        when(definition.getNamespace()).thenReturn(namespace);
+        BundleImpl bundle = new BundleImpl(mock(SystemBundlesContext.class));
+        bundle.setName(name);
+        bundle.setMode(mode);
+        bundle.setRootPath(root);
+        bundle.setBasePath(root + "foggy/templates");
+        bundle.setBundleDefinition(definition);
+        return bundle;
     }
 
     @Test

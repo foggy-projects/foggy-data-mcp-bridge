@@ -44,7 +44,10 @@ public class RuntimeApiAuthInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
-        if (!isProtectedOperation(request) || !properties.isAuthCodeRequired()) {
+        boolean authoringWorkspaceOperation = isAuthoringWorkspaceOperation(request);
+        if (!isProtectedOperation(request)
+                || (!authoringWorkspaceOperation
+                && !properties.isAuthCodeRequired())) {
             return true;
         }
         if (!properties.isAuthCodeConfigured()) {
@@ -53,7 +56,7 @@ public class RuntimeApiAuthInterceptor implements HandlerInterceptor {
                     response,
                     HttpServletResponse.SC_SERVICE_UNAVAILABLE,
                     "RUNTIME_AUTH_CODE_NOT_CONFIGURED",
-                    "Runtime API auth-code mode is enabled, but no auth code is configured.",
+                    "This Runtime API operation requires an auth code, but none is configured.",
                     "Set foggy.runtime-api.auth-code before calling runtime management operations."
             );
             return false;
@@ -78,6 +81,9 @@ public class RuntimeApiAuthInterceptor implements HandlerInterceptor {
         if (RuntimeApiRoutes.Full.ACCESS_CHECK.equals(path)) {
             return true;
         }
+        if (isAuthoringWorkspacePath(path)) {
+            return true;
+        }
         if (properties.isManagementAllAuthScope()
                 && (RuntimeApiRoutes.API_V1.equals(path) || pathMatcher.match(RuntimeApiRoutes.API_V1_PATTERN, path))) {
             return true;
@@ -87,6 +93,16 @@ public class RuntimeApiAuthInterceptor implements HandlerInterceptor {
             return true;
         }
         return isPathProtected(path, method);
+    }
+
+    private boolean isAuthoringWorkspaceOperation(HttpServletRequest request) {
+        return isAuthoringWorkspacePath(normalizedRequestPath(request));
+    }
+
+    private boolean isAuthoringWorkspacePath(String path) {
+        return RuntimeApiRoutes.Full.AUTHORING_WORKSPACES.equals(path)
+                || pathMatcher.match(
+                RuntimeApiRoutes.Full.AUTHORING_WORKSPACES_PATTERN, path);
     }
 
     private String bestMatchingPattern(HttpServletRequest request) {
