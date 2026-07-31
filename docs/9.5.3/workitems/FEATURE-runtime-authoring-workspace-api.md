@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: cross-module
 version: 9.5.3
 ticket: FEATURE-runtime-authoring-workspace-api
-status: READY_FOR_SIGNOFF
+status: REJECTED
 canonical: true
 execution_mode: ultra
 assurance_level: elevated
@@ -455,6 +455,17 @@ authenticated get 或显式包含 discarded 的 list 返回 tombstone metadata�
 - omitted_validation_and_reason: 按批准的 elevated budget 未运行完整 Maven reactor、Console/Playwright、
   launcher、数据库矩阵、authority/replay/rehearsal/source-seal/tag/release/publish；均为明确禁止或 out of scope。
 - readiness: READY_FOR_SIGNOFF
+
+## Acceptance Status
+
+- acceptance_status: rejected
+- acceptance_decision: rejected
+- signed_off_by: Codex independent reviewer
+- signed_off_at: 2026-08-01
+- acceptance_record:
+  `docs/9.5.3/acceptance/FEATURE-runtime-authoring-workspace-api-signoff.md`
+- blocking_items: AC-2/AC-9 store root ownership and destructive orphan cleanup
+- follow_up_required: yes
 
 ## References
 
