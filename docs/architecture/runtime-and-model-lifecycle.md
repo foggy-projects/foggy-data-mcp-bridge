@@ -166,6 +166,11 @@ authoring publish/recovery 进一步遵循以下不变量：
 - candidate 先复制到独立 ownership-bearing published root，形成只含 `.tm`、`.qm`、`.fsscript` 的
   immutable content-addressed artifact。foreign root、symlink、未知 layout、manifest 或 hash 不一致都
   fail closed，不猜测或删除现场；
+- 新 artifact staging 与 publication-attempt temporary 在对象出现前先写 sibling owner marker，marker 绑定
+  published `storeId`、temporary/final identity、attempt 及 artifact workspace/Namespace/Bundle/revision。
+  下一次同一 publication lock 内的 store access 只恢复 schema 与全部 identity 均匹配的新格式中断写入；
+  marker-only、partial object 和 final-already-committed 均幂等收敛。legacy temporary、corrupt/mismatch、foreign、
+  unknown 或 symlink 一律原样保留并 fail closed；该恢复不处理任何 final artifact/attempt 或 retention/GC；
 - immutable 约束的是已发布 artifact 的字节不可原地修改，不表示 Bundle lifecycle 永久不能升级。只有
   registry/live source 当前共同指向 Runtime-owned、状态为 `PUBLISHED` 且 Bundle、Namespace、revision、
   path、manifest/hash 全部匹配的 artifact，才可作为下一 workspace 的 publication base；校验失败必须在
@@ -198,6 +203,8 @@ authoring publish/recovery 进一步遵循以下不变量：
   symlink、无法完整验证的 partial/temporary 或引用图不完整统一保守为 `UNKNOWN_PRESERVE`；
 - inventory 不执行 cleanup、repair、quarantine 或 migration。快照一致性只覆盖当前 Runtime 单进程；外部 writer、
   shared NFS、多进程锁、分页/streaming 和 artifact GC 仍不在 v1 承诺内。
+- inventory 把 owner 可证明的新格式中断写入报告为 `*_RECOVERY_PENDING`，但扫描本身仍零 mutation；legacy
+  temporary 继续为 `UNKNOWN_PRESERVE`，只有后续受锁 publication store access 才能执行上述有限恢复。
 
 9.5.4 在该 coordinator 上增加 portable release package 与 production promotion：
 

@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.5.5
 ticket: BUG-runtime-published-store-interrupted-write-recovery
-status: ULTRA_EXECUTING
+status: ACCEPTED
 canonical: true
 execution_mode: ultra
 assurance_level: elevated
@@ -165,15 +165,27 @@ open_questions: []
 
 > 由 Ultra 执行会话填写。
 
-- implementation_summary:
+- implementation_summary: artifact staging 与 attempt JSON temporary 均在对象出现前写 sibling owner marker；既有
+  store access 在完整 final/owner/target preflight 后，按 object-first、marker-last 幂等收敛 owner 可证明的
+  marker-only、partial 与 final-already-committed 窗口。legacy/corrupt/mismatch/foreign/symlink 继续 preserve/fail
+  closed；inventory 只读报告 `*_RECOVERY_PENDING`。
 - changed_paths:
+  - `foggy-runtime-api/.../RuntimePublishedBundleArtifactStore.java`
+  - `foggy-runtime-api/.../RuntimeArtifactLifecycleInventoryService.java`
+  - 对应两个 `@TempDir` test classes
+  - `docs/architecture/runtime-and-model-lifecycle.md`
 - tests_and_results:
-- manual_or_experience_evidence:
+  - `mvn -B -ntp -pl foggy-runtime-api -am -DskipTests compile`：14 modules，BUILD SUCCESS。
+  - `mvn -B -ntp -pl foggy-runtime-api -Dtest=RuntimeAuthoringPublicationStoreTest,RuntimeAuthoringWorkspacePublishServiceTest,RuntimeArtifactLifecycleInventoryServiceTest test`：42 tests，0 failure/error/skip。
+  - `mvn -B -ntp -pl foggy-runtime-api -Dtest='Runtime*Test' test`：255 tests，0 failure/error/skip。
+  - `git diff --check`、tracked/untracked path audit：通过；无 untracked 文件。
+- manual_or_experience_evidence: 真实 `@TempDir` 覆盖 owned partial/marker-only/stale owner、attempt temporary、
+  idempotency、legacy preserve、corrupt owner、symlink target preservation、path traversal 和 inventory fingerprint。
 - deviations: none
-- residual_risks:
-- reused_evidence:
-- omitted_validation_and_reason:
-- readiness: READY_FOR_SIGNOFF | NEEDS_REPLAN | BLOCKED
+- residual_risks: marker 自身 partial 仍需人工保留；single-process/local-filesystem 边界不变。
+- reused_evidence: accepted lifecycle SPIKE characterization、accepted inventory signoff、9.5.3 publication recovery。
+- omitted_validation_and_reason: 未运行 Console/DB matrix/authority/replay/release chain；均不在本 BUG 改动面与批准预算。
+- readiness: READY_FOR_SIGNOFF
 
 ## References
 
@@ -182,3 +194,13 @@ open_questions: []
 - related work items:
   - `docs/9.5/9.5.5/workitems/SPIKE-runtime-artifact-store-lifecycle-foundations.md`
   - `docs/9.5/9.5.5/workitems/FEATURE-runtime-artifact-lifecycle-inventory.md`
+
+## Acceptance Status
+
+- acceptance_status: signed-off
+- acceptance_decision: accepted
+- signed_off_by: independent Codex reviewer
+- signed_off_at: 2026-08-01
+- acceptance_record: `docs/9.5/9.5.5/acceptance/BUG-runtime-published-store-interrupted-write-recovery-signoff.md`
+- blocking_items: none
+- follow_up_required: no

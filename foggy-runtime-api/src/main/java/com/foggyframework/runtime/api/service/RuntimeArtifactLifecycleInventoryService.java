@@ -61,6 +61,8 @@ public class RuntimeArtifactLifecycleInventoryService {
     private static final Pattern REVISION_NAME = Pattern.compile("[0-9a-f]{64}");
     private static final Pattern WORKSPACE_ID = Pattern.compile("[A-Za-z0-9_-]{22,64}");
     private static final Pattern STAGING_NAME = Pattern.compile("\\.staging-" + UUID_PATTERN);
+    private static final Pattern STAGING_OWNER = Pattern.compile(
+            "(\\.staging-" + UUID_PATTERN + ")\\.owner\\.json");
     private static final Pattern WORKSPACE_REGISTRY_TEMP = Pattern.compile(
             Pattern.quote(WORKSPACE_REGISTRY) + "\\.tmp-" + UUID_PATTERN);
     private static final Pattern WORKSPACE_MARKER_TEMP = Pattern.compile(
@@ -70,6 +72,9 @@ public class RuntimeArtifactLifecycleInventoryService {
     private static final Pattern ATTEMPT_FILE = Pattern.compile("(" + UUID_PATTERN + ")\\.json");
     private static final Pattern ATTEMPT_TEMP = Pattern.compile(
             "(" + UUID_PATTERN + ")\\.json\\.tmp-" + UUID_PATTERN);
+    private static final Pattern ATTEMPT_TEMP_OWNER = Pattern.compile(
+            "((" + UUID_PATTERN + ")\\.json\\.tmp-" + UUID_PATTERN
+                    + ")\\.owner\\.json");
     private static final Set<String> PUBLICATION_STATUSES = Set.of(
             "PUBLISHING", "SOURCE_APPLIED", "PUBLISHED", "RECOVERED",
             "RECOVERY_REQUIRED", "FAILED");
@@ -439,7 +444,7 @@ public class RuntimeArtifactLifecycleInventoryService {
                 "published-root-owner", "OWNED", safeSize(owner), MUST_RETAIN));
         Path attempts = root.resolve("attempts");
         Path artifacts = root.resolve("artifacts");
-        scanAttemptDirectory(attempts, facts, result, scan);
+        scanAttemptDirectory(attempts, storeId, facts, result, scan);
         scanArtifactDirectory(artifacts, storeId, facts, result, scan);
         for (Path child : children(root)) {
             String name = child.getFileName().toString();
@@ -503,6 +508,7 @@ public class RuntimeArtifactLifecycleInventoryService {
 
     private void scanAttemptDirectory(
             Path attempts,
+            String storeId,
             PublishedFacts facts,
             Builder result,
             RootScan scan
@@ -540,9 +546,42 @@ public class RuntimeArtifactLifecycleInventoryService {
             if (temporaryMatch.matches()) {
                 facts.referenceGraphComplete = false;
                 facts.blockedAttemptIds.add(temporaryMatch.group(1));
-                result.addBlocked(PUBLISHED, "PUBLICATION_METADATA_TEMPORARY",
-                        "attempt:" + temporaryMatch.group(1) + ":temporary",
-                        safeSize(path), "PUBLICATION_METADATA_TEMPORARY", scan);
+                Path owner = path.resolveSibling(name + ".owner.json");
+                if (validAttemptWriteOwner(owner, storeId, name,
+                        temporaryMatch.group(1))) {
+                    result.addBlocked(PUBLISHED,
+                            "PUBLICATION_METADATA_RECOVERY_PENDING",
+                            "attempt:" + temporaryMatch.group(1) + ":temporary",
+                            safeSize(path) + safeSize(owner),
+                            "PUBLICATION_METADATA_RECOVERY_PENDING", scan);
+                } else {
+                    result.addBlocked(PUBLISHED, "PUBLICATION_METADATA_TEMPORARY",
+                            "attempt:" + temporaryMatch.group(1) + ":temporary",
+                            safeSize(path), "PUBLICATION_METADATA_TEMPORARY", scan);
+                }
+                continue;
+            }
+            var ownerMatch = ATTEMPT_TEMP_OWNER.matcher(name);
+            if (ownerMatch.matches()) {
+                Path temporary = path.resolveSibling(ownerMatch.group(1));
+                if (Files.exists(temporary, LinkOption.NOFOLLOW_LINKS)) {
+                    continue;
+                }
+                facts.referenceGraphComplete = false;
+                facts.blockedAttemptIds.add(ownerMatch.group(2));
+                if (validAttemptWriteOwner(path, storeId, ownerMatch.group(1),
+                        ownerMatch.group(2))) {
+                    result.addBlocked(PUBLISHED,
+                            "PUBLICATION_METADATA_RECOVERY_PENDING",
+                            "attempt:" + ownerMatch.group(2) + ":temporary",
+                            safeSize(path),
+                            "PUBLICATION_METADATA_RECOVERY_PENDING", scan);
+                } else {
+                    result.addBlocked(PUBLISHED, "PUBLICATION_METADATA_OWNER",
+                            "attempt:" + ownerMatch.group(2) + ":owner",
+                            safeSize(path),
+                            "PUBLICATION_METADATA_OWNER_MISMATCH", scan);
+                }
                 continue;
             }
             result.addBlocked(PUBLISHED, "UNKNOWN_ENTRY", "attempt-entry",
@@ -565,9 +604,40 @@ public class RuntimeArtifactLifecycleInventoryService {
         for (Path artifact : children(artifacts)) {
             String name = artifact.getFileName().toString();
             if (STAGING_NAME.matcher(name).matches()) {
-                result.addBlocked(PUBLISHED, "PUBLISHED_ARTIFACT_STAGING",
-                        "artifact-staging:" + name, safeTreeBytes(artifact),
-                        "PUBLISHED_ARTIFACT_STAGING_UNOWNED", scan);
+                Path owner = artifact.resolveSibling(name + ".owner.json");
+                if (validArtifactWriteOwner(owner, storeId, name)) {
+                    result.addBlocked(PUBLISHED,
+                            "PUBLISHED_ARTIFACT_RECOVERY_PENDING",
+                            "artifact-staging:" + name,
+                            safeTreeBytes(artifact) + safeSize(owner),
+                            "PUBLISHED_ARTIFACT_RECOVERY_PENDING", scan);
+                } else {
+                    result.addBlocked(PUBLISHED, "PUBLISHED_ARTIFACT_STAGING",
+                            "artifact-staging:" + name, safeTreeBytes(artifact),
+                            "PUBLISHED_ARTIFACT_STAGING_UNOWNED", scan);
+                }
+                facts.referenceGraphComplete = false;
+                continue;
+            }
+            var ownerMatch = STAGING_OWNER.matcher(name);
+            if (ownerMatch.matches()) {
+                Path staging = artifact.resolveSibling(ownerMatch.group(1));
+                if (Files.exists(staging, LinkOption.NOFOLLOW_LINKS)) {
+                    continue;
+                }
+                if (validArtifactWriteOwner(artifact, storeId,
+                        ownerMatch.group(1))) {
+                    result.addBlocked(PUBLISHED,
+                            "PUBLISHED_ARTIFACT_RECOVERY_PENDING",
+                            "artifact-staging:" + ownerMatch.group(1),
+                            safeSize(artifact),
+                            "PUBLISHED_ARTIFACT_RECOVERY_PENDING", scan);
+                } else {
+                    result.addBlocked(PUBLISHED, "PUBLISHED_ARTIFACT_OWNER",
+                            "artifact-staging-owner", safeSize(artifact),
+                            "PUBLISHED_ARTIFACT_OWNER_MISMATCH", scan);
+                }
+                facts.referenceGraphComplete = false;
                 continue;
             }
             if (!UUID_NAME.matcher(name).matches()) {
@@ -617,6 +687,47 @@ public class RuntimeArtifactLifecycleInventoryService {
             return new ArtifactFact(attemptId, revision, null);
         } catch (IOException | RuntimeException failure) {
             return null;
+        }
+    }
+
+    private boolean validArtifactWriteOwner(
+            Path marker,
+            String storeId,
+            String stagingName
+    ) {
+        try {
+            requireRegularFile(marker);
+            JsonNode value = objectMapper.readTree(marker.toFile());
+            return value.path("version").asInt(-1) == 1
+                    && storeId.equals(text(value, "storeId"))
+                    && stagingName.equals(text(value, "stagingName"))
+                    && UUID_NAME.matcher(nullToEmpty(
+                    text(value, "attemptId"))).matches()
+                    && StringUtils.hasText(text(value, "workspaceId"))
+                    && StringUtils.hasText(text(value, "namespace"))
+                    && StringUtils.hasText(text(value, "bundle"))
+                    && validRevision(text(value, "candidateRevision"));
+        } catch (IOException | RuntimeException failure) {
+            return false;
+        }
+    }
+
+    private boolean validAttemptWriteOwner(
+            Path marker,
+            String storeId,
+            String temporaryName,
+            String attemptId
+    ) {
+        try {
+            requireRegularFile(marker);
+            JsonNode value = objectMapper.readTree(marker.toFile());
+            return value.path("version").asInt(-1) == 1
+                    && storeId.equals(text(value, "storeId"))
+                    && temporaryName.equals(text(value, "temporaryName"))
+                    && (attemptId + ".json").equals(text(value, "finalName"))
+                    && attemptId.equals(text(value, "attemptId"));
+        } catch (IOException | RuntimeException failure) {
+            return false;
         }
     }
 

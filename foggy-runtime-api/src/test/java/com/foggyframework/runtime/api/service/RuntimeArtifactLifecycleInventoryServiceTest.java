@@ -281,17 +281,16 @@ class RuntimeArtifactLifecycleInventoryServiceTest {
     void interruptedPublishedWritesAreBlockedAndPreservedByteForByte()
             throws Exception {
         Fixture fixture = fixture("interrupted");
-        Map<String, byte[]> invalid = new TreeMap<>();
-        invalid.put("a/Order.tm", bytes("partial-model"));
-        invalid.put("z/notes.txt", bytes("unsupported"));
-        String revision = CandidateContentRevision.calculate(invalid);
-        try {
-            fixture.artifactStore.prepareArtifact(
-                    fixture.artifactStore.newAttemptId(), "workspace-opaque",
-                    "sales", "managed-sales", revision, invalid);
-        } catch (RuntimeAuthoringWorkspaceException expected) {
-            assertThat(expected.code()).isEqualTo("WORKSPACE_ARTIFACT_CORRUPT");
-        }
+        Map<String, byte[]> committed = Map.of("Order.tm", bytes("committed"));
+        fixture.artifactStore.prepareArtifact(
+                fixture.artifactStore.newAttemptId(), "workspace-opaque",
+                "sales", "managed-sales",
+                CandidateContentRevision.calculate(committed), committed);
+        Path legacyStaging = Files.createDirectory(
+                fixture.publishedRoot.resolve("artifacts")
+                        .resolve(".staging-" + UUID.randomUUID()));
+        Files.createDirectories(legacyStaging.resolve("a"));
+        Files.writeString(legacyStaging.resolve("a/Order.tm"), "partial-model");
         String attemptId = fixture.artifactStore.newAttemptId();
         Path temporary = Files.writeString(
                 fixture.publishedRoot.resolve("attempts").resolve(
@@ -312,6 +311,58 @@ class RuntimeArtifactLifecycleInventoryServiceTest {
                         .isEqualTo(RuntimeArtifactLifecycleInventoryService.UNKNOWN_PRESERVE));
         assertThat(temporary).hasContent("partial-attempt-metadata");
         assertThat(fingerprint(fixture.publishedRoot)).isEqualTo(before);
+    }
+
+    @Test
+    void ownedInterruptedWritesAreReportedAsRecoveryPendingWithoutMutation()
+            throws Exception {
+        Fixture fixture = fixture("owned-interrupted");
+        Map<String, byte[]> snapshot = Map.of("Order.tm", bytes("committed"));
+        String revision = CandidateContentRevision.calculate(snapshot);
+        String committedId = fixture.artifactStore.newAttemptId();
+        fixture.artifactStore.prepareArtifact(
+                committedId, "workspace-opaque", "sales", "managed-sales",
+                revision, snapshot);
+        fixture.artifactStore.begin(attempt(
+                committedId, "workspace-opaque", revision,
+                tempDirectory.resolve("previous-source").toString()));
+        String storeId = publishedStoreId(fixture.publishedRoot);
+
+        String interruptedId = fixture.artifactStore.newAttemptId();
+        String stagingName = ".staging-" + UUID.randomUUID();
+        Path owner = Files.writeString(fixture.publishedRoot.resolve("artifacts")
+                .resolve(stagingName + ".owner.json"), artifactOwner(
+                storeId, stagingName, interruptedId, revision));
+        Path staging = Files.createDirectory(fixture.publishedRoot
+                .resolve("artifacts").resolve(stagingName));
+        Files.writeString(staging.resolve("Order.tm"), "partial");
+
+        Path finalAttempt = fixture.publishedRoot.resolve("attempts")
+                .resolve(committedId + ".json");
+        String temporaryName = committedId + ".json.tmp-" + UUID.randomUUID();
+        Path temporary = Files.writeString(finalAttempt.resolveSibling(
+                temporaryName), Files.readString(finalAttempt));
+        Path temporaryOwner = Files.writeString(finalAttempt.resolveSibling(
+                temporaryName + ".owner.json"), attemptOwner(
+                storeId, temporaryName, committedId));
+        Map<String, String> before = fingerprint(fixture.publishedRoot);
+
+        ArtifactLifecycleInventory inventory = fixture.inventory.inventory();
+
+        assertThat(inventory.health()).isEqualTo("BLOCKED");
+        assertThat(inventory.blockedReasons()).contains(
+                "PUBLISHED_ARTIFACT_RECOVERY_PENDING",
+                "PUBLICATION_METADATA_RECOVERY_PENDING");
+        assertThat(inventory.objects())
+                .filteredOn(value -> value.type().endsWith("RECOVERY_PENDING"))
+                .hasSize(2)
+                .allSatisfy(value -> assertThat(value.referenceClass())
+                        .isEqualTo(RuntimeArtifactLifecycleInventoryService.UNKNOWN_PRESERVE));
+        assertThat(fingerprint(fixture.publishedRoot)).isEqualTo(before);
+        assertThat(owner).isRegularFile();
+        assertThat(staging).isDirectory();
+        assertThat(temporary).isRegularFile();
+        assertThat(temporaryOwner).isRegularFile();
     }
 
     @Test
@@ -528,6 +579,37 @@ class RuntimeArtifactLifecycleInventoryServiceTest {
 
     private static byte[] bytes(String value) {
         return value.getBytes(StandardCharsets.UTF_8);
+    }
+
+    private static String publishedStoreId(Path root) throws Exception {
+        return new ObjectMapper().readTree(
+                root.resolve(".foggy-published-owner.json").toFile())
+                .path("storeId").asText();
+    }
+
+    private static String artifactOwner(
+            String storeId,
+            String stagingName,
+            String attemptId,
+            String revision
+    ) {
+        return """
+                {"version":1,"storeId":"%s","stagingName":"%s",\
+                "attemptId":"%s","workspaceId":"workspace-opaque",\
+                "namespace":"sales","bundle":"managed-sales",\
+                "candidateRevision":"%s"}
+                """.formatted(storeId, stagingName, attemptId, revision);
+    }
+
+    private static String attemptOwner(
+            String storeId,
+            String temporaryName,
+            String attemptId
+    ) {
+        return """
+                {"version":1,"storeId":"%s","temporaryName":"%s",\
+                "finalName":"%s.json","attemptId":"%s"}
+                """.formatted(storeId, temporaryName, attemptId, attemptId);
     }
 
     private record Fixture(
