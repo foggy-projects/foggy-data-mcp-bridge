@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { expect, test, type Page, type Route } from '@playwright/test'
 
 interface MockState {
+  capabilities: Record<string, string>
   datasources: Array<Record<string, unknown>>
   namespaceBindings: Record<string, string>
   bundles: Array<Record<string, unknown>>
@@ -35,6 +36,43 @@ function envelope(data: unknown) {
   }
 }
 
+function releasePackageFixture() {
+  return {
+    formatVersion: 'foggy-authoring-release/v1',
+    packageId: 'sha256:release-package-001',
+    sourceRuntimeApiVersion: 'foggy-runtime-api/v1',
+    sourceNamespace: 'development',
+    sourceBundle: 'runtime-console-demo',
+    candidateRevision: 'sha256:candidate-001',
+    baseBundleRevision: 'sha256:development-base',
+    baseNamespaceSourceRevision: 'source:development:g4',
+    exportedAt: '2026-08-01T07:00:00Z',
+    validation: {
+      valid: true,
+      candidateRevision: 'sha256:candidate-001',
+      baseBundleRevision: 'sha256:development-base',
+      baseNamespaceSourceRevision: 'source:development:g4',
+      validatedAt: '2026-08-01T06:55:00Z',
+      totalFiles: 3,
+      validFiles: 3,
+      invalidFiles: 0,
+      cascadingErrors: 0,
+      issues: []
+    },
+    dependencies: [{
+      bundle: 'shared-models',
+      sourceType: 'jar',
+      sourceIdentity: 'sha256:dependency-001',
+      artifactRevision: null
+    }],
+    resources: [
+      { path: 'models/Order.tm', type: 'TM', size: 34, sha256: 'sha256:tm-001', content: 'export const Order = tableModel({})' },
+      { path: 'query/OrderQuery.qm', type: 'QM', size: 51, sha256: 'sha256:qm-001', content: 'export const OrderQuery = queryModel({ source: Order })' },
+      { path: 'scripts/order.fsscript', type: 'FSSCRIPT', size: 24, sha256: 'sha256:script-001', content: 'export const tax = 0.13' }
+    ]
+  }
+}
+
 async function jsonBody(route: Route): Promise<Record<string, unknown>> {
   try {
     return route.request().postDataJSON() as Record<string, unknown>
@@ -45,6 +83,15 @@ async function jsonBody(route: Route): Promise<Record<string, unknown>> {
 
 async function mockRuntime(page: Page): Promise<MockState> {
   const state: MockState = {
+    capabilities: {
+      'runtime.accessCheck': 'available',
+      'query.execute': 'available',
+      'datasources.manage': 'available',
+      'authoring.releasePackage.export': 'supported',
+      'authoring.releasePackage.import': 'disabled',
+      'authoring.production.apply': 'disabled',
+      'authoring.production.rollback': 'disabled'
+    },
     datasources: [{
       name: 'analytics',
       type: 'mysql',
@@ -200,12 +247,91 @@ async function mockRuntime(page: Page): Promise<MockState> {
         enabled: true,
         securityMode: 'auth-code',
         capabilities: {
-          'runtime.accessCheck': 'available',
-          'query.execute': 'available',
-          'datasources.manage': 'available'
+          ...state.capabilities
         },
         warnings: []
       }
+    } else if (/^authoring\/workspaces\/[^/]+\/release-package$/.test(path)) {
+      data = releasePackageFixture()
+    } else if (path === 'authoring/releases/import' && request.method() === 'POST') {
+      const release = requestBody.releasePackage as Record<string, any>
+      const workspaceId = `ws-imported-${state.authoringWorkspaces.length + 1}`
+      const imported = {
+        workspaceId,
+        targetNamespace: String(requestBody.namespace || requestNamespace),
+        sourceBundle: String(requestBody.targetBundle || ''),
+        sourceKind: 'runtime-managed',
+        baseBundleRevision: 'sha256:production-base-001',
+        baseNamespaceSourceRevision: 'source:production:g1',
+        candidateRevision: String(release.candidateRevision || ''),
+        state: 'DRAFT',
+        createdAt: '2026-08-01T07:10:00Z',
+        updatedAt: '2026-08-01T07:10:00Z',
+        lastValidation: null,
+        lastPublication: null,
+        releaseImport: {
+          packageId: release.packageId,
+          formatVersion: release.formatVersion,
+          sourceRuntimeApiVersion: release.sourceRuntimeApiVersion,
+          sourceNamespace: release.sourceNamespace,
+          sourceBundle: release.sourceBundle,
+          exportedCandidateRevision: release.candidateRevision,
+          importedAt: '2026-08-01T07:10:00Z'
+        },
+        diagnostics: []
+      }
+      state.authoringWorkspaces.push(imported)
+      state.authoringResources[workspaceId] = (release.resources || []).map((item: Record<string, any>) => ({ ...item }))
+      data = imported
+    } else if (/^authoring\/workspaces\/[^/]+\/promote$/.test(path)) {
+      const workspaceId = decodeURIComponent(path.split('/')[2] || '')
+      const workspace = state.authoringWorkspaces.find(item => item.workspaceId === workspaceId)!
+      workspace.state = 'PUBLISHED'
+      workspace.updatedAt = '2026-08-01T07:20:00Z'
+      workspace.lastPublication = {
+        attemptId: 'promotion-attempt-001',
+        status: 'PUBLISHED',
+        candidateRevision: workspace.candidateRevision,
+        baseBundleRevision: workspace.baseBundleRevision,
+        appliedBundleRevision: workspace.candidateRevision,
+        baseNamespaceSourceRevision: workspace.baseNamespaceSourceRevision,
+        publishedNamespaceSourceRevision: 'source:production:g2',
+        beforeCatalogGeneration: 'catalog:production:g1',
+        afterCatalogGeneration: 'catalog:production:g2',
+        recoveredCatalogGeneration: null,
+        startedAt: '2026-08-01T07:19:00Z',
+        completedAt: '2026-08-01T07:20:00Z',
+        diagnostics: ['Exact imported package is live.'],
+        rollback: null
+      }
+      data = workspace
+    } else if (/^authoring\/workspaces\/[^/]+\/rollback\/recover$/.test(path)) {
+      const workspaceId = decodeURIComponent(path.split('/')[2] || '')
+      const workspace = state.authoringWorkspaces.find(item => item.workspaceId === workspaceId)!
+      workspace.state = 'PUBLISHED'
+      workspace.lastPublication.rollback = {
+        status: 'FORWARD_RECOVERED',
+        startedAt: '2026-08-01T07:21:00Z',
+        completedAt: '2026-08-01T07:22:00Z',
+        forwardRecoveredNamespaceSourceRevision: 'source:production:g2',
+        forwardRecoveredCatalogGeneration: 'catalog:production:g2',
+        diagnostics: ['Pinned candidate was forward recovered.']
+      }
+      data = workspace
+    } else if (/^authoring\/workspaces\/[^/]+\/rollback$/.test(path)) {
+      const workspaceId = decodeURIComponent(path.split('/')[2] || '')
+      const workspace = state.authoringWorkspaces.find(item => item.workspaceId === workspaceId)!
+      workspace.state = 'ROLLED_BACK'
+      workspace.updatedAt = '2026-08-01T07:25:00Z'
+      workspace.lastPublication.rollback = {
+        status: 'ROLLED_BACK',
+        startedAt: '2026-08-01T07:24:00Z',
+        completedAt: '2026-08-01T07:25:00Z',
+        rolledBackNamespaceSourceRevision: workspace.baseNamespaceSourceRevision,
+        rolledBackCatalogGeneration: 'catalog:production:g1-restored',
+        diagnostics: ['Direct previous production base was restored.']
+      }
+      data = workspace
     } else if (path === 'authoring/workspaces' && request.method() === 'GET') {
       const namespace = url.searchParams.get('namespace') || ''
       data = {
@@ -1549,4 +1675,233 @@ test('authoring workspace fails closed and recovers only the pinned publication 
   expect(state.requests.filter(item => item.path.endsWith('/publish'))).toHaveLength(publishesBeforeRecovery)
   expect(state.requests.some(item => item.path === 'resources/save')).toBe(false)
   expect(state.requests.some(item => item.path === 'models/refresh')).toBe(false)
+})
+
+test('authoring workspace transfers an immutable package, applies it, and controls rollback recovery', async ({ page }, testInfo) => {
+  testInfo.setTimeout(90_000)
+  const state = mockStates.get(page)!
+  Object.assign(state.capabilities, {
+    'authoring.releasePackage.export': 'supported',
+    'authoring.releasePackage.import': 'supported',
+    'authoring.production.apply': 'supported',
+    'authoring.production.rollback': 'supported'
+  })
+  const development = state.authoringWorkspaces[0]
+  development.baseBundleRevision = releasePackageFixture().baseBundleRevision
+  development.baseNamespaceSourceRevision = releasePackageFixture().baseNamespaceSourceRevision
+  development.state = 'VALIDATED'
+  development.lastValidation = releasePackageFixture().validation
+
+  await login(page)
+  await page.goto('/console/#/namespaces/authoring?ns=default&workspaceId=ws-default-001')
+  await expect(page.getByRole('heading', { name: '不可变交付包' })).toBeVisible()
+  const releaseCapabilities = page.getByLabel('Release capabilities')
+  await expect(releaseCapabilities).toContainText('EXPORT supported')
+  await expect(releaseCapabilities).toContainText('IMPORT supported')
+  await expect(releaseCapabilities).toContainText('APPLY supported')
+  await expect(releaseCapabilities).toContainText('ROLLBACK supported')
+  await expect(page.getByRole('heading', { name: '开发 Runtime 发布与失败恢复' })).toHaveCount(0)
+
+  const exportButton = page.getByRole('button', { name: '下载 release package' })
+  await expect(exportButton).toBeEnabled()
+  const releaseDownload = page.waitForEvent('download')
+  await exportButton.click()
+  const exportDialog = page.getByRole('dialog', { name: '确认导出 exact release package' })
+  await expect(exportDialog).toContainText('sha256:candidate-001')
+  await expect(exportDialog).toContainText('不含数据、权限或签名')
+  await exportDialog.getByRole('button', { name: '下载 JSON package' }).click()
+  const downloaded = await releaseDownload
+  expect(downloaded.suggestedFilename()).toBe('foggy-release-runtime-console-demo-candidate-00.json')
+  const exportedPath = await downloaded.path()
+  const exportedJson = JSON.parse(await readFile(exportedPath!, 'utf8'))
+  expect(exportedJson).toMatchObject({
+    formatVersion: 'foggy-authoring-release/v1',
+    packageId: 'sha256:release-package-001',
+    candidateRevision: 'sha256:candidate-001'
+  })
+
+  await page.getByLabel('选择 release package JSON').setInputFiles({
+    name: 'sales-release.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(releasePackageFixture()))
+  })
+  const preview = page.getByLabel('Release package preview')
+  await expect(preview).toContainText('foggy-authoring-release/v1')
+  await expect(preview).toContainText('development / runtime-console-demo')
+  await expect(preview).toContainText('VALID · PROVENANCE ONLY')
+  await expect(page.getByLabel('Target Namespace / current X-NS')).toHaveValue('default')
+  await expect(page.getByLabel('Eligible target Bundle')).toHaveValue('runtime-console-demo')
+
+  await page.getByRole('button', { name: '确认 target 并导入只读 candidate' }).click()
+  const importDialog = page.getByRole('dialog', { name: '确认导入只读 production candidate' })
+  await expect(importDialog).toContainText('sha256:release-package-001')
+  await expect(importDialog).toContainText('Target: default / runtime-console-demo')
+  await expect(importDialog).toContainText('导入后不会自动 apply')
+  await importDialog.getByRole('button', { name: '导入到明确 target' }).click()
+
+  await expect(page.locator('.workspace-revision-bar')).toContainText('DRAFT')
+  await expect(page.getByRole('heading', { name: '生产 candidate · immutable' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '新建' })).toBeDisabled()
+  await page.getByRole('button', { name: /QM query\/OrderQuery\.qm/ }).click()
+  await expect(page.getByLabel('Workspace 资源内容')).toBeDisabled()
+  await expect(page.getByRole('button', { name: '保存为新 revision' })).toBeDisabled()
+  expect(state.requests.find(item => item.path === 'authoring/releases/import')?.body).toMatchObject({
+    namespace: 'default',
+    targetBundle: 'runtime-console-demo',
+    releasePackage: {
+      packageId: 'sha256:release-package-001',
+      candidateRevision: 'sha256:candidate-001'
+    }
+  })
+
+  const inspector = page.getByRole('navigation', { name: 'Candidate 检查工具' })
+  await inspector.getByRole('button', { name: 'VALIDATE' }).click()
+  await page.getByRole('button', { name: '校验当前 revision' }).click()
+  await expect(page.locator('.workspace-revision-bar')).toContainText('VALIDATED')
+  await inspector.getByRole('button', { name: 'CANDIDATE QUERY' }).click()
+  await page.getByLabel('Candidate QM 模型').fill('OrderQuery')
+  await page.getByRole('button', { name: 'Execute candidate' }).click()
+  await expect(page.getByText('Candidate Alice', { exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: '确认并 apply exact package' }).click()
+  const applyDialog = page.getByRole('dialog', { name: '确认生产 apply exact package' })
+  await expect(applyDialog).toContainText('sha256:release-package-001')
+  await expect(applyDialog).toContainText('sha256:production-base-001')
+  await expect(applyDialog).toContainText('source:production:g1')
+  await applyDialog.getByRole('button', { name: 'Apply exact package' }).click()
+  await expect(page.locator('.workspace-revision-bar')).toContainText('PUBLISHED')
+  const promoteRequest = state.requests.find(item => item.path.endsWith('/promote'))
+  expect(promoteRequest?.body).toEqual({
+    releasePackageId: 'sha256:release-package-001',
+    expectedCandidateRevision: 'sha256:candidate-001',
+    expectedBaseBundleRevision: 'sha256:production-base-001',
+    expectedBaseNamespaceSourceRevision: 'source:production:g1'
+  })
+  expect(state.requests.some(item => item.path.endsWith('/publish'))).toBe(false)
+
+  const imported = state.authoringWorkspaces.find(item => item.workspaceId.startsWith('ws-imported'))!
+  imported.state = 'ROLLBACK_REQUIRED'
+  imported.lastPublication.rollback = {
+    status: 'ROLLBACK_REQUIRED',
+    startedAt: '2026-08-01T07:21:00Z',
+    diagnostics: ['Rollback convergence is unknown.']
+  }
+  await page.reload()
+  await expect(page.locator('.workspace-revision-bar')).toContainText('ROLLBACK_REQUIRED')
+  await expect(page.getByRole('button', { name: '新建' })).toBeDisabled()
+  await page.getByRole('button', { name: '恢复 pinned candidate' }).click()
+  const recoveryDialog = page.getByRole('dialog', { name: '确认 pinned rollback recovery' })
+  await expect(recoveryDialog).toContainText('promotion-attempt-001')
+  await expect(recoveryDialog).toContainText('不会覆盖第三方 drift')
+  await recoveryDialog.getByRole('button', { name: '恢复 pinned candidate' }).click()
+  await expect(page.locator('.workspace-revision-bar')).toContainText('PUBLISHED')
+  expect(state.requests.find(item => item.path.endsWith('/rollback/recover'))?.body).toEqual({
+    releasePackageId: 'sha256:release-package-001',
+    expectedCandidateRevision: 'sha256:candidate-001',
+    publicationAttemptId: 'promotion-attempt-001'
+  })
+
+  imported.lastPublication.rollback = null
+  imported.state = 'PUBLISHED'
+  await page.reload()
+  await page.getByRole('button', { name: 'Rollback 到直接前一 base' }).click()
+  const rollbackDialog = page.getByRole('dialog', { name: '确认一步 pinned rollback' })
+  await expect(rollbackDialog).toContainText('Direct previous base: sha256:production-base-001')
+  await rollbackDialog.getByRole('button', { name: 'Rollback 到直接前一 base' }).click()
+  await expect(page.locator('.workspace-revision-bar')).toContainText('ROLLED_BACK')
+  await expect(page.getByText('直接前一 production base 已恢复')).toBeVisible()
+  expect(state.requests.find(item => /\/rollback$/.test(item.path))?.body).toEqual({
+    releasePackageId: 'sha256:release-package-001',
+    expectedCandidateRevision: 'sha256:candidate-001',
+    publicationAttemptId: 'promotion-attempt-001'
+  })
+
+  const browserPersistence = await page.evaluate(() => {
+    const values: string[] = []
+    for (let index = 0; index < localStorage.length; index++) {
+      const key = localStorage.key(index)
+      values.push(key ? localStorage.getItem(key) || '' : '')
+    }
+    return { values: values.join('\n'), href: window.location.href }
+  })
+  expect(browserPersistence.values).not.toContain('release-package-001')
+  expect(browserPersistence.href).not.toContain('release-package-001')
+  expect(state.requests.some(item => item.path.endsWith('/resources/save'))).toBe(false)
+
+  await page.screenshot({
+    path: testInfo.outputPath(testInfo.project.name.includes('mobile')
+      ? 'authoring-production-promotion-mobile.png'
+      : 'authoring-production-promotion-desktop.png'),
+    fullPage: true
+  })
+})
+
+test('authoring workspace recovers a failed production apply only by its pinned attempt', async ({ page }) => {
+  const state = mockStates.get(page)!
+  Object.assign(state.capabilities, {
+    'authoring.releasePackage.export': 'supported',
+    'authoring.releasePackage.import': 'supported',
+    'authoring.production.apply': 'supported',
+    'authoring.production.rollback': 'supported'
+  })
+  const release = releasePackageFixture()
+  state.authoringWorkspaces = [{
+    workspaceId: 'ws-imported-recovery',
+    targetNamespace: 'default',
+    sourceBundle: 'runtime-console-demo',
+    sourceKind: 'runtime-managed',
+    baseBundleRevision: 'sha256:production-base-001',
+    baseNamespaceSourceRevision: 'source:production:g1',
+    candidateRevision: release.candidateRevision,
+    state: 'RECOVERY_REQUIRED',
+    createdAt: '2026-08-01T07:10:00Z',
+    updatedAt: '2026-08-01T07:20:00Z',
+    lastValidation: {
+      ...release.validation,
+      baseBundleRevision: 'sha256:production-base-001',
+      baseNamespaceSourceRevision: 'source:production:g1'
+    },
+    lastPublication: {
+      attemptId: 'promotion-attempt-recovery',
+      status: 'RECOVERY_REQUIRED',
+      candidateRevision: release.candidateRevision,
+      baseBundleRevision: 'sha256:production-base-001',
+      baseNamespaceSourceRevision: 'source:production:g1',
+      startedAt: '2026-08-01T07:19:00Z',
+      diagnostics: ['Production apply did not converge.']
+    },
+    releaseImport: {
+      packageId: release.packageId,
+      formatVersion: release.formatVersion,
+      sourceRuntimeApiVersion: release.sourceRuntimeApiVersion,
+      sourceNamespace: release.sourceNamespace,
+      sourceBundle: release.sourceBundle,
+      exportedCandidateRevision: release.candidateRevision,
+      importedAt: '2026-08-01T07:10:00Z'
+    },
+    diagnostics: ['Explicit publication recovery is required.']
+  }]
+  state.authoringResources = {
+    'ws-imported-recovery': release.resources.map(item => ({ ...item }))
+  }
+
+  await login(page)
+  await page.goto('/console/#/namespaces/authoring?ns=default&workspaceId=ws-imported-recovery')
+  await expect(page.locator('.workspace-revision-bar')).toContainText('RECOVERY_REQUIRED')
+  await expect(page.getByText('Production apply 需要恢复 failed publication attempt')).toBeVisible()
+  const recover = page.getByRole('button', { name: '恢复 failed apply' })
+  await expect(recover).toBeEnabled()
+  await recover.click()
+  const dialog = page.getByRole('dialog', { name: '确认恢复失败发布' })
+  await expect(dialog).toContainText('promotion-attempt-recovery')
+  await expect(dialog).toContainText('sha256:candidate-001')
+  await dialog.getByRole('button', { name: '恢复 exact attempt' }).click()
+
+  await expect(page.locator('.workspace-revision-bar')).toContainText('STALE')
+  expect(state.requests.find(item => item.path.endsWith('/publish/recover'))?.body).toEqual({
+    expectedCandidateRevision: 'sha256:candidate-001',
+    publicationAttemptId: 'promotion-attempt-recovery'
+  })
+  expect(state.requests.some(item => item.path.endsWith('/promote'))).toBe(false)
+  expect(state.requests.some(item => item.path.endsWith('/resources/save'))).toBe(false)
 })

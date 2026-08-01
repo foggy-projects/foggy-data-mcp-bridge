@@ -74,6 +74,83 @@ class RuntimeAuthoringWorkspaceStoreTest {
     }
 
     @Test
+    void restartConvertsInterruptedRollbackToExplicitRecoveryWithoutMutation()
+            throws Exception {
+        Path root = tempDirectory.resolve("interrupted-rollback");
+        RuntimeAuthoringWorkspaceStore first = store(root);
+        Map<String, byte[]> base = Map.of("Order.tm", bytes("base"));
+        Map<String, byte[]> candidate = Map.of("Order.tm", bytes("candidate"));
+        String candidateRevision = CandidateContentRevision.calculate(candidate);
+        String now = Instant.now().toString();
+        AuthoringWorkspaceInfo.ReleaseImportEvidence release =
+                new AuthoringWorkspaceInfo.ReleaseImportEvidence(
+                        "sha256:" + "a".repeat(64),
+                        RuntimeAuthoringReleasePackageService.FORMAT_VERSION,
+                        "9.5.4", "source-ns", "source-bundle",
+                        candidateRevision, now);
+        var imported = first.createImported(
+                "sales", "managed-sales", "source:base", SOURCE_IDENTITY,
+                base, candidate, release);
+        var validated = first.recordValidation(
+                imported.workspaceId(), imported.candidateRevision(),
+                new AuthoringWorkspaceInfo.ValidationEvidence(
+                        true, imported.candidateRevision(),
+                        imported.baseBundleRevision(), imported.baseSourceRevision(),
+                        now, 1, 1, 0, 0, List.of()));
+        String attemptId = "00000000-0000-0000-0000-000000000001";
+        AuthoringWorkspaceInfo.PublicationEvidence publishing =
+                new AuthoringWorkspaceInfo.PublicationEvidence(
+                        attemptId, "PUBLISHING", validated.candidateRevision(),
+                        validated.baseBundleRevision(),
+                        validated.candidateRevision(),
+                        validated.baseSourceRevision(), null,
+                        "catalog-before", null, null, now, null, List.of());
+        first.beginPublication(validated.workspaceId(),
+                validated.candidateRevision(), publishing);
+        AuthoringWorkspaceInfo.PublicationEvidence published =
+                new AuthoringWorkspaceInfo.PublicationEvidence(
+                        attemptId, "PUBLISHED", validated.candidateRevision(),
+                        validated.baseBundleRevision(),
+                        validated.candidateRevision(),
+                        validated.baseSourceRevision(), "source:published",
+                        "catalog-before", "catalog-published", null,
+                        now, now, List.of());
+        first.markPublished(validated.workspaceId(), attemptId, published);
+        AuthoringWorkspaceInfo.RollbackEvidence rolling =
+                new AuthoringWorkspaceInfo.RollbackEvidence(
+                        "ROLLING_BACK", now, null, null, null,
+                        null, null, List.of());
+        AuthoringWorkspaceInfo.PublicationEvidence rollingPublication =
+                new AuthoringWorkspaceInfo.PublicationEvidence(
+                        published.attemptId(), published.status(),
+                        published.candidateRevision(),
+                        published.baseBundleRevision(),
+                        published.appliedBundleRevision(),
+                        published.baseNamespaceSourceRevision(),
+                        published.publishedNamespaceSourceRevision(),
+                        published.beforeCatalogGeneration(),
+                        published.afterCatalogGeneration(),
+                        published.recoveredCatalogGeneration(),
+                        published.startedAt(), published.completedAt(),
+                        published.diagnostics(), rolling);
+        first.beginRollback(validated.workspaceId(), attemptId,
+                rollingPublication);
+
+        RuntimeAuthoringWorkspaceStore restarted = store(root);
+        var required = restarted.get(validated.workspaceId());
+
+        assertThat(required.state())
+                .isEqualTo(AuthoringWorkspaceState.ROLLBACK_REQUIRED);
+        assertThat(required.lastPublication().rollback().status())
+                .isEqualTo("ROLLBACK_REQUIRED");
+        assertThat(required.lastPublication().rollback().diagnostics())
+                .contains("Runtime restarted before rollback completion was proven.");
+        assertThat(restarted.snapshot(
+                validated.workspaceId(), validated.candidateRevision()))
+                .containsOnlyKeys("Order.tm");
+    }
+
+    @Test
     void restartDeletesOnlyOwnedOrphansAndPreservesForeignEntries()
             throws Exception {
         Path ownedRoot = tempDirectory.resolve("owned-cleanup");

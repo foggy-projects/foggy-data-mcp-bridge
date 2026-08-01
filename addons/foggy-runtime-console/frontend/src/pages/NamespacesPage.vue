@@ -281,6 +281,7 @@ onBeforeUnmount(() => contextRail.clearContext('namespaces'))
     v-else-if="workspace === 'authoring'"
     :namespace="currentNamespace"
     :bundles="selectedBundles"
+    :capabilities="data.capabilities.value?.capabilities || {}"
   />
 
   <section v-else class="settings-grid" aria-labelledby="space-settings-title">

@@ -5,10 +5,14 @@ import com.foggyframework.bundle.external.ExternalBundleDefinition;
 import com.foggyframework.core.bundle.BundleDefinition;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogSnapshotStore;
 import com.foggyframework.fsscript.lifecycle.CommittedSourceRevisionRegistry;
+import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceInfo;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceInfo.PublicationEvidence;
+import com.foggyframework.runtime.api.dto.AuthoringWorkspaceInfo.RollbackEvidence;
+import com.foggyframework.runtime.api.dto.AuthoringWorkspacePromotionRequest;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspacePublishRequest;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceRecoverRequest;
+import com.foggyframework.runtime.api.dto.AuthoringWorkspaceRollbackRequest;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceState;
 import com.foggyframework.runtime.api.dto.ModelRefreshRequest;
 import com.foggyframework.runtime.api.dto.ModelRefreshResponse;
@@ -16,7 +20,9 @@ import com.foggyframework.runtime.api.service.RuntimeAuthoringWorkspaceService.P
 import com.foggyframework.runtime.api.service.RuntimeAuthoringWorkspaceStore.StoredWorkspace;
 import com.foggyframework.runtime.api.service.RuntimeBundleRegistryService.RuntimeBundleRecord;
 import com.foggyframework.runtime.api.service.RuntimePublishedBundleArtifactStore.PublicationAttempt;
+import com.foggyframework.runtime.api.service.RuntimePublishedBundleArtifactStore.RollbackAttempt;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -32,6 +38,7 @@ import java.util.Objects;
 @ConditionalOnProperty(prefix = "foggy.runtime-api", name = "enabled", havingValue = "true")
 public class RuntimeAuthoringWorkspacePublicationService {
 
+    private final FoggyRuntimeApiProperties properties;
     private final RuntimeAuthoringWorkspaceStore workspaceStore;
     private final RuntimeAuthoringWorkspaceService workspaceService;
     private final RuntimePublishedBundleArtifactStore artifactStore;
@@ -42,7 +49,9 @@ public class RuntimeAuthoringWorkspacePublicationService {
     private final ObjectProvider<CommittedSourceRevisionRegistry> sourceRegistryProvider;
     private final ObjectProvider<CatalogSnapshotStore> catalogStoreProvider;
 
+    @Autowired
     public RuntimeAuthoringWorkspacePublicationService(
+            FoggyRuntimeApiProperties properties,
             RuntimeAuthoringWorkspaceStore workspaceStore,
             RuntimeAuthoringWorkspaceService workspaceService,
             RuntimePublishedBundleArtifactStore artifactStore,
@@ -53,6 +62,7 @@ public class RuntimeAuthoringWorkspacePublicationService {
             ObjectProvider<CommittedSourceRevisionRegistry> sourceRegistryProvider,
             ObjectProvider<CatalogSnapshotStore> catalogStoreProvider
     ) {
+        this.properties = properties;
         this.workspaceStore = workspaceStore;
         this.workspaceService = workspaceService;
         this.artifactStore = artifactStore;
@@ -64,9 +74,68 @@ public class RuntimeAuthoringWorkspacePublicationService {
         this.catalogStoreProvider = catalogStoreProvider;
     }
 
+    /** Compatibility constructor for focused tests and embedded callers. */
+    public RuntimeAuthoringWorkspacePublicationService(
+            RuntimeAuthoringWorkspaceStore workspaceStore,
+            RuntimeAuthoringWorkspaceService workspaceService,
+            RuntimePublishedBundleArtifactStore artifactStore,
+            RuntimeBundleRegistryService bundleRegistry,
+            SystemBundlesContext bundlesContext,
+            RuntimeModelOperations modelOperations,
+            RuntimeAuthoringPublicationLock publicationLock,
+            ObjectProvider<CommittedSourceRevisionRegistry> sourceRegistryProvider,
+            ObjectProvider<CatalogSnapshotStore> catalogStoreProvider
+    ) {
+        this(new FoggyRuntimeApiProperties(), workspaceStore, workspaceService,
+                artifactStore, bundleRegistry, bundlesContext, modelOperations,
+                publicationLock, sourceRegistryProvider, catalogStoreProvider);
+    }
+
     public AuthoringWorkspaceInfo publish(
             String workspaceId,
             AuthoringWorkspacePublishRequest request
+    ) {
+        if (promotionEnabled()) {
+            throw failure("WORKSPACE_PRODUCTION_PROMOTION_REQUIRED",
+                    "workspaces.publish.preflight",
+                    "Normal workspace publication is disabled in production promotion mode.",
+                    false);
+        }
+        return publishExact(workspaceId, request, null);
+    }
+
+    public AuthoringWorkspaceInfo promote(
+            String workspaceId,
+            AuthoringWorkspacePromotionRequest request
+    ) {
+        String phase = "workspaces.promote.preflight";
+        if (!promotionEnabled()) {
+            throw failure("WORKSPACE_PRODUCTION_PROMOTION_DISABLED", phase,
+                    "Production promotion is not enabled on this Runtime.", false);
+        }
+        if (request == null
+                || !StringUtils.hasText(request.releasePackageId())
+                || !StringUtils.hasText(request.expectedCandidateRevision())
+                || !StringUtils.hasText(request.expectedBaseBundleRevision())
+                || !StringUtils.hasText(
+                request.expectedBaseNamespaceSourceRevision())) {
+            throw failure("WORKSPACE_INVALID_REQUEST", phase,
+                    "Package, candidate, and base revision identities are required.",
+                    true);
+        }
+        AuthoringWorkspacePublishRequest publication =
+                new AuthoringWorkspacePublishRequest(
+                        request.expectedCandidateRevision().trim(),
+                        request.expectedBaseBundleRevision().trim(),
+                        request.expectedBaseNamespaceSourceRevision().trim());
+        return publishExact(workspaceId, publication,
+                request.releasePackageId().trim());
+    }
+
+    private AuthoringWorkspaceInfo publishExact(
+            String workspaceId,
+            AuthoringWorkspacePublishRequest request,
+            String releasePackageId
     ) {
         try (RuntimeAuthoringPublicationLock.Guard ignored = publicationLock.acquire()) {
             if (request == null) {
@@ -74,11 +143,23 @@ public class RuntimeAuthoringWorkspacePublicationService {
                         "workspaces.publish.preflight",
                         "Publication revision identities are required.", true);
             }
+            StoredWorkspace imported = null;
+            if (releasePackageId != null) {
+                imported = workspaceService.requireImportedValidated(
+                        workspaceId, request.expectedCandidateRevision(),
+                        releasePackageId, "workspaces.promote.preflight");
+            }
             PublicationCandidate candidate = workspaceService.preflightPublication(
                     workspaceId, request.expectedCandidateRevision(),
                     request.expectedBaseBundleRevision(),
                     request.expectedBaseNamespaceSourceRevision());
             StoredWorkspace workspace = candidate.workspace();
+            if (imported != null && !imported.equals(workspace)) {
+                throw failure("WORKSPACE_PUBLISH_CONFLICT",
+                        "workspaces.promote.preflight",
+                        "Imported release workspace changed during promotion preflight.",
+                        false);
+            }
             RuntimeBundleRecord baseRecord = candidate.source().record();
             requireEligibleBaseRecord(workspace, baseRecord);
             if (baseRecord.immutablePublication()) {
@@ -170,6 +251,19 @@ public class RuntimeAuthoringWorkspacePublicationService {
         }
     }
 
+    private boolean promotionEnabled() {
+        FoggyRuntimeApiProperties.AuthoringWorkspaces configured =
+                properties.getAuthoringWorkspaces();
+        return configured != null && configured.isProductionPromotionEnabled();
+    }
+
+    private void requirePromotionEnabled(String phase) {
+        if (!promotionEnabled()) {
+            throw failure("WORKSPACE_PRODUCTION_PROMOTION_DISABLED", phase,
+                    "Production promotion is not enabled on this Runtime.", false);
+        }
+    }
+
     public AuthoringWorkspaceInfo recover(
             String workspaceId,
             AuthoringWorkspaceRecoverRequest request
@@ -246,6 +340,149 @@ public class RuntimeAuthoringWorkspacePublicationService {
                         false, recoveryFailure);
             }
         }
+    }
+
+    public AuthoringWorkspaceInfo rollback(
+            String workspaceId,
+            AuthoringWorkspaceRollbackRequest request
+    ) {
+        String phase = "workspaces.rollback.preflight";
+        requirePromotionEnabled(phase);
+        try (RuntimeAuthoringPublicationLock.Guard ignored = publicationLock.acquire()) {
+            StoredWorkspace workspace = requireRollbackRequest(
+                    workspaceId, request, AuthoringWorkspaceState.PUBLISHED,
+                    phase);
+            PublicationAttempt attempt = artifactStore.get(
+                    request.publicationAttemptId().trim());
+            requireAttemptMatches(workspace, attempt);
+            if (!"PUBLISHED".equals(attempt.status())
+                    || attempt.rollback() != null) {
+                throw failure("WORKSPACE_ROLLBACK_CONFLICT", phase,
+                        "Publication attempt is not eligible for a new rollback.",
+                        false);
+            }
+            artifactStore.artifactPath(attempt);
+            RuntimeBundleRecord baseRecord = baseRecord(attempt);
+            requireCandidateCurrent(attempt, baseRecord, phase);
+
+            String startedAt = Instant.now().toString();
+            RollbackAttempt rolling = new RollbackAttempt(
+                    "ROLLING_BACK", startedAt, null, null,
+                    null, null, null, List.of());
+            attempt = attempt.withRollback(rolling);
+            PublicationEvidence rollingEvidence = withRollback(
+                    workspace.lastPublication(), rollbackEvidence(rolling));
+            workspaceStore.beginRollback(workspace.workspaceId(),
+                    attempt.attemptId(), rollingEvidence);
+
+            try {
+                artifactStore.update(attempt);
+                Convergence rolledBack = restoreBaseForRollback(
+                        attempt, baseRecord);
+                String completedAt = Instant.now().toString();
+                RollbackAttempt completed = new RollbackAttempt(
+                        "ROLLED_BACK", startedAt,
+                        rolledBack.sourceRevision(),
+                        rolledBack.catalogGeneration(), completedAt,
+                        null, null,
+                        List.of("Previous production Bundle and catalog were restored."));
+                PublicationAttempt completedAttempt =
+                        attempt.withRollback(completed);
+                artifactStore.update(completedAttempt);
+                StoredWorkspace stored = workspaceStore.markRolledBack(
+                        workspace.workspaceId(), attempt.attemptId(),
+                        withRollback(workspace.lastPublication(),
+                                rollbackEvidence(completed)));
+                return workspaceStore.toInfo(stored);
+            } catch (RuntimeException rollbackFailure) {
+                return failRollbackForward(workspace, attempt, baseRecord,
+                        rollbackFailure);
+            }
+        }
+    }
+
+    public AuthoringWorkspaceInfo recoverRollback(
+            String workspaceId,
+            AuthoringWorkspaceRollbackRequest request
+    ) {
+        String phase = "workspaces.rollback.recovery";
+        requirePromotionEnabled(phase);
+        try (RuntimeAuthoringPublicationLock.Guard ignored = publicationLock.acquire()) {
+            StoredWorkspace workspace = requireRollbackRequest(
+                    workspaceId, request,
+                    AuthoringWorkspaceState.ROLLBACK_REQUIRED, phase);
+            PublicationAttempt attempt = artifactStore.get(
+                    request.publicationAttemptId().trim());
+            requireAttemptMatches(workspace, attempt);
+            artifactStore.artifactPath(attempt);
+            RuntimeBundleRecord baseRecord = baseRecord(attempt);
+            try {
+                Convergence recovered = restoreCandidate(
+                        attempt, baseRecord, phase);
+                String completedAt = Instant.now().toString();
+                String startedAt = rollbackStartedAt(workspace, attempt);
+                RollbackAttempt forward = new RollbackAttempt(
+                        "FORWARD_RECOVERED", startedAt, null, null,
+                        completedAt, recovered.sourceRevision(),
+                        recovered.catalogGeneration(),
+                        List.of("Candidate production Bundle and catalog were restored."));
+                PublicationAttempt recoveredAttempt = attempt.withRollback(forward);
+                artifactStore.update(recoveredAttempt);
+                StoredWorkspace stored = workspaceStore.markForwardRecovered(
+                        workspace.workspaceId(), attempt.attemptId(),
+                        withRollback(workspace.lastPublication(),
+                                rollbackEvidence(forward)),
+                        "Explicit rollback recovery restored the candidate release.");
+                return workspaceStore.toInfo(stored);
+            } catch (RuntimeException recoveryFailure) {
+                recordRollbackRequired(workspace, attempt,
+                        "Explicit forward recovery could not prove candidate convergence.");
+                if (recoveryFailure instanceof RuntimeAuthoringWorkspaceException typed
+                        && "WORKSPACE_ROLLBACK_CONFLICT".equals(typed.code())) {
+                    throw typed;
+                }
+                throw failure("WORKSPACE_ROLLBACK_RECOVERY_FAILED", phase,
+                        "Rollback recovery failed; live state was not overwritten.",
+                        false, recoveryFailure);
+            }
+        }
+    }
+
+    private AuthoringWorkspaceInfo failRollbackForward(
+            StoredWorkspace workspace,
+            PublicationAttempt attempt,
+            RuntimeBundleRecord baseRecord,
+            RuntimeException rollbackFailure
+    ) {
+        try {
+            Convergence recovered = restoreCandidate(
+                    attempt, baseRecord, "workspaces.rollback.recovery");
+            String completedAt = Instant.now().toString();
+            String startedAt = rollbackStartedAt(workspace, attempt);
+            RollbackAttempt forward = new RollbackAttempt(
+                    "FORWARD_RECOVERED", startedAt, null, null,
+                    completedAt, recovered.sourceRevision(),
+                    recovered.catalogGeneration(),
+                    List.of("Rollback failed; candidate production state was restored."));
+            PublicationAttempt recoveredAttempt = attempt.withRollback(forward);
+            artifactStore.update(recoveredAttempt);
+            workspaceStore.markForwardRecovered(
+                    workspace.workspaceId(), attempt.attemptId(),
+                    withRollback(workspace.lastPublication(),
+                            rollbackEvidence(forward)),
+                    "Rollback failed; candidate production state was restored.");
+        } catch (RuntimeException recoveryFailure) {
+            rollbackFailure.addSuppressed(recoveryFailure);
+            recordRollbackRequired(workspace, attempt,
+                    "Rollback failed and candidate convergence could not be proven.");
+            throw failure("WORKSPACE_ROLLBACK_REQUIRED",
+                    "workspaces.rollback.recovery",
+                    "Rollback failed and requires explicit forward recovery.",
+                    false, rollbackFailure);
+        }
+        throw failure("WORKSPACE_ROLLBACK_FAILED", phaseOf(rollbackFailure),
+                "Rollback failed; the candidate production release was restored.",
+                false, rollbackFailure);
     }
 
     private AuthoringWorkspaceInfo failAfterPublicationStarted(
@@ -339,6 +576,237 @@ public class RuntimeAuthoringWorkspacePublicationService {
                 List.of("Previous live Bundle source and catalog were already current."));
         artifactStore.update(recovered);
         return recovered;
+    }
+
+    private Convergence restoreBaseForRollback(
+            PublicationAttempt attempt,
+            RuntimeBundleRecord baseRecord
+    ) {
+        String phase = "workspaces.rollback.commit";
+        requireCandidateCurrent(attempt, baseRecord, phase);
+        if (!bundlesContext.replaceExternalBundle(
+                attempt.bundle(), attempt.namespace(),
+                baseRecord.path(), baseRecord.watch())) {
+            throw failure("WORKSPACE_ROLLBACK_FAILED", phase,
+                    "Previous Bundle source could not be activated.", false);
+        }
+        bundleRegistry.restoreExact(baseRecord);
+        ModelRefreshResponse refresh = fullRefresh(attempt.namespace());
+        String sourceRevision = sourceRegistry(phase)
+                .currentRevision(attempt.namespace());
+        requireRefreshCurrent(attempt.namespace(), refresh, sourceRevision, phase);
+        if (!baseIsCurrent(attempt, baseRecord)
+                || !catalogMatches(attempt.namespace(), sourceRevision,
+                refresh.afterCatalogGeneration())) {
+            throw failure("WORKSPACE_ROLLBACK_FAILED", phase,
+                    "Previous Bundle source and catalog did not converge.", false);
+        }
+        return new Convergence(sourceRevision,
+                refresh.afterCatalogGeneration());
+    }
+
+    private Convergence restoreCandidate(
+            PublicationAttempt attempt,
+            RuntimeBundleRecord baseRecord,
+            String phase
+    ) {
+        SourcePosition position = sourcePosition(attempt, baseRecord);
+        boolean refreshRequired = false;
+        Path artifact = artifactStore.artifactPath(attempt);
+        if (position.live() == Position.BASE) {
+            if (!bundlesContext.replaceExternalBundle(
+                    attempt.bundle(), attempt.namespace(),
+                    artifact.toString(), false)) {
+                throw failure("WORKSPACE_ROLLBACK_RECOVERY_FAILED", phase,
+                        "Candidate Bundle source could not be restored.", false);
+            }
+            refreshRequired = true;
+        }
+        if (position.registry() == Position.BASE) {
+            bundleRegistry.save(baseRecord.withPublication(
+                    artifact.toString(), attempt.candidateRevision()));
+            refreshRequired = true;
+        }
+        String sourceRevision = sourceRegistry(phase)
+                .currentRevision(attempt.namespace());
+        if (refreshRequired || !catalogMatches(
+                attempt.namespace(), sourceRevision,
+                attempt.afterCatalogGeneration())) {
+            ModelRefreshResponse refresh = fullRefresh(attempt.namespace());
+            sourceRevision = sourceRegistry(phase)
+                    .currentRevision(attempt.namespace());
+            requireRefreshCurrent(attempt.namespace(), refresh,
+                    sourceRevision, phase);
+            if (!candidateSourceIsCurrent(attempt, baseRecord)
+                    || !catalogMatches(attempt.namespace(), sourceRevision,
+                    refresh.afterCatalogGeneration())) {
+                throw failure("WORKSPACE_ROLLBACK_RECOVERY_FAILED", phase,
+                        "Candidate Bundle source and catalog did not converge.", false);
+            }
+            return new Convergence(sourceRevision,
+                    refresh.afterCatalogGeneration());
+        }
+        if (!candidateSourceIsCurrent(attempt, baseRecord)) {
+            throw failure("WORKSPACE_ROLLBACK_CONFLICT", phase,
+                    "Production Bundle drifted outside the rollback attempt.", false);
+        }
+        return new Convergence(sourceRevision,
+                attempt.afterCatalogGeneration());
+    }
+
+    private StoredWorkspace requireRollbackRequest(
+            String workspaceId,
+            AuthoringWorkspaceRollbackRequest request,
+            AuthoringWorkspaceState requiredState,
+            String phase
+    ) {
+        if (request == null
+                || !StringUtils.hasText(request.releasePackageId())
+                || !StringUtils.hasText(request.expectedCandidateRevision())
+                || !StringUtils.hasText(request.publicationAttemptId())) {
+            throw failure("WORKSPACE_INVALID_REQUEST", phase,
+                    "Package, candidate, and publication attempt identities are required.",
+                    true);
+        }
+        StoredWorkspace workspace = workspaceStore.get(workspaceId);
+        PublicationEvidence publication = workspace.lastPublication();
+        if (workspace.state() != requiredState
+                || workspace.releaseImport() == null
+                || !request.releasePackageId().trim().equals(
+                workspace.releaseImport().packageId())
+                || !request.expectedCandidateRevision().trim().equals(
+                workspace.candidateRevision())
+                || publication == null
+                || !request.publicationAttemptId().trim().equals(
+                publication.attemptId())
+                || !"PUBLISHED".equals(publication.status())) {
+            throw failure("WORKSPACE_ROLLBACK_CONFLICT", phase,
+                    "Rollback identity is no longer current.", false);
+        }
+        return workspace;
+    }
+
+    private void requireCandidateCurrent(
+            PublicationAttempt attempt,
+            RuntimeBundleRecord baseRecord,
+            String phase
+    ) {
+        if (!candidateSourceIsCurrent(attempt, baseRecord)
+                || !StringUtils.hasText(attempt.publishedSourceRevision())
+                || !StringUtils.hasText(attempt.afterCatalogGeneration())
+                || !catalogMatches(attempt.namespace(),
+                attempt.publishedSourceRevision(),
+                attempt.afterCatalogGeneration())) {
+            throw failure("WORKSPACE_ROLLBACK_CONFLICT", phase,
+                    "Production Bundle or catalog drifted after apply.", false);
+        }
+    }
+
+    private boolean candidateSourceIsCurrent(
+            PublicationAttempt attempt,
+            RuntimeBundleRecord baseRecord
+    ) {
+        try {
+            SourcePosition position = sourcePosition(attempt, baseRecord);
+            return position.registry() == Position.CANDIDATE
+                    && position.live() == Position.CANDIDATE;
+        } catch (RuntimeException ignored) {
+            return false;
+        }
+    }
+
+    private boolean catalogMatches(
+            String namespace,
+            String sourceRevision,
+            String catalogGeneration
+    ) {
+        CatalogSnapshotStore store = catalogStoreProvider.getIfAvailable();
+        if (store == null || !StringUtils.hasText(sourceRevision)
+                || !StringUtils.hasText(catalogGeneration)) {
+            return false;
+        }
+        return store.current(namespace)
+                .map(snapshot -> sourceRevision.equals(
+                        snapshot.identity().sourceRevision().value())
+                        && catalogGeneration.equals(
+                        snapshot.identity().generation().value()))
+                .orElse(false);
+    }
+
+    private void recordRollbackRequired(
+            StoredWorkspace workspace,
+            PublicationAttempt attempt,
+            String diagnostic
+    ) {
+        String startedAt = rollbackStartedAt(workspace, attempt);
+        List<String> diagnostics = new ArrayList<>();
+        RollbackAttempt previous = attempt.rollback();
+        if (previous != null) {
+            diagnostics.addAll(previous.diagnostics());
+        }
+        diagnostics.add(diagnostic);
+        RollbackAttempt required = new RollbackAttempt(
+                "ROLLBACK_REQUIRED", startedAt,
+                previous == null ? null : previous.rolledBackSourceRevision(),
+                previous == null ? null : previous.rolledBackCatalogGeneration(),
+                null,
+                previous == null ? null : previous.forwardRecoveredSourceRevision(),
+                previous == null ? null : previous.forwardRecoveredCatalogGeneration(),
+                diagnostics);
+        PublicationAttempt requiredAttempt = attempt.withRollback(required);
+        bestEffortAttempt(requiredAttempt);
+        try {
+            StoredWorkspace current = workspaceStore.get(workspace.workspaceId());
+            workspaceStore.markRollbackRequired(
+                    workspace.workspaceId(), attempt.attemptId(),
+                    withRollback(current.lastPublication(),
+                            rollbackEvidence(required)), diagnostic);
+        } catch (RuntimeException ignored) {
+            // Durable ROLLING_BACK workspace intent is reconciled after restart.
+        }
+    }
+
+    private static String rollbackStartedAt(
+            StoredWorkspace workspace,
+            PublicationAttempt attempt
+    ) {
+        if (attempt.rollback() != null
+                && StringUtils.hasText(attempt.rollback().startedAt())) {
+            return attempt.rollback().startedAt();
+        }
+        PublicationEvidence publication = workspace.lastPublication();
+        if (publication != null && publication.rollback() != null
+                && StringUtils.hasText(publication.rollback().startedAt())) {
+            return publication.rollback().startedAt();
+        }
+        return Instant.now().toString();
+    }
+
+    private static RollbackEvidence rollbackEvidence(RollbackAttempt attempt) {
+        return new RollbackEvidence(
+                attempt.status(), attempt.startedAt(),
+                attempt.rolledBackSourceRevision(),
+                attempt.rolledBackCatalogGeneration(), attempt.completedAt(),
+                attempt.forwardRecoveredSourceRevision(),
+                attempt.forwardRecoveredCatalogGeneration(),
+                attempt.diagnostics());
+    }
+
+    private static PublicationEvidence withRollback(
+            PublicationEvidence publication,
+            RollbackEvidence rollback
+    ) {
+        return new PublicationEvidence(
+                publication.attemptId(), publication.status(),
+                publication.candidateRevision(), publication.baseBundleRevision(),
+                publication.appliedBundleRevision(),
+                publication.baseNamespaceSourceRevision(),
+                publication.publishedNamespaceSourceRevision(),
+                publication.beforeCatalogGeneration(),
+                publication.afterCatalogGeneration(),
+                publication.recoveredCatalogGeneration(),
+                publication.startedAt(), publication.completedAt(),
+                publication.diagnostics(), rollback);
     }
 
     private SourcePosition sourcePosition(
@@ -636,5 +1104,11 @@ public class RuntimeAuthoringWorkspacePublicationService {
     }
 
     private record SourcePosition(Position registry, Position live) {
+    }
+
+    private record Convergence(
+            String sourceRevision,
+            String catalogGeneration
+    ) {
     }
 }

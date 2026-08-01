@@ -118,6 +118,7 @@ public class FoggyRuntimeApiProperties {
     public static class AuthoringWorkspaces {
         private String path = ".foggy-runtime/authoring-workspaces";
         private String publishedBundlesPath = ".foggy-runtime/published-bundles";
+        private boolean productionPromotionEnabled = false;
         private int maxActiveWorkspaces = 128;
         private int maxResourcesPerRevision = 512;
         private long maxResourceBytes = 1048576L;
@@ -139,6 +140,14 @@ public class FoggyRuntimeApiProperties {
 
         public void setPublishedBundlesPath(String publishedBundlesPath) {
             this.publishedBundlesPath = publishedBundlesPath;
+        }
+
+        public boolean isProductionPromotionEnabled() {
+            return productionPromotionEnabled;
+        }
+
+        public void setProductionPromotionEnabled(boolean productionPromotionEnabled) {
+            this.productionPromotionEnabled = productionPromotionEnabled;
         }
 
         public int getMaxActiveWorkspaces() {

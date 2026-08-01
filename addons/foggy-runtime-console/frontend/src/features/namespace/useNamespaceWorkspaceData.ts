@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 import { runtimeApi, RuntimeRequestError } from '@/api/client'
-import type { BundleItem, DatasourceItem, ModelItem } from './types'
+import type { BundleItem, DatasourceItem, ModelItem, RuntimeCapabilities } from './types'
 
 interface BundleList {
   bundles?: BundleItem[]
@@ -23,6 +23,7 @@ const bundles = ref<BundleItem[]>([])
 const datasources = ref<DatasourceItem[]>([])
 const namespaceBindings = ref<Record<string, string>>({})
 const models = ref<ModelItem[]>([])
+const capabilities = ref<RuntimeCapabilities | null>(null)
 let loadVersion = 0
 
 function canonicalNamespace(value?: string): string {
@@ -46,16 +47,18 @@ export function useNamespaceWorkspaceData() {
     loading.value = true
     errorMessage.value = ''
     try {
-      const [bundleResult, datasourceResult, modelResult] = await Promise.all([
+      const [bundleResult, datasourceResult, modelResult, capabilityResult] = await Promise.all([
         runtimeApi.get<BundleList>('bundles'),
         runtimeApi.get<DatasourceDiagnostics>('datasources/diagnostics'),
-        runtimeApi.get<ModelCatalog>('models', { format: 'json', fieldLimit: 6 })
+        runtimeApi.get<ModelCatalog>('models', { format: 'json', fieldLimit: 6 }),
+        runtimeApi.get<RuntimeCapabilities>('capabilities')
       ])
       if (version !== loadVersion) return
       bundles.value = bundleResult.bundles || []
       datasources.value = datasourceResult.datasources || []
       namespaceBindings.value = datasourceResult.namespaceBindings || {}
       models.value = modelResult.data?.items || []
+      capabilities.value = capabilityResult
     } catch (error) {
       if (version !== loadVersion) return
       errorMessage.value = error instanceof RuntimeRequestError
@@ -73,6 +76,7 @@ export function useNamespaceWorkspaceData() {
     datasources,
     namespaceBindings,
     models,
+    capabilities,
     discoveredNamespaces,
     load
   }

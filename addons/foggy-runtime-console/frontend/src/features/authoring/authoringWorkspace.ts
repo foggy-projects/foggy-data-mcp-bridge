@@ -11,6 +11,7 @@ export interface WorkspaceActions {
   recover: boolean
   refreshPublication: boolean
   createNext: boolean
+  recoverRollback: boolean
 }
 
 const NO_ACTIONS: WorkspaceActions = {
@@ -23,15 +24,16 @@ const NO_ACTIONS: WorkspaceActions = {
   publish: false,
   recover: false,
   refreshPublication: false,
-  createNext: false
+  createNext: false,
+  recoverRollback: false
 }
 
-export function workspaceActions(state: AuthoringWorkspaceState): WorkspaceActions {
+export function workspaceActions(state: AuthoringWorkspaceState, imported = false): WorkspaceActions {
   if (state === 'DISCARDED') {
     return { ...NO_ACTIONS }
   }
   if (state === 'STALE') {
-    return { ...NO_ACTIONS, read: true, mutate: true, diff: true, discard: true }
+    return { ...NO_ACTIONS, read: true, mutate: !imported, diff: true, discard: true }
   }
   if (state === 'PUBLISHING') {
     return { ...NO_ACTIONS, read: true, diff: true, refreshPublication: true }
@@ -39,19 +41,34 @@ export function workspaceActions(state: AuthoringWorkspaceState): WorkspaceActio
   if (state === 'RECOVERY_REQUIRED') {
     return { ...NO_ACTIONS, read: true, diff: true, recover: true, refreshPublication: true }
   }
+  if (state === 'ROLLING_BACK') {
+    return { ...NO_ACTIONS, read: true, diff: true, refreshPublication: true }
+  }
+  if (state === 'ROLLBACK_REQUIRED') {
+    return {
+      ...NO_ACTIONS,
+      read: true,
+      diff: true,
+      refreshPublication: true,
+      recoverRollback: true
+    }
+  }
+  if (state === 'ROLLED_BACK') {
+    return { ...NO_ACTIONS, read: true, diff: true }
+  }
   if (state === 'PUBLISHED') {
-    return { ...NO_ACTIONS, read: true, diff: true, createNext: true }
+    return { ...NO_ACTIONS, read: true, diff: true, createNext: !imported }
   }
   if (state === 'DRAFT' || state === 'VALIDATED') {
     return {
       ...NO_ACTIONS,
       read: true,
-      mutate: true,
+      mutate: !imported,
       diff: true,
       validate: true,
       query: state === 'VALIDATED',
       discard: true,
-      publish: state === 'VALIDATED'
+      publish: state === 'VALIDATED' && !imported
     }
   }
   return { ...NO_ACTIONS }
@@ -86,6 +103,40 @@ export function canPublishWorkspace(workspace: AuthoringWorkspaceInfo): boolean 
     && workspaceActions(workspace.state).publish
     && isCurrentValidation(workspace)
     && workspace.lastValidation?.valid === true
+}
+
+export function canExportRelease(
+  workspace: AuthoringWorkspaceInfo,
+  capabilities: Record<string, string>
+): boolean {
+  return capabilities['authoring.releasePackage.export'] === 'supported'
+    && (workspace.state === 'VALIDATED' || workspace.state === 'PUBLISHED')
+    && isCurrentValidation(workspace)
+    && workspace.lastValidation?.valid === true
+}
+
+export function canPromoteRelease(
+  workspace: AuthoringWorkspaceInfo,
+  capabilities: Record<string, string>
+): boolean {
+  return capabilities['authoring.production.apply'] === 'supported'
+    && Boolean(workspace.releaseImport)
+    && workspace.state === 'VALIDATED'
+    && isCurrentValidation(workspace)
+    && workspace.lastValidation?.valid === true
+}
+
+export function canRollbackRelease(
+  workspace: AuthoringWorkspaceInfo,
+  capabilities: Record<string, string>
+): boolean {
+  return capabilities['authoring.production.rollback'] === 'supported'
+    && Boolean(workspace.releaseImport)
+    && workspace.state === 'PUBLISHED'
+    && workspace.lastPublication?.status === 'PUBLISHED'
+    && workspace.lastPublication?.candidateRevision === workspace.candidateRevision
+    && Boolean(workspace.lastPublication?.attemptId)
+    && !workspace.lastPublication?.rollback
 }
 
 export function suggestedModelName(path: string): string {
@@ -127,4 +178,11 @@ function filenameSegment(value: string, fallback: string): string {
 
 export function candidateQueryCsvFilename(model: string, workspaceId: string): string {
   return `candidate-${filenameSegment(model, 'model')}-${filenameSegment(workspaceId, 'workspace')}.csv`
+}
+
+export function releasePackageFilename(sourceBundle: string, candidateRevision: string): string {
+  const revision = candidateRevision.startsWith('sha256:')
+    ? candidateRevision.slice(7, 19)
+    : candidateRevision.slice(0, 12)
+  return `foggy-release-${filenameSegment(sourceBundle, 'bundle')}-${filenameSegment(revision, 'revision')}.json`
 }

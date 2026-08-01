@@ -53,3 +53,8 @@ export interface LifecycleResult {
   warnings?: unknown[]
   failures?: unknown[]
 }
+
+export interface RuntimeCapabilities {
+  capabilities: Record<string, string>
+  warnings?: string[]
+}

@@ -22,9 +22,13 @@ import com.foggyframework.fsscript.loadder.RootFsscriptLoader;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
 import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceCreateRequest;
+import com.foggyframework.runtime.api.dto.AuthoringReleaseExportRequest;
+import com.foggyframework.runtime.api.dto.AuthoringReleaseImportRequest;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceInfo;
+import com.foggyframework.runtime.api.dto.AuthoringWorkspacePromotionRequest;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspacePublishRequest;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceRecoverRequest;
+import com.foggyframework.runtime.api.dto.AuthoringWorkspaceRollbackRequest;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceSaveRequest;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceState;
 import com.foggyframework.runtime.api.service.RuntimeCandidateQueryService.Phase;
@@ -114,6 +118,7 @@ class RuntimeAuthoringWorkspaceRealExecutionTest {
     private RuntimeAuthoringWorkspacePublicationService publicationService;
     private RuntimeAuthoringWorkspaceStore store;
     private RuntimeBundleRegistryService registry;
+    private RuntimeBundleInventoryService inventory;
     private ExternalFileBundle selectedBundle;
     private Path livePath;
     private FoggyRuntimeApiProperties properties;
@@ -174,8 +179,7 @@ class RuntimeAuthoringWorkspaceRealExecutionTest {
                 SOURCE_BUNDLE, NAMESPACE, livePath.toString(), false, true));
         store =
                 new RuntimeAuthoringWorkspaceStore(properties, objectMapper);
-        RuntimeBundleInventoryService inventory =
-                new RuntimeBundleInventoryService(bundlesContext, registry);
+        inventory = new RuntimeBundleInventoryService(bundlesContext, registry);
         RuntimeCandidateQueryService candidateQuery =
                 new RuntimeCandidateQueryService(
                         registry, bundlesContext, candidateQueryFactory);
@@ -186,7 +190,7 @@ class RuntimeAuthoringWorkspaceRealExecutionTest {
                 new RuntimePublishedBundleArtifactStore(
                         properties, objectMapper, null, registry);
         publicationService = new RuntimeAuthoringWorkspacePublicationService(
-                store, service, artifactStore, registry, bundlesContext,
+                properties, store, service, artifactStore, registry, bundlesContext,
                 modelOperations, new RuntimeAuthoringPublicationLock(),
                 provider(sourceRegistry), provider(catalogSnapshotStore));
     }
@@ -317,6 +321,68 @@ class RuntimeAuthoringWorkspaceRealExecutionTest {
         assertThat(catalogSnapshotStore.current(NAMESPACE).orElseThrow()
                 .identity().sourceRevision().value())
                 .isEqualTo(sourceRegistry.currentRevision(NAMESPACE));
+    }
+
+    @Test
+    void releasePackageRequiresProductionRevalidationThenAppliesAndRollsBackRealSqlite()
+            throws Exception {
+        AuthoringWorkspaceInfo development = validatedCandidate();
+        RuntimeAuthoringReleasePackageService releases =
+                new RuntimeAuthoringReleasePackageService(
+                        properties, service, store, inventory);
+        var release = releases.exportPackage(
+                development.workspaceId(),
+                new AuthoringReleaseExportRequest(
+                        development.candidateRevision()));
+        properties.getAuthoringWorkspaces().setProductionPromotionEnabled(true);
+
+        AuthoringWorkspaceInfo imported = releases.importPackage(
+                NAMESPACE, new AuthoringReleaseImportRequest(
+                        NAMESPACE, SOURCE_BUNDLE, release));
+
+        assertThat(imported.state()).isEqualTo(AuthoringWorkspaceState.DRAFT);
+        assertThat(imported.lastValidation()).isNull();
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.query(
+                        imported.workspaceId(), QUERY_MODEL,
+                        imported.candidateRevision(), queryRequest(),
+                        "Bearer production-query", Phase.EXECUTE))
+                .isInstanceOf(RuntimeAuthoringWorkspaceException.class)
+                .satisfies(error -> assertThat(
+                        ((RuntimeAuthoringWorkspaceException) error).code())
+                        .isEqualTo("WORKSPACE_NOT_VALIDATED"));
+
+        AuthoringWorkspaceInfo productionValidated = service.validate(
+                imported.workspaceId(), imported.candidateRevision());
+        var candidateQuery = service.query(
+                imported.workspaceId(), QUERY_MODEL,
+                imported.candidateRevision(), queryRequest(),
+                "Bearer production-query", Phase.EXECUTE);
+        assertThat(candidateQuery.response().getItems())
+                .extracting(row -> row.get("orderId"))
+                .containsExactly("DRAFT-001", "DRAFT-002");
+
+        AuthoringWorkspaceInfo promoted = publicationService.promote(
+                imported.workspaceId(), new AuthoringWorkspacePromotionRequest(
+                        release.packageId(), imported.candidateRevision(),
+                        imported.baseBundleRevision(),
+                        imported.baseNamespaceSourceRevision()));
+        assertThat(promoted.state()).isEqualTo(AuthoringWorkspaceState.PUBLISHED);
+        assertThat(liveOrderIds()).containsExactly("DRAFT-001", "DRAFT-002");
+
+        AuthoringWorkspaceInfo rolledBack = publicationService.rollback(
+                imported.workspaceId(), new AuthoringWorkspaceRollbackRequest(
+                        release.packageId(), imported.candidateRevision(),
+                        promoted.lastPublication().attemptId()));
+        assertThat(rolledBack.state())
+                .isEqualTo(AuthoringWorkspaceState.ROLLED_BACK);
+        assertThat(rolledBack.lastPublication().rollback().status())
+                .isEqualTo("ROLLED_BACK");
+        assertThat(liveOrderIds()).containsExactly("LIVE-001");
+        assertThat(catalogSnapshotStore.current(NAMESPACE).orElseThrow()
+                .identity().sourceRevision().value())
+                .isEqualTo(sourceRegistry.currentRevision(NAMESPACE));
+        assertThat(productionValidated.releaseImport().packageId())
+                .isEqualTo(release.packageId());
     }
 
     @Test
@@ -530,16 +596,14 @@ class RuntimeAuthoringWorkspaceRealExecutionTest {
             RuntimeModelOperations operations
     ) {
         return new RuntimeAuthoringWorkspacePublicationService(
-                store, service, new RuntimePublishedBundleArtifactStore(
-                properties, objectMapper, null, registry), registry,
+                properties, store, service, new RuntimePublishedBundleArtifactStore(
+                        properties, objectMapper, null, registry), registry,
                 bundlesContext, operations, new RuntimeAuthoringPublicationLock(),
                 provider(sourceRegistry), provider(catalogSnapshotStore));
     }
 
     private List<Object> liveOrderIds() {
-        SemanticQueryRequest request = new SemanticQueryRequest();
-        request.setColumns(List.of("orderId"));
-        request.setLimit(10);
+        SemanticQueryRequest request = queryRequest();
         return semanticQueryService.queryModel(
                         QUERY_MODEL, request, "execute",
                         SemanticRequestContext.of(
@@ -547,6 +611,18 @@ class RuntimeAuthoringWorkspaceRealExecutionTest {
                 .getItems().stream()
                 .map(row -> row.get("orderId"))
                 .toList();
+    }
+
+    private static SemanticQueryRequest queryRequest() {
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(List.of("orderId", "status"));
+        request.setLimit(10);
+        SemanticQueryRequest.OrderItem order =
+                new SemanticQueryRequest.OrderItem();
+        order.setField("orderId");
+        order.setDir("asc");
+        request.setOrderBy(List.of(order));
+        return request;
     }
 
     private static AuthoringWorkspacePublishRequest publishRequest(

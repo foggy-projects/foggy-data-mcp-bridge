@@ -14,6 +14,7 @@ import com.foggyframework.runtime.api.dto.AuthoringWorkspaceCreateRequest;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceDeleteRequest;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceDiffResponse;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceInfo;
+import com.foggyframework.runtime.api.dto.AuthoringWorkspaceInfo.ReleaseImportEvidence;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceListResponse;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceQueryResponse;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceResource;
@@ -136,6 +137,68 @@ public class RuntimeAuthoringWorkspaceService {
         }
     }
 
+    public AuthoringWorkspaceInfo importRelease(
+            String headerNamespace,
+            String bodyNamespace,
+            String targetBundle,
+            Map<String, byte[]> candidateSnapshot,
+            ReleaseImportEvidence releaseImport
+    ) {
+        String phase = "workspaces.release.import";
+        if (!StringUtils.hasText(targetBundle) || releaseImport == null) {
+            throw invalid(phase,
+                    "A target Bundle and release package are required.", null, false);
+        }
+        String namespace = resolveNamespace(
+                headerNamespace, bodyNamespace, phase);
+        String bundleName = targetBundle.trim();
+        CommittedSourceRevisionRegistry sourceRegistry = sourceRegistry(phase);
+        String revisionBefore = sourceRegistry.currentRevision(namespace);
+        WorkspaceSource firstSource = inventory.requireWorkspaceSource(
+                bundleName, namespace, phase);
+        Map<String, byte[]> firstBase = readSourceSnapshot(
+                firstSource.path(), phase);
+        WorkspaceSource secondSource = inventory.requireWorkspaceSource(
+                bundleName, namespace, phase);
+        Map<String, byte[]> base = readSourceSnapshot(secondSource.path(), phase);
+        String revisionAfter = sourceRegistry.currentRevision(namespace);
+        if (!revisionBefore.equals(revisionAfter)
+                || !firstSource.sourceIdentity().equals(
+                secondSource.sourceIdentity())
+                || !CandidateContentRevision.calculate(firstBase).equals(
+                CandidateContentRevision.calculate(base))) {
+            throw stale(phase,
+                    "Target Bundle changed while the release was being imported.");
+        }
+        requireOverlayAllowed(bundleName, namespace, candidateSnapshot, phase);
+        StoredWorkspace created = store.createImported(
+                namespace, bundleName, revisionAfter,
+                secondSource.sourceIdentity(), base, candidateSnapshot,
+                releaseImport);
+        try {
+            if (!sourceIsCurrent(created)) {
+                store.rollbackImportedCreate(created.workspaceId());
+                throw stale(phase,
+                        "Target Bundle changed while the release was being imported.");
+            }
+            return store.toInfo(created);
+        } catch (RuntimeAuthoringWorkspaceException failure) {
+            try {
+                store.rollbackImportedCreate(created.workspaceId());
+            } catch (RuntimeException rollbackFailure) {
+                failure.addSuppressed(rollbackFailure);
+            }
+            throw failure;
+        } catch (RuntimeException failure) {
+            try {
+                store.rollbackImportedCreate(created.workspaceId());
+            } catch (RuntimeException rollbackFailure) {
+                failure.addSuppressed(rollbackFailure);
+            }
+            throw failure;
+        }
+    }
+
     public AuthoringWorkspaceListResponse list(
             String namespace,
             AuthoringWorkspaceState state,
@@ -204,6 +267,7 @@ public class RuntimeAuthoringWorkspaceService {
         requireBatchSize(request.files().size(), phase);
         StoredWorkspace before = store.get(workspaceId);
         refreshSourceState(before, false);
+        requireReleaseEditable(before, phase);
         Map<String, byte[]> desired = new TreeMap<>(store.snapshot(
                 workspaceId, request.expectedCandidateRevision()));
         Set<String> paths = new HashSet<>();
@@ -244,6 +308,7 @@ public class RuntimeAuthoringWorkspaceService {
         requireBatchSize(request.paths().size(), phase);
         StoredWorkspace before = store.get(workspaceId);
         refreshSourceState(before, false);
+        requireReleaseEditable(before, phase);
         Map<String, byte[]> desired = new TreeMap<>(store.snapshot(
                 workspaceId, request.expectedCandidateRevision()));
         Set<String> paths = new HashSet<>();
@@ -501,7 +566,10 @@ public class RuntimeAuthoringWorkspaceService {
         if (record.state() == AuthoringWorkspaceState.DISCARDED
                 || record.state() == AuthoringWorkspaceState.PUBLISHING
                 || record.state() == AuthoringWorkspaceState.RECOVERY_REQUIRED
-                || record.state() == AuthoringWorkspaceState.PUBLISHED) {
+                || record.state() == AuthoringWorkspaceState.PUBLISHED
+                || record.state() == AuthoringWorkspaceState.ROLLING_BACK
+                || record.state() == AuthoringWorkspaceState.ROLLBACK_REQUIRED
+                || record.state() == AuthoringWorkspaceState.ROLLED_BACK) {
             return record;
         }
         if (record.state() == AuthoringWorkspaceState.STALE) {
@@ -742,6 +810,53 @@ public class RuntimeAuthoringWorkspaceService {
                 Map.copyOf(snapshot));
     }
 
+    public ReleaseCandidate releaseCandidate(
+            String workspaceId,
+            String expectedCandidateRevision
+    ) {
+        String phase = "workspaces.release.export";
+        StoredWorkspace record = requireHeadCurrent(
+                workspaceId, expectedCandidateRevision, phase);
+        AuthoringWorkspaceInfo.ValidationEvidence evidence =
+                record.lastValidation();
+        if ((record.state() != AuthoringWorkspaceState.VALIDATED
+                && record.state() != AuthoringWorkspaceState.PUBLISHED)
+                || evidence == null || !evidence.valid()
+                || !record.candidateRevision().equals(evidence.candidateRevision())
+                || !record.baseBundleRevision().equals(evidence.baseBundleRevision())
+                || !record.baseSourceRevision().equals(
+                evidence.baseNamespaceSourceRevision())) {
+            throw RuntimeAuthoringWorkspaceStore.failure(
+                    "WORKSPACE_NOT_VALIDATED", phase,
+                    "Exact workspace revision has not passed full validation.",
+                    null, false);
+        }
+        Map<String, byte[]> snapshot = store.snapshot(
+                workspaceId, expectedCandidateRevision);
+        return new ReleaseCandidate(record, Map.copyOf(snapshot));
+    }
+
+    public StoredWorkspace requireImportedValidated(
+            String workspaceId,
+            String candidateRevision,
+            String packageId,
+            String phase
+    ) {
+        StoredWorkspace record = requireValidated(
+                workspaceId, candidateRevision, phase);
+        ReleaseImportEvidence release = record.releaseImport();
+        if (release == null || !StringUtils.hasText(packageId)
+                || !packageId.trim().equals(release.packageId())
+                || !record.candidateRevision().equals(
+                release.exportedCandidateRevision())) {
+            throw RuntimeAuthoringWorkspaceStore.failure(
+                    "WORKSPACE_RELEASE_PACKAGE_CONFLICT", phase,
+                    "Release package identity does not match the workspace.",
+                    null, false);
+        }
+        return record;
+    }
+
     void assertPublicationBaseCurrent(StoredWorkspace record) {
         requireExecutableSource(record, "workspaces.publish.preflight");
     }
@@ -807,6 +922,18 @@ public class RuntimeAuthoringWorkspaceService {
             throw RuntimeAuthoringWorkspaceStore.failure(
                     "WORKSPACE_LIMIT_EXCEEDED", phase,
                     "Resource batch exceeds the configured operation limit.",
+                    null, false);
+        }
+    }
+
+    private static void requireReleaseEditable(
+            StoredWorkspace record,
+            String phase
+    ) {
+        if (record.releaseImport() != null) {
+            throw RuntimeAuthoringWorkspaceStore.failure(
+                    "WORKSPACE_RELEASE_IMMUTABLE", phase,
+                    "Imported release package candidate is immutable.",
                     null, false);
         }
     }
@@ -885,6 +1012,12 @@ public class RuntimeAuthoringWorkspaceService {
     record PublicationCandidate(
             StoredWorkspace workspace,
             WorkspaceSource source,
+            Map<String, byte[]> snapshot
+    ) {
+    }
+
+    public record ReleaseCandidate(
+            StoredWorkspace workspace,
             Map<String, byte[]> snapshot
     ) {
     }

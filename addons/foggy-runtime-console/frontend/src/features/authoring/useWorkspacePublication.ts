@@ -13,6 +13,19 @@ export interface RecoverWorkspaceRequest {
   publicationAttemptId: string
 }
 
+export interface PromoteWorkspaceRequest {
+  releasePackageId: string
+  expectedCandidateRevision: string
+  expectedBaseBundleRevision: string
+  expectedBaseNamespaceSourceRevision: string
+}
+
+export interface RollbackWorkspaceRequest {
+  releasePackageId: string
+  expectedCandidateRevision: string
+  publicationAttemptId: string
+}
+
 export function publishWorkspaceRequest(workspace: AuthoringWorkspaceInfo): PublishWorkspaceRequest {
   return {
     expectedCandidateRevision: workspace.candidateRevision,
@@ -25,6 +38,29 @@ export function recoverWorkspaceRequest(workspace: AuthoringWorkspaceInfo): Reco
   const attemptId = workspace.lastPublication?.attemptId?.trim()
   if (!attemptId || workspace.lastPublication?.candidateRevision !== workspace.candidateRevision) return null
   return {
+    expectedCandidateRevision: workspace.candidateRevision,
+    publicationAttemptId: attemptId
+  }
+}
+
+export function promoteWorkspaceRequest(workspace: AuthoringWorkspaceInfo): PromoteWorkspaceRequest | null {
+  if (!workspace.releaseImport?.packageId) return null
+  return {
+    releasePackageId: workspace.releaseImport.packageId,
+    expectedCandidateRevision: workspace.candidateRevision,
+    expectedBaseBundleRevision: workspace.baseBundleRevision,
+    expectedBaseNamespaceSourceRevision: workspace.baseNamespaceSourceRevision
+  }
+}
+
+export function rollbackWorkspaceRequest(workspace: AuthoringWorkspaceInfo): RollbackWorkspaceRequest | null {
+  const attemptId = workspace.lastPublication?.attemptId?.trim()
+  const packageId = workspace.releaseImport?.packageId?.trim()
+  if (!attemptId || !packageId || workspace.lastPublication?.candidateRevision !== workspace.candidateRevision) {
+    return null
+  }
+  return {
+    releasePackageId: packageId,
     expectedCandidateRevision: workspace.candidateRevision,
     publicationAttemptId: attemptId
   }
@@ -68,5 +104,47 @@ export function useWorkspacePublication(busy: Ref<string>) {
     }
   }
 
-  return { publish, recover, refresh }
+  async function promote(workspace: AuthoringWorkspaceInfo): Promise<AuthoringWorkspaceInfo> {
+    const request = promoteWorkspaceRequest(workspace)
+    if (!request) throw new Error('Release package provenance 缺失。')
+    busy.value = 'promote'
+    try {
+      return await runtimeApi.post<AuthoringWorkspaceInfo>(
+        `authoring/workspaces/${encodeURIComponent(workspace.workspaceId)}/promote`,
+        request
+      )
+    } finally {
+      busy.value = ''
+    }
+  }
+
+  async function rollback(workspace: AuthoringWorkspaceInfo): Promise<AuthoringWorkspaceInfo> {
+    const request = rollbackWorkspaceRequest(workspace)
+    if (!request) throw new Error('Rollback package/candidate/attempt identity 缺失。')
+    busy.value = 'rollback'
+    try {
+      return await runtimeApi.post<AuthoringWorkspaceInfo>(
+        `authoring/workspaces/${encodeURIComponent(workspace.workspaceId)}/rollback`,
+        request
+      )
+    } finally {
+      busy.value = ''
+    }
+  }
+
+  async function recoverRollback(workspace: AuthoringWorkspaceInfo): Promise<AuthoringWorkspaceInfo> {
+    const request = rollbackWorkspaceRequest(workspace)
+    if (!request) throw new Error('Rollback recovery identity 缺失。')
+    busy.value = 'rollback-recover'
+    try {
+      return await runtimeApi.post<AuthoringWorkspaceInfo>(
+        `authoring/workspaces/${encodeURIComponent(workspace.workspaceId)}/rollback/recover`,
+        request
+      )
+    } finally {
+      busy.value = ''
+    }
+  }
+
+  return { publish, recover, refresh, promote, rollback, recoverRollback }
 }

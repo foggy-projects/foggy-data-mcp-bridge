@@ -39,6 +39,10 @@ public final class RuntimeApiRoutes {
         public static final String FSSCRIPT = "/fsscript";
         public static final String FSSCRIPT_EXECUTE = FSSCRIPT + "/execute";
         public static final String AUTHORING_WORKSPACES = "/authoring/workspaces";
+        public static final String AUTHORING = "/authoring";
+        public static final String AUTHORING_RELEASES = AUTHORING + "/releases";
+        public static final String AUTHORING_RELEASE_IMPORT =
+                AUTHORING_RELEASES + "/import";
         public static final String AUTHORING_WORKSPACE =
                 AUTHORING_WORKSPACES + "/{workspaceId}";
         public static final String AUTHORING_RESOURCES =
@@ -57,6 +61,14 @@ public final class RuntimeApiRoutes {
                 AUTHORING_WORKSPACE + "/publish";
         public static final String AUTHORING_PUBLISH_RECOVER =
                 AUTHORING_PUBLISH + "/recover";
+        public static final String AUTHORING_RELEASE_EXPORT =
+                AUTHORING_WORKSPACE + "/release-package";
+        public static final String AUTHORING_PROMOTE =
+                AUTHORING_WORKSPACE + "/promote";
+        public static final String AUTHORING_ROLLBACK =
+                AUTHORING_WORKSPACE + "/rollback";
+        public static final String AUTHORING_ROLLBACK_RECOVER =
+                AUTHORING_ROLLBACK + "/recover";
         public static final String AUTHORING_QUERY_VALIDATE =
                 AUTHORING_WORKSPACE + "/query/{model}/validate";
         public static final String AUTHORING_QUERY_EXECUTE =
@@ -94,6 +106,8 @@ public final class RuntimeApiRoutes {
         public static final String FSSCRIPT_EXECUTE = API_V1 + V1.FSSCRIPT_EXECUTE;
         public static final String AUTHORING_WORKSPACES =
                 API_V1 + V1.AUTHORING_WORKSPACES;
+        public static final String AUTHORING_PATTERN =
+                API_V1 + V1.AUTHORING + "/**";
         public static final String AUTHORING_WORKSPACES_PATTERN =
                 AUTHORING_WORKSPACES + "/**";
         public static final String AUTHORING_WORKSPACE =
@@ -113,6 +127,16 @@ public final class RuntimeApiRoutes {
                 API_V1 + V1.AUTHORING_PUBLISH;
         public static final String AUTHORING_PUBLISH_RECOVER =
                 API_V1 + V1.AUTHORING_PUBLISH_RECOVER;
+        public static final String AUTHORING_RELEASE_EXPORT =
+                API_V1 + V1.AUTHORING_RELEASE_EXPORT;
+        public static final String AUTHORING_RELEASE_IMPORT =
+                API_V1 + V1.AUTHORING_RELEASE_IMPORT;
+        public static final String AUTHORING_PROMOTE =
+                API_V1 + V1.AUTHORING_PROMOTE;
+        public static final String AUTHORING_ROLLBACK =
+                API_V1 + V1.AUTHORING_ROLLBACK;
+        public static final String AUTHORING_ROLLBACK_RECOVER =
+                API_V1 + V1.AUTHORING_ROLLBACK_RECOVER;
         public static final String AUTHORING_QUERY_VALIDATE =
                 API_V1 + V1.AUTHORING_QUERY_VALIDATE;
         public static final String AUTHORING_QUERY_EXECUTE =

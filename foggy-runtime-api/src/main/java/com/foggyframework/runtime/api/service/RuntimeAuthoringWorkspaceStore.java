@@ -6,6 +6,8 @@ import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceDiffResponse;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceInfo;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceInfo.PublicationEvidence;
+import com.foggyframework.runtime.api.dto.AuthoringWorkspaceInfo.ReleaseImportEvidence;
+import com.foggyframework.runtime.api.dto.AuthoringWorkspaceInfo.RollbackEvidence;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceLimits;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceResource;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceState;
@@ -111,8 +113,7 @@ public class RuntimeAuthoringWorkspaceStore {
     ) {
         loadIfNeeded();
         long active = workspaces.values().stream()
-                .filter(record -> record.state() != AuthoringWorkspaceState.DISCARDED
-                        && record.state() != AuthoringWorkspaceState.PUBLISHED)
+                .filter(record -> !isTerminal(record.state()))
                 .count();
         if (active >= limits().maxActiveWorkspaces()) {
             throw failure("WORKSPACE_LIMIT_EXCEEDED", "workspaces.create",
@@ -162,6 +163,72 @@ public class RuntimeAuthoringWorkspaceStore {
                 cleanupWorkspaceAfterFailedCreate(workspaceRoot, workspaceId);
             }
             throw storeFailure("workspaces.create", e);
+        }
+    }
+
+    public synchronized StoredWorkspace createImported(
+            String namespace,
+            String sourceBundle,
+            String baseSourceRevision,
+            String baseSourceIdentity,
+            Map<String, byte[]> baseResources,
+            Map<String, byte[]> candidateResources,
+            ReleaseImportEvidence releaseImport
+    ) {
+        loadIfNeeded();
+        long active = workspaces.values().stream()
+                .filter(record -> !isTerminal(record.state()))
+                .count();
+        if (active >= limits().maxActiveWorkspaces()) {
+            throw failure("WORKSPACE_LIMIT_EXCEEDED", "workspaces.release.import",
+                    "Active workspace limit has been reached.", null, false);
+        }
+        Map<String, byte[]> base = validateSnapshot(
+                baseResources, "workspaces.release.import");
+        Map<String, byte[]> candidate = validateSnapshot(
+                candidateResources, "workspaces.release.import");
+        String baseRevision = CandidateContentRevision.calculate(base);
+        String candidateRevision = CandidateContentRevision.calculate(candidate);
+        if (releaseImport == null
+                || !candidateRevision.equals(releaseImport.exportedCandidateRevision())) {
+            throw failure("WORKSPACE_RELEASE_PACKAGE_INVALID",
+                    "workspaces.release.import",
+                    "Release import provenance does not match candidate content.",
+                    null, false);
+        }
+        String workspaceId = newWorkspaceId();
+        String now = Instant.now().toString();
+        StoredWorkspace record = new StoredWorkspace(
+                workspaceId, namespace, sourceBundle, "runtime-managed",
+                baseSourceIdentity, baseRevision, baseSourceRevision,
+                candidateRevision, AuthoringWorkspaceState.DRAFT,
+                now, now, null, null, releaseImport, null);
+        validateStoredRecord(record);
+        Path workspaceRoot = workspacePath(workspaceId);
+        boolean created = false;
+        try {
+            Files.createDirectory(workspaceRoot);
+            created = true;
+            writeWorkspaceMarker(workspaceRoot, workspaceId);
+            Files.createDirectory(workspaceRoot.resolve("revisions"));
+            stageRevision(record.withCandidateRevision(baseRevision), base);
+            stageRevision(record, candidate);
+            Map<String, StoredWorkspace> next = new LinkedHashMap<>(workspaces);
+            next.put(workspaceId, record);
+            persist(next);
+            workspaces.clear();
+            workspaces.putAll(next);
+            return record;
+        } catch (RuntimeAuthoringWorkspaceException failure) {
+            if (created) {
+                cleanupWorkspaceAfterFailedCreate(workspaceRoot, workspaceId);
+            }
+            throw failure;
+        } catch (IOException | RuntimeException failure) {
+            if (created) {
+                cleanupWorkspaceAfterFailedCreate(workspaceRoot, workspaceId);
+            }
+            throw storeFailure("workspaces.release.import", failure);
         }
     }
 
@@ -221,6 +288,11 @@ public class RuntimeAuthoringWorkspaceStore {
         StoredWorkspace current = requireCurrent(
                 workspaceId, expectedRevision, "workspaces.resources.save");
         requireMutable(current, "workspaces.resources.save");
+        if (current.releaseImport() != null) {
+            throw failure("WORKSPACE_RELEASE_IMMUTABLE",
+                    "workspaces.resources.save",
+                    "Imported release package candidate is immutable.", null, false);
+        }
         Map<String, byte[]> snapshot = validateSnapshot(
                 desiredResources, "workspaces.resources.save");
         String revision = CandidateContentRevision.calculate(snapshot);
@@ -247,7 +319,7 @@ public class RuntimeAuthoringWorkspaceStore {
                     current.sourceKind(), current.baseSourceIdentity(),
                     current.baseBundleRevision(), current.baseSourceRevision(),
                     revision, state, current.createdAt(), Instant.now().toString(),
-                    null, current.staleReason());
+                    null, null, current.releaseImport(), current.staleReason());
             replaceRecord(updated);
             cleanupRevision(updated, current.candidateRevision());
             return updated;
@@ -355,7 +427,8 @@ public class RuntimeAuthoringWorkspaceStore {
                 current.sourceKind(), current.baseSourceIdentity(),
                 current.baseBundleRevision(), current.baseSourceRevision(),
                 current.candidateRevision(), state, current.createdAt(),
-                Instant.now().toString(), evidence, current.staleReason());
+                Instant.now().toString(), evidence, current.lastPublication(),
+                current.releaseImport(), current.staleReason());
         replaceRecord(updated);
         return updated;
     }
@@ -366,6 +439,9 @@ public class RuntimeAuthoringWorkspaceStore {
                 || current.state() == AuthoringWorkspaceState.PUBLISHED
                 || current.state() == AuthoringWorkspaceState.PUBLISHING
                 || current.state() == AuthoringWorkspaceState.RECOVERY_REQUIRED
+                || current.state() == AuthoringWorkspaceState.ROLLING_BACK
+                || current.state() == AuthoringWorkspaceState.ROLLBACK_REQUIRED
+                || current.state() == AuthoringWorkspaceState.ROLLED_BACK
                 || current.state() == AuthoringWorkspaceState.STALE) {
             return current;
         }
@@ -375,7 +451,8 @@ public class RuntimeAuthoringWorkspaceStore {
                 current.baseBundleRevision(), current.baseSourceRevision(),
                 current.candidateRevision(), AuthoringWorkspaceState.STALE,
                 current.createdAt(), Instant.now().toString(),
-                current.lastValidation(), sanitizeReason(reason));
+                current.lastValidation(), current.lastPublication(),
+                current.releaseImport(), sanitizeReason(reason));
         replaceRecord(updated);
         return updated;
     }
@@ -393,7 +470,8 @@ public class RuntimeAuthoringWorkspaceStore {
                 current.baseBundleRevision(), current.baseSourceRevision(),
                 current.candidateRevision(), AuthoringWorkspaceState.DISCARDED,
                 current.createdAt(), Instant.now().toString(),
-                current.lastValidation(), current.staleReason());
+                current.lastValidation(), current.lastPublication(),
+                current.releaseImport(), current.staleReason());
         replaceRecord(updated);
         cleanupRevision(updated, updated.baseBundleRevision());
         cleanupRevision(updated, updated.candidateRevision());
@@ -424,6 +502,28 @@ public class RuntimeAuthoringWorkspaceStore {
         deleteOwnedTreeQuietly(workspacePath(id), id);
     }
 
+    synchronized void rollbackImportedCreate(String workspaceId) {
+        loadIfNeeded();
+        String id = validWorkspaceId(workspaceId);
+        StoredWorkspace current = workspaces.get(id);
+        if (current == null) {
+            return;
+        }
+        if (current.state() != AuthoringWorkspaceState.DRAFT
+                || current.releaseImport() == null
+                || current.lastValidation() != null
+                || current.lastPublication() != null) {
+            throw failure("WORKSPACE_STATE_INVALID", "workspaces.release.import",
+                    "Imported workspace can no longer be rolled back.", null, false);
+        }
+        Map<String, StoredWorkspace> next = new LinkedHashMap<>(workspaces);
+        next.remove(id);
+        persist(next);
+        workspaces.clear();
+        workspaces.putAll(next);
+        deleteOwnedTreeQuietly(workspacePath(id), id);
+    }
+
     public AuthoringWorkspaceLimits limits() {
         FoggyRuntimeApiProperties.AuthoringWorkspaces configured = configuration();
         return new AuthoringWorkspaceLimits(
@@ -444,7 +544,8 @@ public class RuntimeAuthoringWorkspaceStore {
                 record.sourceKind(), record.baseBundleRevision(),
                 record.baseSourceRevision(), record.candidateRevision(),
                 record.state(), record.createdAt(), record.updatedAt(),
-                record.lastValidation(), record.lastPublication(), diagnostics);
+                record.lastValidation(), record.lastPublication(),
+                record.releaseImport(), diagnostics);
     }
 
     public synchronized StoredWorkspace beginPublication(
@@ -473,6 +574,85 @@ public class RuntimeAuthoringWorkspaceStore {
     ) {
         return transitionPublication(workspaceId, attemptId,
                 AuthoringWorkspaceState.PUBLISHED, evidence, null);
+    }
+
+    public synchronized StoredWorkspace beginRollback(
+            String workspaceId,
+            String attemptId,
+            PublicationEvidence evidence
+    ) {
+        StoredWorkspace current = get(workspaceId);
+        PublicationEvidence previous = current.lastPublication();
+        if (current.state() != AuthoringWorkspaceState.PUBLISHED
+                || current.releaseImport() == null
+                || previous == null || !StringUtils.hasText(attemptId)
+                || !attemptId.equals(previous.attemptId())
+                || evidence == null || !attemptId.equals(evidence.attemptId())
+                || evidence.rollback() == null
+                || !"ROLLING_BACK".equals(evidence.rollback().status())) {
+            throw failure("WORKSPACE_ROLLBACK_CONFLICT",
+                    "workspaces.rollback.preflight",
+                    "Published release is no longer eligible for rollback.",
+                    null, false);
+        }
+        StoredWorkspace updated = current.withPublication(
+                AuthoringWorkspaceState.ROLLING_BACK, evidence, null);
+        replaceRecord(updated);
+        return updated;
+    }
+
+    public synchronized StoredWorkspace markRolledBack(
+            String workspaceId,
+            String attemptId,
+            PublicationEvidence evidence
+    ) {
+        return transitionRollback(workspaceId, attemptId,
+                AuthoringWorkspaceState.ROLLED_BACK, evidence, null);
+    }
+
+    public synchronized StoredWorkspace markRollbackRequired(
+            String workspaceId,
+            String attemptId,
+            PublicationEvidence evidence,
+            String reason
+    ) {
+        return transitionRollback(workspaceId, attemptId,
+                AuthoringWorkspaceState.ROLLBACK_REQUIRED, evidence, reason);
+    }
+
+    public synchronized StoredWorkspace markForwardRecovered(
+            String workspaceId,
+            String attemptId,
+            PublicationEvidence evidence,
+            String reason
+    ) {
+        return transitionRollback(workspaceId, attemptId,
+                AuthoringWorkspaceState.PUBLISHED, evidence, reason);
+    }
+
+    private StoredWorkspace transitionRollback(
+            String workspaceId,
+            String attemptId,
+            AuthoringWorkspaceState nextState,
+            PublicationEvidence evidence,
+            String reason
+    ) {
+        StoredWorkspace current = get(workspaceId);
+        PublicationEvidence previous = current.lastPublication();
+        if ((current.state() != AuthoringWorkspaceState.ROLLING_BACK
+                && current.state() != AuthoringWorkspaceState.ROLLBACK_REQUIRED)
+                || previous == null || !StringUtils.hasText(attemptId)
+                || !attemptId.equals(previous.attemptId())
+                || evidence == null || !attemptId.equals(evidence.attemptId())
+                || evidence.rollback() == null) {
+            throw failure("WORKSPACE_ROLLBACK_CONFLICT",
+                    "workspaces.rollback.commit",
+                    "Rollback attempt is no longer current.", null, false);
+        }
+        StoredWorkspace updated = current.withPublication(
+                nextState, evidence, sanitizeReason(reason));
+        replaceRecord(updated);
+        return updated;
     }
 
     public synchronized StoredWorkspace markRecoveryRequired(
@@ -1268,6 +1448,9 @@ public class RuntimeAuthoringWorkspaceStore {
                     && record.state() != AuthoringWorkspaceState.PUBLISHING
                     && record.state() != AuthoringWorkspaceState.RECOVERY_REQUIRED
                     && record.state() != AuthoringWorkspaceState.PUBLISHED
+                    && record.state() != AuthoringWorkspaceState.ROLLING_BACK
+                    && record.state() != AuthoringWorkspaceState.ROLLBACK_REQUIRED
+                    && record.state() != AuthoringWorkspaceState.ROLLED_BACK
                     && record.state() != AuthoringWorkspaceState.DISCARDED)
                     || (!evidence.valid()
                     && record.state() == AuthoringWorkspaceState.VALIDATED)) {
@@ -1278,18 +1461,48 @@ public class RuntimeAuthoringWorkspaceStore {
         } else if (record.state() == AuthoringWorkspaceState.VALIDATED
                 || record.state() == AuthoringWorkspaceState.PUBLISHING
                 || record.state() == AuthoringWorkspaceState.RECOVERY_REQUIRED
-                || record.state() == AuthoringWorkspaceState.PUBLISHED) {
+                || record.state() == AuthoringWorkspaceState.PUBLISHED
+                || record.state() == AuthoringWorkspaceState.ROLLING_BACK
+                || record.state() == AuthoringWorkspaceState.ROLLBACK_REQUIRED
+                || record.state() == AuthoringWorkspaceState.ROLLED_BACK) {
             throw corrupt(
                     "Validated publication workspace is missing validation evidence.", null);
         }
         validatePublicationEvidence(record);
+        validateReleaseImportEvidence(record);
+    }
+
+    private static void validateReleaseImportEvidence(StoredWorkspace record) {
+        ReleaseImportEvidence release = record.releaseImport();
+        if (release == null) {
+            return;
+        }
+        try {
+            if (!StringUtils.hasText(release.packageId())
+                    || !release.packageId().matches("sha256:[0-9a-f]{64}")
+                    || !"foggy-authoring-release/v1".equals(release.formatVersion())
+                    || !StringUtils.hasText(release.sourceRuntimeApiVersion())
+                    || !StringUtils.hasText(release.sourceNamespace())
+                    || !StringUtils.hasText(release.sourceBundle())
+                    || !record.candidateRevision().equals(
+                    release.exportedCandidateRevision())) {
+                throw new IllegalArgumentException("invalid release import evidence");
+            }
+            Instant.parse(release.importedAt());
+        } catch (RuntimeException invalid) {
+            throw corrupt("Workspace registry contains invalid release import evidence.",
+                    null, invalid);
+        }
     }
 
     private static void validatePublicationEvidence(StoredWorkspace record) {
         PublicationEvidence publication = record.lastPublication();
         boolean publicationState = record.state() == AuthoringWorkspaceState.PUBLISHING
                 || record.state() == AuthoringWorkspaceState.RECOVERY_REQUIRED
-                || record.state() == AuthoringWorkspaceState.PUBLISHED;
+                || record.state() == AuthoringWorkspaceState.PUBLISHED
+                || record.state() == AuthoringWorkspaceState.ROLLING_BACK
+                || record.state() == AuthoringWorkspaceState.ROLLBACK_REQUIRED
+                || record.state() == AuthoringWorkspaceState.ROLLED_BACK;
         if (publication == null) {
             if (publicationState) {
                 throw corrupt("Publication workspace is missing evidence.", null);
@@ -1321,6 +1534,60 @@ public class RuntimeAuthoringWorkspaceStore {
             throw corrupt("Workspace registry contains inconsistent publication evidence.",
                     null);
         }
+        validateRollbackEvidence(record, publication.rollback());
+    }
+
+    private static void validateRollbackEvidence(
+            StoredWorkspace record,
+            RollbackEvidence rollback
+    ) {
+        boolean rollbackState = record.state() == AuthoringWorkspaceState.ROLLING_BACK
+                || record.state() == AuthoringWorkspaceState.ROLLBACK_REQUIRED
+                || record.state() == AuthoringWorkspaceState.ROLLED_BACK;
+        if (rollback == null) {
+            if (rollbackState) {
+                throw corrupt("Rollback workspace is missing evidence.", null);
+            }
+            return;
+        }
+        if (record.releaseImport() == null || !StringUtils.hasText(rollback.status())
+                || !StringUtils.hasText(rollback.startedAt())) {
+            throw corrupt("Workspace rollback evidence is incomplete.", null);
+        }
+        try {
+            Instant.parse(rollback.startedAt());
+            if (StringUtils.hasText(rollback.completedAt())) {
+                Instant.parse(rollback.completedAt());
+            }
+        } catch (RuntimeException invalid) {
+            throw corrupt("Workspace rollback evidence has an invalid timestamp.",
+                    null, invalid);
+        }
+        String expected = switch (record.state()) {
+            case ROLLING_BACK -> "ROLLING_BACK";
+            case ROLLBACK_REQUIRED -> "ROLLBACK_REQUIRED";
+            case ROLLED_BACK -> "ROLLED_BACK";
+            case PUBLISHED -> "FORWARD_RECOVERED";
+            default -> null;
+        };
+        if (expected == null || !expected.equals(rollback.status())) {
+            throw corrupt("Workspace rollback state is inconsistent.", null);
+        }
+        if (record.state() == AuthoringWorkspaceState.ROLLED_BACK
+                && (!StringUtils.hasText(
+                rollback.rolledBackNamespaceSourceRevision())
+                || !StringUtils.hasText(rollback.rolledBackCatalogGeneration())
+                || !StringUtils.hasText(rollback.completedAt()))) {
+            throw corrupt("Completed rollback evidence is incomplete.", null);
+        }
+        if (record.state() == AuthoringWorkspaceState.PUBLISHED
+                && (!StringUtils.hasText(
+                rollback.forwardRecoveredNamespaceSourceRevision())
+                || !StringUtils.hasText(
+                rollback.forwardRecoveredCatalogGeneration())
+                || !StringUtils.hasText(rollback.completedAt()))) {
+            throw corrupt("Forward recovery evidence is incomplete.", null);
+        }
     }
 
     private static boolean publicationStatusMatches(
@@ -1333,7 +1600,8 @@ public class RuntimeAuthoringWorkspaceStore {
         return switch (state) {
             case PUBLISHING -> "PUBLISHING".equals(status);
             case RECOVERY_REQUIRED -> "RECOVERY_REQUIRED".equals(status);
-            case PUBLISHED -> "PUBLISHED".equals(status);
+            case PUBLISHED, ROLLING_BACK, ROLLBACK_REQUIRED, ROLLED_BACK ->
+                    "PUBLISHED".equals(status);
             case STALE -> "RECOVERED".equals(status);
             default -> false;
         };
@@ -1346,6 +1614,30 @@ public class RuntimeAuthoringWorkspaceStore {
         for (Map.Entry<String, StoredWorkspace> entry
                 : new ArrayList<>(records.entrySet())) {
             StoredWorkspace record = entry.getValue();
+            if (record.state() == AuthoringWorkspaceState.ROLLING_BACK) {
+                PublicationEvidence previous = record.lastPublication();
+                RollbackEvidence rollback = previous.rollback();
+                List<String> rollbackDiagnostics = new ArrayList<>(
+                        rollback.diagnostics());
+                rollbackDiagnostics.add(
+                        "Runtime restarted before rollback completion was proven.");
+                RollbackEvidence required = new RollbackEvidence(
+                        "ROLLBACK_REQUIRED", rollback.startedAt(),
+                        rollback.rolledBackNamespaceSourceRevision(),
+                        rollback.rolledBackCatalogGeneration(),
+                        rollback.completedAt(),
+                        rollback.forwardRecoveredNamespaceSourceRevision(),
+                        rollback.forwardRecoveredCatalogGeneration(),
+                        rollbackDiagnostics);
+                PublicationEvidence reconciled = withRollback(previous, required);
+                StoredWorkspace updated = record.withPublication(
+                        AuthoringWorkspaceState.ROLLBACK_REQUIRED, reconciled,
+                        "Rollback was interrupted; explicit forward recovery is required.");
+                validateStoredRecord(updated);
+                records.put(entry.getKey(), updated);
+                changed = true;
+                continue;
+            }
             if (record.state() != AuthoringWorkspaceState.PUBLISHING) {
                 continue;
             }
@@ -1370,6 +1662,29 @@ public class RuntimeAuthoringWorkspaceStore {
             changed = true;
         }
         return changed;
+    }
+
+    private static PublicationEvidence withRollback(
+            PublicationEvidence publication,
+            RollbackEvidence rollback
+    ) {
+        return new PublicationEvidence(
+                publication.attemptId(), publication.status(),
+                publication.candidateRevision(), publication.baseBundleRevision(),
+                publication.appliedBundleRevision(),
+                publication.baseNamespaceSourceRevision(),
+                publication.publishedNamespaceSourceRevision(),
+                publication.beforeCatalogGeneration(),
+                publication.afterCatalogGeneration(),
+                publication.recoveredCatalogGeneration(),
+                publication.startedAt(), publication.completedAt(),
+                publication.diagnostics(), rollback);
+    }
+
+    private static boolean isTerminal(AuthoringWorkspaceState state) {
+        return state == AuthoringWorkspaceState.DISCARDED
+                || state == AuthoringWorkspaceState.PUBLISHED
+                || state == AuthoringWorkspaceState.ROLLED_BACK;
     }
 
     private void persist(Map<String, StoredWorkspace> records) {
@@ -1812,8 +2127,32 @@ public class RuntimeAuthoringWorkspaceStore {
             String updatedAt,
             AuthoringWorkspaceInfo.ValidationEvidence lastValidation,
             PublicationEvidence lastPublication,
+            ReleaseImportEvidence releaseImport,
             String staleReason
     ) {
+        /** Compatibility constructor for records created before publication support. */
+        public StoredWorkspace(
+                String workspaceId,
+                String namespace,
+                String sourceBundle,
+                String sourceKind,
+                String baseSourceIdentity,
+                String baseBundleRevision,
+                String baseSourceRevision,
+                String candidateRevision,
+                AuthoringWorkspaceState state,
+                String createdAt,
+                String updatedAt,
+                AuthoringWorkspaceInfo.ValidationEvidence lastValidation,
+                PublicationEvidence lastPublication,
+                String staleReason
+        ) {
+            this(workspaceId, namespace, sourceBundle, sourceKind,
+                    baseSourceIdentity, baseBundleRevision, baseSourceRevision,
+                    candidateRevision, state, createdAt, updatedAt,
+                    lastValidation, lastPublication, null, staleReason);
+        }
+
         /** Compatibility constructor for records created before publication support. */
         public StoredWorkspace(
                 String workspaceId,
@@ -1833,7 +2172,7 @@ public class RuntimeAuthoringWorkspaceStore {
             this(workspaceId, namespace, sourceBundle, sourceKind,
                     baseSourceIdentity, baseBundleRevision, baseSourceRevision,
                     candidateRevision, state, createdAt, updatedAt,
-                    lastValidation, null, staleReason);
+                    lastValidation, null, null, staleReason);
         }
 
         StoredWorkspace withCandidateRevision(String revision) {
@@ -1841,7 +2180,7 @@ public class RuntimeAuthoringWorkspaceStore {
                     workspaceId, namespace, sourceBundle, sourceKind,
                     baseSourceIdentity, baseBundleRevision, baseSourceRevision,
                     revision, state, createdAt, updatedAt, lastValidation,
-                    lastPublication, staleReason);
+                    lastPublication, releaseImport, staleReason);
         }
 
         StoredWorkspace withPublication(
@@ -1853,7 +2192,8 @@ public class RuntimeAuthoringWorkspaceStore {
                     workspaceId, namespace, sourceBundle, sourceKind,
                     baseSourceIdentity, baseBundleRevision, baseSourceRevision,
                     candidateRevision, nextState, createdAt,
-                    Instant.now().toString(), lastValidation, publication, reason);
+                    Instant.now().toString(), lastValidation, publication,
+                    releaseImport, reason);
         }
     }
 

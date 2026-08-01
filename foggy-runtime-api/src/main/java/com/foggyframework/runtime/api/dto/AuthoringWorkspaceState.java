@@ -7,5 +7,8 @@ public enum AuthoringWorkspaceState {
     PUBLISHING,
     RECOVERY_REQUIRED,
     PUBLISHED,
+    ROLLING_BACK,
+    ROLLBACK_REQUIRED,
+    ROLLED_BACK,
     DISCARDED
 }

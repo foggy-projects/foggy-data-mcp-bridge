@@ -1,7 +1,7 @@
 ---
 doc_role: architecture
 status: canonical
-baseline: main-after-9.5.3-authoring-publish
+baseline: main-after-9.5.4-production-promotion
 last_reviewed: 2026-08-01
 ---
 
@@ -139,9 +139,10 @@ Runtime authoring workspace 进一步遵循以下边界：
 - base 与 current candidate 都是 canonical content hash 标识的 immutable revision。save/delete 先完整校验
   path、类型、overlay、quota 和 expected head，再 staging、原子提交 metadata/head；同一进程内竞争只允许
   一个请求提交；
-- `DRAFT`、`VALIDATED`、`STALE`、`PUBLISHING`、`RECOVERY_REQUIRED`、`PUBLISHED`、`DISCARDED`
-  是当前完整状态集。内容变化使 validation evidence 失效；source content/identity/committed revision
-  漂移持久转为 `STALE`；`PUBLISHED` 与 `DISCARDED` 是终态；
+- `DRAFT`、`VALIDATED`、`STALE`、`PUBLISHING`、`RECOVERY_REQUIRED`、`PUBLISHED`、`ROLLING_BACK`、
+  `ROLLBACK_REQUIRED`、`ROLLED_BACK`、`DISCARDED` 是当前完整状态集。内容变化使 validation evidence
+  失效；source content/identity/committed revision 漂移持久转为 `STALE`；普通开发发布以 `PUBLISHED`
+  结束，production release 还可执行一次 pinned rollback；
 - validate 遍历全部 FSScript、TM 和 QM。query validate/execute 只接受 exact current、已完成完整验证的
   revision，并由服务端组装 immutable candidate path、source Bundle、Namespace 与 base source revision；
 - 每个 workspace route 都要求 Runtime 管理 auth-code；业务 `Authorization` 仅独立透传给 candidate 数据面，
@@ -182,12 +183,33 @@ authoring publish/recovery 进一步遵循以下不变量：
   save 返回只读错误；Bundle replace/remove 可以改变 registry/source，但不能修改或删除 artifact。用户仍可
   从当前 published Bundle 创建新的 workspace，下一次成功 publish 只追加新 immutable artifact 并切换
   current registry/source，上一 artifact 继续保持原字节与 manifest；
-- publish/recover、Bundle add/update/remove 和低层 resource save 共享同一单进程互斥边界。多进程、
-  shared NFS writer、artifact GC 和成功发布后的历史 rollback 不在当前承诺内。
+- publish/recover、promotion/rollback、Bundle add/update/remove 和低层 resource save 共享同一单进程
+  互斥边界。多进程、shared NFS writer 和 artifact GC 不在当前一致性承诺内。
 
-当前 API 仍不提供 revision history、rebase/merge、成功发布后的 rollback、release package、生产
-promotion、Git、JAR fork/binding 或高级 candidate query mode。这些需要后续独立 lifecycle workitem，
-不能从一次 Runtime-local publish 推断为跨环境发布能力。
+9.5.4 在该 coordinator 上增加 portable release package 与 production promotion：
+
+- `foggy-authoring-release/v1` 是 canonical JSON 文本 package，只包含严格 UTF-8 TM/QM/FSScript、
+  source/validation/dependency provenance 和 length-delimited SHA-256 identity；不包含 absolute path、
+  secret、catalog、cache、query result、数据源或内部 store/attempt identity。`exportedAt` 不参与 packageId；
+- export 只接受 exact current `VALIDATED`/`PUBLISHED` evidence。import 默认关闭，只有显式设置
+  `foggy.runtime-api.authoring-workspaces.production-promotion-enabled=true` 才可用；promotion mode 同时在
+  服务端禁止普通 `/publish`，避免绕过 release provenance；
+- import 在 workspace mutation 前完成 format、hash、candidate revision、path/type/strict UTF-8、case、quota、
+  overlay 和 target currentness 校验，然后原子保存 production current base 与 package candidate。imported
+  candidate 保留 package provenance、不可 save/delete，但可 read/diff/discard；开发 validation 不被继承；
+- production Runtime 必须对 imported exact candidate 重新 validate，并可用自己的数据源、权限和 candidate
+  query 执行验证。`/promote` 固定 package、candidate、target base Bundle revision 和 base Namespace source
+  revision，成功后仍使用既有 immutable artifact/source/registry/full-refresh publication coordinator；
+- `/rollback` 只接受同一 imported `PUBLISHED` workspace 的 exact package/candidate/apply attempt，且要求
+  live、registry、catalog 仍指向该 candidate。首次 live mutation 前持久化 `ROLLING_BACK`，成功仅恢复
+  attempt 记录的直接前一 base 并进入 `ROLLED_BACK`，candidate artifact 保留；
+- rollback 失败先前向恢复 candidate。证明收敛后 workspace 回到 `PUBLISHED` 但请求仍返回失败；无法证明
+  时进入 `ROLLBACK_REQUIRED`。`/rollback/recover` 只允许同 package/candidate/attempt 的显式前向恢复；
+  third-party drift 零覆盖，restart 只把中断 `ROLLING_BACK` 收敛为 required，不自动 mutation。
+
+当前 API 仍不提供 revision history、rebase/merge、任意历史 rollback、签名/KMS、package registry/GC、
+Git、跨 Runtime 控制面、JAR fork/binding 或高级 candidate query mode。portable hash 证明完整性，不证明
+发布者身份；configured management auth-code 的操作者是 v1 信任根。
 
 ## 7. 查询与执行
 

@@ -6,8 +6,12 @@ import { runtimeApi, RuntimeRequestError } from '@/api/client'
 import { normalizeResultRows, parseJsonObject, prettyJson } from '@/utils/json'
 import type { BundleItem } from '@/features/namespace/types'
 import {
+  canExportRelease,
+  canPromoteRelease,
   canPublishWorkspace,
+  canRollbackRelease,
   isCurrentValidation,
+  releasePackageFilename,
   shortRevision,
   suggestedModelName,
   workspaceActions,
@@ -16,6 +20,7 @@ import {
 import type {
   AuthoringDiffResponse,
   AuthoringQueryResponse,
+  AuthoringReleasePackage,
   AuthoringResource,
   AuthoringResourcesResponse,
   AuthoringWorkspaceInfo,
@@ -25,11 +30,17 @@ import CandidateInspector from './CandidateInspector.vue'
 import ResourceEditor from './ResourceEditor.vue'
 import WorkspaceCatalog from './WorkspaceCatalog.vue'
 import WorkspacePublication from './WorkspacePublication.vue'
-import { recoverWorkspaceRequest, useWorkspacePublication } from './useWorkspacePublication'
+import WorkspaceReleasePromotion from './WorkspaceReleasePromotion.vue'
+import {
+  recoverWorkspaceRequest,
+  rollbackWorkspaceRequest,
+  useWorkspacePublication
+} from './useWorkspacePublication'
 
 const props = defineProps<{
   namespace: string
   bundles: BundleItem[]
+  capabilities: Record<string, string>
 }>()
 
 const route = useRoute()
@@ -70,14 +81,31 @@ const workspaceIdFromRoute = computed(() => typeof route.query.workspaceId === '
   ? route.query.workspaceId
   : '')
 const actions = computed(() => selected.value
-  ? workspaceActions(selected.value.state)
+  ? workspaceActions(selected.value.state, Boolean(selected.value.releaseImport))
   : workspaceActions('DISCARDED'))
 const dirty = computed(() => Boolean(selected.value)
   && (editorContent.value !== originalContent.value
     || (creatingResource.value && Boolean(editorPath.value.trim()))))
 const pathError = computed(() => workspaceResourcePathError(editorPath.value))
 const currentValidation = computed(() => selected.value ? isCurrentValidation(selected.value) : false)
-const canPublish = computed(() => Boolean(selected.value && canPublishWorkspace(selected.value)))
+const productionMode = computed(() => props.capabilities['authoring.production.apply'] === 'supported')
+const canPublish = computed(() => Boolean(selected.value
+  && !productionMode.value
+  && canPublishWorkspace(selected.value)))
+const canExport = computed(() => Boolean(selected.value
+  && canExportRelease(selected.value, props.capabilities)))
+const canPromote = computed(() => Boolean(selected.value
+  && canPromoteRelease(selected.value, props.capabilities)))
+const canRollback = computed(() => Boolean(selected.value
+  && canRollbackRelease(selected.value, props.capabilities)))
+const canRecoverRollback = computed(() => Boolean(selected.value
+  && actions.value.recoverRollback
+  && props.capabilities['authoring.production.rollback'] === 'supported'
+  && rollbackWorkspaceRequest(selected.value)))
+const canRecoverPublication = computed(() => Boolean(selected.value
+  && selected.value.releaseImport
+  && actions.value.recover
+  && recoverWorkspaceRequest(selected.value)))
 const nextWorkspaceBundle = computed(() => selected.value
   ? eligibleBundles.value.find(bundle => bundle.name === selected.value?.sourceBundle)
   : undefined)
@@ -92,11 +120,155 @@ const stateExplanation = computed(() => {
   if (selected.value.state === 'STALE') return '源 revision 已漂移。可读取、比较和迁移草稿，但不能 validate/query；请新建 workspace。'
   if (selected.value.state === 'PUBLISHING') return 'Runtime 正在处理 durable publication attempt。仅可读取 evidence 或显式刷新 metadata。'
   if (selected.value.state === 'RECOVERY_REQUIRED') return '发布未能安全收敛。仅可按服务端记录的 exact attempt/candidate 执行失败恢复。'
+  if (selected.value.state === 'ROLLING_BACK') return 'Rollback intent 已持久化。Console 关闭其他 mutation，只允许显式刷新 authoritative metadata。'
+  if (selected.value.state === 'ROLLBACK_REQUIRED') return 'Rollback 未能证明收敛。仅可对同 package/candidate/apply attempt 执行 pinned forward recovery。'
+  if (selected.value.state === 'ROLLED_BACK') return '该 apply attempt 的直接前一 base 已恢复；workspace 已终结，candidate artifact 继续保留。'
   if (selected.value.state === 'PUBLISHED') return 'Exact candidate 已发布并固定为 immutable terminal workspace；继续修改需创建新 workspace。'
   if (selected.value.state === 'DISCARDED') return '该 workspace 已终结，只保留 metadata，不再允许资源、验证或查询操作。'
   if (selected.value.state === 'VALIDATED') return '当前 exact candidate revision 已完成全量校验，可以执行 candidate query。'
   return '草稿尚未完成当前 revision 的全量校验。保存与校验是两个独立动作。'
 })
+
+async function exportReleasePackage(): Promise<void> {
+  if (!selected.value || !canExport.value || busy.value) return
+  const workspace = selected.value
+  try {
+    await ElMessageBox.confirm(
+      `导出 release package：${workspace.targetNamespace} / ${workspace.sourceBundle}\nCandidate: ${workspace.candidateRevision}\n\n文件只包含 exact TM/QM/FSScript 与安全 provenance；不含数据、权限或签名。`,
+      '确认导出 exact release package',
+      { type: 'warning', confirmButtonText: '下载 JSON package', cancelButtonText: '取消' }
+    )
+  } catch {
+    return
+  }
+  busy.value = 'release-export'
+  clearOperationError()
+  try {
+    const release = await runtimeApi.post<AuthoringReleasePackage>(
+      `authoring/workspaces/${encodeURIComponent(workspace.workspaceId)}/release-package`,
+      { expectedCandidateRevision: workspace.candidateRevision }
+    )
+    const url = URL.createObjectURL(new Blob([JSON.stringify(release, null, 2)], { type: 'application/json' }))
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = releasePackageFilename(release.sourceBundle, release.candidateRevision)
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    URL.revokeObjectURL(url)
+    ElMessage.success(`Release package 已下载：${shortRevision(release.packageId)}`)
+  } catch (error) {
+    operationError.value = error instanceof RuntimeRequestError ? error : null
+    ElMessage.error(errorText(error, '导出 release package 失败。'))
+  } finally {
+    busy.value = ''
+  }
+}
+
+async function importReleasePackage(release: AuthoringReleasePackage, targetBundle: string): Promise<void> {
+  if (props.capabilities['authoring.releasePackage.import'] !== 'supported' || busy.value) return
+  try {
+    await ElMessageBox.confirm(
+      `导入 package：${release.packageId}\nSource: ${release.sourceNamespace} / ${release.sourceBundle}\nTarget: ${props.namespace || '空 Namespace'} / ${targetBundle}\nCandidate: ${release.candidateRevision}\nResources: ${release.resources.length}\n\n开发 validation 只作 provenance；导入后不会自动 apply。`,
+      '确认导入只读 production candidate',
+      { type: 'warning', confirmButtonText: '导入到明确 target', cancelButtonText: '取消' }
+    )
+  } catch {
+    return
+  }
+  busy.value = 'release-import'
+  clearOperationError()
+  try {
+    const imported = await runtimeApi.post<AuthoringWorkspaceInfo>('authoring/releases/import', {
+      namespace: props.namespace,
+      targetBundle,
+      releasePackage: release
+    })
+    workspaces.value.unshift(imported)
+    await openWorkspace(imported.workspaceId)
+    ElMessage.success('Release package 已导入为 immutable production candidate；请重新 validate/query。')
+  } catch (error) {
+    operationError.value = error instanceof RuntimeRequestError ? error : null
+    ElMessage.error(errorText(error, '导入 release package 失败。'))
+  } finally {
+    busy.value = ''
+  }
+}
+
+async function promoteRelease(): Promise<void> {
+  if (!selected.value || !canPromote.value || busy.value) return
+  const workspace = selected.value
+  try {
+    await ElMessageBox.confirm(
+      `Apply package: ${workspace.releaseImport?.packageId}\nCandidate: ${workspace.candidateRevision}\nTarget: ${workspace.targetNamespace} / ${workspace.sourceBundle}\nBase Bundle: ${workspace.baseBundleRevision}\nBase Namespace Source: ${workspace.baseNamespaceSourceRevision}\n\n这会切换生产 Bundle source 并刷新整个 Namespace catalog。`,
+      '确认生产 apply exact package',
+      { type: 'warning', confirmButtonText: 'Apply exact package', cancelButtonText: '取消' }
+    )
+  } catch {
+    return
+  }
+  clearOperationError()
+  try {
+    const promoted = await publication.promote(workspace)
+    replaceWorkspaceMetadata(promoted)
+    queryResult.value = null
+    ElMessage.success(`Production apply 已完成：${promoted.state}`)
+  } catch (error) {
+    operationError.value = error instanceof RuntimeRequestError ? error : null
+    ElMessage.error(errorText(error, 'Production apply 失败；Console 未自动重试或 fallback。'))
+  }
+}
+
+async function rollbackRelease(): Promise<void> {
+  if (!selected.value || !canRollback.value || busy.value) return
+  const workspace = selected.value
+  const request = rollbackWorkspaceRequest(workspace)
+  if (!request) return
+  try {
+    await ElMessageBox.confirm(
+      `Rollback package: ${request.releasePackageId}\nCandidate: ${request.expectedCandidateRevision}\nApply attempt: ${request.publicationAttemptId}\nDirect previous base: ${workspace.baseBundleRevision}\n\n只恢复该 attempt 的直接前一 base，不提供任意历史选择。`,
+      '确认一步 pinned rollback',
+      { type: 'warning', confirmButtonText: 'Rollback 到直接前一 base', cancelButtonText: '取消' }
+    )
+  } catch {
+    return
+  }
+  clearOperationError()
+  try {
+    const rolledBack = await publication.rollback(workspace)
+    replaceWorkspaceMetadata(rolledBack)
+    queryResult.value = null
+    ElMessage.success(`Rollback 已完成：${rolledBack.state}`)
+  } catch (error) {
+    operationError.value = error instanceof RuntimeRequestError ? error : null
+    ElMessage.error(errorText(error, 'Rollback 失败；请显式刷新 authoritative metadata。'))
+  }
+}
+
+async function recoverRollback(): Promise<void> {
+  if (!selected.value || !canRecoverRollback.value || busy.value) return
+  const workspace = selected.value
+  const request = rollbackWorkspaceRequest(workspace)
+  if (!request) return
+  try {
+    await ElMessageBox.confirm(
+      `Forward recover package: ${request.releasePackageId}\nCandidate: ${request.expectedCandidateRevision}\nApply attempt: ${request.publicationAttemptId}\n\n只恢复同一 pinned candidate；不会覆盖第三方 drift。`,
+      '确认 pinned rollback recovery',
+      { type: 'warning', confirmButtonText: '恢复 pinned candidate', cancelButtonText: '取消' }
+    )
+  } catch {
+    return
+  }
+  clearOperationError()
+  try {
+    const recovered = await publication.recoverRollback(workspace)
+    replaceWorkspaceMetadata(recovered)
+    ElMessage.success(`Rollback recovery 已完成：${recovered.state}`)
+  } catch (error) {
+    operationError.value = error instanceof RuntimeRequestError ? error : null
+    ElMessage.error(errorText(error, 'Rollback recovery 失败；Console 未自动重试。'))
+  }
+}
 
 function errorText(error: unknown, fallback: string): string {
   return error instanceof RuntimeRequestError ? error.message : fallback
@@ -637,7 +809,33 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
         type="button"
         @click="reloadConflictMetadata"
       >读取服务端 revision</button>
+      <button
+        v-else-if="operationError.code === 'WORKSPACE_RECOVERY_REQUIRED' || operationError.code === 'WORKSPACE_ROLLBACK_REQUIRED'"
+        class="console-button compact"
+        type="button"
+        @click="refreshPublicationMetadata()"
+      >显式刷新服务端状态</button>
     </div>
+
+    <WorkspaceReleasePromotion
+      :namespace="namespace"
+      :bundles="bundles"
+      :capabilities="capabilities"
+      :workspace="selected"
+      :can-export="canExport"
+      :can-promote="canPromote"
+      :can-rollback="canRollback"
+      :can-recover-rollback="canRecoverRollback"
+      :can-recover-publication="canRecoverPublication"
+      :busy="busy"
+      @export-release="exportReleasePackage"
+      @import-release="importReleasePackage"
+      @promote="promoteRelease"
+      @rollback="rollbackRelease"
+      @recover-rollback="recoverRollback"
+      @recover-publication="recoverPublication"
+      @refresh="refreshPublicationMetadata()"
+    />
 
     <div class="authoring-layout">
       <WorkspaceCatalog
@@ -729,7 +927,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
           />
 
           <WorkspacePublication
-            v-if="selected.state !== 'DISCARDED'"
+            v-if="selected.state !== 'DISCARDED' && !selected.releaseImport && !productionMode"
             :workspace="selected"
             :actions="actions"
             :can-publish="canPublish"

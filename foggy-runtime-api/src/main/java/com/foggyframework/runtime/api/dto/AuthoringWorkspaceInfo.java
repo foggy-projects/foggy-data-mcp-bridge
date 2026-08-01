@@ -15,6 +15,7 @@ public record AuthoringWorkspaceInfo(
         String updatedAt,
         ValidationEvidence lastValidation,
         PublicationEvidence lastPublication,
+        ReleaseImportEvidence releaseImport,
         List<String> diagnostics
 ) {
     public AuthoringWorkspaceInfo {
@@ -39,7 +40,7 @@ public record AuthoringWorkspaceInfo(
         this(workspaceId, targetNamespace, sourceBundle, sourceKind,
                 baseBundleRevision, baseNamespaceSourceRevision,
                 candidateRevision, state, createdAt, updatedAt,
-                lastValidation, null, diagnostics);
+                lastValidation, null, null, diagnostics);
     }
 
     public record ValidationEvidence(
@@ -81,10 +82,60 @@ public record AuthoringWorkspaceInfo(
             String recoveredCatalogGeneration,
             String startedAt,
             String completedAt,
-            List<String> diagnostics
+            List<String> diagnostics,
+            RollbackEvidence rollback
     ) {
         public PublicationEvidence {
             diagnostics = diagnostics == null ? List.of() : List.copyOf(diagnostics);
         }
+
+        /** Compatibility constructor retaining the pre-rollback JSON/Java surface. */
+        public PublicationEvidence(
+                String attemptId,
+                String status,
+                String candidateRevision,
+                String baseBundleRevision,
+                String appliedBundleRevision,
+                String baseNamespaceSourceRevision,
+                String publishedNamespaceSourceRevision,
+                String beforeCatalogGeneration,
+                String afterCatalogGeneration,
+                String recoveredCatalogGeneration,
+                String startedAt,
+                String completedAt,
+                List<String> diagnostics
+        ) {
+            this(attemptId, status, candidateRevision, baseBundleRevision,
+                    appliedBundleRevision, baseNamespaceSourceRevision,
+                    publishedNamespaceSourceRevision, beforeCatalogGeneration,
+                    afterCatalogGeneration, recoveredCatalogGeneration,
+                    startedAt, completedAt, diagnostics, null);
+        }
+    }
+
+    public record RollbackEvidence(
+            String status,
+            String startedAt,
+            String rolledBackNamespaceSourceRevision,
+            String rolledBackCatalogGeneration,
+            String completedAt,
+            String forwardRecoveredNamespaceSourceRevision,
+            String forwardRecoveredCatalogGeneration,
+            List<String> diagnostics
+    ) {
+        public RollbackEvidence {
+            diagnostics = diagnostics == null ? List.of() : List.copyOf(diagnostics);
+        }
+    }
+
+    public record ReleaseImportEvidence(
+            String packageId,
+            String formatVersion,
+            String sourceRuntimeApiVersion,
+            String sourceNamespace,
+            String sourceBundle,
+            String exportedCandidateRevision,
+            String importedAt
+    ) {
     }
 }

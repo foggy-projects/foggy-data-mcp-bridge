@@ -31,6 +31,7 @@ import com.foggyframework.dataset.model.spi.NamedDataSourceResolver;
 import com.foggyframework.dataset.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.model.spi.TableModelLoaderManager;
 import com.foggyframework.dataset.model.validation.DefaultDetachedModelValidationFactory;
+import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
 import com.foggyframework.runtime.api.service.RuntimeDatasourceRegistryService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.junit.jupiter.api.Test;
@@ -122,6 +123,9 @@ class RuntimeCapabilitiesControllerEnabledTest {
     @Autowired
     private ApplicationContext applicationContext;
 
+    @Autowired
+    private FoggyRuntimeApiProperties runtimeApiProperties;
+
     private final TestRestTemplate restTemplate = new TestRestTemplate();
 
     @Test
@@ -172,10 +176,49 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(body.path("data").path("capabilities").path("authoring.diff").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("authoring.validate").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("authoring.query").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities")
+                .path("authoring.releasePackage.export").asText())
+                .isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities")
+                .path("authoring.releasePackage.import").asText())
+                .isEqualTo("disabled");
+        assertThat(body.path("data").path("capabilities")
+                .path("authoring.production.apply").asText())
+                .isEqualTo("disabled");
+        assertThat(body.path("data").path("capabilities")
+                .path("authoring.production.rollback").asText())
+                .isEqualTo("disabled");
         assertThat(body.path("data").path("authoringWorkspaceLimits")
                 .path("maxActiveWorkspaces").asInt()).isEqualTo(128);
         assertThat(body.path("data").path("authoringWorkspaceLimits")
                 .path("maxResourceBytes").asLong()).isEqualTo(1048576L);
+    }
+
+    @Test
+    void shouldExposeProductionPromotionCapabilitiesOnlyWhenOptedIn() {
+        runtimeApiProperties.getAuthoringWorkspaces()
+                .setProductionPromotionEnabled(true);
+        try {
+            ResponseEntity<JsonNode> response = restTemplate.getForEntity(
+                    "http://localhost:" + port + "/api/v1/capabilities",
+                    JsonNode.class);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            JsonNode capabilities = response.getBody().path("data")
+                    .path("capabilities");
+            assertThat(capabilities.path(
+                    "authoring.releasePackage.import").asText())
+                    .isEqualTo("supported");
+            assertThat(capabilities.path(
+                    "authoring.production.apply").asText())
+                    .isEqualTo("supported");
+            assertThat(capabilities.path(
+                    "authoring.production.rollback").asText())
+                    .isEqualTo("supported");
+        } finally {
+            runtimeApiProperties.getAuthoringWorkspaces()
+                    .setProductionPromotionEnabled(false);
+        }
     }
 
     @Test

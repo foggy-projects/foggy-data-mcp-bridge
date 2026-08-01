@@ -101,8 +101,7 @@ public class RuntimeApiAuthInterceptor implements HandlerInterceptor {
 
     private boolean isAuthoringWorkspacePath(String path) {
         return RuntimeApiRoutes.Full.AUTHORING_WORKSPACES.equals(path)
-                || pathMatcher.match(
-                RuntimeApiRoutes.Full.AUTHORING_WORKSPACES_PATTERN, path);
+                || pathMatcher.match(RuntimeApiRoutes.Full.AUTHORING_PATTERN, path);
     }
 
     private String bestMatchingPattern(HttpServletRequest request) {

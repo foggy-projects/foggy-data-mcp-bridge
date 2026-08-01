@@ -5,6 +5,9 @@ export type AuthoringWorkspaceState =
   | 'PUBLISHING'
   | 'RECOVERY_REQUIRED'
   | 'PUBLISHED'
+  | 'ROLLING_BACK'
+  | 'ROLLBACK_REQUIRED'
+  | 'ROLLED_BACK'
   | 'DISCARDED'
 
 export interface ValidationIssue {
@@ -42,6 +45,28 @@ export interface PublicationEvidence {
   startedAt: string
   completedAt?: string | null
   diagnostics: string[]
+  rollback?: RollbackEvidence | null
+}
+
+export interface RollbackEvidence {
+  status: string
+  startedAt: string
+  rolledBackNamespaceSourceRevision?: string | null
+  rolledBackCatalogGeneration?: string | null
+  completedAt?: string | null
+  forwardRecoveredNamespaceSourceRevision?: string | null
+  forwardRecoveredCatalogGeneration?: string | null
+  diagnostics: string[]
+}
+
+export interface ReleaseImportEvidence {
+  packageId: string
+  formatVersion: string
+  sourceRuntimeApiVersion: string
+  sourceNamespace: string
+  sourceBundle: string
+  exportedCandidateRevision: string
+  importedAt: string
 }
 
 export interface AuthoringWorkspaceInfo {
@@ -57,7 +82,38 @@ export interface AuthoringWorkspaceInfo {
   updatedAt: string
   lastValidation?: ValidationEvidence | null
   lastPublication?: PublicationEvidence | null
+  releaseImport?: ReleaseImportEvidence | null
   diagnostics: string[]
+}
+
+export interface AuthoringReleaseDependency {
+  bundle: string
+  sourceType: string
+  sourceIdentity: string
+  artifactRevision?: string | null
+}
+
+export interface AuthoringReleaseResource {
+  path: string
+  type: 'TM' | 'QM' | 'FSSCRIPT'
+  size: number
+  sha256: string
+  content: string
+}
+
+export interface AuthoringReleasePackage {
+  formatVersion: string
+  packageId: string
+  sourceRuntimeApiVersion: string
+  sourceNamespace: string
+  sourceBundle: string
+  candidateRevision: string
+  baseBundleRevision: string
+  baseNamespaceSourceRevision: string
+  exportedAt: string
+  validation: ValidationEvidence
+  dependencies: AuthoringReleaseDependency[]
+  resources: AuthoringReleaseResource[]
 }
 
 export interface AuthoringWorkspaceListResponse {

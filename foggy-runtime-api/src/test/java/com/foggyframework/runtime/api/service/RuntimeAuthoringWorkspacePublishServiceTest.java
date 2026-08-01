@@ -4,15 +4,23 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.bundle.external.ExternalBundleDefinition;
 import com.foggyframework.bundle.external.ExternalFileBundle;
+import com.foggyframework.dataset.model.candidate.CandidateContentRevision;
+import com.foggyframework.dataset.model.lifecycle.catalog.CatalogSnapshot;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogSnapshotStore;
+import com.foggyframework.dataset.model.lifecycle.identity.CatalogGeneration;
+import com.foggyframework.dataset.model.lifecycle.identity.CatalogIdentity;
+import com.foggyframework.dataset.model.lifecycle.identity.SourceRevision;
 import com.foggyframework.dataset.model.validation.DetachedModelValidationFactory;
 import com.foggyframework.dataset.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.fsscript.lifecycle.CommittedSourceRevisionRegistry;
 import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceCreateRequest;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceInfo;
+import com.foggyframework.runtime.api.dto.AuthoringWorkspaceInfo.ReleaseImportEvidence;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspacePublishRequest;
+import com.foggyframework.runtime.api.dto.AuthoringWorkspacePromotionRequest;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceRecoverRequest;
+import com.foggyframework.runtime.api.dto.AuthoringWorkspaceRollbackRequest;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceState;
 import com.foggyframework.runtime.api.dto.ModelRefreshResponse;
 import com.foggyframework.runtime.api.dto.RuntimeCatalogState;
@@ -28,6 +36,7 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -55,6 +64,181 @@ class RuntimeAuthoringWorkspacePublishServiceTest {
 
     @TempDir
     Path tempDirectory;
+
+    @Test
+    void productionPromotionRequiresImportedExactPackageAndDisablesNormalPublish()
+            throws Exception {
+        Fixture fixture = fixture("production-promotion");
+        StoredWorkspace imported = validatedImportedCandidate(fixture);
+        fixture.properties().getAuthoringWorkspaces()
+                .setProductionPromotionEnabled(true);
+        AtomicInteger refreshes = new AtomicInteger();
+        when(fixture.modelOperations().refreshModels(any(), eq(NAMESPACE)))
+                .thenAnswer(invocation -> refresh(fixture,
+                        "catalog-production-" + refreshes.incrementAndGet()));
+
+        assertCode(() -> fixture.publications().publish(
+                        imported.workspaceId(), request(imported)),
+                "WORKSPACE_PRODUCTION_PROMOTION_REQUIRED");
+        assertCode(() -> fixture.publications().promote(
+                        imported.workspaceId(),
+                        new AuthoringWorkspacePromotionRequest(
+                                "sha256:" + "f".repeat(64),
+                                imported.candidateRevision(),
+                                imported.baseBundleRevision(),
+                                imported.baseSourceRevision())),
+                "WORKSPACE_RELEASE_PACKAGE_CONFLICT");
+
+        AuthoringWorkspaceInfo promoted = fixture.publications().promote(
+                imported.workspaceId(),
+                new AuthoringWorkspacePromotionRequest(
+                        imported.releaseImport().packageId(),
+                        imported.candidateRevision(),
+                        imported.baseBundleRevision(),
+                        imported.baseSourceRevision()));
+
+        assertThat(promoted.state()).isEqualTo(AuthoringWorkspaceState.PUBLISHED);
+        assertThat(promoted.releaseImport()).isEqualTo(imported.releaseImport());
+        assertThat(promoted.lastPublication().candidateRevision())
+                .isEqualTo(imported.candidateRevision());
+        assertThat(fixture.registry().find(BUNDLE).orElseThrow()
+                .artifactRevision()).isEqualTo(imported.candidateRevision());
+        Path candidateArtifact = Path.of(
+                fixture.registry().find(BUNDLE).orElseThrow().path());
+
+        AuthoringWorkspaceInfo rolledBack = fixture.publications().rollback(
+                imported.workspaceId(), new AuthoringWorkspaceRollbackRequest(
+                        imported.releaseImport().packageId(),
+                        imported.candidateRevision(),
+                        promoted.lastPublication().attemptId()));
+
+        assertThat(rolledBack.state())
+                .isEqualTo(AuthoringWorkspaceState.ROLLED_BACK);
+        assertThat(rolledBack.lastPublication().rollback().status())
+                .isEqualTo("ROLLED_BACK");
+        assertThat(rolledBack.lastPublication().rollback()
+                .rolledBackCatalogGeneration()).isEqualTo("catalog-production-2");
+        assertThat(fixture.registry().find(BUNDLE).orElseThrow().path())
+                .isEqualTo(fixture.livePath().toString());
+        assertThat(candidateArtifact).isDirectory();
+    }
+
+    @Test
+    void rollbackFailureForwardRecoversCandidateAndReturnsFailure()
+            throws Exception {
+        Fixture fixture = fixture("rollback-forward-recovery");
+        StoredWorkspace imported = validatedImportedCandidate(fixture);
+        fixture.properties().getAuthoringWorkspaces()
+                .setProductionPromotionEnabled(true);
+        when(fixture.modelOperations().refreshModels(any(), eq(NAMESPACE)))
+                .thenAnswer(invocation -> refresh(fixture, "catalog-promoted"))
+                .thenThrow(new IllegalStateException("rollback refresh failed"))
+                .thenAnswer(invocation -> refresh(
+                        fixture, "catalog-forward-recovered"));
+        AuthoringWorkspaceInfo promoted = fixture.publications().promote(
+                imported.workspaceId(), new AuthoringWorkspacePromotionRequest(
+                        imported.releaseImport().packageId(),
+                        imported.candidateRevision(),
+                        imported.baseBundleRevision(),
+                        imported.baseSourceRevision()));
+
+        assertCode(() -> fixture.publications().rollback(
+                        imported.workspaceId(), new AuthoringWorkspaceRollbackRequest(
+                                imported.releaseImport().packageId(),
+                                imported.candidateRevision(),
+                                promoted.lastPublication().attemptId())),
+                "WORKSPACE_ROLLBACK_FAILED");
+
+        StoredWorkspace recovered = fixture.store().get(imported.workspaceId());
+        assertThat(recovered.state()).isEqualTo(AuthoringWorkspaceState.PUBLISHED);
+        assertThat(recovered.lastPublication().rollback().status())
+                .isEqualTo("FORWARD_RECOVERED");
+        assertThat(recovered.lastPublication().rollback()
+                .forwardRecoveredCatalogGeneration())
+                .isEqualTo("catalog-forward-recovered");
+        assertThat(fixture.registry().find(BUNDLE).orElseThrow()
+                .artifactRevision()).isEqualTo(imported.candidateRevision());
+    }
+
+    @Test
+    void failedRollbackAndForwardRecoveryRequirePinnedExplicitRecovery()
+            throws Exception {
+        Fixture fixture = fixture("rollback-required");
+        StoredWorkspace imported = validatedImportedCandidate(fixture);
+        fixture.properties().getAuthoringWorkspaces()
+                .setProductionPromotionEnabled(true);
+        when(fixture.modelOperations().refreshModels(any(), eq(NAMESPACE)))
+                .thenAnswer(invocation -> refresh(fixture, "catalog-promoted"))
+                .thenThrow(new IllegalStateException("rollback refresh failed"))
+                .thenThrow(new IllegalStateException("forward refresh failed"));
+        AuthoringWorkspaceInfo promoted = fixture.publications().promote(
+                imported.workspaceId(), new AuthoringWorkspacePromotionRequest(
+                        imported.releaseImport().packageId(),
+                        imported.candidateRevision(),
+                        imported.baseBundleRevision(),
+                        imported.baseSourceRevision()));
+        AuthoringWorkspaceRollbackRequest request =
+                new AuthoringWorkspaceRollbackRequest(
+                        imported.releaseImport().packageId(),
+                        imported.candidateRevision(),
+                        promoted.lastPublication().attemptId());
+
+        assertCode(() -> fixture.publications().rollback(
+                        imported.workspaceId(), request),
+                "WORKSPACE_ROLLBACK_REQUIRED");
+        assertThat(fixture.store().get(imported.workspaceId()).state())
+                .isEqualTo(AuthoringWorkspaceState.ROLLBACK_REQUIRED);
+
+        when(fixture.modelOperations().refreshModels(any(), eq(NAMESPACE)))
+                .thenAnswer(invocation -> refresh(
+                        fixture, "catalog-explicit-forward"));
+        AuthoringWorkspaceInfo recovered =
+                fixture.publications().recoverRollback(
+                        imported.workspaceId(), request);
+
+        assertThat(recovered.state()).isEqualTo(AuthoringWorkspaceState.PUBLISHED);
+        assertThat(recovered.lastPublication().rollback().status())
+                .isEqualTo("FORWARD_RECOVERED");
+        assertThat(recovered.lastPublication().rollback()
+                .forwardRecoveredCatalogGeneration())
+                .isEqualTo("catalog-explicit-forward");
+    }
+
+    @Test
+    void thirdPartyLiveDriftBlocksRollbackBeforeDurableIntentOrMutation()
+            throws Exception {
+        Fixture fixture = fixture("rollback-third-party-drift");
+        StoredWorkspace imported = validatedImportedCandidate(fixture);
+        fixture.properties().getAuthoringWorkspaces()
+                .setProductionPromotionEnabled(true);
+        when(fixture.modelOperations().refreshModels(any(), eq(NAMESPACE)))
+                .thenAnswer(invocation -> refresh(fixture, "catalog-promoted"));
+        AuthoringWorkspaceInfo promoted = fixture.publications().promote(
+                imported.workspaceId(), new AuthoringWorkspacePromotionRequest(
+                        imported.releaseImport().packageId(),
+                        imported.candidateRevision(),
+                        imported.baseBundleRevision(),
+                        imported.baseSourceRevision()));
+        String registryPath = fixture.registry().find(BUNDLE).orElseThrow().path();
+        Path thirdParty = Files.createDirectories(
+                tempDirectory.resolve("third-party-live"));
+        setSource(fixture.liveBundle(), thirdParty.toString(), false);
+
+        assertCode(() -> fixture.publications().rollback(
+                        imported.workspaceId(), new AuthoringWorkspaceRollbackRequest(
+                                imported.releaseImport().packageId(),
+                                imported.candidateRevision(),
+                                promoted.lastPublication().attemptId())),
+                "WORKSPACE_ROLLBACK_CONFLICT");
+
+        StoredWorkspace unchanged = fixture.store().get(imported.workspaceId());
+        assertThat(unchanged.state()).isEqualTo(AuthoringWorkspaceState.PUBLISHED);
+        assertThat(unchanged.lastPublication().rollback()).isNull();
+        assertThat(fixture.registry().find(BUNDLE).orElseThrow().path())
+                .isEqualTo(registryPath);
+        assertThat(fixture.liveBundle().getRootPath())
+                .isEqualTo(thirdParty.toString());
+    }
 
     @Test
     void publishesExactValidatedRevisionAsImmutableBundleAndTerminalWorkspace()
@@ -520,15 +704,18 @@ class RuntimeAuthoringWorkspacePublishServiceTest {
                 new RuntimePublishedBundleArtifactStore(
                         properties, mapper, null, registry);
         RuntimeModelOperations modelOperations = mock(RuntimeModelOperations.class);
+        CatalogSnapshotStore catalogStore = mock(CatalogSnapshotStore.class);
+        when(catalogStore.current(NAMESPACE)).thenReturn(Optional.empty());
         RuntimeAuthoringWorkspacePublicationService publications =
                 new RuntimeAuthoringWorkspacePublicationService(
-                        store, workspaceService, artifactStore, registry,
+                        properties, store, workspaceService, artifactStore, registry,
                         context, modelOperations,
                         new RuntimeAuthoringPublicationLock(),
                         provider(sourceRegistry),
-                        provider((CatalogSnapshotStore) null));
-        return new Fixture(store, workspaceService, publications, registry,
-                modelOperations, sourceRegistry, live, livePath, publishedRoot);
+                        provider(catalogStore));
+        return new Fixture(properties, store, workspaceService, publications, registry,
+                modelOperations, sourceRegistry, catalogStore, live, livePath,
+                publishedRoot);
     }
 
     private static StoredWorkspace validatedCandidate(Fixture fixture) {
@@ -570,6 +757,32 @@ class RuntimeAuthoringWorkspacePublishServiceTest {
                         now, candidate.size(), candidate.size(), 0, 0, List.of()));
     }
 
+    private static StoredWorkspace validatedImportedCandidate(Fixture fixture) {
+        AuthoringWorkspaceInfo seed = fixture.workspaceService().create(
+                NAMESPACE, new AuthoringWorkspaceCreateRequest(null, BUNDLE));
+        StoredWorkspace baseRecord = fixture.store().get(seed.workspaceId());
+        Map<String, byte[]> base = fixture.store().snapshot(
+                seed.workspaceId(), seed.candidateRevision());
+        Map<String, byte[]> candidate = new LinkedHashMap<>(base);
+        candidate.put("shared/common.fsscript", bytes("release-package-script"));
+        String candidateRevision = CandidateContentRevision.calculate(candidate);
+        ReleaseImportEvidence release = new ReleaseImportEvidence(
+                "sha256:" + "a".repeat(64),
+                RuntimeAuthoringReleasePackageService.FORMAT_VERSION,
+                "9.5.4", "development-sales", "development-bundle",
+                candidateRevision, Instant.now().toString());
+        StoredWorkspace imported = fixture.store().createImported(
+                NAMESPACE, BUNDLE, baseRecord.baseSourceRevision(),
+                baseRecord.baseSourceIdentity(), base, candidate, release);
+        return fixture.store().recordValidation(
+                imported.workspaceId(), imported.candidateRevision(),
+                new AuthoringWorkspaceInfo.ValidationEvidence(
+                        true, imported.candidateRevision(),
+                        imported.baseBundleRevision(), imported.baseSourceRevision(),
+                        Instant.now().toString(), candidate.size(), candidate.size(),
+                        0, 0, List.of()));
+    }
+
     private static AuthoringWorkspacePublishRequest request(
             StoredWorkspace workspace
     ) {
@@ -582,6 +795,13 @@ class RuntimeAuthoringWorkspacePublishServiceTest {
             Fixture fixture,
             String generation
     ) {
+        CatalogSnapshot snapshot = mock(CatalogSnapshot.class);
+        when(snapshot.identity()).thenReturn(new CatalogIdentity(
+                NAMESPACE, new CatalogGeneration(generation),
+                new SourceRevision(
+                        fixture.sourceRegistry().currentRevision(NAMESPACE))));
+        when(fixture.catalogStore().current(NAMESPACE))
+                .thenReturn(Optional.of(snapshot));
         return new ModelRefreshResponse(
                 NAMESPACE, "namespace", List.of(), List.of("Order"),
                 1, 0, List.of(), List.of(), "catalog-before", generation,
@@ -649,12 +869,14 @@ class RuntimeAuthoringWorkspacePublishServiceTest {
     }
 
     private record Fixture(
+            FoggyRuntimeApiProperties properties,
             RuntimeAuthoringWorkspaceStore store,
             RuntimeAuthoringWorkspaceService workspaceService,
             RuntimeAuthoringWorkspacePublicationService publications,
             RuntimeBundleRegistryService registry,
             RuntimeModelOperations modelOperations,
             CommittedSourceRevisionRegistry sourceRegistry,
+            CatalogSnapshotStore catalogStore,
             ExternalFileBundle liveBundle,
             Path livePath,
             Path publishedRoot

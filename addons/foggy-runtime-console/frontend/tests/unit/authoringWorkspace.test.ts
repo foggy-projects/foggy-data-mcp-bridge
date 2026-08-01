@@ -1,17 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import {
+  canExportRelease,
+  canPromoteRelease,
   canPublishWorkspace,
+  canRollbackRelease,
   candidateExecutionFacts,
   candidateQueryCsvFilename,
   isCurrentValidation,
+  releasePackageFilename,
   shortRevision,
   suggestedModelName,
   workspaceActions,
   workspaceResourcePathError
 } from '@/features/authoring/authoringWorkspace'
 import {
+  promoteWorkspaceRequest,
   publishWorkspaceRequest,
-  recoverWorkspaceRequest
+  recoverWorkspaceRequest,
+  rollbackWorkspaceRequest
 } from '@/features/authoring/useWorkspacePublication'
 import type { AuthoringWorkspaceInfo } from '@/features/authoring/types'
 
@@ -42,6 +48,37 @@ describe('authoring workspace UI policy', () => {
       discard: false,
       createNext: true
     })
+    expect(workspaceActions('VALIDATED', true)).toMatchObject({
+      read: true,
+      mutate: false,
+      validate: true,
+      query: true,
+      discard: true,
+      publish: false
+    })
+    expect(workspaceActions('STALE', true)).toMatchObject({
+      read: true,
+      mutate: false,
+      diff: true,
+      discard: true
+    })
+    expect(workspaceActions('ROLLING_BACK', true)).toMatchObject({
+      read: true,
+      mutate: false,
+      refreshPublication: true,
+      recoverRollback: false
+    })
+    expect(workspaceActions('ROLLBACK_REQUIRED', true)).toMatchObject({
+      read: true,
+      mutate: false,
+      recoverRollback: true,
+      refreshPublication: true
+    })
+    expect(workspaceActions('ROLLED_BACK', true)).toMatchObject({
+      read: true,
+      mutate: false,
+      createNext: false
+    })
     expect(workspaceActions('UNKNOWN' as never)).toMatchObject({
       read: false,
       mutate: false,
@@ -58,7 +95,8 @@ describe('authoring workspace UI policy', () => {
       publish: false,
       recover: false,
       refreshPublication: false,
-      createNext: false
+      createNext: false,
+      recoverRollback: false
     })
   })
 
@@ -151,6 +189,86 @@ describe('authoring workspace UI policy', () => {
     })).toBeNull()
   })
 
+  it('gates release actions by capability, immutable provenance and exact evidence', () => {
+    const workspace: AuthoringWorkspaceInfo = {
+      workspaceId: 'ws-imported',
+      targetNamespace: 'production',
+      sourceBundle: 'sales',
+      sourceKind: 'runtime-managed',
+      baseBundleRevision: 'sha256:base',
+      baseNamespaceSourceRevision: 'source:production:g1',
+      candidateRevision: 'sha256:candidate',
+      state: 'VALIDATED',
+      createdAt: '2026-08-01T00:00:00Z',
+      updatedAt: '2026-08-01T00:00:00Z',
+      diagnostics: [],
+      releaseImport: {
+        packageId: 'sha256:package',
+        formatVersion: 'foggy-authoring-release/v1',
+        sourceRuntimeApiVersion: 'foggy-runtime-api/v1',
+        sourceNamespace: 'development',
+        sourceBundle: 'sales',
+        exportedCandidateRevision: 'sha256:candidate',
+        importedAt: '2026-08-01T00:00:00Z'
+      },
+      lastValidation: {
+        valid: true,
+        candidateRevision: 'sha256:candidate',
+        baseBundleRevision: 'sha256:base',
+        baseNamespaceSourceRevision: 'source:production:g1',
+        validatedAt: '2026-08-01T00:05:00Z',
+        totalFiles: 3,
+        validFiles: 3,
+        invalidFiles: 0,
+        cascadingErrors: 0,
+        issues: []
+      }
+    }
+    const capabilities = {
+      'authoring.releasePackage.export': 'supported',
+      'authoring.production.apply': 'supported',
+      'authoring.production.rollback': 'supported'
+    }
+    expect(canExportRelease(workspace, capabilities)).toBe(true)
+    expect(canPromoteRelease(workspace, capabilities)).toBe(true)
+    expect(promoteWorkspaceRequest(workspace)).toEqual({
+      releasePackageId: 'sha256:package',
+      expectedCandidateRevision: 'sha256:candidate',
+      expectedBaseBundleRevision: 'sha256:base',
+      expectedBaseNamespaceSourceRevision: 'source:production:g1'
+    })
+    expect(canPromoteRelease({ ...workspace, state: 'DRAFT' }, capabilities)).toBe(false)
+    expect(canPromoteRelease(workspace, { ...capabilities, 'authoring.production.apply': 'disabled' })).toBe(false)
+
+    const published: AuthoringWorkspaceInfo = {
+      ...workspace,
+      state: 'PUBLISHED',
+      lastPublication: {
+        attemptId: 'attempt-1',
+        status: 'PUBLISHED',
+        candidateRevision: workspace.candidateRevision,
+        baseBundleRevision: workspace.baseBundleRevision,
+        baseNamespaceSourceRevision: workspace.baseNamespaceSourceRevision,
+        startedAt: '2026-08-01T00:06:00Z',
+        diagnostics: []
+      }
+    }
+    expect(canRollbackRelease(published, capabilities)).toBe(true)
+    expect(rollbackWorkspaceRequest(published)).toEqual({
+      releasePackageId: 'sha256:package',
+      expectedCandidateRevision: 'sha256:candidate',
+      publicationAttemptId: 'attempt-1'
+    })
+    expect(canRollbackRelease({
+      ...published,
+      lastPublication: { ...published.lastPublication!, rollback: {
+        status: 'ROLLING_BACK',
+        startedAt: '2026-08-01T00:07:00Z',
+        diagnostics: []
+      } }
+    }, capabilities)).toBe(false)
+  })
+
   it('labels filename-derived model names as suggestions and shortens opaque revisions', () => {
     expect(suggestedModelName('query/OrderQuery.qm')).toBe('OrderQuery')
     expect(suggestedModelName('models/Order.tm')).toBe('')
@@ -170,6 +288,9 @@ describe('authoring workspace UI policy', () => {
     })
     expect(candidateQueryCsvFilename('Order Query', 'ws/default:001')).toBe(
       'candidate-Order-Query-ws-default-001.csv'
+    )
+    expect(releasePackageFilename('sales / prod', 'sha256:1234567890abcdef')).toBe(
+      'foggy-release-sales-prod-1234567890ab.json'
     )
   })
 })

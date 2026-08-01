@@ -40,6 +40,9 @@ public class RuntimePublishedBundleArtifactStore {
     private static final Set<String> ATTEMPT_STATUSES = Set.of(
             "PUBLISHING", "SOURCE_APPLIED", "PUBLISHED", "RECOVERED",
             "RECOVERY_REQUIRED", "FAILED");
+    private static final Set<String> ROLLBACK_STATUSES = Set.of(
+            "ROLLING_BACK", "ROLLED_BACK", "ROLLBACK_REQUIRED",
+            "FORWARD_RECOVERED");
 
     private final FoggyRuntimeApiProperties properties;
     private final ObjectMapper objectMapper;
@@ -457,6 +460,41 @@ public class RuntimePublishedBundleArtifactStore {
             throw failure("WORKSPACE_ARTIFACT_CORRUPT", "workspaces.publish.commit",
                     "Publication attempt metadata is invalid.");
         }
+        RollbackAttempt rollback = attempt.rollback();
+        if (rollback == null) {
+            return;
+        }
+        try {
+            if (!"PUBLISHED".equals(attempt.status())
+                    || !ROLLBACK_STATUSES.contains(rollback.status())
+                    || !StringUtils.hasText(rollback.startedAt())) {
+                throw new IllegalArgumentException("invalid rollback metadata");
+            }
+            Instant.parse(rollback.startedAt());
+            if (StringUtils.hasText(rollback.completedAt())) {
+                Instant.parse(rollback.completedAt());
+            }
+            if ("ROLLED_BACK".equals(rollback.status())
+                    && (!StringUtils.hasText(rollback.rolledBackSourceRevision())
+                    || !StringUtils.hasText(
+                    rollback.rolledBackCatalogGeneration())
+                    || !StringUtils.hasText(rollback.completedAt()))) {
+                throw new IllegalArgumentException("incomplete rollback evidence");
+            }
+            if ("FORWARD_RECOVERED".equals(rollback.status())
+                    && (!StringUtils.hasText(
+                    rollback.forwardRecoveredSourceRevision())
+                    || !StringUtils.hasText(
+                    rollback.forwardRecoveredCatalogGeneration())
+                    || !StringUtils.hasText(rollback.completedAt()))) {
+                throw new IllegalArgumentException(
+                        "incomplete forward recovery evidence");
+            }
+        } catch (RuntimeException invalid) {
+            throw failure("WORKSPACE_ARTIFACT_CORRUPT",
+                    "workspaces.rollback.commit",
+                    "Publication rollback metadata is invalid.");
+        }
     }
 
     private static void requireAttemptId(String attemptId) {
@@ -512,10 +550,47 @@ public class RuntimePublishedBundleArtifactStore {
             String recoveredCatalogGeneration,
             String startedAt,
             String completedAt,
-            List<String> diagnostics
+            List<String> diagnostics,
+            RollbackAttempt rollback
     ) {
         public PublicationAttempt {
             diagnostics = diagnostics == null ? List.of() : List.copyOf(diagnostics);
+        }
+
+        /** Compatibility constructor retaining the pre-rollback attempt surface. */
+        public PublicationAttempt(
+                int version,
+                String attemptId,
+                String workspaceId,
+                String namespace,
+                String bundle,
+                String candidateRevision,
+                String baseBundleRevision,
+                String baseSourceRevision,
+                String previousPath,
+                boolean previousWatch,
+                boolean previousEnabled,
+                String previousCreatedAt,
+                String previousUpdatedAt,
+                boolean previousImmutablePublication,
+                String previousArtifactRevision,
+                String status,
+                String publishedSourceRevision,
+                String beforeCatalogGeneration,
+                String afterCatalogGeneration,
+                String recoveredCatalogGeneration,
+                String startedAt,
+                String completedAt,
+                List<String> diagnostics
+        ) {
+            this(version, attemptId, workspaceId, namespace, bundle,
+                    candidateRevision, baseBundleRevision, baseSourceRevision,
+                    previousPath, previousWatch, previousEnabled,
+                    previousCreatedAt, previousUpdatedAt,
+                    previousImmutablePublication, previousArtifactRevision,
+                    status, publishedSourceRevision, beforeCatalogGeneration,
+                    afterCatalogGeneration, recoveredCatalogGeneration,
+                    startedAt, completedAt, diagnostics, null);
         }
 
         public PublicationAttempt withStatus(
@@ -534,7 +609,33 @@ public class RuntimePublishedBundleArtifactStore {
                     previousImmutablePublication, previousArtifactRevision,
                     nextStatus, sourceRevision,
                     beforeGeneration, afterGeneration, recoveredGeneration,
-                    startedAt, completed, nextDiagnostics);
+                    startedAt, completed, nextDiagnostics, rollback);
+        }
+
+        public PublicationAttempt withRollback(RollbackAttempt nextRollback) {
+            return new PublicationAttempt(version, attemptId, workspaceId,
+                    namespace, bundle, candidateRevision, baseBundleRevision,
+                    baseSourceRevision, previousPath, previousWatch,
+                    previousEnabled, previousCreatedAt, previousUpdatedAt,
+                    previousImmutablePublication, previousArtifactRevision,
+                    status, publishedSourceRevision, beforeCatalogGeneration,
+                    afterCatalogGeneration, recoveredCatalogGeneration,
+                    startedAt, completedAt, diagnostics, nextRollback);
+        }
+    }
+
+    public record RollbackAttempt(
+            String status,
+            String startedAt,
+            String rolledBackSourceRevision,
+            String rolledBackCatalogGeneration,
+            String completedAt,
+            String forwardRecoveredSourceRevision,
+            String forwardRecoveredCatalogGeneration,
+            List<String> diagnostics
+    ) {
+        public RollbackAttempt {
+            diagnostics = diagnostics == null ? List.of() : List.copyOf(diagnostics);
         }
     }
 

@@ -180,12 +180,21 @@ class RuntimeApiAuthCodeGateTest {
     }
 
     @Test
-    void shouldProtectWorkspacePublishAndRecoveryRoutesWithManagementAuth() {
+    void shouldProtectWorkspaceReleaseAndPromotionRoutesWithManagementAuth() {
         String workspaceId = "W".repeat(24);
         for (String route : List.of(
                 route(RuntimeApiRoutes.Full.AUTHORING_PUBLISH,
                         "workspaceId", workspaceId),
                 route(RuntimeApiRoutes.Full.AUTHORING_PUBLISH_RECOVER,
+                        "workspaceId", workspaceId),
+                route(RuntimeApiRoutes.Full.AUTHORING_RELEASE_EXPORT,
+                        "workspaceId", workspaceId),
+                RuntimeApiRoutes.Full.AUTHORING_RELEASE_IMPORT,
+                route(RuntimeApiRoutes.Full.AUTHORING_PROMOTE,
+                        "workspaceId", workspaceId),
+                route(RuntimeApiRoutes.Full.AUTHORING_ROLLBACK,
+                        "workspaceId", workspaceId),
+                route(RuntimeApiRoutes.Full.AUTHORING_ROLLBACK_RECOVER,
                         "workspaceId", workspaceId))) {
             ResponseEntity<JsonNode> rejected = restTemplate.postForEntity(
                     url(route), Map.of(), JsonNode.class);
@@ -504,6 +513,16 @@ class RuntimeApiAuthCodeGateTest {
                 "workspaceId", "workspace-1");
         String recover = route(RuntimeApiRoutes.Full.AUTHORING_PUBLISH_RECOVER,
                 "workspaceId", "workspace-1");
+        String releaseExport = route(
+                RuntimeApiRoutes.Full.AUTHORING_RELEASE_EXPORT,
+                "workspaceId", "workspace-1");
+        String promote = route(RuntimeApiRoutes.Full.AUTHORING_PROMOTE,
+                "workspaceId", "workspace-1");
+        String rollback = route(RuntimeApiRoutes.Full.AUTHORING_ROLLBACK,
+                "workspaceId", "workspace-1");
+        String rollbackRecover = route(
+                RuntimeApiRoutes.Full.AUTHORING_ROLLBACK_RECOVER,
+                "workspaceId", "workspace-1");
         String queryValidate = route(
                 RuntimeApiRoutes.Full.AUTHORING_QUERY_VALIDATE,
                 "workspaceId", "workspace-1").replace("{model}", "Order");
@@ -517,6 +536,10 @@ class RuntimeApiAuthCodeGateTest {
                 {"GET", resources}, {"GET", content},
                 {"POST", save}, {"POST", delete}, {"POST", diff},
                 {"POST", validate}, {"POST", publish}, {"POST", recover},
+                {"POST", releaseExport},
+                {"POST", RuntimeApiRoutes.Full.AUTHORING_RELEASE_IMPORT},
+                {"POST", promote}, {"POST", rollback},
+                {"POST", rollbackRecover},
                 {"POST", queryValidate},
                 {"POST", queryExecute}
         }) {

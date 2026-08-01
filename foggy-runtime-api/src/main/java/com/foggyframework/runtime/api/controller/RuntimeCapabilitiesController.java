@@ -72,6 +72,15 @@ public class RuntimeCapabilitiesController {
         capabilities.put("authoring.diff", "supported");
         capabilities.put("authoring.validate", "supported");
         capabilities.put("authoring.query", "supported");
+        capabilities.put("authoring.releasePackage.export", "supported");
+        boolean promotionEnabled = properties.getAuthoringWorkspaces() != null
+                && properties.getAuthoringWorkspaces().isProductionPromotionEnabled();
+        capabilities.put("authoring.releasePackage.import",
+                promotionEnabled ? "supported" : "disabled");
+        capabilities.put("authoring.production.apply",
+                promotionEnabled ? "supported" : "disabled");
+        capabilities.put("authoring.production.rollback",
+                promotionEnabled ? "supported" : "disabled");
 
         CapabilitiesResponse response = new CapabilitiesResponse(
                 responses.engine(),

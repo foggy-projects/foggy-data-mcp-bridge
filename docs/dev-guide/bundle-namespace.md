@@ -218,6 +218,30 @@ foggy:
 `management-all` 仍不提供客户级权限、用户身份、审计或授权码轮换。查询受保护 QM 时，数据面
 `Authorization` 与管理 `X-Foggy-Runtime-Code` 是两个独立凭据，不能互相替代。
 
+### 可选 Production Promotion Mode
+
+跨 Runtime 搬运模型时可显式启用 9.5.4 release package promotion。该能力默认关闭；生产 Runtime
+必须同时配置管理授权码，并明确 opt in：
+
+```yaml
+foggy:
+  runtime-api:
+    enabled: true
+    security-mode: auth-code
+    auth-code: ${FOGGY_RUNTIME_API_AUTH_CODE}
+    authoring-workspaces:
+      production-promotion-enabled: true
+```
+
+启用后 `/api/v1/authoring/releases/import`、workspace `/promote`、`/rollback` 与
+`/rollback/recover` 可用，普通 workspace `/publish` 在服务端被禁止。开发 Runtime 可保持默认配置，
+从 exact validated workspace 的 `/release-package` 导出 JSON。package 只携带 TM/QM/FSScript 与安全
+provenance；导入后 candidate 不可编辑，必须在目标 Runtime 重新 validate/query 后才可 promote。
+
+v1 package 的 SHA-256 用于内容完整性，不是签名或用户身份。持有 management auth-code 并显式选择
+target Namespace/Bundle 的操作者是信任根。rollback 只恢复 apply attempt 的直接前一 base，不提供
+revision history 或任意历史选择；`ROLLBACK_REQUIRED` 时只能执行 pinned forward recovery。
+
 ### 可选 Runtime Web Console
 
 Launcher 默认不包含 Runtime Console。构建时显式启用 Maven profile：
