@@ -14,6 +14,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -164,6 +165,70 @@ class RuntimeAuthoringPublicationStoreTest {
         assertCode(() -> store.get(attemptId), "WORKSPACE_ARTIFACT_CORRUPT");
         assertThat(artifact.resolve("Order.tm")).hasContent("tm");
         assertThat(metadata).hasContent(changed);
+    }
+
+    @Test
+    void failedArtifactPreparationLeavesStagingAndRestartPreservesEvidence()
+            throws Exception {
+        Path root = tempDirectory.resolve("artifact-staging-root");
+        RuntimePublishedBundleArtifactStore store = store(root);
+        Map<String, byte[]> invalidSnapshot = Map.of(
+                "a/Order.tm", bytes("partial-model"),
+                "z/notes.txt", bytes("unsupported"));
+        String invalidRevision = CandidateContentRevision.calculate(invalidSnapshot);
+
+        assertCode(() -> store.prepareArtifact(
+                        store.newAttemptId(), "workspace-opaque-identity",
+                        "sales", "managed-sales", invalidRevision,
+                        invalidSnapshot),
+                "WORKSPACE_ARTIFACT_CORRUPT");
+
+        Path artifacts = root.resolve("artifacts");
+        Path staging;
+        try (var entries = Files.list(artifacts)) {
+            List<Path> paths = entries.toList();
+            assertThat(paths).singleElement().satisfies(path -> assertThat(
+                    path.getFileName().toString()).startsWith(".staging-"));
+            staging = paths.get(0);
+        }
+        Path partial = staging.resolve("a/Order.tm");
+        assertThat(partial).hasContent("partial-model");
+
+        RuntimePublishedBundleArtifactStore restarted = store(root);
+        Map<String, byte[]> validSnapshot = Map.of("Order.tm", bytes("valid"));
+        assertCode(() -> restarted.prepareArtifact(
+                        restarted.newAttemptId(), "workspace-opaque-identity",
+                        "sales", "managed-sales",
+                        CandidateContentRevision.calculate(validSnapshot),
+                        validSnapshot),
+                "WORKSPACE_ARTIFACT_CORRUPT");
+
+        assertThat(staging).isDirectory();
+        assertThat(partial).hasContent("partial-model");
+    }
+
+    @Test
+    void restartPreservesPublicationMetadataTemporaryAndFailsClosed()
+            throws Exception {
+        Path root = tempDirectory.resolve("attempt-temporary-root");
+        RuntimePublishedBundleArtifactStore store = store(root);
+        String attemptId = store.newAttemptId();
+        Map<String, byte[]> snapshot = Map.of("Order.tm", bytes("tm"));
+        store.prepareArtifact(
+                attemptId, "workspace-opaque-identity", "sales",
+                "managed-sales", CandidateContentRevision.calculate(snapshot),
+                snapshot);
+        Path temporary = Files.writeString(
+                root.resolve("attempts").resolve(
+                        attemptId + ".json.tmp-" + UUID.randomUUID()),
+                "partial-attempt-metadata");
+
+        RuntimePublishedBundleArtifactStore restarted = store(root);
+        assertCode(() -> restarted.get(attemptId),
+                "WORKSPACE_ARTIFACT_CORRUPT");
+
+        assertThat(temporary).hasContent("partial-attempt-metadata");
+        assertThat(root.resolve("artifacts").resolve(attemptId)).isDirectory();
     }
 
     @Test
