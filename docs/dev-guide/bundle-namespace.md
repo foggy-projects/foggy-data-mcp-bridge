@@ -218,6 +218,19 @@ foggy:
 `management-all` 仍不提供客户级权限、用户身份、审计或授权码轮换。查询受保护 QM 时，数据面
 `Authorization` 与管理 `X-Foggy-Runtime-Code` 是两个独立凭据，不能互相替代。
 
+### 只读 Artifact Lifecycle Inventory
+
+启用 Runtime API 后，可用 `GET /api/v1/authoring/artifacts/lifecycle` 查看 authoring workspace、published
+artifact/attempt 与当前 Bundle registry 的容量、health、引用分类和稳定 blocked reason。该端点属于 authoring
+管理面，即使保持默认 `auth-scope=mutations`，也必须通过 `X-Foggy-Runtime-Code` 提交已配置的管理授权码。
+
+inventory 是零写入诊断：缺失 root 不会被初始化，扫描不会 cleanup、repair、quarantine 或修改 mtime/content。
+响应不会暴露 configured absolute root、内部 `storeId`、模型内容或凭据。`PROVABLY_UNREACHABLE_CANDIDATE`
+只表示当前单进程一致快照中没有可证明引用，不等于允许删除；retention/grace、复核和真正 cleanup 需要独立交付。
+遇到 corrupt、foreign、symlink、无法完整验证的中断 temporary/staging 或不完整引用图时，按
+`UNKNOWN_PRESERVE` 保留并报告
+blocked reason。外部进程写入、shared NFS 和跨 Runtime 协调不在该快照保证内。
+
 ### 可选 Production Promotion Mode
 
 跨 Runtime 搬运模型时可显式启用 9.5.4 release package promotion。该能力默认关闭；生产 Runtime

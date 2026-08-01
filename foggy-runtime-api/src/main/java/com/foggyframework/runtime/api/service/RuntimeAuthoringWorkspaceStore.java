@@ -44,7 +44,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Service
@@ -258,6 +260,17 @@ public class RuntimeAuthoringWorkspaceStore {
                     "Authoring workspace was not found.", null, false);
         }
         return record;
+    }
+
+    /** Holds the store monitor while read-only lifecycle diagnostics inspect disk state. */
+    synchronized <T> T withLifecycleInventorySnapshot(
+            Function<Set<LifecycleRevisionLease>, T> reader
+    ) {
+        Set<LifecycleRevisionLease> snapshot = leases.keySet().stream()
+                .map(key -> new LifecycleRevisionLease(
+                        key.workspaceId(), key.revision()))
+                .collect(Collectors.toUnmodifiableSet());
+        return reader.apply(snapshot);
     }
 
     public synchronized Map<String, byte[]> snapshot(
@@ -2234,6 +2247,9 @@ public class RuntimeAuthoringWorkspaceStore {
     }
 
     private record RevisionKey(String workspaceId, String revision) {
+    }
+
+    record LifecycleRevisionLease(String workspaceId, String revision) {
     }
 
     private enum CleanupType {

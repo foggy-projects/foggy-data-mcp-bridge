@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: cross-module
 version: 9.5.5
 ticket: SPIKE-runtime-artifact-store-lifecycle-foundations
-status: APPROVED
+status: ACCEPTED
 canonical: true
 execution_mode: ultra
 assurance_level: standard
@@ -83,28 +83,28 @@ open_questions: []
 
 ## Acceptance Criteria
 
-- [ ] AC-1: 建立完整磁盘对象 inventory，至少覆盖两个 configurable root、root owner、workspace registry/
+- [x] AC-1: 建立完整磁盘对象 inventory，至少覆盖两个 configurable root、root owner、workspace registry/
   marker/revision/head/staging/tombstone、published artifact/manifest、publication attempt/rollback metadata、原子
   JSON temporary，以及 release package 的非持久化边界；每项标明 owner、identity、创建/更新方和现有清理行为。
-- [ ] AC-2: 建立跨 workspace store、published store、Bundle registry/live source 的 artifact reference graph；对
+- [x] AC-2: 建立跨 workspace store、published store、Bundle registry/live source 的 artifact reference graph；对
   `DRAFT`、`VALIDATED`、`STALE`、`PUBLISHING`、`RECOVERY_REQUIRED`、`PUBLISHED`、`ROLLING_BACK`、
   `ROLLBACK_REQUIRED`、`ROLLED_BACK`、`DISCARDED` 及 publication/rollback attempt 状态逐项说明必须保留的
   current/base/candidate/previous artifact 和 restart 后用途。
-- [ ] AC-3: 为每类对象给出 `must-retain`、`provably-unreachable-candidate` 或 `unknown-preserve` 分类规则；证明
+- [x] AC-3: 为每类对象给出 `must-retain`、`provably-unreachable-candidate` 或 `unknown-preserve` 分类规则；证明
   current registry source、任何 workspace base、未完成 recovery/rollback、仍可作为下一 workspace base 的
   immutable artifact，以及 identity/ownership 不完整对象绝不进入可删除候选。
-- [ ] AC-4: 建立 restart/failure matrix，区分 workspace root 已实现的 ownership-bearing orphan/staging/revision
+- [x] AC-4: 建立 restart/failure matrix，区分 workspace root 已实现的 ownership-bearing orphan/staging/revision
   cleanup 与 published root 对 artifact `.staging-*`、metadata temporary、unknown entry 的当前行为；至少用真实
   生产 store 类和临时目录 characterization 证明一个成功路径与关键中断/foreign/symlink/corrupt 路径，禁止
   Mockito 伪造 filesystem Resource。
-- [ ] AC-5: 冻结后续 cleanup/retention 的安全算法边界：在 publication lock 内取得一致引用快照，完整验证 root/
+- [x] AC-5: 冻结后续 cleanup/retention 的安全算法边界：在 publication lock 内取得一致引用快照，完整验证 root/
   storeId/manifest/hash/attempt/registry identity，先形成可诊断计划，再只处理可证明 owned 且不可达的对象；
   任一漂移、未知或验证失败零删除并保留现场。默认 retention 时长若仍属产品选择，明确列为后续 owner 决策，
   不在探针中猜测。
-- [ ] AC-6: 给出最小 operability inventory：容量/对象数、对象状态、引用或 blocked reason、人工处置证据与
+- [x] AC-6: 给出最小 operability inventory：容量/对象数、对象状态、引用或 blocked reason、人工处置证据与
   redaction/auth 边界；区分可直接复用的内部事实、需要 additive Runtime API 的能力和仅属 Console 展示的部分，
   但不创建 route/DTO/UI 实现 spec。
-- [ ] AC-7: 输出后续 workitem 划分和优先级，至少区分 ownership-proven interrupted-write recovery、immutable
+- [x] AC-7: 输出后续 workitem 划分和优先级，至少区分 ownership-proven interrupted-write recovery、immutable
   artifact retention/GC、read-only diagnostics；明确哪些可以合并、哪些必须等待前项验收，并确认 Engine/SPI、
   Console 大改、Git/JAR/Agent 不属于下一实现半径。
 
@@ -202,21 +202,142 @@ open_questions: []
 
 ## Implementation Result
 
-> 由 Ultra 扫描/探针执行会话填写。
+### Implementation Summary
 
-- implementation_summary:
-- disk_object_inventory:
-- artifact_reference_matrix:
-- restart_and_failure_matrix:
-- recommended_follow_up_workitems:
+- 只读审计 production workspace/artifact/publication/release/Bundle registry 源码，并在既有 publication store
+  test 中加入两个 `@TempDir` characterization；没有修改 `src/main`、POM、Console、Engine、launcher 或真实
+  `.foggy-runtime`。
+- 证实 workspace store 已有 storeId/workspace marker 驱动的 staging、temporary、orphan 和旧 revision
+  cleanup；published store 只有严格 layout 验证，没有 cleanup/enumeration API。
+- 证实 production `prepareArtifact` 失败可留下含部分 TM 的 `.staging-*`；模拟 attempt metadata atomic rename
+  前退出留下 `.json.tmp-*`。两者在 store 重建后均返回 `WORKSPACE_ARTIFACT_CORRUPT`，现场零删除。
+- AC-1 至 AC-7 已完成；未发现需要修改既有 canonical architecture 的事实错误。
+
+### Disk Object Inventory
+
+| 对象 | Owner / identity | 创建与引用 | 当前 cleanup / classification |
+|---|---|---|---|
+| workspace configurable root | `authoring-workspaces.path`；v2 `workspaces.json.storeId` 为 root owner | `RuntimeAuthoringWorkspaceStore` | 不存在或严格空目录才初始化；unknown/foreign/symlink fail closed |
+| `workspaces.json` | schema v2 + storeId + `StoredWorkspace[]` | 全部 workspace 状态、base/candidate、validation、publication、release provenance | 原子 replace；主文件永久 `must-retain` |
+| workspace registry/migration/marker temporary | 文件内容中的 matching storeId/workspaceId；固定 `.tmp-UUID`/migration 名称 | registry、v1→v2 migration、workspace marker atomic write | load 时验证内容/owner 后删除；不匹配或不可读则 `unknown-preserve` |
+| `{workspaceId}/.workspace-owner.json` | version + storeId + workspaceId | 证明目录归当前 workspace store 所有 | 删除 workspace/staging/revision 前必须匹配；`must-retain` |
+| `{workspaceId}/revisions/{sha256}` | 目录名 + canonical TM/QM/FSScript content hash | non-discarded record 的 base/candidate；in-memory revision lease 临时 pin 旧 head | 只清理非 base/candidate 且无 lease、内容验证通过的 owned revision |
+| `{workspaceId}/.staging-UUID` | 父 workspace marker + 受限名称/layout | revision atomic stage | `finally` 尝试删除；restart 验证 owned tree 后清理；unsafe 则保留并 fail closed |
+| discarded tombstone | `workspaces.json` 中 `DISCARDED` record | 保留 identity/state/evidence；revision 不再可读 | base/candidate 删除，workspace tree 最迟下次 load 删除；tombstone `must-retain` |
+| published configurable root | `published-bundles-path`；`.foggy-published-owner.json.storeId` | `RuntimePublishedBundleArtifactStore` | 只做严格完整校验；当前无枚举/cleanup/GC |
+| `artifacts/.staging-UUID` | 仅名称；`.artifact.json` 在资源写完后才写，早期失败可能没有 owner marker | `prepareArtifact` 的原子目录 move 前阶段 | 当前作为 unknown layout 阻断整个 store；本探针实证保留 partial TM，`unknown-preserve` |
+| `artifacts/{attemptId}` | root storeId + `.artifact.json` 的 attempt/workspace/Namespace/Bundle/revision + content hash | live published source、publish/recovery、production rollback/forward recovery、下一 workspace base | immutable；当前永不删除；按引用图为 `must-retain` 或未来候选 |
+| `attempts/{attemptId}.json` | attempt UUID + schema/status/identity；自身不含 storeId，但位于 owned root | 保存 previous source/artifact、candidate、catalog generation 和 rollback evidence | 当前永不删除；corrupt/missing cross-object evidence 时 fail closed |
+| published metadata `.tmp-UUID` | atomic writer 的目标派生名；attempt body 无独立 storeId wrapper | owner/attempt JSON atomic move 前阶段 | writer 无 `finally`/restart cleanup；本探针实证 restart 阻断且保留，`unknown-preserve` |
+| Runtime Bundle registry record | name/Namespace/path/watch/enabled/immutablePublication/artifactRevision | 当前 live source 和“可作为下一 workspace base”的 authoritative edge | 不由 artifact store 清理；current matching artifact `must-retain` |
+| release package v1 | canonical JSON/packageId；无 server-side path/store identity | export response / import request；导入后只保存 workspace `ReleaseImportEvidence` 与 candidate revision | 非持久 package，无 package GC 对象；不得虚构 registry |
+
+### Artifact Reference Matrix
+
+| Workspace / attempt 状态 | 必须保留的 workspace revision | 必须保留的 published artifact / metadata |
+|---|---|---|
+| `DRAFT` / `VALIDATED` / `STALE` | non-discarded base + candidate；active lease 额外 pin 旧 revision | 无仅由该状态产生的 artifact edge；但 live registry 或其他 attempt edge 仍独立生效 |
+| `PUBLISHING`，attempt `PUBLISHING` / `SOURCE_APPLIED` | base + candidate + validation/publication evidence | candidate artifact、attempt metadata、`previousPath`；previous immutable artifact 用于失败恢复 |
+| `RECOVERY_REQUIRED` | base + candidate | candidate 与 previous base、attempt/workspace evidence；显式 recover 依赖两侧 currentness |
+| normal `PUBLISHED` | base + candidate | candidate artifact 是 live registry/下一 workspace base；previous path 仍由 terminal attempt evidence 引用，当前无 evidence retention，故两者都保留；previous 已不再是 normal publish 的操作输入 |
+| imported `PUBLISHED` | base + candidate + release provenance | candidate live artifact与 previous base 都保留，以支持 exact 一步 rollback |
+| `ROLLING_BACK` / `ROLLBACK_REQUIRED` | base + candidate | candidate 用于 forward recovery，previous base 用于 rollback；attempt/rollback evidence 均 `must-retain` |
+| `PUBLISHED` + `FORWARD_RECOVERED` | base + candidate | candidate 再次 current；操作者仍可重试 pinned rollback，因此 previous base 继续 `must-retain` |
+| `ROLLED_BACK` | base + candidate | previous base current；9.5.4 契约明确 candidate artifact 保留，不得在本探针降级 |
+| `DISCARDED` | revision 无需保留，只留 registry tombstone | tombstone 的 publication evidence 仍是 evidence edge；不能仅因 discard 删除 artifact/attempt |
+| artifact 无 attempt | 按对应 workspace record 判断 | owned/完整且跨全部事实源无 operational/evidence edge 时，满足未来 retention 后可成为候选 |
+| attempt `FAILED` / `RECOVERED` | 按对应 workspace record 判断 | 不再承担 live mutation 时仍是 persisted evidence edge；只有 owner 明确允许 terminal evidence retirement 后，attempt 与 artifact 才可成组进入候选 |
+
+### Reachability Classification
+
+| 分类 | 必须满足的规则 |
+|---|---|
+| `must-retain` | root/owner/registry；live registry source；non-discarded workspace base/candidate；active lease；非 terminal publication/rollback 两侧 artifact；imported rollback/forward-recovery 两侧；当前契约要求保留的 rolled-back candidate；尚未获准退休的 terminal attempt/tombstone evidence 及其 artifact edge |
+| `provably-unreachable-candidate` | publication lock 内一致快照；root/storeId/real path/manifest/hash/attempt identity 全通过；不被任何 retained workspace、retained attempt/evidence、live Bundle registry/source 引用；非 recovery/rollback 输入；再满足 owner 选定的 retention/grace |
+| `unknown-preserve` | staging/temporary 无可验证 owner wrapper、foreign/unknown entry、symlink、corrupt/missing schema/hash、cross-store identity 冲突或扫描期间漂移；零删除并报告 blocked reason |
+
+时间戳、terminal state、目录名、单个 attempt status 或“当前 Bundle 不指向”均不能单独证明不可达。
+
+### Restart and Failure Matrix
+
+| 场景 | 当前行为 | Evidence |
+|---|---|---|
+| workspace revision stage 失败 | `finally` ownership-aware 删除；失败保留时下次 load 只删除安全 owned staging | production source；`RuntimeAuthoringWorkspaceStoreTest` |
+| workspace registry/migration/marker temporary | 验证 matching storeId/workspaceId 后清理；foreign/symlink/corrupt 保留并 fail closed | production `cleanupOrphans`；18-test store lane |
+| workspace old revision / discard | lease 结束后清理非 base/candidate；discard 保留 tombstone并删除 owned revisions/tree | production source；store tests |
+| restart 遇到 `PUBLISHING` | 仅把 workspace evidence 收敛为 `RECOVERY_REQUIRED`，不自动覆盖 live source | production reconcile；store/publish tests |
+| restart 遇到 `ROLLING_BACK` | 仅收敛为 `ROLLBACK_REQUIRED`，要求 pinned forward recovery | production reconcile；store/publish tests |
+| published artifact success | final UUID dir、manifest、三类资源 hash 校验通过 | existing success test |
+| production artifact prepare 中途失败 | 留下含已写资源的 `.staging-*`；restart 严格拒绝，partial evidence 不删除 | 新增 `failedArtifactPreparationLeavesStagingAndRestartPreservesEvidence` |
+| publication metadata rename 前退出 | `.json.tmp-*` 被 attempts layout 视为 unknown；restart 拒绝且 temp/final artifact 不删除 | 新增 `restartPreservesPublicationMetadataTemporaryAndFailsClosed` |
+| published foreign/symlink/manifest/attempt corruption | 整体 fail closed，不 follow、不删除 artifact 或 sentinel | existing publication store negative tests |
+| final artifact 与 attempt 单边存在 | 当前 root validation 各自校验，不建立全局 reachability/cleanup | production source review；后续 diagnostics 必须显式报告 |
+
+### Safe Lifecycle Algorithm Boundary
+
+后续 mutation spec 必须遵循：取得单进程 publication lock → 对 workspace root、published root、Bundle registry/live
+source 建立同一只读快照 → 校验 root/storeId/marker/manifest/hash/attempt/cross-reference → 输出 plan 与 blocked
+reason → mutation 前复核 snapshot identity → 仅删除 owner 可证明且不可达、满足 retention 的候选。任一漂移或
+unknown/corrupt/symlink 均零删除。legacy partial staging/temporary 没有可靠 owner wrapper，不能仅按名字自动清理；
+未来写入格式应先落 ownership-bearing marker/wrapper，再允许 restart cleanup。
+
+默认 retention/grace、terminal attempt/tombstone evidence 是否允许退休及其保留期、是否允许人工确认 legacy
+orphan 属于产品策略，留给后续 owner 决策；本探针不猜测数值。当前这些 evidence 没有删除语义，因此在策略
+冻结前保持 `must-retain`。
+
+### Minimum Operability Inventory
+
+- reusable-now：workspace list/get 的 state/revision/validation/publication/release evidence；Bundle inventory 的
+  immutable/artifact revision；两个 store 的 owner/manifest/attempt schema 与 filesystem size。
+- small-extension：只读 lifecycle inventory service 和 management-auth API，返回 root health、对象/字节数、
+  attempt/status、稳定 artifact identity、reference class、blocked reason 和是否可形成 cleanup plan；不得返回
+  模型内容、token、连接串或默认绝对路径。
+- Console-only：容量摘要、blocked reason、人工处置提示和显式 cleanup plan confirmation；必须等待 read-only
+  API 与 mutation workitem 分别验收，不能从目录名自行推断。
+- current gap：没有 artifact/attempt 枚举、容量、reference/blocked reason 或 cleanup plan 的稳定 Runtime API。
+
+### Recommended Follow-up Workitems
+
+1. `FEATURE-runtime-artifact-lifecycle-inventory`（P0）：先交付只读 cross-store/live reference scanner、redacted
+   management diagnostics 和 stable blocked reasons；无 delete。
+2. `BUG-runtime-published-store-interrupted-write-recovery`（P0）：在 1 的事实模型上为新 staging/metadata 写入增加
+   ownership-bearing marker/wrapper，并只清理可证明 owned 的 interrupted writes；legacy unknown 保留。生产 mutation
+   与 failure recovery 需 elevated 风险评估，不能与 inventory 混为同一验收。
+3. `FEATURE-runtime-published-artifact-retention`（P1）：等待 1、2 独立验收及 owner 决定 retention/grace、terminal
+   attempt/tombstone evidence 是否可退休及保留策略后，实现 evidence+artifact 成组的 plan-first GC；不得删除
+   rollback、recovery、live 或 unknown 对象。
+4. Console operability（P2，可选）：只消费 accepted diagnostics/plan API；不在 API 前实现目录扫描或自动清理。
+
+Engine/SPI、Console 大改、Git、JAR binding、Agent、签名/KMS、跨 Runtime orchestration 均不进入上述前三项。
+
+### Changed Paths and Validation
+
 - changed_paths:
+  - `foggy-runtime-api/src/test/java/com/foggyframework/runtime/api/service/RuntimeAuthoringPublicationStoreTest.java`
+  - `docs/9.5/9.5.5/workitems/SPIKE-runtime-artifact-store-lifecycle-foundations.md`
+  - `docs/9.5/9.5.5/README.md`
 - tests_and_results:
-- manual_or_experience_evidence:
+  - 定向：`mvn -B -ntp -pl foggy-runtime-api -am -DskipITs
+    -Dtest=RuntimeAuthoringPublicationStoreTest -Dsurefire.failIfNoTests=false
+    -Dsurefire.failIfNoSpecifiedTests=false test`：1 class / 9 tests，全部通过，`57.106s`。
+  - canonical focused：`mvn -B -ntp -pl foggy-runtime-api -am -DskipITs
+    -Dtest=RuntimeAuthoringPublicationStoreTest,RuntimeAuthoringWorkspaceStoreTest,RuntimeAuthoringWorkspacePublishServiceTest,RuntimeAuthoringReleasePackageServiceTest
+    -Dsurefire.failIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test`：4 classes / 46 tests，全部通过，
+    `53.766s`。
+- manual_or_experience_evidence: production source/schema/state trace complete；测试只使用 JUnit `@TempDir`，没有
+  读取仓库 `.foggy-runtime`、真实 Bundle 或外部服务。
 - deviations: none
 - residual_risks:
-- reused_evidence:
-- omitted_validation_and_reason:
-- readiness: READY_FOR_SIGNOFF | NEEDS_REPLAN | BLOCKED
+  - 当前 production published store 遇到 partial staging/metadata temporary 会持续 fail closed，仍需人工保留现场；
+    本探针没有实现恢复。
+  - artifact/attempt 无 GC，默认 retention/grace 与 evidence 保留期尚未由 owner 选择。
+  - 一致性仍限单进程、本地非 shared-NFS filesystem；测试不能覆盖所有 OS/power-loss crash 时序。
+- reused_evidence: 9.5.3 workspace ownership、publish/recovery、immutable-base/race R2，以及 9.5.4 package/
+  promotion/rollback accepted evidence；本次生产输入未变化。
+- omitted_validation_and_reason: 未运行 affected lane、完整 reactor、Console/Playwright、launcher、数据库矩阵、
+  authority/replay/rehearsal/source-seal/tag/release/publish；test-only/docs diff 和 46-test focused lane 已覆盖全部 AC，
+  追加运行不会改变本探针结论。
+- readiness: READY_FOR_SIGNOFF
 
 ## References
 
@@ -227,3 +348,14 @@ open_questions: []
   - `docs/9.5.3/workitems/FEATURE-runtime-authoring-workspace-publish-recovery-api.md`
   - `docs/9.5.3/workitems/BUG-runtime-authoring-published-base-republish-and-query-race-evidence.md`
   - `docs/9.5.4/workitems/FEATURE-runtime-release-package-production-promotion-api.md`
+
+## Acceptance Status
+
+- acceptance_status: signed-off
+- acceptance_decision: accepted
+- signed_off_by: Codex independent reviewer
+- signed_off_at: 2026-08-01
+- acceptance_record:
+  `docs/9.5/9.5.5/acceptance/SPIKE-runtime-artifact-store-lifecycle-foundations-signoff.md`
+- blocking_items: none
+- follow_up_required: no

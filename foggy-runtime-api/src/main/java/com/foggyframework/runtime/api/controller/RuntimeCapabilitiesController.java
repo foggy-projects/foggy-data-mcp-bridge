@@ -72,6 +72,7 @@ public class RuntimeCapabilitiesController {
         capabilities.put("authoring.diff", "supported");
         capabilities.put("authoring.validate", "supported");
         capabilities.put("authoring.query", "supported");
+        capabilities.put("authoring.artifacts.lifecycleInventory", "supported");
         capabilities.put("authoring.releasePackage.export", "supported");
         boolean promotionEnabled = properties.getAuthoringWorkspaces() != null
                 && properties.getAuthoringWorkspaces().isProductionPromotionEnabled();
