@@ -17,6 +17,8 @@ recorded_at: 2026-08-01
 |---|---|---|
 | [Artifact/store 生命周期基础探针](workitems/SPIKE-runtime-artifact-store-lifecycle-foundations.md) | ACCEPTED | 双 store inventory、跨 store/live 引用图、中断 characterization 与安全后续边界已正式验收；未修改生产实现 |
 | [Artifact lifecycle 只读 inventory](workitems/FEATURE-runtime-artifact-lifecycle-inventory.md) | ACCEPTED | management-auth、redacted、cross-store/live 的只读容量、引用分类与 blocked reason 已正式验收；无 cleanup mutation |
+| [Published store 中断写入恢复](workitems/BUG-runtime-published-store-interrupted-write-recovery.md) | ULTRA_EXECUTING | 为新 staging/temp 增加 ownership evidence，只恢复可证明 owned 的中断写入；legacy unknown 保留 |
+| [Console artifact lifecycle 运维视图](workitems/FEATURE-runtime-console-artifact-lifecycle-operability.md) | APPROVED | 只读展示 health、容量、引用分类、blocked reason 与安全处置边界，推进至用户可验收 |
 
 ## 目标
 
