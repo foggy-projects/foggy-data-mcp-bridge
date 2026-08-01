@@ -24,6 +24,8 @@ catalog、Git 凭据管理、跨 Runtime 编排或 Agent。
 | [Workspace store root ownership 修复](workitems/BUG-runtime-authoring-workspace-store-root-ownership.md) | ACCEPTED | ownership-bearing v2、foreign data 零删除、v1 无损迁移和 Bundle path disjointness 已正式签收 |
 | [Runtime Console authoring workspace 草稿闭环](workitems/FEATURE-runtime-console-authoring-workspace.md) | ACCEPTED | 已验收不含 publish 的创建、编辑、CAS 冲突恢复、diff、validate、candidate query 与 discard 草稿闭环 |
 | [Runtime Console authoring workspace 有界清理](workitems/REF-runtime-console-authoring-workspace-cleanup.md) | ACCEPTED | 在 publish 前拆分 catalog/editor/inspector 职责，并补齐 candidate query execution 与安全 CSV |
+| [Runtime authoring workspace publish 与失败恢复 API](workitems/FEATURE-runtime-authoring-workspace-publish-recovery-api.md) | ACCEPTED | R2 确认连续 immutable-base 发布、exact recovery 与并发 live-query 无 mixed catalog，完整 API 正式签收 |
+| [Published base 再发布与并发 live-query 证据修复](workitems/BUG-runtime-authoring-published-base-republish-and-query-race-evidence.md) | ACCEPTED | 已关闭首次验收发现的 immutable-base 再发布 blocker，并补齐 publish 窗口 old/new/not-current 证据 |
 
 技术基线和建议交付顺序见
 [Runtime 模型创作工作区设计与路线](runtime-model-authoring-design.md)。

@@ -7,10 +7,13 @@ import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceCreateRequest;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceInfo;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceQueryRequest;
+import com.foggyframework.runtime.api.dto.AuthoringWorkspacePublishRequest;
+import com.foggyframework.runtime.api.dto.AuthoringWorkspaceRecoverRequest;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceState;
 import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
 import com.foggyframework.runtime.api.service.RuntimeAuthoringWorkspaceException;
 import com.foggyframework.runtime.api.service.RuntimeAuthoringWorkspaceService;
+import com.foggyframework.runtime.api.service.RuntimeAuthoringWorkspacePublicationService;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -26,10 +29,12 @@ class RuntimeAuthoringWorkspacesControllerTest {
 
     private final RuntimeAuthoringWorkspaceService service =
             mock(RuntimeAuthoringWorkspaceService.class);
+    private final RuntimeAuthoringWorkspacePublicationService publications =
+            mock(RuntimeAuthoringWorkspacePublicationService.class);
     private final RuntimeAuthoringWorkspacesController controller =
             new RuntimeAuthoringWorkspacesController(
-                    new RuntimeApiResponseFactory(
-                            new FoggyRuntimeApiProperties()), service);
+                    new RuntimeApiResponseFactory(new FoggyRuntimeApiProperties()),
+                    service, publications);
 
     @Test
     void createReturnsRuntimeEnvelopeAndForwardsHeaderNamespace() {
@@ -118,6 +123,55 @@ class RuntimeAuthoringWorkspacesControllerTest {
                 .isEqualTo("QUERY_VALIDATE_FAILED");
         assertThat(response.error().message())
                 .doesNotContain("password", "must-not-leak");
+    }
+
+    @Test
+    void publishAndRecoverReturnRuntimeEnvelopeAndForwardPinnedIdentity() {
+        AuthoringWorkspaceInfo info = info();
+        AuthoringWorkspacePublishRequest publish =
+                new AuthoringWorkspacePublishRequest(
+                        "sha256:candidate", "sha256:base", "source:base");
+        AuthoringWorkspaceRecoverRequest recover =
+                new AuthoringWorkspaceRecoverRequest(
+                        "sha256:candidate", "attempt-opaque");
+        when(publications.publish("workspace-1", publish)).thenReturn(info);
+        when(publications.recover("workspace-1", recover)).thenReturn(info);
+
+        var publishResponse = controller.publish("workspace-1", publish);
+        var recoverResponse = controller.recoverPublication(
+                "workspace-1", recover);
+
+        assertThat(publishResponse.success()).isTrue();
+        assertThat(publishResponse.data()).isSameAs(info);
+        assertThat(recoverResponse.success()).isTrue();
+        assertThat(recoverResponse.data()).isSameAs(info);
+        verify(publications).publish("workspace-1", publish);
+        verify(publications).recover("workspace-1", recover);
+    }
+
+    @Test
+    void publicationFailureUsesStableEnvelopeWithoutLeakingCause() {
+        RuntimeAuthoringWorkspaceException failure =
+                new RuntimeAuthoringWorkspaceException(
+                        "WORKSPACE_RECOVERY_CONFLICT",
+                        "workspaces.publish.recovery",
+                        "Live state does not match the publication attempt.",
+                        null, false);
+        failure.addSuppressed(new IllegalStateException(
+                "/private/published/path auth-code=must-not-leak"));
+        when(publications.recover(eq("workspace-1"), any()))
+                .thenThrow(failure);
+
+        var response = controller.recoverPublication("workspace-1", null);
+
+        assertThat(response.success()).isFalse();
+        assertThat(response.error().code())
+                .isEqualTo("WORKSPACE_RECOVERY_CONFLICT");
+        assertThat(response.error().phase())
+                .isEqualTo("workspaces.publish.recovery");
+        assertThat(response.error().safeToAutoRepair()).isFalse();
+        assertThat(response.toString()).doesNotContain(
+                "/private/published/path", "must-not-leak");
     }
 
     private static AuthoringWorkspaceInfo info() {

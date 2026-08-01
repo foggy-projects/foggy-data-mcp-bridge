@@ -106,6 +106,37 @@ class RuntimeBundleRegistryServiceTest {
                 storeRoot.resolve("models").toString(), false);
     }
 
+    @Test
+    void startupRestoresImmutablePublishedBundleWithWatchDisabled() {
+        Path publishedRoot = tempDir.resolve("published");
+        Path artifact = publishedRoot.resolve("artifacts").resolve("attempt-1");
+        FoggyRuntimeApiProperties properties = properties(
+                tempDir.resolve("runtime-bundles-published.json"));
+        properties.getAuthoringWorkspaces().setPath(
+                tempDir.resolve("workspaces").toString());
+        properties.getAuthoringWorkspaces().setPublishedBundlesPath(
+                publishedRoot.toString());
+        SystemBundlesContext context = mock(SystemBundlesContext.class);
+        when(context.listExternalBundles()).thenReturn(List.of());
+        when(context.containBundle("published-sales")).thenReturn(false);
+        RuntimeAuthoringStorePathPolicy policy =
+                new RuntimeAuthoringStorePathPolicy(properties, context);
+        RuntimeBundleRegistryService registry =
+                new RuntimeBundleRegistryService(
+                        properties, context, new ObjectMapper(), policy);
+        registry.save(registry.newRecord(
+                "published-sales", "sales", artifact.toString(), false, true)
+                .withPublication(artifact.toString(),
+                        "sha256:" + "a".repeat(64)));
+
+        registry.restoreOnReady();
+
+        verify(context).addExternalBundle(
+                "published-sales", "sales", artifact.toString(), false);
+        assertThat(registry.find("published-sales").orElseThrow()
+                .immutablePublication()).isTrue();
+    }
+
     private static RuntimeBundleRegistryService registry(
             FoggyRuntimeApiProperties properties
     ) {

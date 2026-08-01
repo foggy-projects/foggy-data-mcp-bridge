@@ -53,6 +53,10 @@ public final class RuntimeApiRoutes {
                 AUTHORING_WORKSPACE + "/diff";
         public static final String AUTHORING_VALIDATE =
                 AUTHORING_WORKSPACE + "/validate";
+        public static final String AUTHORING_PUBLISH =
+                AUTHORING_WORKSPACE + "/publish";
+        public static final String AUTHORING_PUBLISH_RECOVER =
+                AUTHORING_PUBLISH + "/recover";
         public static final String AUTHORING_QUERY_VALIDATE =
                 AUTHORING_WORKSPACE + "/query/{model}/validate";
         public static final String AUTHORING_QUERY_EXECUTE =
@@ -105,6 +109,10 @@ public final class RuntimeApiRoutes {
         public static final String AUTHORING_DIFF = API_V1 + V1.AUTHORING_DIFF;
         public static final String AUTHORING_VALIDATE =
                 API_V1 + V1.AUTHORING_VALIDATE;
+        public static final String AUTHORING_PUBLISH =
+                API_V1 + V1.AUTHORING_PUBLISH;
+        public static final String AUTHORING_PUBLISH_RECOVER =
+                API_V1 + V1.AUTHORING_PUBLISH_RECOVER;
         public static final String AUTHORING_QUERY_VALIDATE =
                 API_V1 + V1.AUTHORING_QUERY_VALIDATE;
         public static final String AUTHORING_QUERY_EXECUTE =

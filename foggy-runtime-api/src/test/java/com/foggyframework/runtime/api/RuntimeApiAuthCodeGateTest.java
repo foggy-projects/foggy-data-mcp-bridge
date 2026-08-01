@@ -32,6 +32,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import javax.sql.DataSource;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -176,6 +177,31 @@ class RuntimeApiAuthCodeGateTest {
                 .isFalse();
         assertThat(invalidCreate.getBody().path("error").path("code").asText())
                 .isEqualTo("WORKSPACE_INVALID_REQUEST");
+    }
+
+    @Test
+    void shouldProtectWorkspacePublishAndRecoveryRoutesWithManagementAuth() {
+        String workspaceId = "W".repeat(24);
+        for (String route : List.of(
+                route(RuntimeApiRoutes.Full.AUTHORING_PUBLISH,
+                        "workspaceId", workspaceId),
+                route(RuntimeApiRoutes.Full.AUTHORING_PUBLISH_RECOVER,
+                        "workspaceId", workspaceId))) {
+            ResponseEntity<JsonNode> rejected = restTemplate.postForEntity(
+                    url(route), Map.of(), JsonNode.class);
+            assertThat(rejected.getStatusCode())
+                    .isEqualTo(HttpStatus.UNAUTHORIZED);
+
+            ResponseEntity<JsonNode> authenticated = restTemplate.exchange(
+                    url(route), HttpMethod.POST,
+                    new HttpEntity<>(Map.of(), authHeaders(
+                            RuntimeApiAuthInterceptor.AUTH_CODE_HEADER,
+                            "runtime-secret")), JsonNode.class);
+            assertThat(authenticated.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(authenticated.getBody()).isNotNull();
+            assertThat(authenticated.getBody().path("success").asBoolean())
+                    .isFalse();
+        }
     }
 
     @Test
@@ -474,6 +500,10 @@ class RuntimeApiAuthCodeGateTest {
                 "workspaceId", "workspace-1");
         String validate = route(RuntimeApiRoutes.Full.AUTHORING_VALIDATE,
                 "workspaceId", "workspace-1");
+        String publish = route(RuntimeApiRoutes.Full.AUTHORING_PUBLISH,
+                "workspaceId", "workspace-1");
+        String recover = route(RuntimeApiRoutes.Full.AUTHORING_PUBLISH_RECOVER,
+                "workspaceId", "workspace-1");
         String queryValidate = route(
                 RuntimeApiRoutes.Full.AUTHORING_QUERY_VALIDATE,
                 "workspaceId", "workspace-1").replace("{model}", "Order");
@@ -486,7 +516,8 @@ class RuntimeApiAuthCodeGateTest {
                 {"GET", workspace}, {"DELETE", workspace},
                 {"GET", resources}, {"GET", content},
                 {"POST", save}, {"POST", delete}, {"POST", diff},
-                {"POST", validate}, {"POST", queryValidate},
+                {"POST", validate}, {"POST", publish}, {"POST", recover},
+                {"POST", queryValidate},
                 {"POST", queryExecute}
         }) {
             assertRejectedByInterceptor(

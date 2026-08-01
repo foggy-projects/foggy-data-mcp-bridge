@@ -12,12 +12,14 @@ import com.foggyframework.runtime.api.dto.BundleRequest;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
 import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
 import com.foggyframework.runtime.api.service.RuntimeAuthoringStorePathPolicy;
+import com.foggyframework.runtime.api.service.RuntimeAuthoringPublicationLock;
 import com.foggyframework.runtime.api.service.RuntimeBundleModelConflictDetector;
 import com.foggyframework.runtime.api.service.RuntimeBundleModelConflictDetector.ModelNameConflict;
 import com.foggyframework.runtime.api.service.RuntimeBundleInventoryService;
 import com.foggyframework.runtime.api.service.RuntimeBundleRegistryService;
 import com.foggyframework.runtime.api.service.RuntimeBundleRegistryService.RuntimeBundleRecord;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -45,6 +47,7 @@ public class RuntimeBundlesController {
     private final RuntimeBundleModelConflictDetector modelConflictDetector;
     private final RuntimeBundleInventoryService inventoryService;
     private final RuntimeAuthoringStorePathPolicy authoringPathPolicy;
+    private final RuntimeAuthoringPublicationLock publicationLock;
 
     public RuntimeBundlesController(
             RuntimeApiResponseFactory responses,
@@ -53,11 +56,26 @@ public class RuntimeBundlesController {
             RuntimeBundleModelConflictDetector modelConflictDetector,
             RuntimeAuthoringStorePathPolicy authoringPathPolicy
     ) {
+        this(responses, systemBundlesContext, registryService,
+                modelConflictDetector, authoringPathPolicy,
+                new RuntimeAuthoringPublicationLock());
+    }
+
+    @Autowired
+    public RuntimeBundlesController(
+            RuntimeApiResponseFactory responses,
+            SystemBundlesContext systemBundlesContext,
+            RuntimeBundleRegistryService registryService,
+            RuntimeBundleModelConflictDetector modelConflictDetector,
+            RuntimeAuthoringStorePathPolicy authoringPathPolicy,
+            RuntimeAuthoringPublicationLock publicationLock
+    ) {
         this.responses = responses;
         this.systemBundlesContext = systemBundlesContext;
         this.registryService = registryService;
         this.modelConflictDetector = modelConflictDetector;
         this.authoringPathPolicy = authoringPathPolicy;
+        this.publicationLock = publicationLock;
         this.inventoryService = new RuntimeBundleInventoryService(
                 systemBundlesContext, registryService);
     }
@@ -73,7 +91,9 @@ public class RuntimeBundlesController {
             @RequestBody(required = false) BundleRequest request,
             @RequestHeader(value = "X-NS", required = false) String namespace
     ) {
-        return upsertBundle(null, request, namespace, false);
+        try (RuntimeAuthoringPublicationLock.Guard ignored = publicationLock.acquire()) {
+            return upsertBundle(null, request, namespace, false);
+        }
     }
 
     @PutMapping(RuntimeApiRoutes.V1.BUNDLE_BY_NAME)
@@ -82,11 +102,19 @@ public class RuntimeBundlesController {
             @RequestBody(required = false) BundleRequest request,
             @RequestHeader(value = "X-NS", required = false) String namespace
     ) {
-        return upsertBundle(name, request, namespace, true);
+        try (RuntimeAuthoringPublicationLock.Guard ignored = publicationLock.acquire()) {
+            return upsertBundle(name, request, namespace, true);
+        }
     }
 
     @DeleteMapping(RuntimeApiRoutes.V1.BUNDLE_BY_NAME)
     public RuntimeEnvelope<BundleMutationResponse> removeBundle(@PathVariable String name) {
+        try (RuntimeAuthoringPublicationLock.Guard ignored = publicationLock.acquire()) {
+            return removeBundleLocked(name);
+        }
+    }
+
+    private RuntimeEnvelope<BundleMutationResponse> removeBundleLocked(String name) {
         String normalizedName = blankToNull(name);
         if (normalizedName == null) {
             return fail("INVALID_REQUEST", "bundles.remove", "Missing required path variable: name",
@@ -318,8 +346,9 @@ public class RuntimeBundlesController {
 
     private BundleInfo infoFromRecord(RuntimeBundleRecord record, String status, String message) {
         String namespace = canonicalNamespace(record.namespace());
-        String sourceType = ExternalBundleResourceSupport
-                .isSpringResourceLocation(record.path())
+        String sourceType = record.immutablePublication()
+                ? "published-artifact"
+                : ExternalBundleResourceSupport.isSpringResourceLocation(record.path())
                 ? "external-resource" : "external-filesystem";
         return new BundleInfo(
                 record.name(),
@@ -338,7 +367,8 @@ public class RuntimeBundlesController {
                 false,
                 List.of(namespace),
                 RuntimeBundleInventoryService.sourceIdentity(
-                        record.name(), namespace, sourceType, record.path())
+                        record.name(), namespace, sourceType, record.path()),
+                record.immutablePublication(), record.artifactRevision()
         );
     }
 

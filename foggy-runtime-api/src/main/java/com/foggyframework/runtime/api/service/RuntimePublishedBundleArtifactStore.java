@@ -1,0 +1,555 @@
+package com.foggyframework.runtime.api.service;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.foggyframework.dataset.model.candidate.CandidateContentRevision;
+import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
+import com.foggyframework.runtime.api.service.RuntimeBundleRegistryService.RuntimeBundleRecord;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+
+import java.io.IOException;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.security.SecureRandom;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.UUID;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
+
+/** Ownership-bearing immutable artifacts and durable publication attempts. */
+@Service
+@ConditionalOnProperty(prefix = "foggy.runtime-api", name = "enabled", havingValue = "true")
+public class RuntimePublishedBundleArtifactStore {
+
+    private static final int VERSION = 1;
+    private static final String OWNER_FILE = ".foggy-published-owner.json";
+    private static final String ARTIFACT_MARKER = ".artifact.json";
+    private static final Pattern STORE_ID = Pattern.compile("[A-Za-z0-9_-]{22,64}");
+    private static final Pattern ATTEMPT_ID = Pattern.compile(
+            "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
+    private static final Set<String> ATTEMPT_STATUSES = Set.of(
+            "PUBLISHING", "SOURCE_APPLIED", "PUBLISHED", "RECOVERED",
+            "RECOVERY_REQUIRED", "FAILED");
+
+    private final FoggyRuntimeApiProperties properties;
+    private final ObjectMapper objectMapper;
+    private final RuntimeAuthoringStorePathPolicy pathPolicy;
+    private final RuntimeBundleRegistryService bundleRegistry;
+    private final SecureRandom secureRandom = new SecureRandom();
+    private Path root;
+    private String storeId;
+
+    public RuntimePublishedBundleArtifactStore(
+            FoggyRuntimeApiProperties properties,
+            ObjectMapper objectMapper,
+            RuntimeAuthoringStorePathPolicy pathPolicy,
+            RuntimeBundleRegistryService bundleRegistry
+    ) {
+        this.properties = properties;
+        this.objectMapper = objectMapper;
+        this.pathPolicy = pathPolicy;
+        this.bundleRegistry = bundleRegistry;
+    }
+
+    public synchronized String newAttemptId() {
+        return UUID.randomUUID().toString();
+    }
+
+    public synchronized Path prepareArtifact(
+            String attemptId,
+            String workspaceId,
+            String namespace,
+            String bundle,
+            String candidateRevision,
+            Map<String, byte[]> snapshot
+    ) {
+        requireAttemptId(attemptId);
+        ensureRoot();
+        Map<String, byte[]> canonical = new TreeMap<>(snapshot == null ? Map.of() : snapshot);
+        if (!candidateRevision.equals(CandidateContentRevision.calculate(canonical))) {
+            throw failure("WORKSPACE_ARTIFACT_CORRUPT", "workspaces.publish.artifact",
+                    "Candidate artifact does not match the requested revision.");
+        }
+        Path target = artifactsRoot().resolve(attemptId);
+        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
+            verifyArtifact(target, attemptId, workspaceId, namespace, bundle,
+                    candidateRevision);
+            return target;
+        }
+        Path staging = artifactsRoot().resolve(".staging-" + UUID.randomUUID());
+        try {
+            Files.createDirectory(staging);
+            for (Map.Entry<String, byte[]> entry : canonical.entrySet()) {
+                Path relative = Path.of(entry.getKey());
+                if (!CandidateContentRevision.isCandidateResource(relative)
+                        || relative.isAbsolute() || entry.getKey().contains("\\")) {
+                    throw failure("WORKSPACE_ARTIFACT_CORRUPT",
+                            "workspaces.publish.artifact",
+                            "Candidate artifact contains an invalid resource path.");
+                }
+                Path file = staging.resolve(relative).normalize();
+                if (!file.startsWith(staging)) {
+                    throw failure("WORKSPACE_ARTIFACT_CORRUPT",
+                            "workspaces.publish.artifact",
+                            "Candidate artifact path escapes its owned root.");
+                }
+                Files.createDirectories(file.getParent());
+                Files.write(file, entry.getValue());
+            }
+            writeJson(staging.resolve(ARTIFACT_MARKER), new ArtifactManifest(
+                    VERSION, storeId, attemptId, workspaceId, namespace, bundle,
+                    candidateRevision, Instant.now().toString()));
+            try {
+                Files.move(staging, target, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException unsupported) {
+                throw failure("WORKSPACE_ARTIFACT_STORE_FAILURE",
+                        "workspaces.publish.artifact",
+                        "Published artifact filesystem does not support atomic commit.");
+            }
+            verifyArtifact(target, attemptId, workspaceId, namespace, bundle,
+                    candidateRevision);
+            return target;
+        } catch (RuntimeAuthoringWorkspaceException failure) {
+            throw failure;
+        } catch (IOException | RuntimeException failure) {
+            throw failure("WORKSPACE_ARTIFACT_STORE_FAILURE",
+                    "workspaces.publish.artifact",
+                    "Published artifact could not be committed.");
+        }
+    }
+
+    public synchronized PublicationAttempt begin(PublicationAttempt attempt) {
+        ensureRoot();
+        validateAttempt(attempt);
+        Path target = attemptPath(attempt.attemptId());
+        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
+            throw failure("WORKSPACE_PUBLISH_CONFLICT", "workspaces.publish.preflight",
+                    "Publication attempt already exists.");
+        }
+        writeJsonAtomically(target, attempt);
+        return attempt;
+    }
+
+    public synchronized PublicationAttempt update(PublicationAttempt attempt) {
+        ensureRoot();
+        validateAttempt(attempt);
+        if (!Files.isRegularFile(attemptPath(attempt.attemptId()),
+                LinkOption.NOFOLLOW_LINKS)) {
+            throw failure("WORKSPACE_RECOVERY_REQUIRED", "workspaces.publish.commit",
+                    "Durable publication attempt is missing.");
+        }
+        writeJsonAtomically(attemptPath(attempt.attemptId()), attempt);
+        return attempt;
+    }
+
+    public synchronized PublicationAttempt get(String attemptId) {
+        requireAttemptId(attemptId);
+        ensureRoot();
+        Path path = attemptPath(attemptId);
+        try {
+            if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)
+                    || Files.isSymbolicLink(path)) {
+                throw failure("WORKSPACE_RECOVERY_CONFLICT", "workspaces.publish.recovery",
+                        "Publication attempt was not found.");
+            }
+            PublicationAttempt attempt = objectMapper.readValue(
+                    path.toFile(), PublicationAttempt.class);
+            validateAttempt(attempt);
+            return attempt;
+        } catch (RuntimeAuthoringWorkspaceException failure) {
+            throw failure;
+        } catch (IOException | RuntimeException failure) {
+            throw failure("WORKSPACE_ARTIFACT_CORRUPT", "workspaces.publish.recovery",
+                    "Publication attempt is corrupt.");
+        }
+    }
+
+    public synchronized Path artifactPath(PublicationAttempt attempt) {
+        ensureRoot();
+        Path path = artifactsRoot().resolve(attempt.attemptId());
+        verifyArtifact(path, attempt.attemptId(), attempt.workspaceId(),
+                attempt.namespace(), attempt.bundle(), attempt.candidateRevision());
+        return path;
+    }
+
+    /**
+     * Verifies that an immutable registry source is an owned, completed
+     * publication artifact before it can become the recovery base of another
+     * publication attempt.
+     */
+    public synchronized Path verifyPublishedSource(RuntimeBundleRecord record) {
+        try {
+            ensureRoot();
+            if (record == null || !record.enabled() || record.watch()
+                    || !record.immutablePublication()
+                    || !StringUtils.hasText(record.artifactRevision())
+                    || !StringUtils.hasText(record.path())) {
+                throw new IOException("published registry identity is invalid");
+            }
+            Path configured = Path.of(record.path()).toAbsolutePath().normalize();
+            Path ownedArtifacts = artifactsRoot().toAbsolutePath().normalize();
+            if (!ownedArtifacts.equals(configured.getParent())) {
+                throw new IOException("published source is outside the owned artifact root");
+            }
+            String attemptId = configured.getFileName().toString();
+            requireAttemptId(attemptId);
+            PublicationAttempt attempt = get(attemptId);
+            if (!"PUBLISHED".equals(attempt.status())
+                    || !record.name().equals(attempt.bundle())
+                    || !canonicalNamespace(record.namespace()).equals(
+                    canonicalNamespace(attempt.namespace()))
+                    || !record.artifactRevision().equals(
+                    attempt.candidateRevision())) {
+                throw new IOException("published source attempt identity mismatch");
+            }
+            Path verified = artifactPath(attempt).toAbsolutePath().normalize();
+            if (!configured.equals(verified)) {
+                throw new IOException("published source path mismatch");
+            }
+            return verified;
+        } catch (IOException | RuntimeException failure) {
+            throw failure("WORKSPACE_ARTIFACT_CORRUPT",
+                    "workspaces.publish.preflight",
+                    "Published Bundle ownership or content is corrupt.");
+        }
+    }
+
+    private void verifyArtifact(
+            Path artifact,
+            String attemptId,
+            String workspaceId,
+            String namespace,
+            String bundle,
+            String revision
+    ) {
+        try {
+            if (!Files.isDirectory(artifact, LinkOption.NOFOLLOW_LINKS)
+                    || Files.isSymbolicLink(artifact)) {
+                throw new IOException("artifact directory is invalid");
+            }
+            Path marker = artifact.resolve(ARTIFACT_MARKER);
+            ArtifactManifest manifest = objectMapper.readValue(
+                    marker.toFile(), ArtifactManifest.class);
+            if (manifest == null || manifest.version() != VERSION
+                    || !storeId.equals(manifest.storeId())
+                    || !attemptId.equals(manifest.attemptId())
+                    || !workspaceId.equals(manifest.workspaceId())
+                    || !namespace.equals(manifest.namespace())
+                    || !bundle.equals(manifest.bundle())
+                    || !revision.equals(manifest.candidateRevision())) {
+                throw new IOException("artifact ownership mismatch");
+            }
+            Map<String, byte[]> snapshot = new TreeMap<>();
+            try (Stream<Path> paths = Files.walk(artifact)) {
+                for (Path path : paths.toList()) {
+                    if (Files.isSymbolicLink(path)) {
+                        throw new IOException("artifact contains a symlink");
+                    }
+                    if (!Files.isRegularFile(path)) {
+                        continue;
+                    }
+                    Path relative = artifact.relativize(path);
+                    if (ARTIFACT_MARKER.equals(relative.toString())) {
+                        continue;
+                    }
+                    if (!CandidateContentRevision.isCandidateResource(relative)) {
+                        throw new IOException("artifact contains an unknown file");
+                    }
+                    snapshot.put(relative.toString().replace('\\', '/'),
+                            Files.readAllBytes(path));
+                }
+            }
+            if (!revision.equals(CandidateContentRevision.calculate(snapshot))) {
+                throw new IOException("artifact revision mismatch");
+            }
+        } catch (RuntimeAuthoringWorkspaceException failure) {
+            throw failure;
+        } catch (IOException | RuntimeException failure) {
+            throw failure("WORKSPACE_ARTIFACT_CORRUPT", "workspaces.publish.artifact",
+                    "Published artifact ownership or content is corrupt.");
+        }
+    }
+
+    private void ensureRoot() {
+        if (root != null) {
+            validateRoot(root);
+            return;
+        }
+        if (pathPolicy != null) {
+            pathPolicy.assertStoreDisjoint(bundleRegistry == null
+                    ? List.of() : bundleRegistry.listRecords());
+        }
+        FoggyRuntimeApiProperties.AuthoringWorkspaces configured =
+                properties.getAuthoringWorkspaces();
+        String value = configured == null
+                ? null : configured.getPublishedBundlesPath();
+        Path candidate;
+        try {
+            candidate = Path.of(StringUtils.hasText(value)
+                            ? value : ".foggy-runtime/published-bundles")
+                    .toAbsolutePath().normalize();
+            if (!Files.exists(candidate, LinkOption.NOFOLLOW_LINKS)) {
+                Files.createDirectories(candidate);
+            }
+            if (Files.isSymbolicLink(candidate) || !Files.isDirectory(candidate)
+                    || !candidate.equals(candidate.toRealPath())) {
+                throw new IOException("published root is not a real directory");
+            }
+            Path owner = candidate.resolve(OWNER_FILE);
+            if (!Files.exists(owner, LinkOption.NOFOLLOW_LINKS)) {
+                try (Stream<Path> children = Files.list(candidate)) {
+                    if (children.findAny().isPresent()) {
+                        throw failure("WORKSPACE_ARTIFACT_STORE_FAILURE",
+                                "workspaces.publish.artifact",
+                                "Published artifact root is non-empty and unowned.");
+                    }
+                }
+                storeId = newStoreId();
+                writeJsonAtomically(owner, new RootOwner(VERSION, storeId));
+                Files.createDirectory(candidate.resolve("artifacts"));
+                Files.createDirectory(candidate.resolve("attempts"));
+            } else {
+                RootOwner rootOwner = objectMapper.readValue(
+                        owner.toFile(), RootOwner.class);
+                if (rootOwner == null || rootOwner.version() != VERSION
+                        || !STORE_ID.matcher(rootOwner.storeId()).matches()) {
+                    throw new IOException("published root ownership mismatch");
+                }
+                storeId = rootOwner.storeId();
+            }
+            root = candidate;
+            validateRoot(candidate);
+        } catch (RuntimeAuthoringWorkspaceException failure) {
+            throw failure;
+        } catch (IOException | RuntimeException failure) {
+            throw failure("WORKSPACE_ARTIFACT_STORE_FAILURE",
+                    "workspaces.publish.artifact",
+                    "Published artifact root could not be initialized.");
+        }
+    }
+
+    private void validateRoot(Path candidate) {
+        try {
+            if (Files.isSymbolicLink(candidate)
+                    || !Files.isDirectory(candidate, LinkOption.NOFOLLOW_LINKS)) {
+                throw new IOException("invalid published root");
+            }
+            List<String> names = new ArrayList<>();
+            try (Stream<Path> children = Files.list(candidate)) {
+                for (Path child : children.toList()) {
+                    if (Files.isSymbolicLink(child)) {
+                        throw new IOException("published root contains symlink");
+                    }
+                    names.add(child.getFileName().toString());
+                }
+            }
+            if (!names.stream().allMatch(name -> OWNER_FILE.equals(name)
+                    || "artifacts".equals(name) || "attempts".equals(name))
+                    || !Files.isDirectory(candidate.resolve("artifacts"), LinkOption.NOFOLLOW_LINKS)
+                    || !Files.isDirectory(candidate.resolve("attempts"), LinkOption.NOFOLLOW_LINKS)) {
+                throw new IOException("published root contains foreign entries");
+            }
+            validateArtifactEntries(candidate.resolve("artifacts"));
+            validateAttemptEntries(candidate.resolve("attempts"));
+        } catch (IOException | RuntimeException failure) {
+            throw failure("WORKSPACE_ARTIFACT_CORRUPT", "workspaces.publish.artifact",
+                    "Published artifact root contains unowned or corrupt data.");
+        }
+    }
+
+    private void validateArtifactEntries(Path artifacts) throws IOException {
+        try (Stream<Path> entries = Files.list(artifacts)) {
+            for (Path artifact : entries.toList()) {
+                String attemptId = artifact.getFileName().toString();
+                if (!ATTEMPT_ID.matcher(attemptId).matches()
+                        || Files.isSymbolicLink(artifact)
+                        || !Files.isDirectory(artifact, LinkOption.NOFOLLOW_LINKS)) {
+                    throw new IOException("published artifact root contains an unknown entry");
+                }
+                ArtifactManifest manifest = objectMapper.readValue(
+                        artifact.resolve(ARTIFACT_MARKER).toFile(),
+                        ArtifactManifest.class);
+                if (manifest == null || !attemptId.equals(manifest.attemptId())) {
+                    throw new IOException("published artifact identity mismatch");
+                }
+                verifyArtifact(artifact, manifest.attemptId(),
+                        manifest.workspaceId(), manifest.namespace(),
+                        manifest.bundle(), manifest.candidateRevision());
+            }
+        }
+    }
+
+    private void validateAttemptEntries(Path attempts) throws IOException {
+        try (Stream<Path> entries = Files.list(attempts)) {
+            for (Path path : entries.toList()) {
+                String name = path.getFileName().toString();
+                if (Files.isSymbolicLink(path)
+                        || !Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)
+                        || !name.endsWith(".json")) {
+                    throw new IOException("publication attempt root contains an unknown entry");
+                }
+                String attemptId = name.substring(0, name.length() - 5);
+                if (!ATTEMPT_ID.matcher(attemptId).matches()) {
+                    throw new IOException("publication attempt filename is invalid");
+                }
+                PublicationAttempt attempt = objectMapper.readValue(
+                        path.toFile(), PublicationAttempt.class);
+                validateAttempt(attempt);
+                if (!attemptId.equals(attempt.attemptId())) {
+                    throw new IOException("publication attempt identity mismatch");
+                }
+            }
+        }
+    }
+
+    private Path artifactsRoot() {
+        return root.resolve("artifacts");
+    }
+
+    private Path attemptPath(String attemptId) {
+        return root.resolve("attempts").resolve(attemptId + ".json");
+    }
+
+    private void writeJsonAtomically(Path target, Object value) {
+        Path temporary = target.resolveSibling(target.getFileName()
+                + ".tmp-" + UUID.randomUUID());
+        try {
+            writeJson(temporary, value);
+            Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING,
+                    StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException unsupported) {
+            throw failure("WORKSPACE_ARTIFACT_STORE_FAILURE",
+                    "workspaces.publish.commit",
+                    "Published artifact filesystem does not support atomic metadata commit.");
+        } catch (IOException | RuntimeException failure) {
+            throw failure("WORKSPACE_ARTIFACT_STORE_FAILURE",
+                    "workspaces.publish.commit",
+                    "Publication metadata could not be committed.");
+        }
+    }
+
+    private void writeJson(Path target, Object value) throws IOException {
+        objectMapper.writerWithDefaultPrettyPrinter().writeValue(target.toFile(), value);
+    }
+
+    private void validateAttempt(PublicationAttempt attempt) {
+        if (attempt == null || attempt.version() != VERSION
+                || !ATTEMPT_ID.matcher(nullToEmpty(attempt.attemptId())).matches()
+                || !StringUtils.hasText(attempt.workspaceId())
+                || !StringUtils.hasText(attempt.namespace())
+                || !StringUtils.hasText(attempt.bundle())
+                || !StringUtils.hasText(attempt.candidateRevision())
+                || !StringUtils.hasText(attempt.baseBundleRevision())
+                || !StringUtils.hasText(attempt.baseSourceRevision())
+                || !StringUtils.hasText(attempt.previousPath())
+                || !ATTEMPT_STATUSES.contains(attempt.status())
+                || !StringUtils.hasText(attempt.startedAt())) {
+            throw failure("WORKSPACE_ARTIFACT_CORRUPT", "workspaces.publish.commit",
+                    "Publication attempt metadata is invalid.");
+        }
+    }
+
+    private static void requireAttemptId(String attemptId) {
+        if (!ATTEMPT_ID.matcher(nullToEmpty(attemptId)).matches()) {
+            throw failure("WORKSPACE_INVALID_REQUEST", "workspaces.publish.preflight",
+                    "Publication attempt identity is invalid.");
+        }
+    }
+
+    private String newStoreId() {
+        byte[] bytes = new byte[24];
+        secureRandom.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    private static String nullToEmpty(String value) {
+        return value == null ? "" : value;
+    }
+
+    private static RuntimeAuthoringWorkspaceException failure(
+            String code,
+            String phase,
+            String message
+    ) {
+        return new RuntimeAuthoringWorkspaceException(
+                code, phase, message, null, false);
+    }
+
+    private static String canonicalNamespace(String namespace) {
+        return namespace == null ? "" : namespace.trim();
+    }
+
+    public record PublicationAttempt(
+            int version,
+            String attemptId,
+            String workspaceId,
+            String namespace,
+            String bundle,
+            String candidateRevision,
+            String baseBundleRevision,
+            String baseSourceRevision,
+            String previousPath,
+            boolean previousWatch,
+            boolean previousEnabled,
+            String previousCreatedAt,
+            String previousUpdatedAt,
+            boolean previousImmutablePublication,
+            String previousArtifactRevision,
+            String status,
+            String publishedSourceRevision,
+            String beforeCatalogGeneration,
+            String afterCatalogGeneration,
+            String recoveredCatalogGeneration,
+            String startedAt,
+            String completedAt,
+            List<String> diagnostics
+    ) {
+        public PublicationAttempt {
+            diagnostics = diagnostics == null ? List.of() : List.copyOf(diagnostics);
+        }
+
+        public PublicationAttempt withStatus(
+                String nextStatus,
+                String sourceRevision,
+                String beforeGeneration,
+                String afterGeneration,
+                String recoveredGeneration,
+                String completed,
+                List<String> nextDiagnostics
+        ) {
+            return new PublicationAttempt(version, attemptId, workspaceId,
+                    namespace, bundle, candidateRevision, baseBundleRevision,
+                    baseSourceRevision, previousPath, previousWatch,
+                    previousEnabled, previousCreatedAt, previousUpdatedAt,
+                    previousImmutablePublication, previousArtifactRevision,
+                    nextStatus, sourceRevision,
+                    beforeGeneration, afterGeneration, recoveredGeneration,
+                    startedAt, completed, nextDiagnostics);
+        }
+    }
+
+    private record RootOwner(int version, String storeId) {
+    }
+
+    private record ArtifactManifest(
+            int version,
+            String storeId,
+            String attemptId,
+            String workspaceId,
+            String namespace,
+            String bundle,
+            String candidateRevision,
+            String createdAt
+    ) {
+    }
+}

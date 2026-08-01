@@ -10,6 +10,8 @@ import com.foggyframework.runtime.api.dto.AuthoringWorkspaceInfo;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceListResponse;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceQueryRequest;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceQueryResponse;
+import com.foggyframework.runtime.api.dto.AuthoringWorkspacePublishRequest;
+import com.foggyframework.runtime.api.dto.AuthoringWorkspaceRecoverRequest;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceResource;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceResourcesResponse;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceRevisionRequest;
@@ -19,8 +21,10 @@ import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
 import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
 import com.foggyframework.runtime.api.service.RuntimeAuthoringWorkspaceException;
 import com.foggyframework.runtime.api.service.RuntimeAuthoringWorkspaceService;
+import com.foggyframework.runtime.api.service.RuntimeAuthoringWorkspacePublicationService;
 import com.foggyframework.runtime.api.service.RuntimeCandidateQueryService.Phase;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -43,13 +47,24 @@ public class RuntimeAuthoringWorkspacesController {
 
     private final RuntimeApiResponseFactory responses;
     private final RuntimeAuthoringWorkspaceService workspaces;
+    private final RuntimeAuthoringWorkspacePublicationService publications;
 
     public RuntimeAuthoringWorkspacesController(
             RuntimeApiResponseFactory responses,
             RuntimeAuthoringWorkspaceService workspaces
     ) {
+        this(responses, workspaces, null);
+    }
+
+    @Autowired
+    public RuntimeAuthoringWorkspacesController(
+            RuntimeApiResponseFactory responses,
+            RuntimeAuthoringWorkspaceService workspaces,
+            RuntimeAuthoringWorkspacePublicationService publications
+    ) {
         this.responses = responses;
         this.workspaces = workspaces;
+        this.publications = publications;
     }
 
     @PostMapping(RuntimeApiRoutes.V1.AUTHORING_WORKSPACES)
@@ -142,6 +157,22 @@ public class RuntimeAuthoringWorkspacesController {
                 request == null ? null : request.candidateRevision()));
     }
 
+    @PostMapping(RuntimeApiRoutes.V1.AUTHORING_PUBLISH)
+    public RuntimeEnvelope<AuthoringWorkspaceInfo> publish(
+            @PathVariable String workspaceId,
+            @RequestBody(required = false) AuthoringWorkspacePublishRequest request
+    ) {
+        return invoke(() -> publicationService().publish(workspaceId, request));
+    }
+
+    @PostMapping(RuntimeApiRoutes.V1.AUTHORING_PUBLISH_RECOVER)
+    public RuntimeEnvelope<AuthoringWorkspaceInfo> recoverPublication(
+            @PathVariable String workspaceId,
+            @RequestBody(required = false) AuthoringWorkspaceRecoverRequest request
+    ) {
+        return invoke(() -> publicationService().recover(workspaceId, request));
+    }
+
     @PostMapping(RuntimeApiRoutes.V1.AUTHORING_QUERY_VALIDATE)
     public RuntimeEnvelope<AuthoringWorkspaceQueryResponse> validateQuery(
             @PathVariable String workspaceId,
@@ -219,6 +250,15 @@ public class RuntimeAuthoringWorkspacesController {
                 failure.code().name(), failure.phase(), failure.getMessage(),
                 null, null, failure.resource(),
                 "Inspect candidate query diagnostics and retry.", false);
+    }
+
+    private RuntimeAuthoringWorkspacePublicationService publicationService() {
+        if (publications == null) {
+            throw new RuntimeAuthoringWorkspaceException(
+                    "WORKSPACE_STATE_INVALID", "workspaces.publish.preflight",
+                    "Workspace publication is unavailable.", null, false);
+        }
+        return publications;
     }
 
     private static AuthoringWorkspaceState parseState(String state) {

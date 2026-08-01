@@ -5,6 +5,7 @@ import com.foggyframework.dataset.model.candidate.CandidateContentRevision;
 import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceDiffResponse;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceInfo;
+import com.foggyframework.runtime.api.dto.AuthoringWorkspaceInfo.PublicationEvidence;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceLimits;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceResource;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceState;
@@ -110,7 +111,8 @@ public class RuntimeAuthoringWorkspaceStore {
     ) {
         loadIfNeeded();
         long active = workspaces.values().stream()
-                .filter(record -> record.state() != AuthoringWorkspaceState.DISCARDED)
+                .filter(record -> record.state() != AuthoringWorkspaceState.DISCARDED
+                        && record.state() != AuthoringWorkspaceState.PUBLISHED)
                 .count();
         if (active >= limits().maxActiveWorkspaces()) {
             throw failure("WORKSPACE_LIMIT_EXCEEDED", "workspaces.create",
@@ -197,7 +199,7 @@ public class RuntimeAuthoringWorkspaceStore {
     ) {
         StoredWorkspace record = requireCurrent(
                 workspaceId, expectedRevision, "workspaces.resources");
-        requireActionable(record, "workspaces.resources");
+        requireReadable(record, "workspaces.resources");
         return readRevision(record, record.candidateRevision());
     }
 
@@ -218,7 +220,7 @@ public class RuntimeAuthoringWorkspaceStore {
     ) {
         StoredWorkspace current = requireCurrent(
                 workspaceId, expectedRevision, "workspaces.resources.save");
-        requireActionable(current, "workspaces.resources.save");
+        requireMutable(current, "workspaces.resources.save");
         Map<String, byte[]> snapshot = validateSnapshot(
                 desiredResources, "workspaces.resources.save");
         String revision = CandidateContentRevision.calculate(snapshot);
@@ -294,7 +296,7 @@ public class RuntimeAuthoringWorkspaceStore {
     ) {
         StoredWorkspace record = requireCurrent(
                 workspaceId, expectedRevision, "workspaces.diff");
-        requireActionable(record, "workspaces.diff");
+        requireReadable(record, "workspaces.diff");
         Map<String, byte[]> base = readRevision(record, record.baseBundleRevision());
         Map<String, byte[]> candidate = readRevision(record, record.candidateRevision());
         Set<String> paths = new HashSet<>(base.keySet());
@@ -328,7 +330,7 @@ public class RuntimeAuthoringWorkspaceStore {
             String phase
     ) {
         StoredWorkspace record = requireCurrent(workspaceId, expectedRevision, phase);
-        requireActionable(record, phase);
+        requireExecutable(record, phase);
         Path path = revisionPath(record.workspaceId(), record.candidateRevision());
         verifyRevision(record, record.candidateRevision());
         RevisionKey key = new RevisionKey(record.workspaceId(), record.candidateRevision());
@@ -343,7 +345,7 @@ public class RuntimeAuthoringWorkspaceStore {
     ) {
         StoredWorkspace current = requireCurrent(
                 workspaceId, expectedRevision, "workspaces.validate");
-        requireActionable(current, "workspaces.validate");
+        requireExecutable(current, "workspaces.validate");
         AuthoringWorkspaceState state = current.state() == AuthoringWorkspaceState.STALE
                 ? AuthoringWorkspaceState.STALE
                 : evidence.valid() ? AuthoringWorkspaceState.VALIDATED
@@ -361,6 +363,9 @@ public class RuntimeAuthoringWorkspaceStore {
     public synchronized StoredWorkspace markStale(String workspaceId, String reason) {
         StoredWorkspace current = get(workspaceId);
         if (current.state() == AuthoringWorkspaceState.DISCARDED
+                || current.state() == AuthoringWorkspaceState.PUBLISHED
+                || current.state() == AuthoringWorkspaceState.PUBLISHING
+                || current.state() == AuthoringWorkspaceState.RECOVERY_REQUIRED
                 || current.state() == AuthoringWorkspaceState.STALE) {
             return current;
         }
@@ -381,7 +386,7 @@ public class RuntimeAuthoringWorkspaceStore {
     ) {
         StoredWorkspace current = requireCurrent(
                 workspaceId, expectedRevision, "workspaces.discard");
-        requireActionable(current, "workspaces.discard");
+        requireMutable(current, "workspaces.discard");
         StoredWorkspace updated = new StoredWorkspace(
                 current.workspaceId(), current.namespace(), current.sourceBundle(),
                 current.sourceKind(), current.baseSourceIdentity(),
@@ -439,7 +444,81 @@ public class RuntimeAuthoringWorkspaceStore {
                 record.sourceKind(), record.baseBundleRevision(),
                 record.baseSourceRevision(), record.candidateRevision(),
                 record.state(), record.createdAt(), record.updatedAt(),
-                record.lastValidation(), diagnostics);
+                record.lastValidation(), record.lastPublication(), diagnostics);
+    }
+
+    public synchronized StoredWorkspace beginPublication(
+            String workspaceId,
+            String expectedRevision,
+            PublicationEvidence evidence
+    ) {
+        StoredWorkspace current = requireCurrent(
+                workspaceId, expectedRevision, "workspaces.publish.preflight");
+        if (current.state() != AuthoringWorkspaceState.VALIDATED
+                || evidence == null || current.lastPublication() != null) {
+            throw failure("WORKSPACE_NOT_VALIDATED", "workspaces.publish.preflight",
+                    "Exact workspace revision is not available for publication.",
+                    null, false);
+        }
+        StoredWorkspace updated = current.withPublication(
+                AuthoringWorkspaceState.PUBLISHING, evidence, null);
+        replaceRecord(updated);
+        return updated;
+    }
+
+    public synchronized StoredWorkspace markPublished(
+            String workspaceId,
+            String attemptId,
+            PublicationEvidence evidence
+    ) {
+        return transitionPublication(workspaceId, attemptId,
+                AuthoringWorkspaceState.PUBLISHED, evidence, null);
+    }
+
+    public synchronized StoredWorkspace markRecoveryRequired(
+            String workspaceId,
+            String attemptId,
+            PublicationEvidence evidence,
+            String reason
+    ) {
+        return transitionPublication(workspaceId, attemptId,
+                AuthoringWorkspaceState.RECOVERY_REQUIRED, evidence, reason);
+    }
+
+    public synchronized StoredWorkspace markRecovered(
+            String workspaceId,
+            String attemptId,
+            PublicationEvidence evidence,
+            String reason
+    ) {
+        return transitionPublication(workspaceId, attemptId,
+                AuthoringWorkspaceState.STALE, evidence, reason);
+    }
+
+    private StoredWorkspace transitionPublication(
+            String workspaceId,
+            String attemptId,
+            AuthoringWorkspaceState nextState,
+            PublicationEvidence evidence,
+            String reason
+    ) {
+        StoredWorkspace current = get(workspaceId);
+        PublicationEvidence previous = current.lastPublication();
+        if (previous == null || !StringUtils.hasText(attemptId)
+                || !attemptId.equals(previous.attemptId())
+                || evidence == null || !attemptId.equals(evidence.attemptId())) {
+            throw failure("WORKSPACE_PUBLISH_CONFLICT", "workspaces.publish.commit",
+                    "Publication attempt is no longer current.", null, false);
+        }
+        if (current.state() != AuthoringWorkspaceState.PUBLISHING
+                && current.state() != AuthoringWorkspaceState.RECOVERY_REQUIRED) {
+            throw failure("WORKSPACE_STATE_INVALID", "workspaces.publish.commit",
+                    "Workspace cannot transition publication state.", null, false);
+        }
+        StoredWorkspace updated = current.withPublication(
+                nextState, evidence, sanitizeReason(reason));
+        replaceRecord(updated);
+        return updated;
     }
 
     private StoredWorkspace requireCurrent(
@@ -456,11 +535,24 @@ public class RuntimeAuthoringWorkspaceStore {
         return record;
     }
 
-    private static void requireActionable(StoredWorkspace record, String phase) {
+    private static void requireReadable(StoredWorkspace record, String phase) {
         if (record.state() == AuthoringWorkspaceState.DISCARDED) {
             throw failure("WORKSPACE_STATE_INVALID", phase,
                     "Discarded workspace cannot perform this action.", null, false);
         }
+    }
+
+    private static void requireMutable(StoredWorkspace record, String phase) {
+        if (record.state() != AuthoringWorkspaceState.DRAFT
+                && record.state() != AuthoringWorkspaceState.VALIDATED
+                && record.state() != AuthoringWorkspaceState.STALE) {
+            throw failure("WORKSPACE_STATE_INVALID", phase,
+                    "Workspace state does not allow source mutation.", null, false);
+        }
+    }
+
+    private static void requireExecutable(StoredWorkspace record, String phase) {
+        requireMutable(record, phase);
     }
 
     private void replaceRecord(StoredWorkspace updated) {
@@ -709,6 +801,10 @@ public class RuntimeAuthoringWorkspaceStore {
                 requireStoreId(file.storeId());
                 storeId = file.storeId();
                 verifyOwnedRecords(loadedRecords);
+            }
+            boolean reconciled = reconcileInterruptedPublications(loadedRecords);
+            if (reconciled) {
+                persistAtRoot(root, loadedRecords);
             }
             cleanupOrphans(root, loadedRecords);
             workspaces.clear();
@@ -1169,6 +1265,9 @@ public class RuntimeAuthoringWorkspaceStore {
                     || (evidence.valid()
                     && record.state() != AuthoringWorkspaceState.VALIDATED
                     && record.state() != AuthoringWorkspaceState.STALE
+                    && record.state() != AuthoringWorkspaceState.PUBLISHING
+                    && record.state() != AuthoringWorkspaceState.RECOVERY_REQUIRED
+                    && record.state() != AuthoringWorkspaceState.PUBLISHED
                     && record.state() != AuthoringWorkspaceState.DISCARDED)
                     || (!evidence.valid()
                     && record.state() == AuthoringWorkspaceState.VALIDATED)) {
@@ -1176,10 +1275,101 @@ public class RuntimeAuthoringWorkspaceStore {
                         "Workspace registry contains inconsistent validation state.",
                         null);
             }
-        } else if (record.state() == AuthoringWorkspaceState.VALIDATED) {
+        } else if (record.state() == AuthoringWorkspaceState.VALIDATED
+                || record.state() == AuthoringWorkspaceState.PUBLISHING
+                || record.state() == AuthoringWorkspaceState.RECOVERY_REQUIRED
+                || record.state() == AuthoringWorkspaceState.PUBLISHED) {
             throw corrupt(
-                    "Validated workspace is missing validation evidence.", null);
+                    "Validated publication workspace is missing validation evidence.", null);
         }
+        validatePublicationEvidence(record);
+    }
+
+    private static void validatePublicationEvidence(StoredWorkspace record) {
+        PublicationEvidence publication = record.lastPublication();
+        boolean publicationState = record.state() == AuthoringWorkspaceState.PUBLISHING
+                || record.state() == AuthoringWorkspaceState.RECOVERY_REQUIRED
+                || record.state() == AuthoringWorkspaceState.PUBLISHED;
+        if (publication == null) {
+            if (publicationState) {
+                throw corrupt("Publication workspace is missing evidence.", null);
+            }
+            return;
+        }
+        try {
+            if (publication.attemptId() == null
+                    || !publication.attemptId().matches(UUID_PATTERN)) {
+                throw new IllegalArgumentException("invalid publication attempt id");
+            }
+            UUID.fromString(publication.attemptId());
+            Instant.parse(publication.startedAt());
+            if (StringUtils.hasText(publication.completedAt())) {
+                Instant.parse(publication.completedAt());
+            }
+        } catch (RuntimeException invalid) {
+            throw corrupt("Publication evidence contains an invalid identity or timestamp.",
+                    null, invalid);
+        }
+        if (!record.candidateRevision().equals(publication.candidateRevision())
+                || !record.baseBundleRevision().equals(
+                publication.baseBundleRevision())
+                || !record.baseSourceRevision().equals(
+                publication.baseNamespaceSourceRevision())
+                || !record.candidateRevision().equals(
+                publication.appliedBundleRevision())
+                || !publicationStatusMatches(record.state(), publication.status())) {
+            throw corrupt("Workspace registry contains inconsistent publication evidence.",
+                    null);
+        }
+    }
+
+    private static boolean publicationStatusMatches(
+            AuthoringWorkspaceState state,
+            String status
+    ) {
+        if (!StringUtils.hasText(status)) {
+            return false;
+        }
+        return switch (state) {
+            case PUBLISHING -> "PUBLISHING".equals(status);
+            case RECOVERY_REQUIRED -> "RECOVERY_REQUIRED".equals(status);
+            case PUBLISHED -> "PUBLISHED".equals(status);
+            case STALE -> "RECOVERED".equals(status);
+            default -> false;
+        };
+    }
+
+    private static boolean reconcileInterruptedPublications(
+            Map<String, StoredWorkspace> records
+    ) {
+        boolean changed = false;
+        for (Map.Entry<String, StoredWorkspace> entry
+                : new ArrayList<>(records.entrySet())) {
+            StoredWorkspace record = entry.getValue();
+            if (record.state() != AuthoringWorkspaceState.PUBLISHING) {
+                continue;
+            }
+            PublicationEvidence previous = record.lastPublication();
+            List<String> diagnostics = new ArrayList<>(previous.diagnostics());
+            diagnostics.add("Runtime restarted before publication completion was proven.");
+            PublicationEvidence reconciled = new PublicationEvidence(
+                    previous.attemptId(), "RECOVERY_REQUIRED",
+                    previous.candidateRevision(), previous.baseBundleRevision(),
+                    previous.appliedBundleRevision(),
+                    previous.baseNamespaceSourceRevision(),
+                    previous.publishedNamespaceSourceRevision(),
+                    previous.beforeCatalogGeneration(),
+                    previous.afterCatalogGeneration(),
+                    previous.recoveredCatalogGeneration(),
+                    previous.startedAt(), previous.completedAt(), diagnostics);
+            StoredWorkspace updated = record.withPublication(
+                    AuthoringWorkspaceState.RECOVERY_REQUIRED, reconciled,
+                    "Publication was interrupted; explicit recovery is required.");
+            validateStoredRecord(updated);
+            records.put(entry.getKey(), updated);
+            changed = true;
+        }
+        return changed;
     }
 
     private void persist(Map<String, StoredWorkspace> records) {
@@ -1621,13 +1811,49 @@ public class RuntimeAuthoringWorkspaceStore {
             String createdAt,
             String updatedAt,
             AuthoringWorkspaceInfo.ValidationEvidence lastValidation,
+            PublicationEvidence lastPublication,
             String staleReason
     ) {
+        /** Compatibility constructor for records created before publication support. */
+        public StoredWorkspace(
+                String workspaceId,
+                String namespace,
+                String sourceBundle,
+                String sourceKind,
+                String baseSourceIdentity,
+                String baseBundleRevision,
+                String baseSourceRevision,
+                String candidateRevision,
+                AuthoringWorkspaceState state,
+                String createdAt,
+                String updatedAt,
+                AuthoringWorkspaceInfo.ValidationEvidence lastValidation,
+                String staleReason
+        ) {
+            this(workspaceId, namespace, sourceBundle, sourceKind,
+                    baseSourceIdentity, baseBundleRevision, baseSourceRevision,
+                    candidateRevision, state, createdAt, updatedAt,
+                    lastValidation, null, staleReason);
+        }
+
         StoredWorkspace withCandidateRevision(String revision) {
             return new StoredWorkspace(
                     workspaceId, namespace, sourceBundle, sourceKind,
                     baseSourceIdentity, baseBundleRevision, baseSourceRevision,
-                    revision, state, createdAt, updatedAt, lastValidation, staleReason);
+                    revision, state, createdAt, updatedAt, lastValidation,
+                    lastPublication, staleReason);
+        }
+
+        StoredWorkspace withPublication(
+                AuthoringWorkspaceState nextState,
+                PublicationEvidence publication,
+                String reason
+        ) {
+            return new StoredWorkspace(
+                    workspaceId, namespace, sourceBundle, sourceKind,
+                    baseSourceIdentity, baseBundleRevision, baseSourceRevision,
+                    candidateRevision, nextState, createdAt,
+                    Instant.now().toString(), lastValidation, publication, reason);
         }
     }
 

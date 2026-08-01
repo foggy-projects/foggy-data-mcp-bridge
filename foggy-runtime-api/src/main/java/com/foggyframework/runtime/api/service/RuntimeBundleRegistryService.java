@@ -89,6 +89,20 @@ public class RuntimeBundleRegistryService {
     public synchronized RuntimeBundleRecord save(RuntimeBundleRecord record) {
         loadIfNeeded();
         RuntimeBundleRecord normalized = record.withUpdatedAt(Instant.now().toString());
+        return saveRecord(normalized);
+    }
+
+    /** Restores a durable record without rewriting its historical timestamps. */
+    public synchronized RuntimeBundleRecord restoreExact(RuntimeBundleRecord record) {
+        loadIfNeeded();
+        return saveRecord(record);
+    }
+
+    private RuntimeBundleRecord saveRecord(RuntimeBundleRecord normalized) {
+        if (normalized == null || !StringUtils.hasText(normalized.name())
+                || !StringUtils.hasText(normalized.path())) {
+            throw new IllegalArgumentException("Runtime Bundle record is invalid.");
+        }
         RuntimeBundleRecord previous = records.put(normalized.name(), normalized);
         try {
             persist();
@@ -120,7 +134,8 @@ public class RuntimeBundleRegistryService {
 
     public RuntimeBundleRecord newRecord(String name, String namespace, String path, boolean watch, boolean enabled) {
         String now = Instant.now().toString();
-        return new RuntimeBundleRecord(name, namespace, path, watch, enabled, now, now);
+        return new RuntimeBundleRecord(name, namespace, path, watch, enabled,
+                now, now, false, null);
     }
 
     private boolean registryEnabled() {
@@ -186,10 +201,35 @@ public class RuntimeBundleRegistryService {
             boolean watch,
             boolean enabled,
             String createdAt,
-            String updatedAt
+            String updatedAt,
+            boolean immutablePublication,
+            String artifactRevision
     ) {
         public RuntimeBundleRecord withUpdatedAt(String updatedAt) {
-            return new RuntimeBundleRecord(name, namespace, path, watch, enabled, createdAt, updatedAt);
+            return new RuntimeBundleRecord(name, namespace, path, watch, enabled,
+                    createdAt, updatedAt, immutablePublication, artifactRevision);
+        }
+
+        public RuntimeBundleRecord withPublication(
+                String publishedPath,
+                String revision
+        ) {
+            return new RuntimeBundleRecord(name, namespace, publishedPath,
+                    false, true, createdAt, updatedAt, true, revision);
+        }
+
+        /** Compatibility constructor retaining the mutable external record surface. */
+        public RuntimeBundleRecord(
+                String name,
+                String namespace,
+                String path,
+                boolean watch,
+                boolean enabled,
+                String createdAt,
+                String updatedAt
+        ) {
+            this(name, namespace, path, watch, enabled, createdAt, updatedAt,
+                    false, null);
         }
     }
 

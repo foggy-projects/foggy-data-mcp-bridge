@@ -170,11 +170,14 @@ public class RuntimeBundleInventoryService {
             }
         }
         boolean managed = record != null;
+        boolean immutable = record != null && record.immutablePublication();
         return new BundleInfo(
                 name, namespace, path, watch, true,
                 managed ? "runtime-registry" : "config",
                 managed, managed, managed, "active", null,
-                sourceType, eligible, eligible, List.of(namespace), identity);
+                immutable ? "published-artifact" : sourceType,
+                managed && !immutable, eligible, List.of(namespace), identity,
+                immutable, immutable ? record.artifactRevision() : null);
     }
 
     private BundleInfo definitionInfo(
@@ -192,12 +195,14 @@ public class RuntimeBundleInventoryService {
                 external.getPath())
                 ? "external-resource" : "external-filesystem";
         boolean managed = record != null;
+        boolean immutable = record != null && record.immutablePublication();
         return new BundleInfo(
                 name, namespace, path, watch, true,
                 managed ? "runtime-registry" : "config",
                 managed, managed, managed, "active", null,
-                type, false, false, List.of(namespace),
-                sourceIdentity(name, namespace, type, path));
+                immutable ? "published-artifact" : type, false, false,
+                List.of(namespace), sourceIdentity(name, namespace, type, path),
+                immutable, immutable ? record.artifactRevision() : null);
     }
 
     private BundleInfo inactiveInfo(RuntimeBundleRecord record) {
@@ -213,7 +218,8 @@ public class RuntimeBundleInventoryService {
                 ExternalBundleResourceSupport.isSpringResourceLocation(record.path())
                         ? "external-resource" : "external-filesystem",
                 false, false, List.of(namespace),
-                sourceIdentity(record.name(), namespace, "inactive", record.path()));
+                sourceIdentity(record.name(), namespace, "inactive", record.path()),
+                record.immutablePublication(), record.artifactRevision());
     }
 
     private static String sourceType(Bundle bundle, BundleDefinition definition) {

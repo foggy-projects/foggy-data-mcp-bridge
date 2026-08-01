@@ -1,8 +1,8 @@
 ---
 doc_role: architecture
 status: canonical
-baseline: main-after-9.5.0
-last_reviewed: 2026-07-31
+baseline: main-after-9.5.3-authoring-publish
+last_reviewed: 2026-08-01
 ---
 
 # 运行时与模型生命周期
@@ -105,9 +105,10 @@ catalog identity、namespace、source revision、binding generation 和发布 ge
 ## 6. Request-local candidate 与 authoring workspace
 
 9.5.3 增加了 engine/Runtime 内部 candidate execution port，以及建立在该端口上的 Runtime-local
-authoring workspace API。candidate port 对一个不可变草稿 Bundle revision 执行 validate 和普通
-JDBC semantic query；workspace API 负责持久草稿、revision、diff、完整验证和受治理查询，但仍不承担
-publish、apply 或 refresh。
+authoring workspace 与 publish/recovery API。candidate port 对一个不可变草稿 Bundle revision 执行
+validate 和普通 JDBC semantic query；workspace API 负责持久草稿、revision、diff、完整验证和受治理
+查询；publish API 把 exact validated revision 提升为 Runtime-managed immutable Bundle artifact，并完成
+失败补偿。
 
 该路径遵循以下不变量：
 
@@ -138,8 +139,9 @@ Runtime authoring workspace 进一步遵循以下边界：
 - base 与 current candidate 都是 canonical content hash 标识的 immutable revision。save/delete 先完整校验
   path、类型、overlay、quota 和 expected head，再 staging、原子提交 metadata/head；同一进程内竞争只允许
   一个请求提交；
-- `DRAFT`、`VALIDATED`、`STALE`、`DISCARDED` 是当前完整状态集。内容变化使 validation evidence 失效；
-  source content/identity/committed revision 漂移持久转为 `STALE`；discard 是终态；
+- `DRAFT`、`VALIDATED`、`STALE`、`PUBLISHING`、`RECOVERY_REQUIRED`、`PUBLISHED`、`DISCARDED`
+  是当前完整状态集。内容变化使 validation evidence 失效；source content/identity/committed revision
+  漂移持久转为 `STALE`；`PUBLISHED` 与 `DISCARDED` 是终态；
 - validate 遍历全部 FSScript、TM 和 QM。query validate/execute 只接受 exact current、已完成完整验证的
   revision，并由服务端组装 immutable candidate path、source Bundle、Namespace 与 base source revision；
 - 每个 workspace route 都要求 Runtime 管理 auth-code；业务 `Authorization` 仅独立透传给 candidate 数据面，
@@ -155,8 +157,37 @@ Runtime authoring workspace 进一步遵循以下边界：
 - validate/query 的成功、失败、权限拒绝、database failure、revision/source race 和 close 均不能修改 live
   catalog、共享 FSScript/query cache、Bundle inventory 或 committed source revision。
 
-当前 API 不提供 revision history、rebase、publish/apply/rollback、Git、JAR fork/binding 或高级 candidate
-query mode。这些仍需后续独立 lifecycle workitem 冻结契约，不能从 workspace 已验证状态推断为已发布。
+authoring publish/recovery 进一步遵循以下不变量：
+
+- `POST /authoring/workspaces/{workspaceId}/publish` 只接受 current、exact、完整验证通过的 candidate、
+  base Bundle revision 和 base Namespace source revision；目标 Namespace、Bundle 和 filesystem path 全部由
+  服务端从 workspace identity 解析；
+- candidate 先复制到独立 ownership-bearing published root，形成只含 `.tm`、`.qm`、`.fsscript` 的
+  immutable content-addressed artifact。foreign root、symlink、未知 layout、manifest 或 hash 不一致都
+  fail closed，不猜测或删除现场；
+- immutable 约束的是已发布 artifact 的字节不可原地修改，不表示 Bundle lifecycle 永久不能升级。只有
+  registry/live source 当前共同指向 Runtime-owned、状态为 `PUBLISHED` 且 Bundle、Namespace、revision、
+  path、manifest/hash 全部匹配的 artifact，才可作为下一 workspace 的 publication base；校验失败必须在
+  新 artifact、durable intent 或 live mutation 前拒绝；
+- 首次 live mutation 前必须持久化 publication attempt 和 workspace `PUBLISHING` evidence。随后在同一
+  单进程 publication lock 内切换唯一 Bundle source、持久化 registry、执行 full-Namespace atomic refresh，
+  最后才把 workspace 标记为 terminal `PUBLISHED`；
+- 任一 source、registry、refresh 或最终 evidence 失败都返回失败并优先恢复 exact base source、registry
+  与 full-Namespace catalog。不能证明恢复时保留 durable evidence 并进入 `RECOVERY_REQUIRED`；restart
+  只收敛状态，不自动覆盖未知 live source；
+- `POST .../publish/recover` 必须固定同一 attempt 和 candidate，只能恢复该失败 attempt 记录的 base。
+  live/registry identity 出现第三方漂移时返回 conflict 且 `safeToAutoRepair=false`；恢复成功后 workspace
+  为 `STALE`，保留 candidate 和 publication evidence；
+- published Bundle 固定 `watch=false`，inventory 明示 immutable artifact revision，现有低层 resource
+  save 返回只读错误；Bundle replace/remove 可以改变 registry/source，但不能修改或删除 artifact。用户仍可
+  从当前 published Bundle 创建新的 workspace，下一次成功 publish 只追加新 immutable artifact 并切换
+  current registry/source，上一 artifact 继续保持原字节与 manifest；
+- publish/recover、Bundle add/update/remove 和低层 resource save 共享同一单进程互斥边界。多进程、
+  shared NFS writer、artifact GC 和成功发布后的历史 rollback 不在当前承诺内。
+
+当前 API 仍不提供 revision history、rebase/merge、成功发布后的 rollback、release package、生产
+promotion、Git、JAR fork/binding 或高级 candidate query mode。这些需要后续独立 lifecycle workitem，
+不能从一次 Runtime-local publish 推断为跨环境发布能力。
 
 ## 7. 查询与执行
 

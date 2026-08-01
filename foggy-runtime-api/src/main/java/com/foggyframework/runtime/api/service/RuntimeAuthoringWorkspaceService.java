@@ -498,7 +498,10 @@ public class RuntimeAuthoringWorkspaceService {
             StoredWorkspace record,
             boolean failIfStale
     ) {
-        if (record.state() == AuthoringWorkspaceState.DISCARDED) {
+        if (record.state() == AuthoringWorkspaceState.DISCARDED
+                || record.state() == AuthoringWorkspaceState.PUBLISHING
+                || record.state() == AuthoringWorkspaceState.RECOVERY_REQUIRED
+                || record.state() == AuthoringWorkspaceState.PUBLISHED) {
             return record;
         }
         if (record.state() == AuthoringWorkspaceState.STALE) {
@@ -705,6 +708,65 @@ public class RuntimeAuthoringWorkspaceService {
         return record;
     }
 
+    PublicationCandidate preflightPublication(
+            String workspaceId,
+            String expectedCandidateRevision,
+            String expectedBaseBundleRevision,
+            String expectedBaseSourceRevision
+    ) {
+        String phase = "workspaces.publish.preflight";
+        if (!StringUtils.hasText(expectedCandidateRevision)
+                || !StringUtils.hasText(expectedBaseBundleRevision)
+                || !StringUtils.hasText(expectedBaseSourceRevision)) {
+            throw invalid(phase,
+                    "Candidate and base revision identities are required.",
+                    null, false);
+        }
+        StoredWorkspace record = requireValidated(
+                workspaceId, expectedCandidateRevision.trim(), phase);
+        if (!record.baseBundleRevision().equals(expectedBaseBundleRevision.trim())
+                || !record.baseSourceRevision().equals(
+                expectedBaseSourceRevision.trim())) {
+            throw RuntimeAuthoringWorkspaceStore.failure(
+                    "WORKSPACE_REVISION_CONFLICT", phase,
+                    "Workspace base revision identity no longer matches the request.",
+                    null, true);
+        }
+        WorkspaceSource source = inventory.requireWorkspaceSource(
+                record.sourceBundle(), record.namespace(), phase);
+        Map<String, byte[]> snapshot = store.snapshot(
+                workspaceId, expectedCandidateRevision.trim());
+        requireOverlayAllowed(record.sourceBundle(), record.namespace(),
+                snapshot, phase);
+        return new PublicationCandidate(record, source,
+                Map.copyOf(snapshot));
+    }
+
+    void assertPublicationBaseCurrent(StoredWorkspace record) {
+        requireExecutableSource(record, "workspaces.publish.preflight");
+    }
+
+    void assertPublicationSourceCurrent(
+            StoredWorkspace record,
+            Map<String, byte[]> snapshot
+    ) {
+        String phase = "workspaces.publish.preflight";
+        StoredWorkspace current = store.get(record.workspaceId());
+        if (current.state() != AuthoringWorkspaceState.PUBLISHING
+                || !current.candidateRevision().equals(
+                record.candidateRevision())) {
+            throw RuntimeAuthoringWorkspaceStore.failure(
+                    "WORKSPACE_PUBLISH_CONFLICT", phase,
+                    "Workspace publication is no longer current.", null, false);
+        }
+        if (!sourceIsCurrent(record)) {
+            throw stale(phase,
+                    "Workspace source changed before publication commit.");
+        }
+        requireOverlayAllowed(record.sourceBundle(), record.namespace(),
+                snapshot, phase);
+    }
+
     private StoredWorkspace requireHeadCurrent(
             String workspaceId,
             String candidateRevision,
@@ -818,5 +880,12 @@ public class RuntimeAuthoringWorkspaceService {
     }
 
     private record ValidationCounts(int valid, int cascading) {
+    }
+
+    record PublicationCandidate(
+            StoredWorkspace workspace,
+            WorkspaceSource source,
+            Map<String, byte[]> snapshot
+    ) {
     }
 }

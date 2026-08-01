@@ -13,8 +13,10 @@ import com.foggyframework.runtime.api.dto.ResourceSaveResponse;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
 import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
 import com.foggyframework.runtime.api.service.RuntimeBundleRegistryService;
+import com.foggyframework.runtime.api.service.RuntimeAuthoringPublicationLock;
 import com.foggyframework.runtime.api.service.RuntimeBundleRegistryService.RuntimeBundleRecord;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -44,15 +46,28 @@ public class RuntimeResourcesController {
     private final RuntimeApiResponseFactory responses;
     private final SystemBundlesContext systemBundlesContext;
     private final RuntimeBundleRegistryService registryService;
+    private final RuntimeAuthoringPublicationLock publicationLock;
 
     public RuntimeResourcesController(
             RuntimeApiResponseFactory responses,
             SystemBundlesContext systemBundlesContext,
             RuntimeBundleRegistryService registryService
     ) {
+        this(responses, systemBundlesContext, registryService,
+                new RuntimeAuthoringPublicationLock());
+    }
+
+    @Autowired
+    public RuntimeResourcesController(
+            RuntimeApiResponseFactory responses,
+            SystemBundlesContext systemBundlesContext,
+            RuntimeBundleRegistryService registryService,
+            RuntimeAuthoringPublicationLock publicationLock
+    ) {
         this.responses = responses;
         this.systemBundlesContext = systemBundlesContext;
         this.registryService = registryService;
+        this.publicationLock = publicationLock;
     }
 
     @PostMapping(RuntimeApiRoutes.V1.RESOURCES_EXPORT)
@@ -127,6 +142,15 @@ public class RuntimeResourcesController {
             @RequestBody(required = false) ResourceSaveRequest request,
             @RequestHeader(value = "X-NS", required = false) String namespace
     ) {
+        try (RuntimeAuthoringPublicationLock.Guard ignored = publicationLock.acquire()) {
+            return saveResourcesLocked(request, namespace);
+        }
+    }
+
+    private RuntimeEnvelope<ResourceSaveResponse> saveResourcesLocked(
+            ResourceSaveRequest request,
+            String namespace
+    ) {
         String bundle = blankToNull(request != null ? request.bundle() : null);
         if (bundle == null) {
             return fail("INVALID_REQUEST", "resources.save", "Missing required field: bundle",
@@ -141,6 +165,12 @@ public class RuntimeResourcesController {
         if (record == null) {
             return fail("RESOURCE_BUNDLE_NOT_WRITABLE", "resources.save", "Bundle is not managed by Runtime API: " + bundle,
                     "Only runtime-managed bundles can be saved through Runtime API.", false, null);
+        }
+        if (record.immutablePublication()) {
+            return fail("RESOURCE_BUNDLE_IMMUTABLE", "resources.save",
+                    "Published Bundle artifacts are immutable: " + bundle,
+                    "Create an authoring workspace from the published Bundle.",
+                    false, null);
         }
 
         Path root = Path.of(record.path()).toAbsolutePath().normalize();
@@ -202,7 +232,9 @@ public class RuntimeResourcesController {
     private BundleLocation resolveBundle(String bundle) {
         RuntimeBundleRecord record = registryService.find(bundle).orElse(null);
         if (record != null) {
-            return new BundleLocation(record.namespace(), Path.of(record.path()).toAbsolutePath().normalize(), true);
+            return new BundleLocation(record.namespace(),
+                    Path.of(record.path()).toAbsolutePath().normalize(),
+                    !record.immutablePublication());
         }
         for (BundleDefinition definition : systemBundlesContext.listExternalBundles()) {
             if (bundle.equals(definition.getName()) && definition instanceof ExternalBundleDefinition external) {

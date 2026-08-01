@@ -483,6 +483,41 @@ class RuntimeAuthoringWorkspaceStoreTest {
     }
 
     @Test
+    void restartConvertsInterruptedPublicationToRecoveryRequired() {
+        Path root = tempDirectory.resolve("publishing-restart");
+        RuntimeAuthoringWorkspaceStore first = store(root);
+        var created = create(first);
+        String now = Instant.now().toString();
+        var validated = first.recordValidation(
+                created.workspaceId(), created.candidateRevision(),
+                new AuthoringWorkspaceInfo.ValidationEvidence(
+                        true, created.candidateRevision(),
+                        created.baseBundleRevision(),
+                        created.baseSourceRevision(), now,
+                        1, 1, 0, 0, List.of()));
+        String attemptId = "00000000-0000-0000-0000-000000000001";
+        first.beginPublication(
+                validated.workspaceId(), validated.candidateRevision(),
+                new AuthoringWorkspaceInfo.PublicationEvidence(
+                        attemptId, "PUBLISHING",
+                        validated.candidateRevision(),
+                        validated.baseBundleRevision(),
+                        validated.candidateRevision(),
+                        validated.baseSourceRevision(), null,
+                        "generation-before", null, null,
+                        now, null, List.of()));
+
+        var restarted = store(root).get(validated.workspaceId());
+
+        assertThat(restarted.state())
+                .isEqualTo(AuthoringWorkspaceState.RECOVERY_REQUIRED);
+        assertThat(restarted.lastPublication().status())
+                .isEqualTo("RECOVERY_REQUIRED");
+        assertThat(restarted.lastPublication().diagnostics())
+                .contains("Runtime restarted before publication completion was proven.");
+    }
+
+    @Test
     void detectsSymlinkHashMismatchMissingFileAndUnknownSchemaAsCorruption()
             throws Exception {
         Path root = tempDirectory.resolve("corruption");

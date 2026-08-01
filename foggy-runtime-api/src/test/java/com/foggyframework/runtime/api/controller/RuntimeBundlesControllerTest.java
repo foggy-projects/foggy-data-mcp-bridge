@@ -8,6 +8,7 @@ import com.foggyframework.runtime.api.dto.BundleMutationResponse;
 import com.foggyframework.runtime.api.dto.BundleRequest;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
 import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
+import com.foggyframework.runtime.api.service.RuntimeAuthoringPublicationLock;
 import com.foggyframework.runtime.api.service.RuntimeAuthoringStorePathPolicy;
 import com.foggyframework.runtime.api.service.RuntimeBundleModelConflictDetector;
 import com.foggyframework.runtime.api.service.RuntimeBundleRegistryService;
@@ -17,6 +18,9 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -267,6 +271,91 @@ class RuntimeBundlesControllerTest {
         verify(context, never()).replaceExternalBundle(
                 anyString(), anyString(), anyString(), anyBoolean());
         verify(context, never()).removeBundle(anyString());
+    }
+
+    @Test
+    void replacingAndRemovingPublishedBundleNeverDeletesArtifact()
+            throws Exception {
+        Path artifact = Files.createDirectories(
+                tempDir.resolve("published-artifact"));
+        Path resource = Files.writeString(
+                artifact.resolve("Order.tm"), "published");
+        Path replacement = Files.createDirectories(
+                tempDir.resolve("replacement"));
+        SystemBundlesContext context = mock(SystemBundlesContext.class);
+        when(context.containBundle("plugin-x")).thenReturn(true);
+        when(context.getBundleDefinitionByName("plugin-x"))
+                .thenReturn(externalDefinition("plugin-x", artifact.toString()),
+                        externalDefinition("plugin-x", replacement.toString()));
+        when(context.replaceExternalBundle(
+                "plugin-x", "business", replacement.toString(), false))
+                .thenReturn(true);
+        when(context.removeBundle("plugin-x")).thenReturn(true);
+        FoggyRuntimeApiProperties properties = properties(
+                tempDir.resolve("runtime-bundles-retention.json"));
+        RuntimeBundleRegistryService registry = registry(context, properties);
+        registry.save(registry.newRecord(
+                "plugin-x", "business", artifact.toString(), false, true)
+                .withPublication(artifact.toString(),
+                        "sha256:" + "a".repeat(64)));
+        RuntimeBundlesController controller = controller(
+                context, registry, properties);
+
+        var replaced = controller.updateBundle("plugin-x", request(
+                null, replacement.toString(), true, true), null);
+        var removed = controller.removeBundle("plugin-x");
+
+        assertThat(replaced.success()).isTrue();
+        assertThat(removed.success()).isTrue();
+        assertThat(resource).hasContent("published");
+        assertThat(artifact).isDirectory();
+    }
+
+    @Test
+    void bundleReplacementUsesSharedPublicationLock() throws Exception {
+        SystemBundlesContext context = mock(SystemBundlesContext.class);
+        when(context.containBundle("plugin-x")).thenReturn(true);
+        when(context.getBundleDefinitionByName("plugin-x"))
+                .thenReturn(externalDefinition(
+                        "plugin-x", "/bundles/plugin-x-v1"));
+        when(context.replaceExternalBundle(
+                "plugin-x", "business", "/bundles/plugin-x-v2", false))
+                .thenReturn(true);
+        FoggyRuntimeApiProperties properties = properties(
+                tempDir.resolve("runtime-bundles-locked.json"));
+        RuntimeBundleRegistryService registry = registry(context, properties);
+        registry.save(registry.newRecord(
+                "plugin-x", "business", "/bundles/plugin-x-v1",
+                false, true));
+        RuntimeBundleModelConflictDetector detector =
+                mock(RuntimeBundleModelConflictDetector.class);
+        when(detector.findConflicts(
+                anyString(), anyString(), anyString(),
+                org.mockito.ArgumentMatchers.nullable(String.class)))
+                .thenReturn(List.of());
+        RuntimeAuthoringPublicationLock publicationLock =
+                new RuntimeAuthoringPublicationLock();
+        RuntimeBundlesController controller = new RuntimeBundlesController(
+                new RuntimeApiResponseFactory(properties), context, registry,
+                detector, new RuntimeAuthoringStorePathPolicy(properties, context),
+                publicationLock);
+        CountDownLatch started = new CountDownLatch(1);
+        var executor = Executors.newSingleThreadExecutor();
+        try (RuntimeAuthoringPublicationLock.Guard ignored =
+                     publicationLock.acquire()) {
+            var future = executor.submit(() -> {
+                started.countDown();
+                return controller.updateBundle("plugin-x", request(
+                        null, "/bundles/plugin-x-v2", true, true), null);
+            });
+            assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(future.isDone()).isFalse();
+        } finally {
+            executor.shutdown();
+        }
+        assertThat(executor.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
+        assertThat(registry.find("plugin-x").orElseThrow().path())
+                .isEqualTo("/bundles/plugin-x-v2");
     }
 
     private RuntimeBundlesController controller(
