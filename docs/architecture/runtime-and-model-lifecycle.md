@@ -186,6 +186,19 @@ authoring publish/recovery 进一步遵循以下不变量：
 - publish/recover、promotion/rollback、Bundle add/update/remove 和低层 resource save 共享同一单进程
   互斥边界。多进程、shared NFS writer 和 artifact GC 不在当前一致性承诺内。
 
+9.5.5 增加只读 artifact lifecycle inventory：
+
+- `GET /api/v1/authoring/artifacts/lifecycle` 在 publication lock 与 workspace store monitor 内扫描 workspace
+  root、published root 和 live Bundle registry；root 不存在时只报告 `NOT_INITIALIZED`，不会创建目录、owner 或
+  registry；
+- 输出只包含 redacted 稳定 identity、容量/对象汇总、引用和 blocked reason，不返回 absolute root path、
+  `storeId`、模型内容、凭据或底层异常；该 authoring route 在任意 auth scope 下都要求 management auth-code；
+- 只有 ownership、schema、manifest/content hash 和完整引用图均可证明且无引用的对象才标记
+  `PROVABLY_UNREACHABLE_CANDIDATE`。该分类仅是诊断事实，不是 retention 决策或删除授权；corrupt、foreign、
+  symlink、无法完整验证的 partial/temporary 或引用图不完整统一保守为 `UNKNOWN_PRESERVE`；
+- inventory 不执行 cleanup、repair、quarantine 或 migration。快照一致性只覆盖当前 Runtime 单进程；外部 writer、
+  shared NFS、多进程锁、分页/streaming 和 artifact GC 仍不在 v1 承诺内。
+
 9.5.4 在该 coordinator 上增加 portable release package 与 production promotion：
 
 - `foggy-authoring-release/v1` 是 canonical JSON 文本 package，只包含严格 UTF-8 TM/QM/FSScript、

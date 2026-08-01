@@ -51,6 +51,7 @@ import static org.mockito.Mockito.when;
                 "foggy.runtime-api.bundle-registry.path=target/runtime-api-auth-test-bundles-${random.uuid}.json",
                 "foggy.runtime-api.datasource-registry.path=target/runtime-api-auth-test-datasources-${random.uuid}.json",
                 "foggy.runtime-api.authoring-workspaces.path=target/runtime-api-auth-test-workspaces-${random.uuid}",
+                "foggy.runtime-api.authoring-workspaces.published-bundles-path=target/runtime-api-auth-test-published-${random.uuid}",
                 "spring.autoconfigure.exclude=com.foggyframework.dataset.model.DbModelAutoConfiguration,"
                         + "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration"
         }
@@ -128,6 +129,32 @@ class RuntimeApiAuthCodeGateTest {
         assertThat(accepted.getBody().path("data").path("authenticated").asBoolean()).isTrue();
         assertThat(accepted.getBody().path("data").path("authScope").asText()).isEqualTo("mutations");
         assertThat(accepted.getBody().toString()).doesNotContain("runtime-secret");
+    }
+
+    @Test
+    void shouldRequireManagementAuthForArtifactLifecycleInventory() {
+        ResponseEntity<JsonNode> rejected = restTemplate.getForEntity(
+                url(RuntimeApiRoutes.Full.AUTHORING_ARTIFACT_LIFECYCLE),
+                JsonNode.class);
+
+        assertThat(rejected.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(rejected.getBody()).isNotNull();
+        assertThat(rejected.getBody().path("error").path("code").asText())
+                .isEqualTo("RUNTIME_AUTH_REQUIRED");
+
+        ResponseEntity<JsonNode> accepted = restTemplate.exchange(
+                url(RuntimeApiRoutes.Full.AUTHORING_ARTIFACT_LIFECYCLE),
+                HttpMethod.GET,
+                new HttpEntity<>(authHeaders(
+                        RuntimeApiAuthInterceptor.AUTH_CODE_HEADER,
+                        "runtime-secret")),
+                JsonNode.class);
+
+        assertThat(accepted.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(accepted.getBody()).isNotNull();
+        assertThat(accepted.getBody().path("success").asBoolean()).isTrue();
+        assertThat(accepted.getBody().toString()).doesNotContain(
+                "runtime-secret", "auth-code");
     }
 
     @Test
@@ -316,6 +343,28 @@ class RuntimeApiAuthCodeGateTest {
         JsonNode body = new ObjectMapper().readTree(response.getContentAsString());
         assertThat(body.path("success").asBoolean()).isFalse();
         assertThat(body.path("error").path("code").asText()).isEqualTo("RUNTIME_AUTH_CODE_NOT_CONFIGURED");
+    }
+
+    @Test
+    void shouldFailClosedWhenArtifactLifecycleAuthCodeIsNotConfigured()
+            throws Exception {
+        FoggyRuntimeApiProperties properties = new FoggyRuntimeApiProperties();
+        RuntimeApiAuthInterceptor interceptor = new RuntimeApiAuthInterceptor(
+                properties,
+                new RuntimeApiResponseFactory(properties),
+                new ObjectMapper());
+        MockHttpServletRequest request = new MockHttpServletRequest(
+                "GET", RuntimeApiRoutes.Full.AUTHORING_ARTIFACT_LIFECYCLE);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        boolean allowed = interceptor.preHandle(request, response, new Object());
+
+        assertThat(allowed).isFalse();
+        assertThat(response.getStatus())
+                .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE.value());
+        JsonNode body = new ObjectMapper().readTree(response.getContentAsString());
+        assertThat(body.path("error").path("code").asText())
+                .isEqualTo("RUNTIME_AUTH_CODE_NOT_CONFIGURED");
     }
 
     @Test
@@ -532,6 +581,7 @@ class RuntimeApiAuthCodeGateTest {
         for (String[] operation : new String[][]{
                 {"POST", RuntimeApiRoutes.Full.AUTHORING_WORKSPACES},
                 {"GET", RuntimeApiRoutes.Full.AUTHORING_WORKSPACES},
+                {"GET", RuntimeApiRoutes.Full.AUTHORING_ARTIFACT_LIFECYCLE},
                 {"GET", workspace}, {"DELETE", workspace},
                 {"GET", resources}, {"GET", content},
                 {"POST", save}, {"POST", delete}, {"POST", diff},

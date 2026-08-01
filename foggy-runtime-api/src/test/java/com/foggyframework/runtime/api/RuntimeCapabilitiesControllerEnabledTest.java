@@ -81,6 +81,7 @@ import static org.mockito.Mockito.when;
                 "foggy.runtime-api.bundle-registry.path=target/runtime-api-test-bundles-${random.uuid}.json",
                 "foggy.runtime-api.datasource-registry.path=target/runtime-api-test-datasources-${random.uuid}.json",
                 "foggy.runtime-api.authoring-workspaces.path=target/runtime-api-test-workspaces-${random.uuid}",
+                "foggy.runtime-api.authoring-workspaces.published-bundles-path=target/runtime-api-test-published-${random.uuid}",
                 "spring.autoconfigure.exclude=com.foggyframework.dataset.model.DbModelAutoConfiguration,"
                         + "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration"
         }
@@ -176,6 +177,9 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(body.path("data").path("capabilities").path("authoring.diff").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("authoring.validate").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("authoring.query").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities")
+                .path("authoring.artifacts.lifecycleInventory").asText())
+                .isEqualTo("supported");
         assertThat(body.path("data").path("capabilities")
                 .path("authoring.releasePackage.export").asText())
                 .isEqualTo("supported");

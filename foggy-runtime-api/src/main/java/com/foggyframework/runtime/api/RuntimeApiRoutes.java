@@ -40,6 +40,8 @@ public final class RuntimeApiRoutes {
         public static final String FSSCRIPT_EXECUTE = FSSCRIPT + "/execute";
         public static final String AUTHORING_WORKSPACES = "/authoring/workspaces";
         public static final String AUTHORING = "/authoring";
+        public static final String AUTHORING_ARTIFACT_LIFECYCLE =
+                AUTHORING + "/artifacts/lifecycle";
         public static final String AUTHORING_RELEASES = AUTHORING + "/releases";
         public static final String AUTHORING_RELEASE_IMPORT =
                 AUTHORING_RELEASES + "/import";
@@ -106,6 +108,8 @@ public final class RuntimeApiRoutes {
         public static final String FSSCRIPT_EXECUTE = API_V1 + V1.FSSCRIPT_EXECUTE;
         public static final String AUTHORING_WORKSPACES =
                 API_V1 + V1.AUTHORING_WORKSPACES;
+        public static final String AUTHORING_ARTIFACT_LIFECYCLE =
+                API_V1 + V1.AUTHORING_ARTIFACT_LIFECYCLE;
         public static final String AUTHORING_PATTERN =
                 API_V1 + V1.AUTHORING + "/**";
         public static final String AUTHORING_WORKSPACES_PATTERN =
