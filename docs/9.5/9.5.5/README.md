@@ -11,6 +11,12 @@ recorded_at: 2026-08-01
 
 # 9.5.5 Runtime 模型交付稳定化与可运维性
 
+## Work items
+
+| Work item | 状态 | 目标 |
+|---|---|---|
+| [Artifact/store 生命周期基础探针](workitems/SPIKE-runtime-artifact-store-lifecycle-foundations.md) | APPROVED | 盘点双 store、引用图、中断遗留与安全 retention/diagnostics 边界；不修改生产实现 |
+
 ## 目标
 
 9.5.5 不继续扩张模型创作功能面，而是收口 9.5.3～9.5.4 已接受的 workspace、publish、release
@@ -20,7 +26,7 @@ package 和 production promotion：确认磁盘 artifact/store 生命周期、�
 ## 当前范围
 
 1. 只读盘点 workspace、published artifact、release package 的非持久化边界、promotion attempt 和
-   published artifact `.staging-*` 的 owner、引用关系、状态转换、保留条件与现有失败模式。
+   published root 临时文件的 owner、引用关系、状态转换、保留条件与现有失败模式。
 2. 定义 fail-closed cleanup/retention 策略，证明不会删除 live、rollback、recovery 或 foreign data
    仍需要的内容。
 3. 识别应暴露的容量、状态和人工处置诊断；不把日志或目录猜测当作稳定 API。
