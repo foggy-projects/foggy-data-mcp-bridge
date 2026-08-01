@@ -8,7 +8,8 @@
 ## 1. 文档归属
 
 - `docs/architecture/`：`main` 上当前有效的整体架构、模块边界、生命周期和 SPI。
-- `docs/{version}/`：某个迭代的需求、workitem、差异设计、迁移、验证和验收历史。
+- `docs/{major-minor}/{full-version}/`：活跃子迭代的需求、workitem、差异设计、迁移、验证和验收；
+  例如 `docs/9.5/9.5.5/`。既有 `docs/{full-version}/` 是兼容保留的历史布局，不作为新迭代模板。
 - `docs/design/`：不适合进入整体架构的专题设计。
 - `docs/dev-guide/`：开发与接口使用规则。
 - `docs-site/`：只保留迁移提示；用户文档源在独立 `foggy-data-mcp-docs` 仓库。
@@ -161,14 +162,41 @@ mvn -B -ntp -pl foggy-runtime-api,foggy-dataset-mcp -am test -DskipITs
 ## 8. 版本化交付
 
 - 新功能、BUG、优化或重构先明确目标版本。
-- 迭代 workitem 放在 `docs/{version}/workitems/`。
-- 版本 README 汇总该版本结果并链接 canonical 架构，不复制完整系统说明。
+- 版本目录采用“主版本索引 + 子迭代目录”：
+  - 主版本索引：`docs/{major-minor}/README.md`，例如 `docs/9.5/README.md`，维护该版本线下的
+    子迭代入口、状态和重点链接。
+  - 活跃、未签收或仍在补手工验收的子迭代：`docs/{major-minor}/{full-version}/`，例如
+    `docs/9.5/9.5.5/`。
+  - 已完成版本级签收且不再作为活跃执行入口的历史迭代：
+    `docs/archive/iterations/{full-version}/`；统一入口为 `docs/archive/iterations/README.md`。
+  - 暂缓、待定或尚未确认目标版本的事项：`docs/待定/`；确认版本后再迁入对应子迭代。
+- 默认只维持一个活跃子迭代。不得因单个 feature、BUG、阶段或验收批次自动创建新的版本目录；
+  版本切换必须由明确的迭代决策驱动。
+- 新建子迭代默认只创建必要结构：
+  - `README.md`：汇总该迭代状态、结果和 canonical 链接，不复制完整系统说明。
+  - `workitems/`：需求、实施计划、治理项、BUG、SPIKE 和 owning task。
+  - `progress/`：开发、联调和手工验证进展。
+  - `evidence/`：测试、日志、截图和脚本输出等证据。
+  - `quality/`、`coverage/`、`acceptance/`、`sql/`：仅在对应工作实际需要时创建。
+- 不默认创建 `basic/`、`pay/`、`tms/`、`web/` 等领域目录；仅当当前子迭代已经采用该结构，
+  或跨 owner 工作确实需要分层时创建。
+- workitem 延续 `FEATURE-*`、`BUG-*`、`SPIKE-*` 等 canonical ticket 命名；配套 progress、
+  evidence、quality、coverage 和 acceptance 文档应复用同一 ticket stem 并添加用途后缀。
 - 范围、兼容性、验证预算或风险变化时，先同步对应 workitem。
-- 正式签收写入 `docs/{version}/acceptance/`，只陈述实际证据，不因未运行的 authority 流程伪造
+- 正式签收写入当前子迭代的 `acceptance/`，只陈述实际证据，不因未运行的 authority 流程伪造
   `ACCEPTED`。
+- 既有 `docs/{full-version}/` 平铺目录本规则生效时不批量迁移，避免破坏历史链接；迁移必须作为
+  独立治理 workitem 分批执行并同步修复引用。
 
 ## 9. 文档写作
 
 - 面向开发者和 LLM，优先写结论、边界、流程和可执行规则。
 - 避免复制代码即可表达的细节、过长背景和跨目录重复说明。
 - 当前事实更新 `docs/architecture/`；历史原因、迁移和验收保留在版本目录。
+- 新文档应在 YAML frontmatter、`Document Purpose` 或等效的开头区域声明文档作用、
+  `doc_type`、`intended_for` 和一句话 `purpose`。若 delivery spec、signoff Skill 或既有模板已
+  定义格式，沿用该格式，不额外添加冲突的重复标题。
+- `doc_type` 使用与内容相符的稳定类型，例如 `requirement`、`implementation-plan`、
+  `code-inventory`、`execution-prompt`、`progress`、`workitem`、`bug`、`evidence`、`quality`、
+  `coverage` 或 `acceptance`。
+- 文档正文言简意赅，不为满足目录结构创建空文档，也不把同一事实复制到多个入口。
