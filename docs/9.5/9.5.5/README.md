@@ -16,7 +16,7 @@ recorded_at: 2026-08-01
 | Work item | 状态 | 目标 |
 |---|---|---|
 | [Artifact/store 生命周期基础探针](workitems/SPIKE-runtime-artifact-store-lifecycle-foundations.md) | ACCEPTED | 双 store inventory、跨 store/live 引用图、中断 characterization 与安全后续边界已正式验收；未修改生产实现 |
-| [Artifact lifecycle 只读 inventory](workitems/FEATURE-runtime-artifact-lifecycle-inventory.md) | APPROVED | 交付 management-auth、redacted、cross-store/live 的只读容量、引用分类与 blocked reason；无 cleanup mutation |
+| [Artifact lifecycle 只读 inventory](workitems/FEATURE-runtime-artifact-lifecycle-inventory.md) | ACCEPTED | management-auth、redacted、cross-store/live 的只读容量、引用分类与 blocked reason 已正式验收；无 cleanup mutation |
 
 ## 目标
 

@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: feature
 version: 9.5.5
 ticket: FEATURE-runtime-artifact-lifecycle-inventory
-status: APPROVED
+status: ACCEPTED
 canonical: true
 execution_mode: ultra
 assurance_level: elevated
@@ -77,25 +77,25 @@ open_questions: []
 
 ## Acceptance Criteria
 
-- [ ] AC-1: additive route/capability/DTO 使用 `RuntimeEnvelope`，authoring auth-code 在任何 auth scope 下强制；
+- [x] AC-1: additive route/capability/DTO 使用 `RuntimeEnvelope`，authoring auth-code 在任何 auth scope 下强制；
   unauthorized/unconfigured/authorized 行为与现有 authoring route 一致。
-- [ ] AC-2: response 稳定提供 `capturedAt`、overall health、两个 root health、总对象/字节/分类计数、对象 type/
+- [x] AC-2: response 稳定提供 `capturedAt`、overall health、两个 root health、总对象/字节/分类计数、对象 type/
   identity/status/bytes/referenceClass/references/blockedReason 和去重 blocked reason；对象与引用 deterministic 排序。
-- [ ] AC-3: workspace scan 覆盖 root owner/registry/marker/revision/logical base+candidate head/staging/tombstone/
+- [x] AC-3: workspace scan 覆盖 root owner/registry/marker/revision/logical base+candidate head/staging/tombstone/
   temporary；non-discarded base/candidate 与 lease-relevant current revision retain，obsolete complete revision 只作
   candidate，unsafe/unknown preserve。
-- [ ] AC-4: published scan 覆盖 root owner、final artifact/manifest/content hash、artifact staging、attempt/
+- [x] AC-4: published scan 覆盖 root owner、final artifact/manifest/content hash、artifact staging、attempt/
   rollback metadata 与 atomic temporary；partial/foreign/symlink/corrupt 不 follow、不删除且给出稳定 blocked reason。
-- [ ] AC-5: reference graph 合并全部 workspace state、publication/rollback attempt、previous artifact 与 live Bundle
+- [x] AC-5: reference graph 合并全部 workspace state、publication/rollback attempt、previous artifact 与 live Bundle
   registry path/revision；live/current、workspace base/candidate、recovery/rollback 两侧及所有未退休 evidence 均
   `MUST_RETAIN`，不得使用 age/status/filename shortcut。
-- [ ] AC-6: root missing、empty/unowned、valid healthy、单边 initialized 与 blocked 均有明确 health；扫描不隐式创建
+- [x] AC-6: root missing、empty/unowned、valid healthy、单边 initialized 与 blocked 均有明确 health；扫描不隐式创建
   owner/root/registry，不改变 mtime/content/layout，任何路径都无 repair/delete/quarantine。
-- [ ] AC-7: API/DTO/envelope/blocked reason 不含 root absolute path、storeId、模型内容、auth/Authorization/连接串或
+- [x] AC-7: API/DTO/envelope/blocked reason 不含 root absolute path、storeId、模型内容、auth/Authorization/连接串或
   raw exception；unexpected I/O 映射稳定 phase/code，`safeToAutoRepair=false`。
-- [ ] AC-8: 生产实现保持单向依赖和可维护性，无 schema migration、新依赖或 cleanup implementation；architecture/
+- [x] AC-8: 生产实现保持单向依赖和可维护性，无 schema migration、新依赖或 cleanup implementation；architecture/
   dev guide 明确 API 是 read-only diagnostics、candidate 不是删除授权及 single-process 边界。
-- [ ] AC-9: compile、focused service/controller/auth/capability/store tests、affected `Runtime*Test` lane、完整 tracked/
+- [x] AC-9: compile、focused service/controller/auth/capability/store tests、affected `Runtime*Test` lane、完整 tracked/
   untracked diff checks 通过；changed paths 无 Engine/Console/launcher/POM/database/真实 store 越界。
 
 ## Contract / Data / Security Constraints
@@ -174,17 +174,52 @@ open_questions: []
 
 ## Implementation Result
 
-> 由 Ultra 执行会话填写。
-
-- implementation_summary:
+- implementation_summary: 新增 management-auth 保护的 read-only lifecycle inventory route/DTO/service/capability；在
+  publication lock 与 workspace monitor 内扫描 workspace、published 与 live registry，验证 owner/schema/hash，
+  合并 base/candidate/lease/attempt/previous/rollback/live 引用，并对损坏或不完整引用图 fail closed 为
+  `UNKNOWN_PRESERVE`。未实现任何 cleanup、repair、quarantine、migration 或 persistence。
 - changed_paths:
+  - production: `RuntimeApiRoutes`、`RuntimeCapabilitiesController`、`RuntimeAuthoringWorkspaceStore`，以及新增
+    `RuntimeArtifactLifecycleController`、`ArtifactLifecycleInventory`、`RuntimeArtifactLifecycleInventoryService`。
+  - tests: 新增 inventory service/controller tests；扩展 auth-code gate 与 enabled capability tests。
+  - docs: 本 delivery spec/9.5.5 README、runtime lifecycle architecture、Bundle/Namespace dev guide。
 - tests_and_results:
-- manual_or_experience_evidence:
+  - compile：`mvn -B -ntp -pl foggy-runtime-api -am -DskipTests compile`；14-module reactor，`BUILD SUCCESS`，
+    25.690s。
+  - focused：`mvn -B -ntp -pl foggy-runtime-api -am -DskipITs
+    -Dtest=RuntimeArtifactLifecycleInventoryServiceTest,RuntimeArtifactLifecycleControllerTest,RuntimeAuthoringPublicationStoreTest,RuntimeAuthoringWorkspaceStoreTest,RuntimeApiAuthCodeGateTest,RuntimeCapabilitiesControllerEnabledTest
+    -Dsurefire.failIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test`；6 classes / 109 tests，0 failure/error/skip，
+    `BUILD SUCCESS`，1:00。
+  - affected：`mvn -B -ntp -pl foggy-runtime-api -am -DskipITs -Dtest=Runtime*Test
+    -Dsurefire.failIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test`；249 tests，0 failure/error/skip，
+    `BUILD SUCCESS`，1:04。
+  - hygiene：完整 tracked diff、全部 5 个 untracked 文件的 no-index whitespace check 与 `git diff --check`
+    均通过；14 个 changed paths 均位于批准范围。
+- manual_or_experience_evidence: 不适用；无 UI。12 个 inventory service `@TempDir` 测试使用 production stores，
+  覆盖 missing/partial/healthy/obsolete/lease/rollback/live fallback/interrupted/foreign/symlink/corrupt/incomplete graph，
+  并用 scan 前后 size/mtime/SHA-256/layout fingerprint 证明零 filesystem mutation；random-port HTTP 测试证明
+  unauthorized 401、authorized 200 与 redacted envelope。
 - deviations: none
-- residual_risks:
-- reused_evidence:
-- omitted_validation_and_reason:
-- readiness: READY_FOR_SIGNOFF | NEEDS_REPLAN | BLOCKED
+- residual_risks: 同步完整扫描未分页；publication/workspace lock 只覆盖当前 Runtime 单进程，外部 writer、
+  shared NFS 与多进程不在保证内；terminal attempt/tombstone evidence 继续保守 retain；candidate 不是删除授权。
+- reused_evidence: accepted 9.5.5 lifecycle SPIKE 的 4-class focused characterization，以及 9.5.3 workspace
+  ownership/publication/recovery/race 和 9.5.4 promotion/rollback 已接受证据；本次重新运行的 publication/workspace
+  store tests 确认其前提仍成立。
+- omitted_validation_and_reason: 未运行 Console/Playwright、完整无选择器 reactor、DB matrix、真实 deployment store、
+  multi-process/shared-NFS 或 authority/replay/rehearsal；均为明确 non-goal，focused+affected 已满足 elevated
+  assurance 的决策需要。
+- readiness: READY_FOR_SIGNOFF
+
+## Acceptance Status
+
+- acceptance_status: signed-off
+- acceptance_decision: accepted
+- signed_off_by: Codex independent reviewer
+- signed_off_at: 2026-08-01
+- acceptance_record:
+  `docs/9.5/9.5.5/acceptance/FEATURE-runtime-artifact-lifecycle-inventory-signoff.md`
+- blocking_items: none
+- follow_up_required: no
 
 ## References
 
