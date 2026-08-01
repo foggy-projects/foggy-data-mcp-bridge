@@ -2,7 +2,7 @@
 doc_role: version-readme
 version: 9.5.4
 theme: runtime-release-package-production-promotion
-status: ACTIVE
+status: COMPLETED
 recorded_at: 2026-08-01
 ---
 
