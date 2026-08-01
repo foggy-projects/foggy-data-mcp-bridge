@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  candidateExecutionFacts,
+  candidateQueryCsvFilename,
   isCurrentValidation,
   shortRevision,
   suggestedModelName,
@@ -72,5 +74,21 @@ describe('authoring workspace UI policy', () => {
     expect(suggestedModelName('query/OrderQuery.qm')).toBe('OrderQuery')
     expect(suggestedModelName('models/Order.tm')).toBe('')
     expect(shortRevision('sha256:1234567890abcdef')).toBe('1234567890…cdef')
+  })
+
+  it('renders only returned execution facts and creates a contextual CSV filename', () => {
+    expect(candidateExecutionFacts({ provider: 'JDBC', status: 'EXECUTED', durationMs: 9 })).toEqual({
+      provider: 'JDBC',
+      status: 'EXECUTED',
+      duration: '9 ms'
+    })
+    expect(candidateExecutionFacts({ provider: { inferred: true }, durationMs: '9' })).toEqual({
+      provider: '—',
+      status: '—',
+      duration: '—'
+    })
+    expect(candidateQueryCsvFilename('Order Query', 'ws/default:001')).toBe(
+      'candidate-Order-Query-ws-default-001.csv'
+    )
   })
 })

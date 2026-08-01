@@ -60,3 +60,33 @@ export function shortRevision(value?: string): string {
   const digest = value.startsWith('sha256:') ? value.slice(7) : value
   return digest.length > 14 ? `${digest.slice(0, 10)}…${digest.slice(-4)}` : digest
 }
+
+export interface CandidateExecutionFacts {
+  provider: string
+  status: string
+  duration: string
+}
+
+function executionValue(value: unknown): string {
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
+    ? String(value)
+    : '—'
+}
+
+export function candidateExecutionFacts(execution?: Record<string, unknown>): CandidateExecutionFacts {
+  const durationMs = execution?.durationMs
+  return {
+    provider: executionValue(execution?.provider),
+    status: executionValue(execution?.status),
+    duration: typeof durationMs === 'number' && Number.isFinite(durationMs) ? `${durationMs} ms` : '—'
+  }
+}
+
+function filenameSegment(value: string, fallback: string): string {
+  const normalized = value.trim().replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '')
+  return normalized || fallback
+}
+
+export function candidateQueryCsvFilename(model: string, workspaceId: string): string {
+  return `candidate-${filenameSegment(model, 'model')}-${filenameSegment(workspaceId, 'workspace')}.csv`
+}

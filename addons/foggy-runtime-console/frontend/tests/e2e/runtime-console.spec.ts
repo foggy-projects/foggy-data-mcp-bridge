@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises'
 import { expect, test, type Page, type Route } from '@playwright/test'
 
 interface MockState {
@@ -381,10 +382,12 @@ async function mockRuntime(page: Page): Promise<MockState> {
         catalogIdentity: { namespace: workspace.targetNamespace, generation: 'candidate-g1' },
         phase,
         response: {
-          items: phase === 'EXECUTE' ? [{ customer: 'Candidate Alice', amount: 188 }] : [],
+          items: phase === 'EXECUTE'
+            ? [{ customer: 'Candidate Alice', amount: 188, note: '=HYPERLINK("bad")' }]
+            : [],
           total: phase === 'EXECUTE' ? 1 : 0,
           hasNext: false,
-          execution: { provider: 'JDBC', durationMs: 9 },
+          execution: { provider: 'JDBC', status: 'EXECUTED', durationMs: 9 },
           warnings: []
         },
         diagnostics: []
@@ -1268,6 +1271,20 @@ test('authoring workspace preserves conflicted drafts and completes the isolated
   await page.getByRole('button', { name: 'Execute candidate' }).click()
   await expect(page.getByText('Candidate Alice', { exact: true })).toBeVisible()
   await expect(page.locator('.query-identity')).toContainText('candidate-g1')
+  const executionFacts = page.getByLabel('Candidate query 执行事实')
+  await expect(executionFacts).toContainText('JDBC')
+  await expect(executionFacts).toContainText('EXECUTED')
+  await expect(executionFacts).toContainText('9 ms')
+  const downloadPromise = page.waitForEvent('download')
+  await page.getByRole('button', { name: '导出 candidate CSV' }).click()
+  const download = await downloadPromise
+  expect(download.suggestedFilename()).toBe('candidate-OrderQuery-ws-default-001.csv')
+  const downloadedPath = await download.path()
+  expect(downloadedPath).not.toBeNull()
+  const csv = await readFile(downloadedPath!, 'utf8')
+  expect(csv).toContain('customer,amount,note')
+  expect(csv).toContain('Candidate Alice,188')
+  expect(csv).toContain(`"'=HYPERLINK(""bad"")"`)
   expect(state.requests.filter(item => /^query\//.test(item.path))).toHaveLength(liveQueriesBefore)
   const candidateRequest = state.requests.find(item => item.path.endsWith('/query/OrderQuery/execute'))
   expect(candidateRequest?.namespace).toBe('default')
