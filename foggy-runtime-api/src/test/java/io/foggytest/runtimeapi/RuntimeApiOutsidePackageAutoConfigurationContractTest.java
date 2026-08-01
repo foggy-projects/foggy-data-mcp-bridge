@@ -2,7 +2,14 @@ package io.foggytest.runtimeapi;
 
 import com.foggyframework.runtime.api.RuntimeApiAutoConfiguration;
 import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
+import com.foggyframework.runtime.api.controller.RuntimeArtifactLifecycleController;
+import com.foggyframework.runtime.api.controller.RuntimeAuthoringReleasesController;
 import com.foggyframework.runtime.api.controller.RuntimeCapabilitiesController;
+import com.foggyframework.runtime.api.service.RuntimeArtifactLifecycleInventoryService;
+import com.foggyframework.runtime.api.service.RuntimeAuthoringPublicationLock;
+import com.foggyframework.runtime.api.service.RuntimeAuthoringReleasePackageService;
+import com.foggyframework.runtime.api.service.RuntimeAuthoringWorkspacePublicationService;
+import com.foggyframework.runtime.api.service.RuntimePublishedBundleArtifactStore;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.context.annotation.Import;
@@ -30,7 +37,16 @@ class RuntimeApiOutsidePackageAutoConfigurationContractTest {
         Import importedTypes = RuntimeApiAutoConfiguration.class.getAnnotation(Import.class);
         assertThat(importedTypes).isNotNull();
         assertThat(List.of(importedTypes.value()))
-                .contains(FoggyRuntimeApiProperties.class, RuntimeCapabilitiesController.class);
+                .contains(
+                        FoggyRuntimeApiProperties.class,
+                        RuntimeCapabilitiesController.class,
+                        RuntimeAuthoringPublicationLock.class,
+                        RuntimePublishedBundleArtifactStore.class,
+                        RuntimeAuthoringWorkspacePublicationService.class,
+                        RuntimeAuthoringReleasePackageService.class,
+                        RuntimeArtifactLifecycleInventoryService.class,
+                        RuntimeAuthoringReleasesController.class,
+                        RuntimeArtifactLifecycleController.class);
 
         int registrations = 0;
         var resources = getClass().getClassLoader().getResources(IMPORTS_RESOURCE);

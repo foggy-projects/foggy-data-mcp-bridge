@@ -35,7 +35,12 @@ const routes: RouteRecordRaw[] = [
       { path: 'query', name: 'query', component: () => import('@/pages/QueryPage.vue') },
       { path: 'tables', name: 'tables', component: () => import('@/pages/TablesPage.vue') },
       { path: 'compose', name: 'compose', component: () => import('@/pages/ComposePage.vue') },
-      { path: 'fsscript', name: 'fsscript', component: () => import('@/pages/FsscriptPage.vue') }
+      { path: 'fsscript', name: 'fsscript', component: () => import('@/pages/FsscriptPage.vue') },
+      {
+        path: 'artifact-lifecycle',
+        name: 'artifact-lifecycle',
+        component: () => import('@/pages/ArtifactLifecyclePage.vue')
+      }
     ]
   },
   { path: '/:pathMatch(.*)*', redirect: '/overview' }

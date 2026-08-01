@@ -2,6 +2,8 @@ package com.foggyframework.runtime.api;
 
 import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
 import com.foggyframework.runtime.api.controller.RuntimeBundlesController;
+import com.foggyframework.runtime.api.controller.RuntimeArtifactLifecycleController;
+import com.foggyframework.runtime.api.controller.RuntimeAuthoringReleasesController;
 import com.foggyframework.runtime.api.controller.RuntimeAuthoringWorkspacesController;
 import com.foggyframework.runtime.api.controller.RuntimeAccessController;
 import com.foggyframework.runtime.api.controller.RuntimeCapabilitiesController;
@@ -17,7 +19,11 @@ import com.foggyframework.runtime.api.security.RuntimeApiSecurityConfiguration;
 import com.foggyframework.runtime.api.service.HikariManagedDataSourcePoolFactory;
 import com.foggyframework.runtime.api.service.ManagedDataSourcePoolManager;
 import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
+import com.foggyframework.runtime.api.service.RuntimeArtifactLifecycleInventoryService;
+import com.foggyframework.runtime.api.service.RuntimeAuthoringPublicationLock;
+import com.foggyframework.runtime.api.service.RuntimeAuthoringReleasePackageService;
 import com.foggyframework.runtime.api.service.RuntimeBundleModelConflictDetector;
+import com.foggyframework.runtime.api.service.RuntimeAuthoringWorkspacePublicationService;
 import com.foggyframework.runtime.api.service.RuntimeAuthoringWorkspaceService;
 import com.foggyframework.runtime.api.service.RuntimeAuthoringWorkspaceStore;
 import com.foggyframework.runtime.api.service.RuntimeAuthoringStorePathPolicy;
@@ -31,6 +37,7 @@ import com.foggyframework.runtime.api.service.RuntimeDatasourceRegistryService;
 import com.foggyframework.runtime.api.service.RuntimeFsscriptCteBridge;
 import com.foggyframework.runtime.api.service.RuntimeModelOperations;
 import com.foggyframework.runtime.api.service.RuntimeNamedDataSourceResolver;
+import com.foggyframework.runtime.api.service.RuntimePublishedBundleArtifactStore;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
@@ -46,10 +53,15 @@ import org.springframework.context.annotation.Import;
         HikariManagedDataSourcePoolFactory.class,
         ManagedDataSourcePoolManager.class,
         RuntimeApiResponseFactory.class,
+        RuntimeAuthoringPublicationLock.class,
         RuntimeAuthoringStorePathPolicy.class,
         RuntimeAuthoringWorkspaceStore.class,
+        RuntimePublishedBundleArtifactStore.class,
         RuntimeBundleInventoryService.class,
         RuntimeAuthoringWorkspaceService.class,
+        RuntimeAuthoringWorkspacePublicationService.class,
+        RuntimeAuthoringReleasePackageService.class,
+        RuntimeArtifactLifecycleInventoryService.class,
         RuntimeBundleModelConflictDetector.class,
         RuntimeBundleRegistryService.class,
         RuntimeCandidateQueryService.class,
@@ -61,6 +73,8 @@ import org.springframework.context.annotation.Import;
         RuntimeModelOperations.class,
         RuntimeNamedDataSourceResolver.class,
         RuntimeBundlesController.class,
+        RuntimeArtifactLifecycleController.class,
+        RuntimeAuthoringReleasesController.class,
         RuntimeAuthoringWorkspacesController.class,
         RuntimeAccessController.class,
         RuntimeCapabilitiesController.class,

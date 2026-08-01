@@ -13,6 +13,7 @@ interface MockState {
     namespace: string
     body: Record<string, unknown>
   }>
+  lifecycleMethods: string[]
   delayNextDefaultModels: boolean
   authoringWorkspaces: Array<Record<string, any>>
   authoringResources: Record<string, Array<Record<string, any>>>
@@ -22,6 +23,8 @@ interface MockState {
   failNextWorkspacePublish: boolean
   returnPublishingNextWorkspacePublish: boolean
   completePublishingOnNextGet: boolean
+  lifecycleBlocked: boolean
+  failNextLifecycle: boolean
 }
 
 const acceptedToken = 'e2e-runtime-token'
@@ -73,6 +76,83 @@ function releasePackageFixture() {
   }
 }
 
+function lifecycleFixture(blocked: boolean) {
+  const baseObjects = [
+    {
+      store: 'WORKSPACE',
+      type: 'WORKSPACE_REVISION',
+      identity: 'workspace:ws-alpha:revision:sha256:alpha',
+      status: 'OBSOLETE',
+      bytes: 1024,
+      referenceClass: 'PROVABLY_UNREACHABLE_CANDIDATE',
+      references: [],
+      blockedReason: null
+    },
+    {
+      store: 'PUBLISHED',
+      type: 'PUBLISHED_ARTIFACT',
+      identity: 'artifact:attempt-alpha',
+      status: 'VERIFIED',
+      bytes: 4096,
+      referenceClass: 'MUST_RETAIN',
+      references: ['bundle:sales:managed-sales:current'],
+      blockedReason: null
+    },
+    {
+      store: 'LIVE_REGISTRY',
+      type: 'BUNDLE_RECORD',
+      identity: 'bundle:sales:managed-sales',
+      status: 'ENABLED',
+      bytes: 0,
+      referenceClass: 'MUST_RETAIN',
+      references: ['artifact:attempt-alpha'],
+      blockedReason: null
+    }
+  ]
+  const objects = blocked
+    ? [...baseObjects, {
+        store: 'PUBLISHED',
+        type: 'PUBLICATION_METADATA_RECOVERY_PENDING',
+        identity: 'attempt:attempt-beta:temporary',
+        status: 'INTERRUPTED',
+        bytes: 128,
+        referenceClass: 'UNKNOWN_PRESERVE',
+        references: [],
+        blockedReason: 'PUBLICATION_METADATA_RECOVERY_PENDING'
+      }]
+    : baseObjects
+  return {
+    capturedAt: blocked ? '2026-08-01T08:05:00Z' : '2026-08-01T08:00:00Z',
+    health: blocked ? 'BLOCKED' : 'HEALTHY',
+    roots: [
+      {
+        store: 'WORKSPACE',
+        health: 'HEALTHY',
+        objectCount: 1,
+        bytes: 1024,
+        blockedReasons: []
+      },
+      {
+        store: 'PUBLISHED',
+        health: blocked ? 'BLOCKED' : 'HEALTHY',
+        objectCount: blocked ? 3 : 2,
+        bytes: blocked ? 4224 : 4096,
+        blockedReasons: blocked ? ['PUBLICATION_METADATA_RECOVERY_PENDING'] : []
+      }
+    ],
+    summary: {
+      totalObjects: objects.length,
+      totalBytes: blocked ? 5248 : 5120,
+      mustRetain: 2,
+      provablyUnreachableCandidates: 1,
+      unknownPreserve: blocked ? 1 : 0,
+      blockedObjects: blocked ? 1 : 0
+    },
+    objects,
+    blockedReasons: blocked ? ['PUBLICATION_METADATA_RECOVERY_PENDING'] : []
+  }
+}
+
 async function jsonBody(route: Route): Promise<Record<string, unknown>> {
   try {
     return route.request().postDataJSON() as Record<string, unknown>
@@ -90,7 +170,8 @@ async function mockRuntime(page: Page): Promise<MockState> {
       'authoring.releasePackage.export': 'supported',
       'authoring.releasePackage.import': 'disabled',
       'authoring.production.apply': 'disabled',
-      'authoring.production.rollback': 'disabled'
+      'authoring.production.rollback': 'disabled',
+      'authoring.artifacts.lifecycleInventory': 'supported'
     },
     datasources: [{
       name: 'analytics',
@@ -141,6 +222,7 @@ async function mockRuntime(page: Page): Promise<MockState> {
     namespaceHeaders: [],
     refreshScopes: [],
     requests: [],
+    lifecycleMethods: [],
     delayNextDefaultModels: false,
     authoringWorkspaces: [{
       workspaceId: 'ws-default-001',
@@ -186,7 +268,9 @@ async function mockRuntime(page: Page): Promise<MockState> {
     authoringRevisionSequence: 1,
     failNextWorkspacePublish: false,
     returnPublishingNextWorkspacePublish: false,
-    completePublishingOnNextGet: false
+    completePublishingOnNextGet: false,
+    lifecycleBlocked: false,
+    failNextLifecycle: false
   }
 
   await page.route('**/api/v1/**', async route => {
@@ -251,6 +335,26 @@ async function mockRuntime(page: Page): Promise<MockState> {
         },
         warnings: []
       }
+    } else if (path === 'authoring/artifacts/lifecycle') {
+      state.lifecycleMethods.push(request.method())
+      if (state.failNextLifecycle) {
+        state.failNextLifecycle = false
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: false,
+            error: {
+              code: 'RUNTIME_ARTIFACT_LIFECYCLE_UNAVAILABLE',
+              phase: 'runtime.artifacts.lifecycle.inventory',
+              message: 'Lifecycle inventory is temporarily unavailable.',
+              safeToAutoRepair: false
+            }
+          })
+        })
+        return
+      }
+      data = lifecycleFixture(state.lifecycleBlocked)
     } else if (/^authoring\/workspaces\/[^/]+\/release-package$/.test(path)) {
       data = releasePackageFixture()
     } else if (path === 'authoring/releases/import' && request.method() === 'POST') {
@@ -956,7 +1060,7 @@ test('navigation, datasource creation and query result rendering', async ({ page
       .click()
   } else {
     const topNavigation = page.getByRole('navigation', { name: 'Runtime Console 主导航' })
-    await expect(topNavigation.getByRole('button')).toHaveCount(6)
+    await expect(topNavigation.getByRole('button')).toHaveCount(7)
     await topNavigation.getByRole('button', { name: /数据与模型空间/ }).click()
   }
   await expect(page.getByRole('heading', { name: '数据与模型空间 · default' })).toBeVisible()
@@ -991,6 +1095,86 @@ test('navigation, datasource creation and query result rendering', async ({ page
     .getByRole('button', { name: /FSScript/ })
     .click()
   await expect(page.getByRole('heading', { name: 'Fsscript', exact: true })).toBeVisible()
+})
+
+test('artifact lifecycle ledger stays global, read-only and operable across health states', async ({ page }, testInfo) => {
+  const state = mockStates.get(page)!
+  const browserErrors: string[] = []
+  page.on('console', message => {
+    if (message.type() === 'error') browserErrors.push(message.text())
+  })
+  page.on('pageerror', error => browserErrors.push(error.message))
+  await login(page)
+
+  if (testInfo.project.name.includes('mobile')) {
+    await page.getByRole('button', { name: '打开主导航' }).click()
+    await page.getByRole('navigation', { name: '移动端 Runtime Console 主导航' })
+      .getByRole('button', { name: /制品生命周期/ })
+      .click()
+  } else {
+    await page.getByRole('navigation', { name: 'Runtime Console 主导航' })
+      .getByRole('button', { name: /制品生命周期/ })
+      .click()
+  }
+
+  await expect(page).toHaveURL(/#\/artifact-lifecycle$/)
+  await expect(page.getByRole('heading', { name: '制品生命周期' })).toBeVisible()
+  await expect(page.getByText('GLOBAL / READ ONLY')).toBeVisible()
+  await expect(page.getByText('候选不是删除授权', { exact: true })).toBeVisible()
+  await expect(page.getByText('健康', { exact: true }).first()).toBeVisible()
+  await expect(page.getByText('5.00 KiB total')).toHaveAttribute('title', '5,120 bytes')
+  await expect(page.getByRole('heading', { name: 'WORKSPACE' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'PUBLISHED' })).toBeVisible()
+
+  await page.getByLabel('按引用分类筛选').selectOption('PROVABLY_UNREACHABLE_CANDIDATE')
+  await expect(page.getByText('workspace:ws-alpha:revision:sha256:alpha')).toBeVisible()
+  await expect(page.getByText('artifact:attempt-alpha', { exact: true })).toBeHidden()
+  await page.getByLabel('搜索生命周期对象').fill('ws-alpha')
+  await expect(page.getByText('workspace:ws-alpha:revision:sha256:alpha')).toBeVisible()
+  await page.getByRole('button', { name: '清除筛选' }).click()
+  const retainedArtifactRow = page.getByTitle('artifact:attempt-alpha').locator('..').locator('..')
+  await expect(retainedArtifactRow).toBeVisible()
+  await retainedArtifactRow.getByText('查看证据').click()
+  await expect(page.getByText('bundle:sales:managed-sales:current')).toBeVisible()
+
+  state.lifecycleBlocked = true
+  await page.getByRole('button', { name: '刷新证据' }).click()
+  await expect(page.getByText('已阻断', { exact: true }).first()).toBeVisible()
+  await page.locator('.blocked-register summary').click()
+  await expect(page.locator('.blocked-register li'))
+    .toHaveText('PUBLICATION_METADATA_RECOVERY_PENDING')
+  await page.getByLabel('按阻断状态筛选').selectOption('BLOCKED')
+  await expect(page.getByText('attempt:attempt-beta:temporary')).toBeVisible()
+  await expect(page.getByText('artifact:attempt-alpha', { exact: true })).toBeHidden()
+
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await page.screenshot({
+    path: testInfo.outputPath(testInfo.project.name.includes('mobile')
+      ? 'artifact-lifecycle-mobile.png'
+      : 'artifact-lifecycle-desktop.png'),
+    fullPage: true
+  })
+
+  state.failNextLifecycle = true
+  await page.getByRole('button', { name: '刷新证据' }).click()
+  await expect(page.getByRole('alert')).toContainText('刷新失败，保留上一次快照')
+  await expect(page.getByText('attempt:attempt-beta:temporary')).toBeVisible()
+
+  const lifecycleRequests = state.requests.filter(item =>
+    item.path === 'authoring/artifacts/lifecycle')
+  expect(lifecycleRequests.length).toBeGreaterThanOrEqual(3)
+  expect(state.lifecycleMethods.every(method => method === 'GET')).toBe(true)
+  await expect(page.getByRole('button', { name: /cleanup|repair|delete|清理|修复|删除/i }))
+    .toHaveCount(0)
+
+  const inventoryRequestCount = lifecycleRequests.length
+  state.capabilities['authoring.artifacts.lifecycleInventory'] = 'disabled'
+  await page.getByRole('button', { name: '刷新证据' }).click()
+  await expect(page.getByRole('heading', { name: '当前 Runtime 不支持生命周期清单' }))
+    .toBeVisible()
+  expect(state.requests.filter(item => item.path === 'authoring/artifacts/lifecycle'))
+    .toHaveLength(inventoryRequestCount)
+  expect(browserErrors).toEqual([])
 })
 
 test('namespace workspace keeps route, request scope, cards, drawers and keyboard focus aligned', async ({ page }, testInfo) => {

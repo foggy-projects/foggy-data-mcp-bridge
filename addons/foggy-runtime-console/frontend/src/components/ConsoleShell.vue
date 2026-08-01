@@ -21,7 +21,8 @@ const navigation = [
   { route: 'namespaces', matches: ['namespaces'], label: '数据与模型空间', short: '空间', code: '03' },
   { route: 'query', matches: ['query'], label: '查询工作台', short: '查询', code: '04' },
   { route: 'tables', matches: ['tables'], label: 'Tables / SQL', short: 'SQL', code: '05' },
-  { route: 'compose', matches: ['compose', 'fsscript'], label: '执行工具', short: '执行工具', code: '06' }
+  { route: 'compose', matches: ['compose', 'fsscript'], label: '执行工具', short: '执行工具', code: '06' },
+  { route: 'artifact-lifecycle', matches: ['artifact-lifecycle'], label: '制品生命周期', short: '生命周期', code: '07' }
 ] as const
 
 const namespaceOptions = computed(() => {
@@ -53,6 +54,11 @@ const fallbackContexts: Record<string, {
     eyebrow: 'Advanced runner',
     title: 'FSScript Workspace',
     description: '运行独立 FSScript，并检查结构化输出与诊断。'
+  },
+  'artifact-lifecycle': {
+    eyebrow: 'Runtime-global',
+    title: 'Artifact Evidence',
+    description: '跨 workspace、published store 与 live registry 的只读证据；不属于当前 Namespace。'
   }
 }
 
@@ -71,7 +77,9 @@ const currentContext = computed(() => {
     emptyText: '此工作台没有固定资源列表。',
     sections: [],
     ...context,
-    description: `${context.description} 当前空间：${namespaceLabel.value}。`,
+    description: route.name === 'artifact-lifecycle'
+      ? context.description
+      : `${context.description} 当前空间：${namespaceLabel.value}。`,
   }
 })
 
