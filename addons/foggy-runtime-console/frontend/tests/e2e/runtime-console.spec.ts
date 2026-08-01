@@ -18,6 +18,9 @@ interface MockState {
   conflictNextWorkspaceSave: boolean
   invalidNextWorkspaceValidation: boolean
   authoringRevisionSequence: number
+  failNextWorkspacePublish: boolean
+  returnPublishingNextWorkspacePublish: boolean
+  completePublishingOnNextGet: boolean
 }
 
 const acceptedToken = 'e2e-runtime-token'
@@ -133,7 +136,10 @@ async function mockRuntime(page: Page): Promise<MockState> {
     },
     conflictNextWorkspaceSave: false,
     invalidNextWorkspaceValidation: false,
-    authoringRevisionSequence: 1
+    authoringRevisionSequence: 1,
+    failNextWorkspacePublish: false,
+    returnPublishingNextWorkspacePublish: false,
+    completePublishingOnNextGet: false
   }
 
   await page.route('**/api/v1/**', async route => {
@@ -227,7 +233,21 @@ async function mockRuntime(page: Page): Promise<MockState> {
       data = created
     } else if (/^authoring\/workspaces\/[^/]+$/.test(path) && request.method() === 'GET') {
       const workspaceId = decodeURIComponent(path.split('/')[2] || '')
-      data = state.authoringWorkspaces.find(item => item.workspaceId === workspaceId)
+      const workspace = state.authoringWorkspaces.find(item => item.workspaceId === workspaceId)
+      if (workspace?.state === 'PUBLISHING' && state.completePublishingOnNextGet) {
+        state.completePublishingOnNextGet = false
+        workspace.state = 'PUBLISHED'
+        workspace.updatedAt = '2026-08-01T06:02:00Z'
+        Object.assign(workspace.lastPublication, {
+          status: 'PUBLISHED',
+          appliedBundleRevision: workspace.candidateRevision,
+          publishedNamespaceSourceRevision: 'source:default:g2',
+          afterCatalogGeneration: 'catalog:g2',
+          completedAt: '2026-08-01T06:02:00Z',
+          diagnostics: ['Immutable candidate artifact is live.']
+        })
+      }
+      data = workspace
     } else if (/^authoring\/workspaces\/[^/]+$/.test(path) && request.method() === 'DELETE') {
       const workspaceId = decodeURIComponent(path.split('/')[2] || '')
       const workspace = state.authoringWorkspaces.find(item => item.workspaceId === workspaceId)!
@@ -366,6 +386,80 @@ async function mockRuntime(page: Page): Promise<MockState> {
         invalidFiles: 0,
         cascadingErrors: 0,
         issues: []
+      }
+      data = workspace
+    } else if (/^authoring\/workspaces\/[^/]+\/publish$/.test(path)) {
+      const workspaceId = decodeURIComponent(path.split('/')[2] || '')
+      const workspace = state.authoringWorkspaces.find(item => item.workspaceId === workspaceId)!
+      const evidence = {
+        attemptId: 'publication-attempt-001',
+        status: 'PUBLISHING',
+        candidateRevision: workspace.candidateRevision,
+        baseBundleRevision: workspace.baseBundleRevision,
+        appliedBundleRevision: null,
+        baseNamespaceSourceRevision: workspace.baseNamespaceSourceRevision,
+        publishedNamespaceSourceRevision: null,
+        beforeCatalogGeneration: 'catalog:g1',
+        afterCatalogGeneration: null,
+        recoveredCatalogGeneration: null,
+        startedAt: '2026-08-01T06:00:00Z',
+        completedAt: null,
+        diagnostics: []
+      }
+      workspace.lastPublication = evidence
+      workspace.updatedAt = '2026-08-01T06:00:00Z'
+      if (state.failNextWorkspacePublish) {
+        state.failNextWorkspacePublish = false
+        workspace.state = 'RECOVERY_REQUIRED'
+        workspace.lastPublication = {
+          ...evidence,
+          status: 'RECOVERY_REQUIRED',
+          diagnostics: ['Catalog refresh did not converge; exact recovery is required.']
+        }
+        await route.fulfill({
+          status: 500,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: false,
+            error: {
+              code: 'WORKSPACE_RECOVERY_REQUIRED',
+              phase: 'workspaces.publish.recovery',
+              message: 'Publication requires explicit recovery.',
+              suggestedNextAction: 'Refresh workspace metadata and recover the exact publication attempt.',
+              safeToAutoRepair: false
+            }
+          })
+        })
+        return
+      }
+      if (state.returnPublishingNextWorkspacePublish) {
+        state.returnPublishingNextWorkspacePublish = false
+        state.completePublishingOnNextGet = true
+        workspace.state = 'PUBLISHING'
+      } else {
+        workspace.state = 'PUBLISHED'
+        workspace.lastPublication = {
+          ...evidence,
+          status: 'PUBLISHED',
+          appliedBundleRevision: workspace.candidateRevision,
+          publishedNamespaceSourceRevision: 'source:default:g2',
+          afterCatalogGeneration: 'catalog:g2',
+          completedAt: '2026-08-01T06:02:00Z',
+          diagnostics: ['Immutable candidate artifact is live.']
+        }
+      }
+      data = workspace
+    } else if (/^authoring\/workspaces\/[^/]+\/publish\/recover$/.test(path)) {
+      const workspaceId = decodeURIComponent(path.split('/')[2] || '')
+      const workspace = state.authoringWorkspaces.find(item => item.workspaceId === workspaceId)!
+      workspace.state = 'STALE'
+      workspace.updatedAt = '2026-08-01T06:05:00Z'
+      workspace.lastPublication = {
+        ...workspace.lastPublication,
+        status: 'RECOVERED',
+        recoveredCatalogGeneration: 'catalog:g1-recovered',
+        completedAt: '2026-08-01T06:05:00Z',
+        diagnostics: ['Prior live source and catalog were restored.']
       }
       data = workspace
     } else if (/^authoring\/workspaces\/[^/]+\/query\/[^/]+\/(validate|execute)$/.test(path)) {
@@ -1174,7 +1268,7 @@ test('authoring workspace preserves conflicted drafts and completes the isolated
   await login(page)
   await page.goto('/console/#/namespaces/authoring?ns=default')
   await expect(page.getByRole('heading', { name: '模型创作工作区' })).toBeVisible()
-  await expect(page.getByText('NO', { exact: true })).toHaveCount(2)
+  await expect(page.getByText('NO', { exact: true })).toHaveCount(1)
 
   const readOnlySource = page.locator('.source-ticket').filter({ hasText: 'shared-readonly-models' })
   await expect(readOnlySource).toContainText('READ ONLY')
@@ -1237,7 +1331,7 @@ test('authoring workspace preserves conflicted drafts and completes the isolated
   await expect(editor).toHaveValue(/LocalDraftOrder/)
 
   await page.getByRole('button', { name: '保存为新 revision' }).click()
-  await expect(page.locator('.el-message').filter({ hasText: '草稿已保存' })).toBeVisible()
+  await expect(page.locator('.el-message').filter({ hasText: '草稿已保存' }).last()).toBeVisible()
   const workspaceSaves = state.requests.filter(item => item.path.endsWith('/resources/save'))
   expect(workspaceSaves).toHaveLength(savesBeforeConflict + 2)
   expect(workspaceSaves.at(-1)?.body.expectedCandidateRevision).toBe('sha256:candidate-server-conflict')
@@ -1312,8 +1406,147 @@ test('authoring workspace preserves conflicted drafts and completes the isolated
   await expect(discardDialog).toContainText('candidate-004')
   await discardDialog.getByRole('button', { name: '终结隔离草稿' }).click()
   await expect(page.getByText('TERMINAL STATE', { exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Discard workspace' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Discard workspace' })).toHaveCount(0)
   expect(state.requests.some(item => item.path === 'resources/save')).toBe(false)
   expect(state.requests.some(item => item.path === 'models/refresh')).toBe(false)
   expect(browserErrors).toEqual([])
+})
+
+test('authoring workspace publishes an exact revision, refreshes PUBLISHING, and starts the next workspace', async ({ page }, testInfo) => {
+  const state = mockStates.get(page)!
+  const workspace = state.authoringWorkspaces[0]
+  workspace.state = 'VALIDATED'
+  workspace.lastValidation = {
+    valid: true,
+    candidateRevision: workspace.candidateRevision,
+    baseBundleRevision: workspace.baseBundleRevision,
+    baseNamespaceSourceRevision: workspace.baseNamespaceSourceRevision,
+    validatedAt: '2026-08-01T05:00:00Z',
+    totalFiles: 3,
+    validFiles: 3,
+    invalidFiles: 0,
+    cascadingErrors: 0,
+    issues: []
+  }
+  state.returnPublishingNextWorkspacePublish = true
+
+  await login(page)
+  await page.goto('/console/#/namespaces/authoring?ns=default&workspaceId=ws-default-001')
+  await expect(page.getByRole('heading', { name: '开发 Runtime 发布与失败恢复' })).toBeVisible()
+  const publishButton = page.getByRole('button', { name: '确认并发布 exact revision' })
+  await expect(publishButton).toBeEnabled()
+  await publishButton.click()
+
+  const publishDialog = page.getByRole('dialog', { name: '确认发布 exact candidate revision' })
+  await expect(publishDialog).toContainText('default / runtime-console-demo')
+  await expect(publishDialog).toContainText('sha256:candidate-001')
+  await expect(publishDialog).toContainText('sha256:base-bundle-001')
+  await expect(publishDialog).toContainText('source:default:g1')
+  await expect(publishDialog).toContainText('不代表生产 promotion')
+  await publishDialog.getByRole('button', { name: '发布 exact revision' }).click()
+
+  await expect(page.locator('.workspace-revision-bar')).toContainText('PUBLISHING')
+  await expect(page.getByRole('button', { name: '新建' })).toBeDisabled()
+  await page.getByRole('navigation', { name: 'Candidate 检查工具' })
+    .getByRole('button', { name: 'VALIDATE' })
+    .click()
+  await expect(page.getByRole('button', { name: '校验当前 revision' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Discard workspace' })).toHaveCount(0)
+  const publishRequests = state.requests.filter(item => item.path.endsWith('/publish'))
+  expect(publishRequests).toHaveLength(1)
+  expect(publishRequests[0]).toEqual({
+    path: 'authoring/workspaces/ws-default-001/publish',
+    namespace: 'default',
+    body: {
+      expectedCandidateRevision: 'sha256:candidate-001',
+      expectedBaseBundleRevision: 'sha256:base-bundle-001',
+      expectedBaseNamespaceSourceRevision: 'source:default:g1'
+    }
+  })
+
+  await page.getByRole('button', { name: '刷新 publication 状态' }).click()
+  await expect(page.locator('.workspace-revision-bar')).toContainText('PUBLISHED')
+  await expect(page.getByText('publication-attempt-001', { exact: true })).toBeVisible()
+  await expect(page.getByText('Immutable candidate artifact is live.', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '创建下一 workspace' })).toBeEnabled()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(page.locator('.el-message')).toHaveCount(0, { timeout: 6_000 })
+  await page.screenshot({
+    path: testInfo.outputPath(testInfo.project.name.includes('mobile')
+      ? 'authoring-published-mobile.png'
+      : 'authoring-published-desktop.png'),
+    fullPage: true
+  })
+  await page.getByRole('button', { name: '创建下一 workspace' }).click()
+  await expect(page.getByText('ws-created-2', { exact: true }).first()).toBeVisible()
+  await expect(page.locator('.workspace-revision-bar')).toContainText('DRAFT')
+
+  expect(state.requests.some(item => item.path === 'resources/save')).toBe(false)
+  expect(state.requests.some(item => item.path === 'models/refresh')).toBe(false)
+  expect(state.requests.filter(item => /^query\//.test(item.path))).toHaveLength(0)
+})
+
+test('authoring workspace fails closed and recovers only the pinned publication attempt', async ({ page }, testInfo) => {
+  const state = mockStates.get(page)!
+  const workspace = state.authoringWorkspaces[0]
+  workspace.state = 'VALIDATED'
+  workspace.lastValidation = {
+    valid: true,
+    candidateRevision: workspace.candidateRevision,
+    baseBundleRevision: workspace.baseBundleRevision,
+    baseNamespaceSourceRevision: workspace.baseNamespaceSourceRevision,
+    validatedAt: '2026-08-01T05:00:00Z',
+    totalFiles: 3,
+    validFiles: 3,
+    invalidFiles: 0,
+    cascadingErrors: 0,
+    issues: []
+  }
+  state.failNextWorkspacePublish = true
+
+  await login(page)
+  await page.goto('/console/#/namespaces/authoring?ns=default&workspaceId=ws-default-001')
+  await page.getByRole('button', { name: '确认并发布 exact revision' }).click()
+  await page.getByRole('dialog', { name: '确认发布 exact candidate revision' })
+    .getByRole('button', { name: '发布 exact revision' })
+    .click()
+
+  await expect(page.locator('.authoring-error')).toContainText('WORKSPACE_RECOVERY_REQUIRED')
+  await expect(page.locator('.workspace-revision-bar')).toContainText('RECOVERY_REQUIRED')
+  await expect(page.getByText('Catalog refresh did not converge; exact recovery is required.', { exact: true })).toBeVisible()
+  const recoverButton = page.getByRole('button', { name: '恢复失败发布' })
+  await expect(recoverButton).toBeEnabled()
+  const publishesBeforeRecovery = state.requests.filter(item => item.path.endsWith('/publish')).length
+  await recoverButton.click()
+
+  const recoveryDialog = page.getByRole('dialog', { name: '确认恢复失败发布' })
+  await expect(recoveryDialog).toContainText('publication-attempt-001')
+  await expect(recoveryDialog).toContainText('sha256:candidate-001')
+  await expect(recoveryDialog).toContainText('不是成功发布后的历史 rollback')
+  await recoveryDialog.getByRole('button', { name: '恢复 exact attempt' }).click()
+
+  await expect(page.locator('.workspace-revision-bar')).toContainText('STALE')
+  await expect(page.getByText('RECOVERED', { exact: true })).toBeVisible()
+  await expect(page.getByText('Prior live source and catalog were restored.', { exact: true })).toBeVisible()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(page.locator('.el-message')).toHaveCount(0, { timeout: 6_000 })
+  await page.screenshot({
+    path: testInfo.outputPath(testInfo.project.name.includes('mobile')
+      ? 'authoring-recovered-mobile.png'
+      : 'authoring-recovered-desktop.png'),
+    fullPage: true
+  })
+  const recoveryRequests = state.requests.filter(item => item.path.endsWith('/publish/recover'))
+  expect(recoveryRequests).toHaveLength(1)
+  expect(recoveryRequests[0]).toEqual({
+    path: 'authoring/workspaces/ws-default-001/publish/recover',
+    namespace: 'default',
+    body: {
+      expectedCandidateRevision: 'sha256:candidate-001',
+      publicationAttemptId: 'publication-attempt-001'
+    }
+  })
+  expect(state.requests.filter(item => item.path.endsWith('/publish'))).toHaveLength(publishesBeforeRecovery)
+  expect(state.requests.some(item => item.path === 'resources/save')).toBe(false)
+  expect(state.requests.some(item => item.path === 'models/refresh')).toBe(false)
 })

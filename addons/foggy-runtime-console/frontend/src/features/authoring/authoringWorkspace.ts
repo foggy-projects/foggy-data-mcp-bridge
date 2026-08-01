@@ -7,23 +7,54 @@ export interface WorkspaceActions {
   validate: boolean
   query: boolean
   discard: boolean
+  publish: boolean
+  recover: boolean
+  refreshPublication: boolean
+  createNext: boolean
+}
+
+const NO_ACTIONS: WorkspaceActions = {
+  read: false,
+  mutate: false,
+  diff: false,
+  validate: false,
+  query: false,
+  discard: false,
+  publish: false,
+  recover: false,
+  refreshPublication: false,
+  createNext: false
 }
 
 export function workspaceActions(state: AuthoringWorkspaceState): WorkspaceActions {
   if (state === 'DISCARDED') {
-    return { read: false, mutate: false, diff: false, validate: false, query: false, discard: false }
+    return { ...NO_ACTIONS }
   }
   if (state === 'STALE') {
-    return { read: true, mutate: true, diff: true, validate: false, query: false, discard: true }
+    return { ...NO_ACTIONS, read: true, mutate: true, diff: true, discard: true }
   }
-  return {
-    read: true,
-    mutate: true,
-    diff: true,
-    validate: true,
-    query: state === 'VALIDATED',
-    discard: true
+  if (state === 'PUBLISHING') {
+    return { ...NO_ACTIONS, read: true, diff: true, refreshPublication: true }
   }
+  if (state === 'RECOVERY_REQUIRED') {
+    return { ...NO_ACTIONS, read: true, diff: true, recover: true, refreshPublication: true }
+  }
+  if (state === 'PUBLISHED') {
+    return { ...NO_ACTIONS, read: true, diff: true, createNext: true }
+  }
+  if (state === 'DRAFT' || state === 'VALIDATED') {
+    return {
+      ...NO_ACTIONS,
+      read: true,
+      mutate: true,
+      diff: true,
+      validate: true,
+      query: state === 'VALIDATED',
+      discard: true,
+      publish: state === 'VALIDATED'
+    }
+  }
+  return { ...NO_ACTIONS }
 }
 
 export function workspaceResourcePathError(value: string): string {
@@ -48,6 +79,13 @@ export function isCurrentValidation(workspace: AuthoringWorkspaceInfo): boolean 
     && evidence.candidateRevision === workspace.candidateRevision
     && evidence.baseBundleRevision === workspace.baseBundleRevision
     && evidence.baseNamespaceSourceRevision === workspace.baseNamespaceSourceRevision)
+}
+
+export function canPublishWorkspace(workspace: AuthoringWorkspaceInfo): boolean {
+  return workspace.state === 'VALIDATED'
+    && workspaceActions(workspace.state).publish
+    && isCurrentValidation(workspace)
+    && workspace.lastValidation?.valid === true
 }
 
 export function suggestedModelName(path: string): string {

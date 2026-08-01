@@ -1,4 +1,11 @@
-export type AuthoringWorkspaceState = 'DRAFT' | 'VALIDATED' | 'STALE' | 'DISCARDED'
+export type AuthoringWorkspaceState =
+  | 'DRAFT'
+  | 'VALIDATED'
+  | 'STALE'
+  | 'PUBLISHING'
+  | 'RECOVERY_REQUIRED'
+  | 'PUBLISHED'
+  | 'DISCARDED'
 
 export interface ValidationIssue {
   path?: string
@@ -21,6 +28,22 @@ export interface ValidationEvidence {
   issues: ValidationIssue[]
 }
 
+export interface PublicationEvidence {
+  attemptId: string
+  status: string
+  candidateRevision: string
+  baseBundleRevision: string
+  appliedBundleRevision?: string | null
+  baseNamespaceSourceRevision: string
+  publishedNamespaceSourceRevision?: string | null
+  beforeCatalogGeneration?: string | null
+  afterCatalogGeneration?: string | null
+  recoveredCatalogGeneration?: string | null
+  startedAt: string
+  completedAt?: string | null
+  diagnostics: string[]
+}
+
 export interface AuthoringWorkspaceInfo {
   workspaceId: string
   targetNamespace: string
@@ -33,6 +56,7 @@ export interface AuthoringWorkspaceInfo {
   createdAt: string
   updatedAt: string
   lastValidation?: ValidationEvidence | null
+  lastPublication?: PublicationEvidence | null
   diagnostics: string[]
 }
 

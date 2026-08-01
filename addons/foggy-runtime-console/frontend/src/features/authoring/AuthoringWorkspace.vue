@@ -6,6 +6,7 @@ import { runtimeApi, RuntimeRequestError } from '@/api/client'
 import { normalizeResultRows, parseJsonObject, prettyJson } from '@/utils/json'
 import type { BundleItem } from '@/features/namespace/types'
 import {
+  canPublishWorkspace,
   isCurrentValidation,
   shortRevision,
   suggestedModelName,
@@ -23,6 +24,8 @@ import type {
 import CandidateInspector from './CandidateInspector.vue'
 import ResourceEditor from './ResourceEditor.vue'
 import WorkspaceCatalog from './WorkspaceCatalog.vue'
+import WorkspacePublication from './WorkspacePublication.vue'
+import { recoverWorkspaceRequest, useWorkspacePublication } from './useWorkspacePublication'
 
 const props = defineProps<{
   namespace: string
@@ -41,6 +44,7 @@ const editorContent = ref('')
 const originalContent = ref('')
 const creatingResource = ref(false)
 const busy = ref('')
+const publication = useWorkspacePublication(busy)
 const loadError = ref('')
 const operationError = ref<RuntimeRequestError | null>(null)
 const conflictServerContent = ref<string | null>(null)
@@ -73,6 +77,10 @@ const dirty = computed(() => Boolean(selected.value)
     || (creatingResource.value && Boolean(editorPath.value.trim()))))
 const pathError = computed(() => workspaceResourcePathError(editorPath.value))
 const currentValidation = computed(() => selected.value ? isCurrentValidation(selected.value) : false)
+const canPublish = computed(() => Boolean(selected.value && canPublishWorkspace(selected.value)))
+const nextWorkspaceBundle = computed(() => selected.value
+  ? eligibleBundles.value.find(bundle => bundle.name === selected.value?.sourceBundle)
+  : undefined)
 const validation = computed(() => selected.value?.lastValidation || null)
 const validationRows = computed(() => normalizeResultRows(validation.value?.issues || []))
 const queryRows = computed(() => normalizeResultRows(queryResult.value?.response?.items || []))
@@ -82,6 +90,9 @@ const selectedQmSuggestion = computed(() => selectedResource.value?.type === 'QM
 const stateExplanation = computed(() => {
   if (!selected.value) return ''
   if (selected.value.state === 'STALE') return '源 revision 已漂移。可读取、比较和迁移草稿，但不能 validate/query；请新建 workspace。'
+  if (selected.value.state === 'PUBLISHING') return 'Runtime 正在处理 durable publication attempt。仅可读取 evidence 或显式刷新 metadata。'
+  if (selected.value.state === 'RECOVERY_REQUIRED') return '发布未能安全收敛。仅可按服务端记录的 exact attempt/candidate 执行失败恢复。'
+  if (selected.value.state === 'PUBLISHED') return 'Exact candidate 已发布并固定为 immutable terminal workspace；继续修改需创建新 workspace。'
   if (selected.value.state === 'DISCARDED') return '该 workspace 已终结，只保留 metadata，不再允许资源、验证或查询操作。'
   if (selected.value.state === 'VALIDATED') return '当前 exact candidate revision 已完成全量校验，可以执行 candidate query。'
   return '草稿尚未完成当前 revision 的全量校验。保存与校验是两个独立动作。'
@@ -230,6 +241,82 @@ async function createWorkspace(bundle: BundleItem): Promise<void> {
   } finally {
     busy.value = ''
   }
+}
+
+async function publishWorkspace(): Promise<void> {
+  if (!selected.value || !canPublish.value || dirty.value || busy.value) return
+  const workspace = selected.value
+  try {
+    await ElMessageBox.confirm(
+      `发布到开发 Runtime：${workspace.targetNamespace} / ${workspace.sourceBundle}\nCandidate: ${workspace.candidateRevision}\nBase Bundle: ${workspace.baseBundleRevision}\nBase Namespace Source: ${workspace.baseNamespaceSourceRevision}\n\nRuntime 将创建 immutable artifact、切换 Bundle source 并刷新整个 Namespace catalog。该动作不会自动回滚，也不代表生产 promotion。`,
+      '确认发布 exact candidate revision',
+      { type: 'warning', confirmButtonText: '发布 exact revision', cancelButtonText: '取消' }
+    )
+  } catch {
+    return
+  }
+  clearOperationError()
+  try {
+    const published = await publication.publish(workspace)
+    replaceWorkspaceMetadata(published)
+    queryResult.value = null
+    ElMessage.success(published.state === 'PUBLISHED'
+      ? 'Exact candidate 已发布；workspace 进入 immutable terminal state。'
+      : `Publication attempt 已受理；当前状态：${published.state}。`)
+  } catch (error) {
+    operationError.value = error instanceof RuntimeRequestError ? error : null
+    ElMessage.error(errorText(error, '发布 workspace 失败。请读取服务端 publication 状态。'))
+    await refreshPublicationMetadata(false)
+  }
+}
+
+async function recoverPublication(): Promise<void> {
+  if (!selected.value || !actions.value.recover || busy.value) return
+  const workspace = selected.value
+  const request = recoverWorkspaceRequest(workspace)
+  if (!request) {
+    ElMessage.error('服务端 publication attempt 缺失或与当前 candidate 不匹配；恢复已阻止。')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      `恢复 failed publication attempt：${request.publicationAttemptId}\nTarget: ${workspace.targetNamespace} / ${workspace.sourceBundle}\nCandidate: ${request.expectedCandidateRevision}\n\n恢复只回到该 attempt 记录的旧 live source/catalog，不是成功发布后的历史 rollback。`,
+      '确认恢复失败发布',
+      { type: 'warning', confirmButtonText: '恢复 exact attempt', cancelButtonText: '取消' }
+    )
+  } catch {
+    return
+  }
+  clearOperationError()
+  try {
+    const recovered = await publication.recover(workspace)
+    replaceWorkspaceMetadata(recovered)
+    queryResult.value = null
+    ElMessage.success('Failed publication attempt 已恢复；workspace 当前为 STALE。')
+  } catch (error) {
+    operationError.value = error instanceof RuntimeRequestError ? error : null
+    ElMessage.error(errorText(error, '恢复 failed publication attempt 失败。'))
+  }
+}
+
+async function refreshPublicationMetadata(showSuccess = true): Promise<void> {
+  if (!selected.value) return
+  const workspaceId = selected.value.workspaceId
+  try {
+    const current = await publication.refresh(workspaceId)
+    replaceWorkspaceMetadata(current)
+    if (showSuccess) ElMessage.success(`Publication 状态已刷新：${current.state}`)
+  } catch (error) {
+    if (showSuccess) {
+      operationError.value = error instanceof RuntimeRequestError ? error : operationError.value
+      ElMessage.error(errorText(error, '刷新 publication 状态失败。'))
+    }
+  }
+}
+
+async function createNextWorkspace(): Promise<void> {
+  if (!selected.value || selected.value.state !== 'PUBLISHED' || !nextWorkspaceBundle.value) return
+  await createWorkspace(nextWorkspaceBundle.value)
 }
 
 async function selectResource(resource: AuthoringResource): Promise<void> {
@@ -524,13 +611,13 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
       <div>
         <span class="console-panel-kicker">AUTHORING / ISOLATED CANDIDATE</span>
         <h2 id="authoring-title">模型创作工作区</h2>
-        <p>编辑持久草稿，按 exact revision 执行 diff、validate 和 candidate query。这里没有 publish，live Bundle 与 catalog 不会改变。</p>
+        <p>编辑持久草稿，按 exact revision 执行 diff、validate、candidate query 与受控 publish。只有 Runtime publish 原语可以改变开发环境 live Bundle/catalog。</p>
       </div>
       <div class="authoring-safety" aria-label="创作边界">
         <span><strong>{{ namespace || '空 Namespace' }}</strong> TARGET NS</span>
         <span><strong>{{ eligibleBundles.length }}</strong> ELIGIBLE BUNDLES</span>
         <span><strong>NO</strong> AUTO-SAVE</span>
-        <span><strong>NO</strong> PUBLISH</span>
+        <span><strong>EXACT</strong> PUBLISH</span>
       </div>
     </header>
 
@@ -641,7 +728,21 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
             @use-suggestion="useQmSuggestion"
           />
 
-          <footer class="workspace-terminal-actions">
+          <WorkspacePublication
+            v-if="selected.state !== 'DISCARDED'"
+            :workspace="selected"
+            :actions="actions"
+            :can-publish="canPublish"
+            :dirty="dirty"
+            :busy="busy"
+            :next-bundle="nextWorkspaceBundle"
+            @publish="publishWorkspace"
+            @recover="recoverPublication"
+            @refresh="refreshPublicationMetadata()"
+            @create-next="createNextWorkspace"
+          />
+
+          <footer v-if="actions.discard" class="workspace-terminal-actions">
             <div><span>TERMINAL ACTION</span><p>Discard 只终结隔离 workspace，不删除或修改 live Bundle。</p></div>
             <button class="console-button danger" type="button" :disabled="!actions.discard || Boolean(busy)" @click="discardWorkspace">Discard workspace</button>
           </footer>
