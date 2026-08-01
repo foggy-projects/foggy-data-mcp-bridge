@@ -15,6 +15,7 @@ import com.foggyframework.runtime.api.config.RuntimeApiAuthScope;
 import com.foggyframework.runtime.api.security.RuntimeApiAuthInterceptor;
 import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
@@ -30,6 +31,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import javax.sql.DataSource;
+import java.nio.file.Path;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -53,6 +55,9 @@ import static org.mockito.Mockito.when;
         }
 )
 class RuntimeApiAuthCodeGateTest {
+
+    @TempDir
+    Path tempDirectory;
 
     @LocalServerPort
     private int port;
@@ -213,14 +218,18 @@ class RuntimeApiAuthCodeGateTest {
 
     @Test
     void shouldAllowProtectedMutationWithAuthCodeHeader() {
+        String bundlePath = tempDirectory.toString();
         when(systemBundlesContext.containBundle("runtime-auth-demo")).thenReturn(false);
-        when(systemBundlesContext.addExternalBundle("runtime-auth-demo", "dev", ".", false)).thenReturn(true);
+        when(systemBundlesContext.addExternalBundle(
+                "runtime-auth-demo", "dev", bundlePath, false))
+                .thenReturn(true);
 
         ResponseEntity<JsonNode> response = restTemplate.exchange(
                 url(RuntimeApiRoutes.Full.BUNDLES),
                 HttpMethod.POST,
                 new HttpEntity<>(
-                        Map.of("name", "runtime-auth-demo", "path", ".", "namespace", "dev"),
+                        Map.of("name", "runtime-auth-demo", "path", bundlePath,
+                                "namespace", "dev"),
                         authHeaders(RuntimeApiAuthInterceptor.AUTH_CODE_HEADER, "runtime-secret")
                 ),
                 JsonNode.class
@@ -229,7 +238,8 @@ class RuntimeApiAuthCodeGateTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().path("success").asBoolean()).isTrue();
-        verify(systemBundlesContext).addExternalBundle("runtime-auth-demo", "dev", ".", false);
+        verify(systemBundlesContext).addExternalBundle(
+                "runtime-auth-demo", "dev", bundlePath, false);
     }
 
     @Test

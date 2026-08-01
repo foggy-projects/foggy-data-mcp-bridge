@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.5.3
 ticket: BUG-runtime-authoring-workspace-store-root-ownership
-status: APPROVED
+status: ACCEPTED
 canonical: true
 execution_mode: ultra
 assurance_level: elevated
@@ -236,17 +236,64 @@ open_questions: []
 
 ## Implementation Result
 
-> 由 Ultra 执行会话填写。
+> Ultra implementation completed on the uncommitted `main` working tree at base HEAD `5c814cd8`.
 
 - implementation_summary:
+  - `workspaces.json` 升级为 ownership-bearing v2，使用 192-bit opaque `storeId`；每个 workspace
+    以 `.workspace-owner.json` 绑定 `storeId/workspaceId`。
+  - 不存在或严格空 root 才初始化；非空 unowned root 返回 `WORKSPACE_STORE_FAILURE` 且零 mutation。
+    v2 cleanup 先完整验证 root、workspace marker、内部命名、revision hash 与 symlink，再删除可证明
+    ownership 的 orphan/staging/old revision；foreign/unknown entry 保留并返回
+    `WORKSPACE_STORE_CORRUPT`。
+  - 合法 v1 store 先完整只读验证，再通过 `.migration-v2.json`、workspace marker、最后原子切换 v2
+    registry 的顺序幂等迁移；metadata、不同 base/head、validation evidence 与 tombstone 均保留。
+  - 新增集中 path policy，比较 lexical absolute path 与 nearest-existing-ancestor real identity；
+    configured、active/inactive Runtime-managed direct-filesystem Bundle source 与 store root 的相等、
+    双向包含及 symlink-equivalent 均在 mutation 前拒绝。Bundle route 使用稳定
+    `BUNDLE_PATH_CONFLICT`，异常不携带可能泄露绝对路径的底层 cause。
 - changed_paths:
+  - `foggy-runtime-api`：workspace store、Bundle controller/registry、auto-configuration、新 path policy
+    及 focused/affected tests。
+  - `docs/architecture/runtime-and-model-lifecycle.md`、`docs/9.5.3/README.md` 与本 canonical spec。
 - tests_and_results:
+  - `mvn -B -ntp -pl foggy-runtime-api -am -DskipITs
+    -Dtest=RuntimeAuthoringWorkspaceStoreTest,RuntimeAuthoringStorePathPolicyTest,RuntimeBundleRegistryServiceTest,RuntimeBundlesControllerTest
+    -Dsurefire.failIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test`：4 classes / 31 tests，
+    0 failures / 0 errors / 0 skipped，`BUILD SUCCESS`，44.519s。
+  - `mvn -B -ntp -pl foggy-runtime-api -am -DskipITs
+    -Dtest=RuntimeAuthoringWorkspaceStoreTest,RuntimeAuthoringStorePathPolicyTest,RuntimeBundleRegistryServiceTest,RuntimeAuthoringWorkspaceServiceTest,RuntimeAuthoringWorkspaceRealExecutionTest,RuntimeAuthoringWorkspacesControllerTest,RuntimeCandidateQueryServiceTest,RuntimeApiAuthCodeGateTest,RuntimeBundlesControllerTest,RuntimeCapabilitiesControllerEnabledTest,RuntimeModelValidationIsolationTest,RuntimeModelsControllerCompatibilityTest
+    -Dsurefire.failIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test`：12 classes / 121 tests，
+    0 failures / 0 errors / 0 skipped，`BUILD SUCCESS`，57.506s。
 - manual_or_experience_evidence:
+  - RED 阶段在旧实现上确认非空 unowned root 未拒绝并进入 destructive cleanup，且新 workspace 不产生
+    ownership marker；实现后对应测试转绿。
+  - 最终 `git diff --check` 通过；两个 untracked Java 文件分别执行
+    `git diff --no-index --check /dev/null <file>`，除新增文件语义的 exit 1 外无 whitespace diagnostics。
+  - source review 确认 cleanup 采用完整扫描后两阶段删除，实际删除前重新验证 workspace/root
+    ownership 与 no-symlink；path conflict 的公共错误与异常链均不返回绝对路径。
 - deviations: none
-- residual_risks: none
-- reused_evidence:
-- omitted_validation_and_reason:
-- readiness: READY_FOR_SIGNOFF | NEEDS_REPLAN | BLOCKED
+- residual_risks:
+  - workspace store 仍只保证单 Runtime 进程；共享 NFS/多进程 writer 不受支持。
+  - standard `jar:` 与 nested/fat-JAR packaging 风险、绕过 watcher 的只读 dependency drift 维持原
+    feature 边界，本 BUG 未扩大。
+- reused_evidence: 原 feature 拒签记录中未受本 BUG 改动影响的 engine 4 classes / 22 tests、真实
+  SQLite、standard JAR/external/FSScript、candidate 权限/cache 与 unsupported-mode evidence；本次未修改
+  engine 或公共 Model SPI。
+- omitted_validation_and_reason: 按批准的 elevated budget 未运行完整 Maven reactor、Console/
+  Playwright、launcher、数据库矩阵、authority/replay/rehearsal/source-seal/tag/release/publish；均为明确
+  禁止或 out of scope，且 focused + affected Runtime lane 已足以判断本 BUG。
+- readiness: READY_FOR_SIGNOFF
+
+## Acceptance Status
+
+- acceptance_status: signed-off
+- acceptance_decision: accepted
+- signed_off_by: Codex independent reviewer
+- signed_off_at: 2026-08-01
+- acceptance_record:
+  `docs/9.5.3/acceptance/BUG-runtime-authoring-workspace-store-root-ownership-signoff.md`
+- blocking_items: none
+- follow_up_required: no
 
 ## References
 

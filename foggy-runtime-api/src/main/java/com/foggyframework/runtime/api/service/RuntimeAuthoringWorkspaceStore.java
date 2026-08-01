@@ -9,6 +9,7 @@ import com.foggyframework.runtime.api.dto.AuthoringWorkspaceLimits;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceResource;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceState;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -18,6 +19,7 @@ import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
@@ -46,24 +48,57 @@ import java.util.stream.Stream;
 @ConditionalOnProperty(prefix = "foggy.runtime-api", name = "enabled", havingValue = "true")
 public class RuntimeAuthoringWorkspaceStore {
 
-    private static final int SCHEMA_VERSION = 1;
+    private static final int SCHEMA_VERSION = 2;
+    private static final int LEGACY_SCHEMA_VERSION = 1;
+    private static final int WORKSPACE_MARKER_VERSION = 1;
     private static final String REGISTRY_FILE = "workspaces.json";
+    private static final String WORKSPACE_MARKER_FILE = ".workspace-owner.json";
+    private static final String MIGRATION_FILE = ".migration-v2.json";
     private static final Pattern WORKSPACE_ID =
             Pattern.compile("[A-Za-z0-9_-]{22,64}");
+    private static final Pattern STORE_ID =
+            Pattern.compile("[A-Za-z0-9_-]{22,64}");
+    private static final Pattern REVISION_DIRECTORY =
+            Pattern.compile("[0-9a-f]{64}");
+    private static final Pattern STAGING_DIRECTORY = Pattern.compile(
+            "\\.staging-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
+    private static final String UUID_PATTERN =
+            "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+    private static final Pattern REGISTRY_TEMP_FILE = Pattern.compile(
+            Pattern.quote(REGISTRY_FILE) + "\\.tmp-" + UUID_PATTERN);
+    private static final Pattern MIGRATION_TEMP_FILE = Pattern.compile(
+            Pattern.quote(MIGRATION_FILE) + "\\.tmp-" + UUID_PATTERN);
+    private static final Pattern WORKSPACE_MARKER_TEMP_FILE = Pattern.compile(
+            Pattern.quote(WORKSPACE_MARKER_FILE) + "\\.tmp-" + UUID_PATTERN);
 
     private final FoggyRuntimeApiProperties properties;
     private final ObjectMapper objectMapper;
+    private final RuntimeAuthoringStorePathPolicy pathPolicy;
+    private final RuntimeBundleRegistryService bundleRegistry;
     private final SecureRandom secureRandom = new SecureRandom();
     private final Map<String, StoredWorkspace> workspaces = new LinkedHashMap<>();
     private final Map<RevisionKey, Integer> leases = new HashMap<>();
+    private String storeId;
     private boolean loaded;
 
     public RuntimeAuthoringWorkspaceStore(
             FoggyRuntimeApiProperties properties,
             ObjectMapper objectMapper
     ) {
+        this(properties, objectMapper, null, null);
+    }
+
+    @Autowired
+    public RuntimeAuthoringWorkspaceStore(
+            FoggyRuntimeApiProperties properties,
+            ObjectMapper objectMapper,
+            RuntimeAuthoringStorePathPolicy pathPolicy,
+            RuntimeBundleRegistryService bundleRegistry
+    ) {
         this.properties = properties;
         this.objectMapper = objectMapper;
+        this.pathPolicy = pathPolicy;
+        this.bundleRegistry = bundleRegistry;
     }
 
     public synchronized StoredWorkspace create(
@@ -105,8 +140,9 @@ public class RuntimeAuthoringWorkspaceStore {
         boolean created = false;
         try {
             Files.createDirectory(workspaceRoot);
-            Files.createDirectory(workspaceRoot.resolve("revisions"));
             created = true;
+            writeWorkspaceMarker(workspaceRoot, workspaceId);
+            Files.createDirectory(workspaceRoot.resolve("revisions"));
             stageRevision(record, snapshot);
             Map<String, StoredWorkspace> next = new LinkedHashMap<>(workspaces);
             next.put(workspaceId, record);
@@ -116,12 +152,12 @@ public class RuntimeAuthoringWorkspaceStore {
             return record;
         } catch (RuntimeAuthoringWorkspaceException e) {
             if (created) {
-                deleteTreeQuietly(workspaceRoot);
+                cleanupWorkspaceAfterFailedCreate(workspaceRoot, workspaceId);
             }
             throw e;
         } catch (IOException | RuntimeException e) {
             if (created) {
-                deleteTreeQuietly(workspaceRoot);
+                cleanupWorkspaceAfterFailedCreate(workspaceRoot, workspaceId);
             }
             throw storeFailure("workspaces.create", e);
         }
@@ -215,12 +251,12 @@ public class RuntimeAuthoringWorkspaceStore {
             return updated;
         } catch (RuntimeAuthoringWorkspaceException e) {
             if (newRevision && revisionPath != null) {
-                deleteTreeQuietly(revisionPath);
+                deleteOwnedTreeQuietly(revisionPath, current.workspaceId());
             }
             throw e;
         } catch (IOException | RuntimeException e) {
             if (newRevision && revisionPath != null) {
-                deleteTreeQuietly(revisionPath);
+                deleteOwnedTreeQuietly(revisionPath, current.workspaceId());
             }
             throw storeFailure("workspaces.resources.save", e);
         }
@@ -380,7 +416,7 @@ public class RuntimeAuthoringWorkspaceStore {
         persist(next);
         workspaces.clear();
         workspaces.putAll(next);
-        deleteTreeQuietly(workspacePath(id));
+        deleteOwnedTreeQuietly(workspacePath(id), id);
     }
 
     public AuthoringWorkspaceLimits limits() {
@@ -440,8 +476,11 @@ public class RuntimeAuthoringWorkspaceStore {
             StoredWorkspace record,
             Map<String, byte[]> snapshot
     ) throws IOException {
-        Path revisions = workspacePath(record.workspaceId()).resolve("revisions");
-        Files.createDirectories(revisions);
+        Path workspace = workspacePath(record.workspaceId());
+        requireWorkspaceOwnership(workspace, record.workspaceId());
+        Path revisions = workspace.resolve("revisions");
+        requirePlainDirectory(revisions,
+                "Workspace revision root is missing or unsafe.");
         assertNoSymlinkComponents(secureRoot(), revisions);
         Path target = revisionPath(record.workspaceId(), record.candidateRevision());
         if (Files.exists(target)) {
@@ -452,7 +491,7 @@ public class RuntimeAuthoringWorkspaceStore {
             }
             return target;
         }
-        Path staging = workspacePath(record.workspaceId())
+        Path staging = workspace
                 .resolve(".staging-" + UUID.randomUUID());
         try {
             Files.createDirectory(staging);
@@ -468,7 +507,7 @@ public class RuntimeAuthoringWorkspaceStore {
             }
             return target;
         } finally {
-            deleteTreeQuietly(staging);
+            deleteOwnedTreeQuietly(staging, record.workspaceId());
         }
     }
 
@@ -635,32 +674,45 @@ public class RuntimeAuthoringWorkspaceStore {
         if (loaded) {
             return;
         }
-        Path root = secureRoot();
+        Path root = prepareRootForLoad();
         Path registry = root.resolve(REGISTRY_FILE);
         Map<String, StoredWorkspace> loadedRecords = new LinkedHashMap<>();
         try {
-            if (Files.exists(registry)) {
-                if (Files.isSymbolicLink(registry) || !Files.isRegularFile(registry)) {
-                    throw corrupt("Workspace registry path is unsafe.", null);
+            if (!Files.exists(registry, LinkOption.NOFOLLOW_LINKS)) {
+                if (!isDirectoryEmpty(root)) {
+                    throw storeFailure("workspaces.store", null);
                 }
-                RegistryFile file = objectMapper.readValue(registry.toFile(), RegistryFile.class);
-                if (file == null || file.version() != SCHEMA_VERSION) {
-                    throw corrupt("Workspace registry schema is unsupported.", null);
-                }
-                for (StoredWorkspace record : file.workspaces()) {
-                    validateStoredRecord(record);
-                    if (loadedRecords.put(record.workspaceId(), record) != null) {
-                        throw corrupt("Workspace registry contains a duplicate identity.", null);
-                    }
-                    if (record.state() != AuthoringWorkspaceState.DISCARDED) {
-                        verifyRevision(record, record.baseBundleRevision());
-                        verifyRevision(record, record.candidateRevision());
-                    }
+                storeId = newStoreId();
+                persistAtRoot(root, Map.of());
+                workspaces.clear();
+                loaded = true;
+                return;
+            }
+            if (Files.isSymbolicLink(registry) || !Files.isRegularFile(registry)) {
+                throw corrupt("Workspace registry path is unsafe.", null);
+            }
+            RegistryFile file = objectMapper.readValue(
+                    registry.toFile(), RegistryFile.class);
+            if (file == null || (file.version() != SCHEMA_VERSION
+                    && file.version() != LEGACY_SCHEMA_VERSION)) {
+                throw corrupt("Workspace registry schema is unsupported.", null);
+            }
+            for (StoredWorkspace record : file.workspaces()) {
+                validateStoredRecord(record);
+                if (loadedRecords.put(record.workspaceId(), record) != null) {
+                    throw corrupt("Workspace registry contains a duplicate identity.", null);
                 }
             }
+            if (file.version() == LEGACY_SCHEMA_VERSION) {
+                migrateLegacyStore(root, registry, loadedRecords);
+            } else {
+                requireStoreId(file.storeId());
+                storeId = file.storeId();
+                verifyOwnedRecords(loadedRecords);
+            }
+            cleanupOrphans(root, loadedRecords);
             workspaces.clear();
             workspaces.putAll(loadedRecords);
-            cleanupOrphans(root, loadedRecords);
             loaded = true;
         } catch (RuntimeAuthoringWorkspaceException e) {
             throw e;
@@ -673,40 +725,394 @@ public class RuntimeAuthoringWorkspaceStore {
             Path root,
             Map<String, StoredWorkspace> records
     ) throws IOException {
+        List<CleanupTarget> cleanupTargets = new ArrayList<>();
         try (Stream<Path> children = Files.list(root)) {
             for (Path child : children.toList()) {
-                if (child.getFileName().toString().equals(REGISTRY_FILE)) {
+                String childName = child.getFileName().toString();
+                if (childName.equals(REGISTRY_FILE)) {
                     continue;
                 }
-                if (child.getFileName().toString().startsWith(REGISTRY_FILE + ".tmp-")) {
-                    Files.deleteIfExists(child);
-                    continue;
-                }
-                StoredWorkspace record = records.get(child.getFileName().toString());
-                if (record == null || record.state() == AuthoringWorkspaceState.DISCARDED) {
-                    deleteTree(child);
-                    continue;
-                }
-                Path revisions = child.resolve("revisions");
-                if (Files.isDirectory(revisions)) {
-                    try (Stream<Path> revisionDirs = Files.list(revisions)) {
-                        for (Path revision : revisionDirs.toList()) {
-                            String name = revision.getFileName().toString();
-                            if (!name.equals(revisionName(record.baseBundleRevision()))
-                                    && !name.equals(revisionName(record.candidateRevision()))) {
-                                deleteTree(revision);
-                            }
-                        }
+                if (childName.equals(MIGRATION_FILE)) {
+                    MigrationFile migration = readMigrationFile(child);
+                    if (!storeId.equals(migration.storeId())) {
+                        throw corrupt("Workspace migration ownership mismatch.", null);
                     }
+                    cleanupTargets.add(new CleanupTarget(
+                            child, null, CleanupType.FILE));
+                    continue;
                 }
-                try (Stream<Path> workspaceChildren = Files.list(child)) {
-                    for (Path workspaceChild : workspaceChildren.toList()) {
-                        if (workspaceChild.getFileName().toString().startsWith(".staging-")) {
-                            deleteTree(workspaceChild);
-                        }
+                if (REGISTRY_TEMP_FILE.matcher(childName).matches()) {
+                    requireTemporaryRegistryOwnership(child);
+                    cleanupTargets.add(new CleanupTarget(
+                            child, null, CleanupType.FILE));
+                    continue;
+                }
+                if (MIGRATION_TEMP_FILE.matcher(childName).matches()) {
+                    MigrationFile migration = readMigrationFile(child);
+                    if (!storeId.equals(migration.storeId())) {
+                        throw corrupt("Workspace migration staging ownership mismatch.", null);
+                    }
+                    cleanupTargets.add(new CleanupTarget(
+                            child, null, CleanupType.FILE));
+                    continue;
+                }
+                if (!WORKSPACE_ID.matcher(childName).matches()) {
+                    throw corrupt("Workspace store contains an unknown root entry.", null);
+                }
+                requireWorkspaceOwnership(child, childName);
+                StoredWorkspace record = records.get(childName);
+                if (record == null
+                        || record.state() == AuthoringWorkspaceState.DISCARDED) {
+                    validateWorkspaceLayout(child, null, cleanupTargets, false);
+                    cleanupTargets.add(new CleanupTarget(
+                            child, childName, CleanupType.TREE));
+                    continue;
+                }
+                validateWorkspaceLayout(child, record, cleanupTargets, true);
+            }
+        }
+        for (CleanupTarget target : cleanupTargets) {
+            if (target.type() == CleanupType.FILE) {
+                deleteOwnedFile(target);
+            } else {
+                deleteOwnedTree(target.path(), target.workspaceId());
+            }
+        }
+    }
+
+    private void deleteOwnedFile(CleanupTarget target) throws IOException {
+        String name = target.path().getFileName().toString();
+        if (target.workspaceId() != null) {
+            Path workspace = secureRoot().resolve(target.workspaceId());
+            requireWorkspaceOwnership(workspace, target.workspaceId());
+            if (!WORKSPACE_MARKER_TEMP_FILE.matcher(name).matches()) {
+                throw new IOException("unsafe owned workspace file cleanup target");
+            }
+            readWorkspaceMarker(target.path(), target.workspaceId());
+        } else if (REGISTRY_TEMP_FILE.matcher(name).matches()) {
+            requireTemporaryRegistryOwnership(target.path());
+        } else if (MIGRATION_FILE.equals(name)
+                || MIGRATION_TEMP_FILE.matcher(name).matches()) {
+            MigrationFile migration = readMigrationFile(target.path());
+            if (!storeId.equals(migration.storeId())) {
+                throw new IOException("unsafe owned migration cleanup target");
+            }
+        } else {
+            throw new IOException("unsafe owned root file cleanup target");
+        }
+        Files.deleteIfExists(target.path());
+    }
+
+    private void migrateLegacyStore(
+            Path root,
+            Path registry,
+            Map<String, StoredWorkspace> records
+    ) throws IOException {
+        String registryDigest = sha256(Files.readAllBytes(registry));
+        Path migrationPath = root.resolve(MIGRATION_FILE);
+        MigrationFile migration = null;
+        if (Files.exists(migrationPath, LinkOption.NOFOLLOW_LINKS)) {
+            migration = readMigrationFile(migrationPath);
+            if (!registryDigest.equals(migration.registrySha256())) {
+                throw corrupt("Workspace migration source changed.", null);
+            }
+            storeId = migration.storeId();
+        }
+        validateLegacyLayout(root, records, migration != null);
+        if (migration == null) {
+            storeId = newStoreId();
+            migration = new MigrationFile(
+                    WORKSPACE_MARKER_VERSION, storeId, registryDigest);
+            writeJsonAtomically(migrationPath, migration);
+        }
+        for (StoredWorkspace record : records.values()) {
+            Path workspace = root.resolve(record.workspaceId());
+            if (!Files.exists(workspace, LinkOption.NOFOLLOW_LINKS)) {
+                continue;
+            }
+            Path marker = workspace.resolve(WORKSPACE_MARKER_FILE);
+            if (Files.exists(marker, LinkOption.NOFOLLOW_LINKS)) {
+                requireWorkspaceOwnership(workspace, record.workspaceId());
+            } else {
+                writeWorkspaceMarker(workspace, record.workspaceId());
+            }
+        }
+        persistAtRoot(root, records);
+        verifyOwnedRecords(records);
+    }
+
+    private void validateLegacyLayout(
+            Path root,
+            Map<String, StoredWorkspace> records,
+            boolean migrationInProgress
+    ) throws IOException {
+        try (Stream<Path> children = Files.list(root)) {
+            for (Path child : children.toList()) {
+                String name = child.getFileName().toString();
+                if (REGISTRY_FILE.equals(name)) {
+                    continue;
+                }
+                if (MIGRATION_FILE.equals(name) && migrationInProgress) {
+                    continue;
+                }
+                StoredWorkspace record = records.get(name);
+                if (record == null || !WORKSPACE_ID.matcher(name).matches()) {
+                    throw corrupt("Legacy workspace store contains an unknown entry.", null);
+                }
+                validateLegacyWorkspace(child, record, migrationInProgress);
+            }
+        }
+        for (StoredWorkspace record : records.values()) {
+            Path workspace = root.resolve(record.workspaceId());
+            if (record.state() != AuthoringWorkspaceState.DISCARDED
+                    && !Files.exists(workspace, LinkOption.NOFOLLOW_LINKS)) {
+                throw corrupt("Legacy workspace directory is missing.", null);
+            }
+        }
+    }
+
+    private void validateLegacyWorkspace(
+            Path workspace,
+            StoredWorkspace record,
+            boolean migrationInProgress
+    ) throws IOException {
+        requirePlainDirectory(workspace,
+                "Legacy workspace directory is unsafe.");
+        Path revisions = null;
+        try (Stream<Path> children = Files.list(workspace)) {
+            for (Path child : children.toList()) {
+                String name = child.getFileName().toString();
+                if (WORKSPACE_MARKER_FILE.equals(name)) {
+                    if (!migrationInProgress) {
+                        throw corrupt("Legacy workspace contains unknown ownership metadata.", null);
+                    }
+                    requireWorkspaceOwnership(workspace, record.workspaceId());
+                } else if (WORKSPACE_MARKER_TEMP_FILE.matcher(name).matches()) {
+                    if (!migrationInProgress) {
+                        throw corrupt("Legacy workspace contains unknown marker staging.", null);
+                    }
+                    readWorkspaceMarker(child, record.workspaceId());
+                } else if ("revisions".equals(name)) {
+                    requirePlainDirectory(child,
+                            "Legacy revision root is unsafe.");
+                    revisions = child;
+                } else if (STAGING_DIRECTORY.matcher(name).matches()) {
+                    assertSafeTree(child);
+                } else {
+                    throw corrupt("Legacy workspace contains an unknown entry.", null);
+                }
+            }
+        }
+        if (record.state() != AuthoringWorkspaceState.DISCARDED
+                && revisions == null) {
+            throw corrupt("Legacy workspace revision root is missing.", null);
+        }
+        if (revisions != null) {
+            Set<String> found = new HashSet<>();
+            try (Stream<Path> revisionPaths = Files.list(revisions)) {
+                for (Path revision : revisionPaths.toList()) {
+                    String name = revision.getFileName().toString();
+                    if (!REVISION_DIRECTORY.matcher(name).matches()) {
+                        throw corrupt("Legacy workspace has an unknown revision entry.", null);
+                    }
+                    readSnapshotDirectory(revision, "sha256:" + name,
+                            "workspaces.store");
+                    found.add(name);
+                }
+            }
+            if (record.state() != AuthoringWorkspaceState.DISCARDED
+                    && (!found.contains(revisionName(record.baseBundleRevision()))
+                    || !found.contains(revisionName(record.candidateRevision())))) {
+                throw corrupt("Legacy workspace revision is missing.", null);
+            }
+        }
+    }
+
+    private void verifyOwnedRecords(Map<String, StoredWorkspace> records) {
+        Path root = secureRoot();
+        for (StoredWorkspace record : records.values()) {
+            Path workspace = root.resolve(record.workspaceId());
+            if (record.state() == AuthoringWorkspaceState.DISCARDED
+                    && !Files.exists(workspace, LinkOption.NOFOLLOW_LINKS)) {
+                continue;
+            }
+            requireWorkspaceOwnership(workspace, record.workspaceId());
+            if (record.state() != AuthoringWorkspaceState.DISCARDED) {
+                verifyRevision(record, record.baseBundleRevision());
+                verifyRevision(record, record.candidateRevision());
+            }
+        }
+    }
+
+    private void validateWorkspaceLayout(
+            Path workspace,
+            StoredWorkspace record,
+            List<CleanupTarget> cleanupTargets,
+            boolean collectCleanup
+    ) throws IOException {
+        Path revisions = null;
+        try (Stream<Path> children = Files.list(workspace)) {
+            for (Path child : children.toList()) {
+                String name = child.getFileName().toString();
+                if (WORKSPACE_MARKER_FILE.equals(name)) {
+                    continue;
+                }
+                if (WORKSPACE_MARKER_TEMP_FILE.matcher(name).matches()) {
+                    readWorkspaceMarker(child,
+                            workspace.getFileName().toString());
+                    if (collectCleanup) {
+                        cleanupTargets.add(new CleanupTarget(
+                                child, workspace.getFileName().toString(),
+                                CleanupType.FILE));
+                    }
+                    continue;
+                }
+                if ("revisions".equals(name)) {
+                    requirePlainDirectory(child,
+                            "Workspace revision root is unsafe.");
+                    revisions = child;
+                    continue;
+                }
+                if (STAGING_DIRECTORY.matcher(name).matches()) {
+                    assertSafeTree(child);
+                    if (collectCleanup) {
+                        cleanupTargets.add(new CleanupTarget(
+                                child, workspace.getFileName().toString(),
+                                CleanupType.TREE));
+                    }
+                    continue;
+                }
+                throw corrupt("Workspace contains an unknown entry.", null);
+            }
+        }
+        if (record != null && revisions == null) {
+            throw corrupt("Workspace revision root is missing.", null);
+        }
+        if (revisions == null) {
+            return;
+        }
+        try (Stream<Path> revisionPaths = Files.list(revisions)) {
+            for (Path revision : revisionPaths.toList()) {
+                String name = revision.getFileName().toString();
+                if (!REVISION_DIRECTORY.matcher(name).matches()) {
+                    throw corrupt("Workspace has an unknown revision entry.", null);
+                }
+                boolean retained = record != null
+                        && (name.equals(revisionName(record.baseBundleRevision()))
+                        || name.equals(revisionName(record.candidateRevision())));
+                if (!retained) {
+                    readSnapshotDirectory(revision, "sha256:" + name,
+                            "workspaces.store");
+                    if (collectCleanup) {
+                        cleanupTargets.add(new CleanupTarget(
+                                revision, workspace.getFileName().toString(),
+                                CleanupType.TREE));
                     }
                 }
             }
+        }
+    }
+
+    private void requireWorkspaceOwnership(Path workspace, String workspaceId) {
+        requirePlainDirectory(workspace, "Workspace directory is unsafe.");
+        Path markerPath = workspace.resolve(WORKSPACE_MARKER_FILE);
+        readWorkspaceMarker(markerPath, workspaceId);
+    }
+
+    private WorkspaceMarker readWorkspaceMarker(
+            Path markerPath,
+            String workspaceId
+    ) {
+        try {
+            if (Files.isSymbolicLink(markerPath)
+                    || !Files.isRegularFile(markerPath)) {
+                throw corrupt("Workspace ownership metadata is missing or unsafe.", null);
+            }
+            WorkspaceMarker marker = objectMapper.readValue(
+                    markerPath.toFile(), WorkspaceMarker.class);
+            if (marker == null || marker.version() != WORKSPACE_MARKER_VERSION
+                    || !storeId.equals(marker.storeId())
+                    || !workspaceId.equals(marker.workspaceId())) {
+                throw corrupt("Workspace ownership metadata does not match.", null);
+            }
+            return marker;
+        } catch (RuntimeAuthoringWorkspaceException failure) {
+            throw failure;
+        } catch (IOException | RuntimeException failure) {
+            throw corrupt("Workspace ownership metadata could not be read.", null,
+                    failure);
+        }
+    }
+
+    private void requireTemporaryRegistryOwnership(Path path) {
+        try {
+            if (Files.isSymbolicLink(path) || !Files.isRegularFile(path)) {
+                throw corrupt("Workspace registry staging path is unsafe.", null);
+            }
+            RegistryFile staged = objectMapper.readValue(
+                    path.toFile(), RegistryFile.class);
+            if (staged == null || staged.version() != SCHEMA_VERSION
+                    || !storeId.equals(staged.storeId())) {
+                throw corrupt("Workspace registry staging ownership mismatch.", null);
+            }
+        } catch (RuntimeAuthoringWorkspaceException failure) {
+            throw failure;
+        } catch (IOException | RuntimeException failure) {
+            throw corrupt("Workspace registry staging could not be read.", null,
+                    failure);
+        }
+    }
+
+    private void writeWorkspaceMarker(Path workspace, String workspaceId) {
+        requireStoreId(storeId);
+        writeJsonAtomically(workspace.resolve(WORKSPACE_MARKER_FILE),
+                new WorkspaceMarker(
+                        WORKSPACE_MARKER_VERSION, storeId, workspaceId));
+    }
+
+    private MigrationFile readMigrationFile(Path path) {
+        try {
+            if (Files.isSymbolicLink(path) || !Files.isRegularFile(path)) {
+                throw corrupt("Workspace migration metadata is unsafe.", null);
+            }
+            MigrationFile migration = objectMapper.readValue(
+                    path.toFile(), MigrationFile.class);
+            if (migration == null
+                    || migration.version() != WORKSPACE_MARKER_VERSION
+                    || !STORE_ID.matcher(nullToEmpty(migration.storeId())).matches()
+                    || !nullToEmpty(migration.registrySha256())
+                    .matches("[0-9a-f]{64}")) {
+                throw corrupt("Workspace migration metadata is invalid.", null);
+            }
+            return migration;
+        } catch (RuntimeAuthoringWorkspaceException failure) {
+            throw failure;
+        } catch (IOException | RuntimeException failure) {
+            throw corrupt("Workspace migration metadata could not be read.", null,
+                    failure);
+        }
+    }
+
+    private static void requirePlainDirectory(Path path, String message) {
+        if (Files.isSymbolicLink(path) || !Files.isDirectory(path)) {
+            throw corrupt(message, null);
+        }
+    }
+
+    private static void assertSafeTree(Path path) {
+        try (Stream<Path> entries = Files.walk(path)) {
+            for (Path entry : entries.toList()) {
+                if (Files.isSymbolicLink(entry)
+                        || (!Files.isDirectory(entry)
+                        && !Files.isRegularFile(entry))) {
+                    throw corrupt("Owned cleanup target contains an unsafe entry.", null);
+                }
+            }
+        } catch (RuntimeAuthoringWorkspaceException failure) {
+            throw failure;
+        } catch (IOException | RuntimeException failure) {
+            throw corrupt("Owned cleanup target could not be inspected.", null,
+                    failure);
         }
     }
 
@@ -778,12 +1184,25 @@ public class RuntimeAuthoringWorkspaceStore {
 
     private void persist(Map<String, StoredWorkspace> records) {
         Path root = secureRoot();
-        Path target = root.resolve(REGISTRY_FILE);
-        Path temporary = root.resolve(REGISTRY_FILE + ".tmp-" + UUID.randomUUID());
+        requireStoreId(storeId);
+        persistAtRoot(root, records);
+    }
+
+    private void persistAtRoot(
+            Path root,
+            Map<String, StoredWorkspace> records
+    ) {
+        writeJsonAtomically(root.resolve(REGISTRY_FILE),
+                new RegistryFile(SCHEMA_VERSION, storeId,
+                        new ArrayList<>(records.values())));
+    }
+
+    private void writeJsonAtomically(Path target, Object value) {
+        Path temporary = target.resolveSibling(
+                target.getFileName() + ".tmp-" + UUID.randomUUID());
         try {
             objectMapper.writerWithDefaultPrettyPrinter().writeValue(
-                    temporary.toFile(),
-                    new RegistryFile(SCHEMA_VERSION, new ArrayList<>(records.values())));
+                    temporary.toFile(), value);
             try {
                 Files.move(temporary, target,
                         StandardCopyOption.REPLACE_EXISTING,
@@ -805,13 +1224,10 @@ public class RuntimeAuthoringWorkspaceStore {
     }
 
     private Path secureRoot() {
-        String configured = configuration().getPath();
-        Path root = Path.of(StringUtils.hasText(configured)
-                ? configured : ".foggy-runtime/authoring-workspaces")
-                .toAbsolutePath().normalize();
+        assertStoreDisjoint();
+        Path root = configuredRoot();
         try {
             assertNoSymlinkComponents(root.getRoot(), root);
-            Files.createDirectories(root);
             if (Files.isSymbolicLink(root) || !Files.isDirectory(root)
                     || !root.equals(root.toRealPath())) {
                 throw storeFailure("workspaces.store", null);
@@ -824,6 +1240,58 @@ public class RuntimeAuthoringWorkspaceStore {
         }
     }
 
+    private Path prepareRootForLoad() {
+        assertStoreDisjoint();
+        Path root = configuredRoot();
+        try {
+            assertNoSymlinkComponents(root.getRoot(), root);
+            if (!Files.exists(root, LinkOption.NOFOLLOW_LINKS)) {
+                Files.createDirectories(root);
+            }
+            if (Files.isSymbolicLink(root) || !Files.isDirectory(root)
+                    || !root.equals(root.toRealPath())) {
+                throw storeFailure("workspaces.store", null);
+            }
+            return root;
+        } catch (RuntimeAuthoringWorkspaceException failure) {
+            throw failure;
+        } catch (IOException | RuntimeException failure) {
+            throw storeFailure("workspaces.store", failure);
+        }
+    }
+
+    private Path configuredRoot() {
+        if (pathPolicy != null) {
+            return pathPolicy.configuredStoreRoot();
+        }
+        String configured = configuration().getPath();
+        try {
+            return Path.of(StringUtils.hasText(configured)
+                            ? configured : ".foggy-runtime/authoring-workspaces")
+                    .toAbsolutePath().normalize();
+        } catch (RuntimeException invalid) {
+            throw storeFailure("workspaces.store", invalid);
+        }
+    }
+
+    private void assertStoreDisjoint() {
+        if (pathPolicy == null) {
+            return;
+        }
+        try {
+            pathPolicy.assertStoreDisjoint(bundleRegistry == null
+                    ? List.of() : bundleRegistry.listRecords());
+        } catch (RuntimeAuthoringStorePathPolicy.PathConflictException conflict) {
+            throw storeFailure("workspaces.store", conflict);
+        }
+    }
+
+    private static boolean isDirectoryEmpty(Path root) throws IOException {
+        try (Stream<Path> children = Files.list(root)) {
+            return children.findAny().isEmpty();
+        }
+    }
+
     private static void assertNoSymlinkComponents(Path base, Path target) throws IOException {
         Path cursor = base;
         if (cursor == null) {
@@ -832,7 +1300,8 @@ public class RuntimeAuthoringWorkspaceStore {
         Path relative = cursor.relativize(target);
         for (Path segment : relative) {
             cursor = cursor.resolve(segment);
-            if (Files.exists(cursor) && Files.isSymbolicLink(cursor)) {
+            if (Files.exists(cursor, LinkOption.NOFOLLOW_LINKS)
+                    && Files.isSymbolicLink(cursor)) {
                 throw new IOException("symbolic link in workspace path");
             }
         }
@@ -877,6 +1346,18 @@ public class RuntimeAuthoringWorkspaceStore {
         return id;
     }
 
+    private String newStoreId() {
+        byte[] bytes = new byte[24];
+        secureRandom.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    private static void requireStoreId(String value) {
+        if (!STORE_ID.matcher(nullToEmpty(value)).matches()) {
+            throw corrupt("Workspace store ownership identity is invalid.", null);
+        }
+    }
+
     private void release(RevisionKey key) {
         synchronized (this) {
             Integer current = leases.get(key);
@@ -901,32 +1382,77 @@ public class RuntimeAuthoringWorkspaceStore {
                 && (revision.equals(record.baseBundleRevision())
                 || revision.equals(record.candidateRevision()));
         if (!retained) {
-            deleteTreeQuietly(revisionPath(record.workspaceId(), revision));
+            deleteOwnedTreeQuietly(
+                    revisionPath(record.workspaceId(), revision),
+                    record.workspaceId());
         }
     }
 
-    private void deleteTreeQuietly(Path path) {
+    private void cleanupWorkspaceAfterFailedCreate(
+            Path workspace,
+            String workspaceId
+    ) {
         try {
-            deleteTree(path);
-        } catch (IOException ignored) {
+            Path marker = workspace.resolve(WORKSPACE_MARKER_FILE);
+            if (Files.isRegularFile(marker, LinkOption.NOFOLLOW_LINKS)
+                    && !Files.isSymbolicLink(marker)) {
+                deleteOwnedTree(workspace, workspaceId);
+            } else if (Files.isDirectory(workspace)
+                    && isDirectoryEmpty(workspace)) {
+                Files.deleteIfExists(workspace);
+            }
+        } catch (IOException | RuntimeException ignored) {
+            // An unproven tree is intentionally preserved for fail-closed recovery.
+        }
+    }
+
+    private void deleteOwnedTreeQuietly(Path path, String workspaceId) {
+        try {
+            deleteOwnedTree(path, workspaceId);
+        } catch (IOException | RuntimeException ignored) {
             // Inert orphan cleanup is retried on the next store load.
         }
     }
 
-    private void deleteTree(Path path) throws IOException {
-        if (path == null || !Files.exists(path)) {
+    private void deleteOwnedTree(Path path, String workspaceId) throws IOException {
+        if (path == null || !Files.exists(path, LinkOption.NOFOLLOW_LINKS)) {
             return;
         }
         Path root = secureRoot();
+        if (!WORKSPACE_ID.matcher(nullToEmpty(workspaceId)).matches()) {
+            throw new IOException("invalid owned workspace identity");
+        }
+        Path workspace = root.resolve(workspaceId).normalize();
+        requireWorkspaceOwnership(workspace, workspaceId);
         Path normalized = path.toAbsolutePath().normalize();
-        if (normalized.equals(root) || !normalized.startsWith(root)) {
+        if (!normalized.equals(workspace)
+                && !isInternalCleanupTarget(workspace, normalized)) {
             throw new IOException("unsafe workspace cleanup target");
         }
+        assertSafeTree(normalized);
         try (Stream<Path> paths = Files.walk(normalized)) {
             for (Path entry : paths.sorted(Comparator.reverseOrder()).toList()) {
                 Files.deleteIfExists(entry);
             }
         }
+    }
+
+    private static boolean isInternalCleanupTarget(
+            Path workspace,
+            Path target
+    ) {
+        if (!target.startsWith(workspace)) {
+            return false;
+        }
+        Path relative = workspace.relativize(target);
+        if (relative.getNameCount() == 1) {
+            return STAGING_DIRECTORY.matcher(
+                    relative.getFileName().toString()).matches();
+        }
+        return relative.getNameCount() == 2
+                && "revisions".equals(relative.getName(0).toString())
+                && REVISION_DIRECTORY.matcher(
+                relative.getName(1).toString()).matches();
     }
 
     private static boolean snapshotsEqual(
@@ -1015,6 +1541,10 @@ public class RuntimeAuthoringWorkspaceStore {
 
     private static String canonicalNamespace(String namespace) {
         return namespace == null ? "" : namespace.trim();
+    }
+
+    private static String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     private static String sanitizeReason(String reason) {
@@ -1140,13 +1670,49 @@ public class RuntimeAuthoringWorkspaceStore {
     private record RevisionKey(String workspaceId, String revision) {
     }
 
-    private record RegistryFile(int version, List<StoredWorkspace> workspaces) {
+    private enum CleanupType {
+        FILE,
+        TREE
+    }
+
+    private record CleanupTarget(
+            Path path,
+            String workspaceId,
+            CleanupType type
+    ) {
+    }
+
+    private record WorkspaceMarker(
+            int version,
+            String storeId,
+            String workspaceId
+    ) {
+        public WorkspaceMarker() {
+            this(WORKSPACE_MARKER_VERSION, null, null);
+        }
+    }
+
+    private record MigrationFile(
+            int version,
+            String storeId,
+            String registrySha256
+    ) {
+        public MigrationFile() {
+            this(WORKSPACE_MARKER_VERSION, null, null);
+        }
+    }
+
+    private record RegistryFile(
+            int version,
+            String storeId,
+            List<StoredWorkspace> workspaces
+    ) {
         private RegistryFile {
             workspaces = workspaces == null ? List.of() : List.copyOf(workspaces);
         }
 
         public RegistryFile() {
-            this(SCHEMA_VERSION, List.of());
+            this(SCHEMA_VERSION, null, List.of());
         }
     }
 }

@@ -3,6 +3,7 @@ package com.foggyframework.runtime.api.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
@@ -27,6 +28,7 @@ public class RuntimeBundleRegistryService {
     private final FoggyRuntimeApiProperties properties;
     private final SystemBundlesContext systemBundlesContext;
     private final ObjectMapper objectMapper;
+    private final RuntimeAuthoringStorePathPolicy authoringPathPolicy;
     private final Map<String, RuntimeBundleRecord> records = new LinkedHashMap<>();
     private boolean loaded;
 
@@ -35,17 +37,34 @@ public class RuntimeBundleRegistryService {
             SystemBundlesContext systemBundlesContext,
             ObjectMapper objectMapper
     ) {
+        this(properties, systemBundlesContext, objectMapper, null);
+    }
+
+    @Autowired
+    public RuntimeBundleRegistryService(
+            FoggyRuntimeApiProperties properties,
+            SystemBundlesContext systemBundlesContext,
+            ObjectMapper objectMapper,
+            RuntimeAuthoringStorePathPolicy authoringPathPolicy
+    ) {
         this.properties = properties;
         this.systemBundlesContext = systemBundlesContext;
         this.objectMapper = objectMapper;
+        this.authoringPathPolicy = authoringPathPolicy;
     }
 
     @EventListener(ApplicationReadyEvent.class)
     public synchronized void restoreOnReady() {
         if (!registryEnabled()) {
+            if (authoringPathPolicy != null) {
+                authoringPathPolicy.assertStoreDisjoint(List.of());
+            }
             return;
         }
         loadIfNeeded();
+        if (authoringPathPolicy != null) {
+            authoringPathPolicy.assertStoreDisjoint(records.values());
+        }
         for (RuntimeBundleRecord record : records.values()) {
             if (!record.enabled()) {
                 continue;

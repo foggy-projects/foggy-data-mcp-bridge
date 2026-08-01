@@ -20,8 +20,8 @@ catalog、Git 凭据管理、跨 Runtime 编排或 Agent。
 |---|---|---|
 | [模型创作基础技术探针](workitems/SPIKE-runtime-model-authoring-foundations.md) | ACCEPTED | 已用真实 external/JAR/FSScript 路径确认 detached overlay 与隔离能力，并完成当前缺口分类 |
 | [Runtime candidate-query overlay](workitems/FEATURE-runtime-candidate-query-overlay.md) | ACCEPTED | 已验收 request-local candidate resolve/validate/query 原语，复用权限与执行链并隔离 live catalog/cache |
-| [Runtime authoring workspace API](workitems/FEATURE-runtime-authoring-workspace-api.md) | REJECTED | 独立验收确认 store root ownership 缺失可导致 destructive orphan cleanup；其余 focused/affected 证据通过，待安全修复后重验 |
-| [Workspace store root ownership 修复](workitems/BUG-runtime-authoring-workspace-store-root-ownership.md) | APPROVED | 已冻结 ownership-bearing v2 registry、foreign data 零删除、v1 安全迁移和 Bundle path disjointness 契约 |
+| [Runtime authoring workspace API](workitems/FEATURE-runtime-authoring-workspace-api.md) | ACCEPTED | R2 重验确认 ownership blocker 已关闭，workspace/revision/diff/validate/query 与 live-state isolation 全部签收 |
+| [Workspace store root ownership 修复](workitems/BUG-runtime-authoring-workspace-store-root-ownership.md) | ACCEPTED | ownership-bearing v2、foreign data 零删除、v1 无损迁移和 Bundle path disjointness 已正式签收 |
 
 技术基线和建议交付顺序见
 [Runtime 模型创作工作区设计与路线](runtime-model-authoring-design.md)。
@@ -53,7 +53,7 @@ catalog、Git 凭据管理、跨 Runtime 编排或 Agent。
 ## 建议推进顺序
 
 1. Runtime candidate-query overlay（已实现并完成独立验收）。
-2. Runtime authoring workspace/revision API（首次独立验收拒签，待 store root ownership 安全修复后重验）。
+2. Runtime authoring workspace/revision API（ownership blocker 修复后已完成 R2 独立验收）。
 3. Console 最小手工创作与开发环境发布闭环。
 4. release package、生产验证、apply 与 rollback。
 5. 可选 Git adapter。

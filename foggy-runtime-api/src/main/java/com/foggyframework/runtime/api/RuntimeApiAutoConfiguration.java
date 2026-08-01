@@ -20,6 +20,7 @@ import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
 import com.foggyframework.runtime.api.service.RuntimeBundleModelConflictDetector;
 import com.foggyframework.runtime.api.service.RuntimeAuthoringWorkspaceService;
 import com.foggyframework.runtime.api.service.RuntimeAuthoringWorkspaceStore;
+import com.foggyframework.runtime.api.service.RuntimeAuthoringStorePathPolicy;
 import com.foggyframework.runtime.api.service.RuntimeBundleInventoryService;
 import com.foggyframework.runtime.api.service.RuntimeBundleRegistryService;
 import com.foggyframework.runtime.api.service.RuntimeCandidateQueryService;
@@ -45,6 +46,7 @@ import org.springframework.context.annotation.Import;
         HikariManagedDataSourcePoolFactory.class,
         ManagedDataSourcePoolManager.class,
         RuntimeApiResponseFactory.class,
+        RuntimeAuthoringStorePathPolicy.class,
         RuntimeAuthoringWorkspaceStore.class,
         RuntimeBundleInventoryService.class,
         RuntimeAuthoringWorkspaceService.class,

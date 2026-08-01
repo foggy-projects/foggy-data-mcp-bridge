@@ -8,6 +8,7 @@ import com.foggyframework.runtime.api.dto.BundleMutationResponse;
 import com.foggyframework.runtime.api.dto.BundleRequest;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
 import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
+import com.foggyframework.runtime.api.service.RuntimeAuthoringStorePathPolicy;
 import com.foggyframework.runtime.api.service.RuntimeBundleModelConflictDetector;
 import com.foggyframework.runtime.api.service.RuntimeBundleRegistryService;
 import org.junit.jupiter.api.Test;
@@ -19,6 +20,8 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.anyBoolean;
+import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -206,9 +209,78 @@ class RuntimeBundlesControllerTest {
         assertThat(registry.find("plugin-x")).isEmpty();
     }
 
+    @Test
+    void overlappingBundlePathsFailBeforeRuntimeOrRegistryMutation() {
+        SystemBundlesContext context = mock(SystemBundlesContext.class);
+        Path storeRoot = tempDir.resolve("authoring-store");
+        FoggyRuntimeApiProperties properties = properties(
+                tempDir.resolve("runtime-bundles-overlap.json"));
+        properties.getAuthoringWorkspaces().setPath(storeRoot.toString());
+        RuntimeBundleRegistryService registry = registry(context, properties);
+        RuntimeBundlesController controller = controller(
+                context, registry, properties);
+        List<Path> overlapping = List.of(
+                storeRoot,
+                storeRoot.resolve("bundle-source"),
+                tempDir);
+
+        for (int index = 0; index < overlapping.size(); index++) {
+            String name = "overlap-" + index;
+            RuntimeEnvelope<BundleMutationResponse> response =
+                    controller.addBundle(request(
+                            name, overlapping.get(index).toString(),
+                            true, false), null);
+            assertThat(response.success()).isFalse();
+            assertThat(response.error().code()).isEqualTo("BUNDLE_PATH_CONFLICT");
+            assertThat(registry.find(name)).isEmpty();
+        }
+        verify(context, never()).addExternalBundle(
+                anyString(), anyString(), anyString(), anyBoolean());
+        verify(context, never()).replaceExternalBundle(
+                anyString(), anyString(), anyString(), anyBoolean());
+    }
+
+    @Test
+    void overlappingUpdateCannotEnableOrRewriteExistingRegistryRecord() {
+        SystemBundlesContext context = mock(SystemBundlesContext.class);
+        Path storeRoot = tempDir.resolve("authoring-update-store");
+        FoggyRuntimeApiProperties properties = properties(
+                tempDir.resolve("runtime-bundles-update-overlap.json"));
+        properties.getAuthoringWorkspaces().setPath(storeRoot.toString());
+        RuntimeBundleRegistryService registry = registry(context, properties);
+        var existing = registry.save(registry.newRecord(
+                "overlap", "business", storeRoot.resolve("models").toString(),
+                false, false));
+        RuntimeBundlesController controller = controller(
+                context, registry, properties);
+
+        RuntimeEnvelope<BundleMutationResponse> response =
+                controller.updateBundle("overlap", request(
+                        null, storeRoot.resolve("models").toString(),
+                        true, true), null);
+
+        assertThat(response.success()).isFalse();
+        assertThat(response.error().code()).isEqualTo("BUNDLE_PATH_CONFLICT");
+        assertThat(registry.find("overlap")).contains(existing);
+        verify(context, never()).addExternalBundle(
+                anyString(), anyString(), anyString(), anyBoolean());
+        verify(context, never()).replaceExternalBundle(
+                anyString(), anyString(), anyString(), anyBoolean());
+        verify(context, never()).removeBundle(anyString());
+    }
+
     private RuntimeBundlesController controller(
             SystemBundlesContext context,
             RuntimeBundleRegistryService registry
+    ) {
+        return controller(context, registry,
+                properties(tempDir.resolve("unused.json")));
+    }
+
+    private RuntimeBundlesController controller(
+            SystemBundlesContext context,
+            RuntimeBundleRegistryService registry,
+            FoggyRuntimeApiProperties properties
     ) {
         RuntimeBundleModelConflictDetector detector =
                 mock(RuntimeBundleModelConflictDetector.class);
@@ -218,13 +290,12 @@ class RuntimeBundlesControllerTest {
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.nullable(String.class)))
                 .thenReturn(List.of());
-        FoggyRuntimeApiProperties properties = properties(
-                tempDir.resolve("unused.json"));
         return new RuntimeBundlesController(
                 new RuntimeApiResponseFactory(properties),
                 context,
                 registry,
-                detector
+                detector,
+                new RuntimeAuthoringStorePathPolicy(properties, context)
         );
     }
 

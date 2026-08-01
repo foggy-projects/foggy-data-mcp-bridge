@@ -11,6 +11,7 @@ import com.foggyframework.runtime.api.dto.BundleMutationResponse;
 import com.foggyframework.runtime.api.dto.BundleRequest;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
 import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
+import com.foggyframework.runtime.api.service.RuntimeAuthoringStorePathPolicy;
 import com.foggyframework.runtime.api.service.RuntimeBundleModelConflictDetector;
 import com.foggyframework.runtime.api.service.RuntimeBundleModelConflictDetector.ModelNameConflict;
 import com.foggyframework.runtime.api.service.RuntimeBundleInventoryService;
@@ -43,17 +44,20 @@ public class RuntimeBundlesController {
     private final RuntimeBundleRegistryService registryService;
     private final RuntimeBundleModelConflictDetector modelConflictDetector;
     private final RuntimeBundleInventoryService inventoryService;
+    private final RuntimeAuthoringStorePathPolicy authoringPathPolicy;
 
     public RuntimeBundlesController(
             RuntimeApiResponseFactory responses,
             SystemBundlesContext systemBundlesContext,
             RuntimeBundleRegistryService registryService,
-            RuntimeBundleModelConflictDetector modelConflictDetector
+            RuntimeBundleModelConflictDetector modelConflictDetector,
+            RuntimeAuthoringStorePathPolicy authoringPathPolicy
     ) {
         this.responses = responses;
         this.systemBundlesContext = systemBundlesContext;
         this.registryService = registryService;
         this.modelConflictDetector = modelConflictDetector;
+        this.authoringPathPolicy = authoringPathPolicy;
         this.inventoryService = new RuntimeBundleInventoryService(
                 systemBundlesContext, registryService);
     }
@@ -134,6 +138,15 @@ public class RuntimeBundlesController {
         if (path == null) {
             return fail("INVALID_REQUEST", update ? "bundles.update" : "bundles.add", "Missing required field: path",
                     "Provide an external bundle directory path.", false);
+        }
+        try {
+            authoringPathPolicy.assertBundleSourceDisjoint(path);
+        } catch (RuntimeAuthoringStorePathPolicy.PathConflictException conflict) {
+            return fail("BUNDLE_PATH_CONFLICT",
+                    update ? "bundles.update" : "bundles.add",
+                    "Bundle source overlaps the authoring workspace store.",
+                    "Choose a Bundle source and authoring store root that are fully disjoint.",
+                    false);
         }
 
         RuntimeBundleRecord existingRecord = registryService.find(name).orElse(null);

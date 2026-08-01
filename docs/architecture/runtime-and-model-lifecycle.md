@@ -144,9 +144,14 @@ Runtime authoring workspace 进一步遵循以下边界：
   revision，并由服务端组装 immutable candidate path、source Bundle、Namespace 与 base source revision；
 - 每个 workspace route 都要求 Runtime 管理 auth-code；业务 `Authorization` 仅独立透传给 candidate 数据面，
   不能代替或提升管理认证；
-- store 是 versioned Runtime-local filesystem state，只长期保留 base 与 current head。path traversal、非严格
-  UTF-8、case collision、symlink、quota、hash/metadata corruption 均 fail closed；多进程或共享 NFS writer
-  不在当前一致性承诺内；
+- store 是 ownership-bearing v2 Runtime-local filesystem state：`workspaces.json` 固定 opaque `storeId`，
+  每个 workspace directory 都有匹配 marker。不存在或严格空 root 才能初始化；合法 v1 store 经完整
+  只读校验后幂等迁移，foreign/unknown entry 保留并 fail closed，cleanup 只删除 ownership 与内部类型均
+  可证明的 orphan/staging/revision；
+- authoring store root 与 configured、active/inactive Runtime-managed direct-filesystem Bundle source 必须
+  在相等、祖先、后代和 symlink identity 上双向 disjoint。startup restore、Bundle add/update/enable 和
+  store 初始化都在首个 source/store mutation 前检查；path traversal、非严格 UTF-8、case collision、
+  symlink、quota、hash/metadata corruption 同样 fail closed；多进程或共享 NFS writer不在当前一致性承诺内；
 - validate/query 的成功、失败、权限拒绝、database failure、revision/source race 和 close 均不能修改 live
   catalog、共享 FSScript/query cache、Bundle inventory 或 committed source revision。
 

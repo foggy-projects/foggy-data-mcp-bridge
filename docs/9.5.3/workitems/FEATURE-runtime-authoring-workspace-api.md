@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: cross-module
 version: 9.5.3
 ticket: FEATURE-runtime-authoring-workspace-api
-status: REJECTED
+status: ACCEPTED
 canonical: true
 execution_mode: ultra
 assurance_level: elevated
@@ -458,13 +458,13 @@ authenticated get 或显式包含 discarded 的 list 返回 tombstone metadata�
 
 ## Acceptance Status
 
-- acceptance_status: rejected
-- acceptance_decision: rejected
+- acceptance_status: signed-off
+- acceptance_decision: accepted
 - signed_off_by: Codex independent reviewer
 - signed_off_at: 2026-08-01
 - acceptance_record:
-  `docs/9.5.3/acceptance/FEATURE-runtime-authoring-workspace-api-signoff.md`
-- blocking_items: AC-2/AC-9 store root ownership and destructive orphan cleanup
+  `docs/9.5.3/acceptance/FEATURE-runtime-authoring-workspace-api-signoff-r2.md`
+- blocking_items: none
 - follow_up_required: yes
 
 ## References
