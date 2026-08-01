@@ -34,6 +34,8 @@ export class RuntimeRequestError extends Error {
   readonly code: string
   readonly phase?: string
   readonly suggestedNextAction?: string
+  readonly path?: string
+  readonly safeToAutoRepair?: boolean
   readonly status?: number
   readonly diagnostics?: Record<string, unknown>
 
@@ -43,6 +45,8 @@ export class RuntimeRequestError extends Error {
       code?: string
       phase?: string
       suggestedNextAction?: string
+      path?: string
+      safeToAutoRepair?: boolean
       status?: number
       diagnostics?: Record<string, unknown>
     } = {}
@@ -52,6 +56,8 @@ export class RuntimeRequestError extends Error {
     this.code = options.code || 'RUNTIME_REQUEST_FAILED'
     this.phase = options.phase
     this.suggestedNextAction = options.suggestedNextAction
+    this.path = options.path
+    this.safeToAutoRepair = options.safeToAutoRepair
     this.status = options.status
     this.diagnostics = options.diagnostics
   }
@@ -131,6 +137,8 @@ function toRuntimeError(error: unknown): RuntimeRequestError {
         code: body?.error?.code || error.code || 'RUNTIME_REQUEST_FAILED',
         phase: body?.error?.phase,
         suggestedNextAction: body?.error?.suggestedNextAction,
+        path: body?.error?.path,
+        safeToAutoRepair: body?.error?.safeToAutoRepair,
         status: error.response?.status,
         diagnostics: body?.diagnostics
       }
@@ -148,6 +156,8 @@ export async function runtimeRequest<T>(config: AxiosRequestConfig): Promise<T> 
         code: envelope.error?.code,
         phase: envelope.error?.phase,
         suggestedNextAction: envelope.error?.suggestedNextAction,
+        path: envelope.error?.path,
+        safeToAutoRepair: envelope.error?.safeToAutoRepair,
         status: response.status,
         diagnostics: envelope.diagnostics
       })
@@ -184,7 +194,7 @@ export const runtimeApi = {
   put<T>(url: string, data?: unknown) {
     return runtimeRequest<T>({ method: 'PUT', url, data })
   },
-  delete<T>(url: string) {
-    return runtimeRequest<T>({ method: 'DELETE', url })
+  delete<T>(url: string, params?: Record<string, unknown>) {
+    return runtimeRequest<T>({ method: 'DELETE', url, params })
   }
 }

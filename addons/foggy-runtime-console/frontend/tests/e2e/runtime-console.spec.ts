@@ -12,6 +12,11 @@ interface MockState {
     body: Record<string, unknown>
   }>
   delayNextDefaultModels: boolean
+  authoringWorkspaces: Array<Record<string, any>>
+  authoringResources: Record<string, Array<Record<string, any>>>
+  conflictNextWorkspaceSave: boolean
+  invalidNextWorkspaceValidation: boolean
+  authoringRevisionSequence: number
 }
 
 const acceptedToken = 'e2e-runtime-token'
@@ -58,7 +63,12 @@ async function mockRuntime(page: Page): Promise<MockState> {
         source: 'runtime-registry',
         status: 'active',
         canUpdate: true,
-        canRemove: true
+        canRemove: true,
+        sourceType: 'runtime-managed',
+        editable: true,
+        workspaceEligible: true,
+        namespaceBindings: ['default'],
+        sourceIdentity: 'source:runtime-console-demo'
       },
       {
         name: 'finance-models',
@@ -69,13 +79,60 @@ async function mockRuntime(page: Page): Promise<MockState> {
         source: 'runtime-registry',
         status: 'ready',
         canUpdate: true,
-        canRemove: true
+        canRemove: true,
+        sourceType: 'runtime-managed',
+        editable: true,
+        workspaceEligible: true,
+        namespaceBindings: ['finance'],
+        sourceIdentity: 'source:finance-models'
       }
     ],
     namespaceHeaders: [],
     refreshScopes: [],
     requests: [],
-    delayNextDefaultModels: false
+    delayNextDefaultModels: false,
+    authoringWorkspaces: [{
+      workspaceId: 'ws-default-001',
+      targetNamespace: 'default',
+      sourceBundle: 'runtime-console-demo',
+      sourceKind: 'runtime-managed',
+      baseBundleRevision: 'sha256:base-bundle-001',
+      baseNamespaceSourceRevision: 'source:default:g1',
+      candidateRevision: 'sha256:candidate-001',
+      state: 'DRAFT',
+      createdAt: '2026-08-01T01:00:00Z',
+      updatedAt: '2026-08-01T01:00:00Z',
+      lastValidation: null,
+      diagnostics: []
+    }],
+    authoringResources: {
+      'ws-default-001': [
+        {
+          path: 'models/Order.tm',
+          type: 'TM',
+          size: 34,
+          sha256: 'sha256:tm-001',
+          content: 'export const Order = tableModel({})'
+        },
+        {
+          path: 'query/OrderQuery.qm',
+          type: 'QM',
+          size: 51,
+          sha256: 'sha256:qm-001',
+          content: 'export const OrderQuery = queryModel({ source: Order })'
+        },
+        {
+          path: 'scripts/order.fsscript',
+          type: 'FSSCRIPT',
+          size: 24,
+          sha256: 'sha256:script-001',
+          content: 'export const tax = 0.13'
+        }
+      ]
+    },
+    conflictNextWorkspaceSave: false,
+    invalidNextWorkspaceValidation: false,
+    authoringRevisionSequence: 1
   }
 
   await page.route('**/api/v1/**', async route => {
@@ -141,6 +198,196 @@ async function mockRuntime(page: Page): Promise<MockState> {
           'datasources.manage': 'available'
         },
         warnings: []
+      }
+    } else if (path === 'authoring/workspaces' && request.method() === 'GET') {
+      const namespace = url.searchParams.get('namespace') || ''
+      data = {
+        workspaces: state.authoringWorkspaces.filter(item => item.targetNamespace === namespace && item.state !== 'DISCARDED'),
+        warnings: []
+      }
+    } else if (path === 'authoring/workspaces' && request.method() === 'POST') {
+      const workspaceId = `ws-created-${state.authoringWorkspaces.length + 1}`
+      const created = {
+        workspaceId,
+        targetNamespace: String(requestBody.namespace || requestNamespace),
+        sourceBundle: String(requestBody.sourceBundle || ''),
+        sourceKind: 'runtime-managed',
+        baseBundleRevision: 'sha256:base-created',
+        baseNamespaceSourceRevision: 'source:created:g1',
+        candidateRevision: 'sha256:candidate-created',
+        state: 'DRAFT',
+        createdAt: '2026-08-01T02:00:00Z',
+        updatedAt: '2026-08-01T02:00:00Z',
+        lastValidation: null,
+        diagnostics: []
+      }
+      state.authoringWorkspaces.push(created)
+      state.authoringResources[workspaceId] = []
+      data = created
+    } else if (/^authoring\/workspaces\/[^/]+$/.test(path) && request.method() === 'GET') {
+      const workspaceId = decodeURIComponent(path.split('/')[2] || '')
+      data = state.authoringWorkspaces.find(item => item.workspaceId === workspaceId)
+    } else if (/^authoring\/workspaces\/[^/]+$/.test(path) && request.method() === 'DELETE') {
+      const workspaceId = decodeURIComponent(path.split('/')[2] || '')
+      const workspace = state.authoringWorkspaces.find(item => item.workspaceId === workspaceId)!
+      workspace.state = 'DISCARDED'
+      workspace.updatedAt = '2026-08-01T03:00:00Z'
+      data = workspace
+    } else if (/^authoring\/workspaces\/[^/]+\/resources$/.test(path) && request.method() === 'GET') {
+      const workspaceId = decodeURIComponent(path.split('/')[2] || '')
+      const workspace = state.authoringWorkspaces.find(item => item.workspaceId === workspaceId)!
+      data = {
+        workspaceId,
+        candidateRevision: workspace.candidateRevision,
+        resources: (state.authoringResources[workspaceId] || []).map(({ content: _content, ...resource }) => resource)
+      }
+    } else if (/^authoring\/workspaces\/[^/]+\/resources\/content$/.test(path)) {
+      const workspaceId = decodeURIComponent(path.split('/')[2] || '')
+      const resourcePath = url.searchParams.get('path') || ''
+      data = state.authoringResources[workspaceId]?.find(item => item.path === resourcePath)
+    } else if (/^authoring\/workspaces\/[^/]+\/resources\/save$/.test(path)) {
+      const workspaceId = decodeURIComponent(path.split('/')[2] || '')
+      const workspace = state.authoringWorkspaces.find(item => item.workspaceId === workspaceId)!
+      if (state.conflictNextWorkspaceSave) {
+        state.conflictNextWorkspaceSave = false
+        workspace.candidateRevision = 'sha256:candidate-server-conflict'
+        workspace.state = 'DRAFT'
+        const conflictResource = state.authoringResources[workspaceId]?.find(item => item.path === 'query/OrderQuery.qm')
+        if (conflictResource) conflictResource.content = 'export const OrderQuery = queryModel({ source: ServerOrder })'
+        await route.fulfill({
+          status: 409,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: false,
+            error: {
+              code: 'WORKSPACE_REVISION_CONFLICT',
+              phase: 'workspaces.resources.save',
+              message: 'Workspace candidate revision is no longer current.',
+              suggestedNextAction: 'Refresh workspace metadata and retry with the current revision.',
+              safeToAutoRepair: true
+            }
+          })
+        })
+        return
+      }
+      const files = Array.isArray(requestBody.files) ? requestBody.files as Array<Record<string, unknown>> : []
+      for (const file of files) {
+        const resourcePath = String(file.path || '')
+        const content = String(file.content || '')
+        const existing = state.authoringResources[workspaceId]?.find(item => item.path === resourcePath)
+        const type = resourcePath.endsWith('.tm') ? 'TM' : resourcePath.endsWith('.qm') ? 'QM' : 'FSSCRIPT'
+        const resource = { path: resourcePath, type, size: content.length, sha256: `sha256:saved-${state.authoringRevisionSequence}`, content }
+        if (existing) Object.assign(existing, resource)
+        else state.authoringResources[workspaceId].push(resource)
+      }
+      workspace.candidateRevision = `sha256:candidate-00${++state.authoringRevisionSequence}`
+      workspace.state = 'DRAFT'
+      workspace.lastValidation = null
+      workspace.updatedAt = '2026-08-01T04:00:00Z'
+      data = workspace
+    } else if (/^authoring\/workspaces\/[^/]+\/resources\/delete$/.test(path)) {
+      const workspaceId = decodeURIComponent(path.split('/')[2] || '')
+      const workspace = state.authoringWorkspaces.find(item => item.workspaceId === workspaceId)!
+      const paths = Array.isArray(requestBody.paths) ? requestBody.paths : []
+      state.authoringResources[workspaceId] = (state.authoringResources[workspaceId] || [])
+        .filter(item => !paths.includes(item.path))
+      workspace.candidateRevision = `sha256:candidate-00${++state.authoringRevisionSequence}`
+      workspace.state = 'DRAFT'
+      workspace.lastValidation = null
+      data = workspace
+    } else if (/^authoring\/workspaces\/[^/]+\/diff$/.test(path)) {
+      const workspaceId = decodeURIComponent(path.split('/')[2] || '')
+      const workspace = state.authoringWorkspaces.find(item => item.workspaceId === workspaceId)!
+      const qm = state.authoringResources[workspaceId]?.find(item => item.path === 'query/OrderQuery.qm')
+      data = {
+        workspaceId,
+        baseBundleRevision: workspace.baseBundleRevision,
+        candidateRevision: workspace.candidateRevision,
+        changes: [{
+          path: 'query/OrderQuery.qm',
+          type: 'QM',
+          changeType: 'MODIFIED',
+          baseSha256: 'sha256:qm-001',
+          candidateSha256: qm?.sha256,
+          baseContent: 'export const OrderQuery = queryModel({ source: Order })',
+          candidateContent: qm?.content
+        }]
+      }
+    } else if (/^authoring\/workspaces\/[^/]+\/validate$/.test(path)) {
+      const workspaceId = decodeURIComponent(path.split('/')[2] || '')
+      const workspace = state.authoringWorkspaces.find(item => item.workspaceId === workspaceId)!
+      if (state.invalidNextWorkspaceValidation) {
+        state.invalidNextWorkspaceValidation = false
+        workspace.state = 'DRAFT'
+        workspace.lastValidation = {
+          valid: false,
+          candidateRevision: workspace.candidateRevision,
+          baseBundleRevision: workspace.baseBundleRevision,
+          baseNamespaceSourceRevision: workspace.baseNamespaceSourceRevision,
+          validatedAt: '2026-08-01T04:30:00Z',
+          totalFiles: state.authoringResources[workspaceId]?.length || 0,
+          validFiles: Math.max(0, (state.authoringResources[workspaceId]?.length || 0) - 1),
+          invalidFiles: 1,
+          cascadingErrors: 0,
+          issues: [{
+            path: 'query/OrderQuery.qm',
+            type: 'QM',
+            code: 'WORKSPACE_VALIDATION_FAILED',
+            message: 'Candidate QM syntax is invalid.',
+            category: 'PRIMARY'
+          }]
+        }
+        await route.fulfill({
+          status: 422,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: false,
+            error: {
+              code: 'WORKSPACE_VALIDATION_FAILED',
+              phase: 'workspaces.validate',
+              message: 'Workspace model validation failed.',
+              suggestedNextAction: 'Inspect workspace diagnostics and retry.',
+              safeToAutoRepair: true
+            }
+          })
+        })
+        return
+      }
+      workspace.state = 'VALIDATED'
+      workspace.lastValidation = {
+        valid: true,
+        candidateRevision: workspace.candidateRevision,
+        baseBundleRevision: workspace.baseBundleRevision,
+        baseNamespaceSourceRevision: workspace.baseNamespaceSourceRevision,
+        validatedAt: '2026-08-01T05:00:00Z',
+        totalFiles: state.authoringResources[workspaceId]?.length || 0,
+        validFiles: state.authoringResources[workspaceId]?.length || 0,
+        invalidFiles: 0,
+        cascadingErrors: 0,
+        issues: []
+      }
+      data = workspace
+    } else if (/^authoring\/workspaces\/[^/]+\/query\/[^/]+\/(validate|execute)$/.test(path)) {
+      const workspaceId = decodeURIComponent(path.split('/')[2] || '')
+      const workspace = state.authoringWorkspaces.find(item => item.workspaceId === workspaceId)!
+      const phase = path.endsWith('/validate') ? 'VALIDATE' : 'EXECUTE'
+      data = {
+        workspaceId,
+        sourceBundle: workspace.sourceBundle,
+        namespace: workspace.targetNamespace,
+        baseBundleRevision: workspace.baseBundleRevision,
+        baseNamespaceSourceRevision: workspace.baseNamespaceSourceRevision,
+        candidateRevision: workspace.candidateRevision,
+        catalogIdentity: { namespace: workspace.targetNamespace, generation: 'candidate-g1' },
+        phase,
+        response: {
+          items: phase === 'EXECUTE' ? [{ customer: 'Candidate Alice', amount: 188 }] : [],
+          total: phase === 'EXECUTE' ? 1 : 0,
+          hasNext: false,
+          execution: { provider: 'JDBC', durationMs: 9 },
+          warnings: []
+        },
+        diagnostics: []
       }
     } else if (path === 'datasources/diagnostics') {
       data = {
@@ -496,7 +743,7 @@ test('navigation, datasource creation and query result rendering', async ({ page
     await expect(resourceDrawer.getByRole('button', { name: /default.*1 Bundle.*analytics.*CURRENT/ })).toBeVisible()
     await resourceDrawer.getByRole('button', { name: /default.*1 Bundle.*analytics.*CURRENT/ }).click()
   }
-  await page.getByRole('button', { name: /^04 空间设置$/ }).click()
+  await page.getByRole('button', { name: /^05 空间设置$/ }).click()
   await expect(page.getByLabel('默认数据源')).toHaveValue('analytics')
   await page.getByRole('button', { name: '保存默认绑定' }).click()
   await page.getByRole('dialog', { name: '确认空间默认数据源' })
@@ -891,5 +1138,165 @@ test('namespace context reloads every workbench and rejects stale responses', as
   await page.reload()
   await expect(page.getByLabel('当前数据与模型空间')).toHaveValue('')
   await expect(page.getByRole('heading', { name: 'Fsscript', exact: true })).toBeVisible()
+  expect(browserErrors).toEqual([])
+})
+
+test('authoring workspace preserves conflicted drafts and completes the isolated candidate loop', async ({ page }, testInfo) => {
+  testInfo.setTimeout(90_000)
+  const state = mockStates.get(page)!
+  const browserErrors: string[] = []
+  page.on('console', message => {
+    if (message.type() === 'error'
+      && !message.text().includes('409 (Conflict)')
+      && !message.text().includes('422 (Unprocessable Entity)')) browserErrors.push(message.text())
+  })
+  page.on('pageerror', error => browserErrors.push(error.message))
+  state.bundles.push({
+    name: 'shared-readonly-models',
+    namespace: 'default',
+    path: '',
+    enabled: true,
+    source: 'live-loader',
+    status: 'active',
+    sourceType: 'jar',
+    editable: false,
+    workspaceEligible: false,
+    managedByRuntimeApi: false,
+    canUpdate: false,
+    canRemove: false,
+    namespaceBindings: ['default'],
+    sourceIdentity: 'source:shared-readonly-models'
+  })
+
+  await login(page)
+  await page.goto('/console/#/namespaces/authoring?ns=default')
+  await expect(page.getByRole('heading', { name: '模型创作工作区' })).toBeVisible()
+  await expect(page.getByText('NO', { exact: true })).toHaveCount(2)
+
+  const readOnlySource = page.locator('.source-ticket').filter({ hasText: 'shared-readonly-models' })
+  await expect(readOnlySource).toContainText('READ ONLY')
+  await expect(readOnlySource.getByRole('button', { name: '创建' })).toBeDisabled()
+  const eligibleSource = page.locator('.source-ticket').filter({ hasText: 'runtime-console-demo' })
+  await expect(eligibleSource).toContainText('ELIGIBLE')
+  await expect(eligibleSource.getByRole('button', { name: '创建' })).toBeEnabled()
+
+  await eligibleSource.getByRole('button', { name: '创建' }).click()
+  await expect(page.getByText('ws-created-2', { exact: true }).first()).toBeVisible()
+  const createRequest = state.requests.find(item => item.path === 'authoring/workspaces' && item.body.sourceBundle)
+  expect(createRequest).toMatchObject({
+    namespace: 'default',
+    body: { namespace: 'default', sourceBundle: 'runtime-console-demo' }
+  })
+
+  await page.getByRole('button', { name: /DRAFT runtime-console-demo.*ws-default-001/ }).click()
+  await expect(page).toHaveURL(/#\/namespaces\/authoring\?ns=default&workspaceId=ws-default-001$/)
+  await expect(page.getByText('candidate-001', { exact: true }).first()).toBeVisible()
+
+  await page.getByRole('button', { name: '新建' }).click()
+  const resourcePath = page.getByLabel('Workspace 资源路径')
+  await resourcePath.fill('../invalid.tm')
+  await page.getByLabel('Workspace 资源内容').fill('export const invalid = true')
+  await expect(page.getByRole('button', { name: '保存为新 revision' })).toBeDisabled()
+  await expect(page.getByText(/不能包含空目录、\. 或 \.\./)).toBeVisible()
+  await resourcePath.fill('scripts/local-tax.fsscript')
+  await page.getByLabel('Workspace 资源内容').fill('export const localTax = 0.13')
+  await page.getByRole('button', { name: '保存为新 revision' }).click()
+  await expect(page.getByRole('button', { name: /FSSCRIPT scripts\/local-tax\.fsscript/ })).toBeVisible()
+  await page.getByRole('button', { name: '删除草稿资源' }).click()
+  await page.getByRole('dialog', { name: '确认删除 workspace 资源' })
+    .getByRole('button', { name: '删除草稿资源' })
+    .click()
+  await expect(page.getByRole('button', { name: /FSSCRIPT scripts\/local-tax\.fsscript/ })).toBeHidden()
+
+  await page.getByRole('button', { name: /QM query\/OrderQuery\.qm/ }).click()
+  const editor = page.getByLabel('Workspace 资源内容')
+  await expect(editor).toHaveValue(/source: Order/)
+  await editor.fill('export const OrderQuery = queryModel({ source: LocalDraftOrder })')
+  await expect(page.getByText('UNSAVED', { exact: true })).toBeVisible()
+  page.once('dialog', async dialog => {
+    expect(dialog.type()).toBe('confirm')
+    expect(dialog.message()).toContain('未保存修改')
+    await dialog.dismiss()
+  })
+  await page.getByRole('button', { name: /^03 Bundle 来源/ }).click()
+  await expect(page).toHaveURL(/#\/namespaces\/authoring\?ns=default&workspaceId=ws-default-001$/)
+  await expect(editor).toHaveValue(/LocalDraftOrder/)
+
+  state.conflictNextWorkspaceSave = true
+  const savesBeforeConflict = state.requests.filter(item => item.path.endsWith('/resources/save')).length
+  await page.getByRole('button', { name: '保存为新 revision' }).click()
+  const conflict = page.locator('.authoring-error')
+  await expect(conflict).toContainText('WORKSPACE_REVISION_CONFLICT')
+  await expect(page.locator('.conflict-compare')).toContainText('LocalDraftOrder')
+  await expect(page.locator('.conflict-compare')).toContainText('ServerOrder')
+  await expect.poll(() => state.requests.filter(item => item.path.endsWith('/resources/save')).length)
+    .toBe(savesBeforeConflict + 1)
+  await expect(editor).toHaveValue(/LocalDraftOrder/)
+
+  await page.getByRole('button', { name: '保存为新 revision' }).click()
+  await expect(page.locator('.el-message').filter({ hasText: '草稿已保存' })).toBeVisible()
+  const workspaceSaves = state.requests.filter(item => item.path.endsWith('/resources/save'))
+  expect(workspaceSaves).toHaveLength(savesBeforeConflict + 2)
+  expect(workspaceSaves.at(-1)?.body.expectedCandidateRevision).toBe('sha256:candidate-server-conflict')
+  expect(workspaceSaves.at(-1)?.body.files).toEqual([{
+    path: 'query/OrderQuery.qm',
+    content: 'export const OrderQuery = queryModel({ source: LocalDraftOrder })'
+  }])
+
+  const inspector = page.getByRole('navigation', { name: 'Candidate 检查工具' })
+  await inspector.getByRole('button', { name: 'DIFF' }).click()
+  await page.getByRole('button', { name: '读取 exact diff' }).click()
+  await expect(page.locator('.diff-list')).toContainText('MODIFIED')
+  await expect(page.locator('.diff-list')).toContainText('LocalDraftOrder')
+
+  await inspector.getByRole('button', { name: 'VALIDATE' }).click()
+  state.invalidNextWorkspaceValidation = true
+  await page.getByRole('button', { name: '校验当前 revision' }).click()
+  await expect(page.locator('.authoring-error')).toContainText('WORKSPACE_VALIDATION_FAILED')
+  await expect(page.locator('.validation-evidence')).toContainText('INVALID')
+  await expect(page.locator('.validation-evidence')).toContainText('CURRENT')
+  await expect(page.getByText('Candidate QM syntax is invalid.', { exact: true })).toBeVisible()
+  await expect(page.locator('.conflict-compare')).toHaveCount(0)
+  await page.getByRole('button', { name: '校验当前 revision' }).click()
+  await expect(page.locator('.validation-evidence')).toContainText('CURRENT')
+  await expect(page.locator('.validation-evidence')).toContainText('VALID')
+
+  const liveQueriesBefore = state.requests.filter(item => /^query\//.test(item.path)).length
+  await inspector.getByRole('button', { name: 'CANDIDATE QUERY' }).click()
+  await expect(page.getByLabel('Candidate QM 模型')).toHaveValue('OrderQuery')
+  await page.getByLabel('Candidate Query DSL JSON').fill('{"columns":["customer","amount"]}')
+  await page.getByRole('button', { name: 'Execute candidate' }).click()
+  await expect(page.getByText('Candidate Alice', { exact: true })).toBeVisible()
+  await expect(page.locator('.query-identity')).toContainText('candidate-g1')
+  expect(state.requests.filter(item => /^query\//.test(item.path))).toHaveLength(liveQueriesBefore)
+  const candidateRequest = state.requests.find(item => item.path.endsWith('/query/OrderQuery/execute'))
+  expect(candidateRequest?.namespace).toBe('default')
+  expect(candidateRequest?.body).toMatchObject({
+    candidateRevision: 'sha256:candidate-004',
+    request: { columns: ['customer', 'amount'] }
+  })
+
+  await expect(page.locator('.el-message')).toHaveCount(0, { timeout: 6_000 })
+  const authoringEvidenceStyle = await page.addStyleTag({
+    content: '.console-header { visibility: hidden !important; } .skip-link { display: none !important; }'
+  })
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await page.screenshot({
+    path: testInfo.outputPath(testInfo.project.name.includes('mobile')
+      ? 'authoring-workspace-mobile.png'
+      : 'authoring-workspace-desktop.png'),
+    fullPage: true
+  })
+  await authoringEvidenceStyle.evaluate(element => element.remove())
+
+  await page.getByRole('button', { name: 'Discard workspace' }).click()
+  const discardDialog = page.getByRole('dialog', { name: '确认 discard workspace' })
+  await expect(discardDialog).toContainText('runtime-console-demo')
+  await expect(discardDialog).toContainText('candidate-004')
+  await discardDialog.getByRole('button', { name: '终结隔离草稿' }).click()
+  await expect(page.getByText('TERMINAL STATE', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Discard workspace' })).toBeDisabled()
+  expect(state.requests.some(item => item.path === 'resources/save')).toBe(false)
+  expect(state.requests.some(item => item.path === 'models/refresh')).toBe(false)
   expect(browserErrors).toEqual([])
 })

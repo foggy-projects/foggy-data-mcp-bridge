@@ -22,6 +22,7 @@ catalog、Git 凭据管理、跨 Runtime 编排或 Agent。
 | [Runtime candidate-query overlay](workitems/FEATURE-runtime-candidate-query-overlay.md) | ACCEPTED | 已验收 request-local candidate resolve/validate/query 原语，复用权限与执行链并隔离 live catalog/cache |
 | [Runtime authoring workspace API](workitems/FEATURE-runtime-authoring-workspace-api.md) | ACCEPTED | R2 重验确认 ownership blocker 已关闭，workspace/revision/diff/validate/query 与 live-state isolation 全部签收 |
 | [Workspace store root ownership 修复](workitems/BUG-runtime-authoring-workspace-store-root-ownership.md) | ACCEPTED | ownership-bearing v2、foreign data 零删除、v1 无损迁移和 Bundle path disjointness 已正式签收 |
+| [Runtime Console authoring workspace 草稿闭环](workitems/FEATURE-runtime-console-authoring-workspace.md) | ACCEPTED | 已验收不含 publish 的创建、编辑、CAS 冲突恢复、diff、validate、candidate query 与 discard 草稿闭环 |
 
 技术基线和建议交付顺序见
 [Runtime 模型创作工作区设计与路线](runtime-model-authoring-design.md)。

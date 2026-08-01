@@ -5,13 +5,14 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import PageHeader from '@/components/PageHeader.vue'
 import ModelCatalog from '@/features/models/ModelCatalog.vue'
 import BundleCatalog from '@/features/bundles/BundleCatalog.vue'
+import AuthoringWorkspace from '@/features/authoring/AuthoringWorkspace.vue'
 import { runtimeApi, RuntimeRequestError } from '@/api/client'
 import { useRuntimeSession } from '@/stores/session'
 import { useContextRail } from '@/stores/contextRail'
 import { useNamespaceWorkspaceData } from '@/features/namespace/useNamespaceWorkspaceData'
 
-type Workspace = 'overview' | 'models' | 'bundles' | 'settings'
-const workspaces: Workspace[] = ['overview', 'models', 'bundles', 'settings']
+type Workspace = 'overview' | 'models' | 'bundles' | 'authoring' | 'settings'
+const workspaces: Workspace[] = ['overview', 'models', 'bundles', 'authoring', 'settings']
 
 const route = useRoute()
 const router = useRouter()
@@ -67,7 +68,7 @@ async function replaceWorkspaceRoute(namespace = currentNamespace.value, next = 
   await router.replace({
     name: 'namespaces',
     params: { workspace: next === 'overview' ? undefined : next },
-    query: { ns: namespace }
+    query: { ns: namespace, workspaceId: next === 'authoring' ? route.query.workspaceId : undefined }
   })
 }
 
@@ -75,7 +76,7 @@ async function selectWorkspace(next: Workspace): Promise<void> {
   await router.push({
     name: 'namespaces',
     params: { workspace: next === 'overview' ? undefined : next },
-    query: { ns: currentNamespace.value }
+    query: { ns: currentNamespace.value, workspaceId: next === 'authoring' ? route.query.workspaceId : undefined }
   })
 }
 
@@ -198,6 +199,7 @@ onBeforeUnmount(() => contextRail.clearContext('namespaces'))
         { id: 'overview', label: '概览' },
         { id: 'models', label: '分析模型（QM）', count: data.models.value.length },
         { id: 'bundles', label: 'Bundle 来源', count: selectedBundles.length },
+        { id: 'authoring', label: '模型创作' },
         { id: 'settings', label: '空间设置' }
       ]"
       :key="item.id"
@@ -275,6 +277,12 @@ onBeforeUnmount(() => contextRail.clearContext('namespaces'))
     @reload="load"
   />
 
+  <AuthoringWorkspace
+    v-else-if="workspace === 'authoring'"
+    :namespace="currentNamespace"
+    :bundles="selectedBundles"
+  />
+
   <section v-else class="settings-grid" aria-labelledby="space-settings-title">
     <div class="console-panel settings-copy">
       <span class="console-panel-kicker">SPACE SETTINGS / DEFAULT BINDING</span>
@@ -314,7 +322,7 @@ onBeforeUnmount(() => contextRail.clearContext('namespaces'))
 <style scoped>
 .namespace-tabs {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   margin-bottom: 16px;
   border: 1px solid var(--console-line-strong);
   background: var(--console-panel);

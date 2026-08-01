@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { runtimeApiBase, runtimeRequest } from '@/api/client'
 import { readRuntimeToken, writeRuntimeToken } from '@/api/storage'
 
-function rejectingAdapter(status: number, code: string) {
+function rejectingAdapter(status: number, code: string, details: Record<string, unknown> = {}) {
   return (config: InternalAxiosRequestConfig) => Promise.reject(new AxiosError(
     'request failed',
     AxiosError.ERR_BAD_REQUEST,
@@ -12,7 +12,7 @@ function rejectingAdapter(status: number, code: string) {
     {
       data: {
         success: false,
-        error: { code, message: 'rejected' }
+        error: { code, message: 'rejected', ...details }
       },
       status,
       statusText: 'Rejected',
@@ -58,5 +58,23 @@ describe('Runtime API client boundary', () => {
       adapter: rejectingAdapter(401, 'RUNTIME_AUTH_REQUIRED')
     })).rejects.toMatchObject({ status: 401 })
     expect(readRuntimeToken()).toBeNull()
+  })
+
+  it('preserves workspace recovery metadata from failed envelopes', async () => {
+    await expect(runtimeRequest({
+      url: 'authoring/workspaces/ws-1/resources/save',
+      adapter: rejectingAdapter(409, 'WORKSPACE_REVISION_CONFLICT', {
+        phase: 'workspaces.resources.save',
+        path: 'query/Order.qm',
+        safeToAutoRepair: true,
+        suggestedNextAction: 'Refresh workspace metadata.'
+      })
+    })).rejects.toMatchObject({
+      code: 'WORKSPACE_REVISION_CONFLICT',
+      phase: 'workspaces.resources.save',
+      path: 'query/Order.qm',
+      safeToAutoRepair: true,
+      suggestedNextAction: 'Refresh workspace metadata.'
+    })
   })
 })

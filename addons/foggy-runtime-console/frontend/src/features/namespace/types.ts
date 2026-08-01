@@ -10,6 +10,11 @@ export interface BundleItem {
   canRemove?: boolean
   status?: string
   message?: string
+  sourceType?: string
+  editable?: boolean
+  workspaceEligible?: boolean
+  namespaceBindings?: string[]
+  sourceIdentity?: string
 }
 
 export interface ModelItem {
