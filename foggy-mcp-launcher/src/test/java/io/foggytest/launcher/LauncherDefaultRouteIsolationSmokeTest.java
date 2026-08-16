@@ -3,6 +3,8 @@ package io.foggytest.launcher;
 import com.foggyframework.dataset.model.semantic.controller.SemanticServiceV3TestController;
 import com.foggyframework.dataset.mcp.controller.ChartImageController;
 import com.foggyframework.dataset.mcp.controller.DevToolsController;
+import com.foggyframework.dataset.mcp.service.NamespaceToolPolicyService;
+import com.foggyframework.dataset.mcp.tools.ExplainQueryTool;
 import com.foggyframework.mcp.launcher.DemoSecurityIdentityResolver;
 import com.foggyframework.mcp.launcher.McpLauncherApplication;
 import com.foggyframework.mcp.launcher.SavedQueryTestController;
@@ -72,6 +74,8 @@ class LauncherDefaultRouteIsolationSmokeTest {
         assertThat(applicationContext.getBeansOfType(SavedQueryTestController.class)).isEmpty();
         assertThat(applicationContext.getBeansOfType(DemoSecurityIdentityResolver.class)).isEmpty();
         assertThat(applicationContext.getBeansOfType(ChartImageController.class)).hasSize(1);
+        assertThat(applicationContext.getBeansOfType(NamespaceToolPolicyService.class)).hasSize(1);
+        assertThat(applicationContext.getBeansOfType(ExplainQueryTool.class)).hasSize(1);
 
         mockMvc.perform(get("/dev/tables"))
                 .andExpect(status().isNotFound());

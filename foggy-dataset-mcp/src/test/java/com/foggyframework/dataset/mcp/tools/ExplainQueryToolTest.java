@@ -1,8 +1,10 @@
 package com.foggyframework.dataset.mcp.tools;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.model.semantic.explain.SemanticExplainRequest;
+import com.foggyframework.dataset.model.semantic.explain.SemanticExplainResponse;
 import com.foggyframework.dataset.model.semantic.explain.SemanticExplainService;
 import com.foggyframework.dataset.model.semantic.permission.PermissionAction;
 import com.foggyframework.mcp.spi.ToolExecutionContext;
@@ -16,11 +18,14 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ExplainQueryToolTest {
@@ -77,5 +82,35 @@ class ExplainQueryToolTest {
         ExplainQueryTool tool = new ExplainQueryTool(semanticExplainService, new ObjectMapper());
         assertThrows(IllegalArgumentException.class,
                 () -> tool.execute(Map.of(), ToolExecutionContext.of("trace-3", null)));
+    }
+
+    @Test
+    void responseIsReturnedAsVersionedJsonInsteadOfRecordToString() {
+        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        ExplainQueryTool tool = new ExplainQueryTool(semanticExplainService, objectMapper);
+        when(semanticExplainService.explain(eq("sales"), any(), any()))
+                .thenReturn(response(SemanticExplainResponse.Basis.DEFINITION));
+
+        Object result = tool.execute(Map.of("model", "sales"),
+                ToolExecutionContext.of("trace-4", null));
+
+        JsonNode json = assertInstanceOf(JsonNode.class, result);
+        assertEquals(SemanticExplainResponse.SCHEMA_VERSION, json.path("schemaVersion").asText());
+        assertEquals("DEFINITION", json.path("basis").asText());
+        assertEquals("sales", json.path("definitionTrace").path("queryModel").asText());
+    }
+
+    private SemanticExplainResponse response(SemanticExplainResponse.Basis basis) {
+        return new SemanticExplainResponse(
+                SemanticExplainResponse.SCHEMA_VERSION,
+                basis,
+                new SemanticExplainResponse.DefinitionTrace("sales", null, List.of(), List.of()),
+                new SemanticExplainResponse.CompilationTrace(
+                        null, null, List.of(), List.of(), null, List.of()),
+                null,
+                null,
+                null,
+                null,
+                List.of());
     }
 }

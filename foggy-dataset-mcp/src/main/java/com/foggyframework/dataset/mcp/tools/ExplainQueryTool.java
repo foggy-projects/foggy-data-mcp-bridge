@@ -50,7 +50,11 @@ public class ExplainQueryTool implements McpTool {
         SemanticRequestContext semanticContext = SemanticRequestContext
                 .of(context.getNamespace(), context.getAuthorization())
                 .withPermissionAction(action);
-        return semanticExplainService.explain(model, request, semanticContext);
+        // Return a JSON tree instead of the response record itself. The legacy
+        // JSON-RPC adapter serializes arbitrary objects with a minimal mapper;
+        // records containing trace timestamps can otherwise fall back to their
+        // Java toString() representation instead of the public JSON contract.
+        return objectMapper.valueToTree(semanticExplainService.explain(model, request, semanticContext));
     }
 
     private String asString(Object value) {
