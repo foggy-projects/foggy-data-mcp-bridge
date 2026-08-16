@@ -46,9 +46,11 @@ class PreAggregationMatcherTest {
 
         PreAggregationMatchResult result = matcher.findBestMatch(requirement, null);
         assertFalse(result.isMatched());
+        assertEquals("PREAGG_NOT_CONFIGURED", result.getReasonCode());
 
         result = matcher.findBestMatch(requirement, Collections.emptyList());
         assertFalse(result.isMatched());
+        assertEquals("PREAGG_NOT_CONFIGURED", result.getReasonCode());
     }
 
     @Test
@@ -64,6 +66,7 @@ class PreAggregationMatcherTest {
 
         PreAggregationMatchResult result = matcher.findBestMatch(requirement, preAggregations);
         assertFalse(result.isMatched());
+        assertEquals("PREAGG_GROUP_BY_REQUIRED", result.getReasonCode());
     }
 
     @Test

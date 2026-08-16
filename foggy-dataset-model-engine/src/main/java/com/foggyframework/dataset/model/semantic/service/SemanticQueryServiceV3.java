@@ -4,6 +4,7 @@ import com.foggyframework.dataset.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.model.semantic.explain.SemanticExplainCompilation;
 import com.foggyframework.dataset.model.semantic.port.ComposeSemanticPlanningPort;
 import com.foggyframework.dataset.model.semantic.port.ComposeSqlExecutionPort;
 import com.foggyframework.dataset.model.semantic.port.ComposeSqlGeneration;
@@ -72,6 +73,19 @@ public interface SemanticQueryServiceV3 extends ComposeSemanticPlanningPort, Com
      */
     SqlGenerationResult generateSql(String model, SemanticQueryRequest request,
                                     SemanticRequestContext context);
+
+    /**
+     * Recompile a semantic request into governed, execution-ready SQL without
+     * reading caches or executing JDBC. Implementations may opt out; the
+     * default keeps existing third-party implementations source-compatible.
+     */
+    default SemanticExplainCompilation compileForExplain(
+            String model,
+            SemanticQueryRequest request,
+            SemanticRequestContext context
+    ) {
+        throw new UnsupportedOperationException("SEMANTIC_EXPLAIN_RECOMPILE_NOT_SUPPORTED");
+    }
 
     /**
      * Adapt the legacy service contract to the narrow Compose planning port.

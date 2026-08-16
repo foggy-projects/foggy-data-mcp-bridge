@@ -65,12 +65,24 @@ public class PreAggRewriteResult {
      */
     private Object watermark;
 
+    /** Stable machine-readable outcome when no rewrite was applied. */
+    private String reasonCode;
+
+    /** Human-readable, non-authoritative diagnostic paired with reasonCode. */
+    private String reason;
+
     /**
      * 创建未应用预聚合的结果
      */
     public static PreAggRewriteResult notApplied() {
+        return notApplied("PREAGG_NOT_APPLIED", "Pre-aggregation was not applied");
+    }
+
+    public static PreAggRewriteResult notApplied(String reasonCode, String reason) {
         PreAggRewriteResult result = new PreAggRewriteResult();
         result.setApplied(false);
+        result.setReasonCode(reasonCode);
+        result.setReason(reason);
         return result;
     }
 
@@ -144,7 +156,7 @@ public class PreAggRewriteResult {
                     ", sql='" + (sql != null && sql.length() > 100 ? sql.substring(0, 100) + "..." : sql) + '\'' +
                     '}';
         } else {
-            return "PreAggRewriteResult{applied=false}";
+            return "PreAggRewriteResult{applied=false, reasonCode='" + reasonCode + "'}";
         }
     }
 }

@@ -97,7 +97,8 @@ public class PreAggregationInterceptor {
             if (log.isDebugEnabled()) {
                 log.debug("No pre-aggregations configured for model: {}", queryModel.getName());
             }
-            return PreAggRewriteResult.notApplied();
+            return PreAggRewriteResult.notApplied(
+                    "PREAGG_NOT_CONFIGURED", "No pre-aggregations configured");
         }
 
         // 2. 从查询中提取需求
@@ -117,7 +118,8 @@ public class PreAggregationInterceptor {
             if (log.isDebugEnabled()) {
                 log.debug("No pre-aggregation matched: {}", matchResult.getReason());
             }
-            return PreAggRewriteResult.notApplied();
+            return PreAggRewriteResult.notApplied(
+                    matchResult.getReasonCode(), matchResult.getReason());
         }
 
         // 4. 记录匹配结果

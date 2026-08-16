@@ -78,9 +78,13 @@ public class PreAggregationMatchResult {
      */
     private final String reason;
 
+    /** Stable machine-readable reason when no candidate matches. */
+    private final String reasonCode;
+
     private PreAggregationMatchResult(boolean matched, PreAggregation preAggregation,
                                        boolean needsRollup, QueryMode queryMode,
-                                       Object watermark, int score, String reason) {
+                                       Object watermark, int score, String reason,
+                                       String reasonCode) {
         this.matched = matched;
         this.preAggregation = preAggregation;
         this.needsRollup = needsRollup;
@@ -88,6 +92,7 @@ public class PreAggregationMatchResult {
         this.watermark = watermark;
         this.score = score;
         this.reason = reason;
+        this.reasonCode = reasonCode;
     }
 
     /**
@@ -101,7 +106,7 @@ public class PreAggregationMatchResult {
     public static PreAggregationMatchResult matched(PreAggregation preAggregation,
                                                      boolean needsRollup, int score) {
         return new PreAggregationMatchResult(true, preAggregation, needsRollup,
-                QueryMode.FULL, null, score, null);
+                QueryMode.FULL, null, score, null, null);
     }
 
     /**
@@ -121,7 +126,7 @@ public class PreAggregationMatchResult {
                                                     Object watermark,
                                                     int score) {
         return new PreAggregationMatchResult(true, preAggregation, needsRollup,
-                QueryMode.HYBRID, watermark, score, null);
+                QueryMode.HYBRID, watermark, score, null, null);
     }
 
     /**
@@ -131,8 +136,12 @@ public class PreAggregationMatchResult {
      * @return 匹配结果
      */
     public static PreAggregationMatchResult noMatch(String reason) {
+        return noMatch("PREAGG_NO_COMPATIBLE_CANDIDATE", reason);
+    }
+
+    public static PreAggregationMatchResult noMatch(String reasonCode, String reason) {
         return new PreAggregationMatchResult(false, null, false,
-                QueryMode.NONE, null, 0, reason);
+                QueryMode.NONE, null, 0, reason, reasonCode);
     }
 
     /**
@@ -142,7 +151,8 @@ public class PreAggregationMatchResult {
      */
     public static PreAggregationMatchResult noMatch() {
         return new PreAggregationMatchResult(false, null, false,
-                QueryMode.NONE, null, 0, "No pre-aggregation available");
+                QueryMode.NONE, null, 0, "No pre-aggregation available",
+                "PREAGG_NOT_CONFIGURED");
     }
 
     /**
@@ -178,7 +188,8 @@ public class PreAggregationMatchResult {
                     ", score=" + score +
                     '}';
         } else {
-            return "PreAggMatchResult{matched=false, reason='" + reason + "'}";
+            return "PreAggMatchResult{matched=false, reasonCode='" + reasonCode
+                    + "', reason='" + reason + "'}";
         }
     }
 }

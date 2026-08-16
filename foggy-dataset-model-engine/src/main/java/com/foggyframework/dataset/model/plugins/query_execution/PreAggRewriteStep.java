@@ -7,6 +7,8 @@ import com.foggyframework.dataset.model.engine.preagg.PreAggRewriteResult;
 import com.foggyframework.dataset.model.engine.preagg.PreAggregationInterceptor;
 import com.foggyframework.dataset.model.engine.stage.QueryStagePlan;
 import com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext;
+import com.foggyframework.dataset.model.semantic.explain.ExplainTraceCollector;
+import com.foggyframework.dataset.model.semantic.explain.SemanticExplainResponse;
 import com.foggyframework.dataset.model.spi.JdbcQueryModel;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
@@ -58,17 +60,23 @@ public class PreAggRewriteStep implements QueryExecutionStep {
         // 检查是否禁用预聚合
         if (isPreAggDisabled(ctx)) {
             log.debug("Pre-aggregation disabled for model={}", ctx.getModelName());
+            recordExplainOutcome(ctx, PreAggRewriteResult.notApplied(
+                    "PREAGG_DISABLED", "Pre-aggregation is disabled for this request"));
             return CONTINUE;
         }
 
         JdbcModelQueryEngine queryEngine = ctx.getQueryEngine();
         if (queryEngine == null) {
+            recordExplainOutcome(ctx, PreAggRewriteResult.notApplied(
+                    "PREAGG_QUERY_ENGINE_UNAVAILABLE", "Query engine is unavailable"));
             return CONTINUE;
         }
 
         // 获取查询模型
         JdbcQueryModel queryModel = queryEngine.getJdbcQueryModel();
         if (queryModel == null) {
+            recordExplainOutcome(ctx, PreAggRewriteResult.notApplied(
+                    "PREAGG_QUERY_MODEL_UNAVAILABLE", "JDBC query model is unavailable"));
             return CONTINUE;
         }
 
@@ -87,6 +95,9 @@ public class PreAggRewriteStep implements QueryExecutionStep {
 
         if (skipMainPreAggForStagePlan) {
             markMainPreAggSkippedByStagePlan(ctx, stagePlanPolicy.policy);
+            preAggResult = PreAggRewriteResult.notApplied(
+                    "PREAGG_STAGE_PLAN_RESTRICTED",
+                    "Query stage policy restricts main pre-aggregation rewrite");
         } else {
             preAggResult = tryPreAggregation(interceptor, queryEngine, queryModel, queryRequest);
         }
@@ -116,8 +127,10 @@ public class PreAggRewriteStep implements QueryExecutionStep {
             log.info("Query using pre-aggregation '{}' (mode={})",
                     preAggResult.getPreAggName(),
                     preAggResult.isHybridQuery() ? "hybrid" :
-                            (preAggResult.isNeedsRollup() ? "rollup" : "direct"));
+                    (preAggResult.isNeedsRollup() ? "rollup" : "direct"));
         }
+
+        recordExplainOutcome(ctx, preAggResult);
 
         // 无论主查询是否使用预聚合，都尝试为聚合查询（returnTotal）设置预聚合 SQL
         // 这样可以确保聚合查询也能受益于预聚合优化
@@ -350,8 +363,58 @@ public class PreAggRewriteStep implements QueryExecutionStep {
             if (log.isDebugEnabled()) {
                 log.debug("Pre-aggregation error details", e);
             }
-            return PreAggRewriteResult.notApplied();
+            return PreAggRewriteResult.notApplied(
+                    "PREAGG_INTERCEPTOR_FAILED",
+                    "Pre-aggregation interception failed; the source query was retained");
         }
+    }
+
+    private void recordExplainOutcome(QueryExecutionContext ctx, PreAggRewriteResult result) {
+        ModelResultContext modelContext = ctx.getModelResultContext();
+        ExplainTraceCollector collector = modelContext == null
+                ? null
+                : modelContext.getExplainTraceCollector();
+        if (collector == null || result == null) {
+            return;
+        }
+
+        String route = explainRoute(result);
+        String reasonCode = result.isApplied()
+                ? route
+                : result.getReasonCode();
+        String reason = result.isApplied()
+                ? "A compatible pre-aggregation was selected"
+                : result.getReason();
+
+        ctx.setExtData("preAggRoute", route);
+        ctx.setExtData("preAggReasonCode", reasonCode);
+        ctx.setExtData("preAggReason", reason);
+        if (modelContext.getExtData() != null) {
+            modelContext.getExtData().put("preAggRoute", route);
+            modelContext.getExtData().put("preAggReasonCode", reasonCode);
+            modelContext.getExtData().put("preAggReason", reason);
+        }
+        collector.record(
+                "MATERIALIZATION",
+                "PRE_AGGREGATION_ROUTING",
+                SemanticExplainResponse.StageStatus.EVALUATED,
+                route,
+                reasonCode,
+                SemanticExplainResponse.Confidence.EXACT,
+                result.getPreAggName() == null
+                        ? Map.of()
+                        : Map.of("preAggregation", result.getPreAggName())
+        );
+    }
+
+    static String explainRoute(PreAggRewriteResult result) {
+        if (result == null || !result.isApplied()) {
+            return "RAW";
+        }
+        if (result.isHybridQuery()) {
+            return "PREAGG_HYBRID";
+        }
+        return result.isNeedsRollup() ? "PREAGG_ROLLUP" : "PREAGG_DIRECT";
     }
 
     /**

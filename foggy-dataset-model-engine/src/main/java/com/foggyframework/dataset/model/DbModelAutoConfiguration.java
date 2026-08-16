@@ -106,6 +106,7 @@ import java.util.List;
         com.foggyframework.dataset.model.semantic.service.impl.DictionaryDiscoveryServiceImpl.class,
         com.foggyframework.dataset.model.semantic.service.impl.DimensionMemberLoaderImpl.class,
         com.foggyframework.dataset.model.semantic.service.impl.SemanticQueryServiceV3Impl.class,
+        com.foggyframework.dataset.model.semantic.service.impl.SemanticExplainServiceImpl.class,
         com.foggyframework.dataset.model.semantic.service.impl.SemanticServiceV3Impl.class,
         com.foggyframework.dataset.model.semantic.support.SemanticQueryPayloadMapper.class,
         com.foggyframework.dataset.model.service.impl.DbModelDictServiceImpl.class,

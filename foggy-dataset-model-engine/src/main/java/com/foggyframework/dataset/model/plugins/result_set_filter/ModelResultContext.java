@@ -23,6 +23,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import com.foggyframework.dataset.model.semantic.domain.DeniedPhysicalColumn;
+import com.foggyframework.dataset.model.semantic.explain.ExplainTraceCollector;
 import com.foggyframework.dataset.model.semantic.permission.PermissionDecision;
 import com.foggyframework.dataset.model.semantic.permission.PermissionEvaluationSession;
 import com.foggyframework.dataset.model.semantic.permission.PermissionAction;
@@ -78,6 +79,9 @@ public class ModelResultContext {
      * 扩展数据，用于filter传递自定义数据
      */
     Map<String, Object> extData = new HashMap<>();
+
+    /** Explain-only request-local event collector; null on ordinary query paths. */
+    ExplainTraceCollector explainTraceCollector;
 
     public void mergeRequestExtData(Object requestExtData) {
         if (requestExtData == null) {

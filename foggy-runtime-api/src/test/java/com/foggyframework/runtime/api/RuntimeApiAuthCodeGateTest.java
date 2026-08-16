@@ -6,6 +6,7 @@ import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.dataset.model.semantic.port.ComposeExecutionPort;
 import com.foggyframework.dataset.model.semantic.service.SemanticModelCatalogService;
 import com.foggyframework.dataset.model.semantic.service.SemanticQueryServiceV3;
+import com.foggyframework.dataset.model.semantic.explain.SemanticExplainService;
 import com.foggyframework.dataset.model.semantic.service.SemanticServiceV3;
 import com.foggyframework.dataset.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.model.spi.TableModelLoaderManager;
@@ -72,6 +73,9 @@ class RuntimeApiAuthCodeGateTest {
 
     @MockitoBean
     private SemanticQueryServiceV3 semanticQueryServiceV3;
+
+    @MockitoBean
+    private SemanticExplainService semanticExplainService;
 
     @MockitoBean
     private ComposeExecutionPort composeExecutionPort;
@@ -443,6 +447,7 @@ class RuntimeApiAuthCodeGateTest {
         assertAllowedByInterceptor("POST", RuntimeApiRoutes.Full.RESOURCES_EXPORT);
         assertAllowedByInterceptor("POST", route(RuntimeApiRoutes.Full.QUERY_VALIDATE, "model", "Order"));
         assertAllowedByInterceptor("POST", route(RuntimeApiRoutes.Full.QUERY_EXECUTE, "model", "Order"));
+        assertAllowedByInterceptor("POST", route(RuntimeApiRoutes.Full.QUERY_EXPLAIN, "model", "Order"));
         assertAllowedByInterceptor("POST", RuntimeApiRoutes.Full.TABLES_LIST);
         assertAllowedByInterceptor("POST", RuntimeApiRoutes.Full.TABLES_INSPECT);
         assertAllowedByInterceptor("POST", RuntimeApiRoutes.Full.SQL_QUERY);
@@ -476,6 +481,7 @@ class RuntimeApiAuthCodeGateTest {
                 {"POST", RuntimeApiRoutes.Full.MODELS_REFRESH},
                 {"POST", route(RuntimeApiRoutes.Full.QUERY_VALIDATE, "model", "Order")},
                 {"POST", route(RuntimeApiRoutes.Full.QUERY_EXECUTE, "model", "Order")},
+                {"POST", route(RuntimeApiRoutes.Full.QUERY_EXPLAIN, "model", "Order")},
                 {"POST", RuntimeApiRoutes.Full.TABLES_LIST},
                 {"POST", RuntimeApiRoutes.Full.TABLES_INSPECT},
                 {"POST", RuntimeApiRoutes.Full.SQL_QUERY},

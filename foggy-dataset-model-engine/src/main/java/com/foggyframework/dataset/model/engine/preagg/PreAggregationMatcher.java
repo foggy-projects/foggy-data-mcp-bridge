@@ -62,21 +62,27 @@ public class PreAggregationMatcher {
     public PreAggregationMatchResult findBestMatch(PreAggQueryRequirement requirement,
                                                     List<PreAggregation> preAggregations) {
         if (preAggregations == null || preAggregations.isEmpty()) {
-            return PreAggregationMatchResult.noMatch("No pre-aggregations configured");
+            return PreAggregationMatchResult.noMatch(
+                    "PREAGG_NOT_CONFIGURED", "No pre-aggregations configured");
         }
 
         if (requirement == null) {
-            return PreAggregationMatchResult.noMatch("Query requirement is null");
+            return PreAggregationMatchResult.noMatch(
+                    "PREAGG_REQUIREMENT_UNAVAILABLE", "Query requirement is null");
         }
 
         // 只有有分组的查询才考虑预聚合
         if (!requirement.isHasGroupBy()) {
-            return PreAggregationMatchResult.noMatch("Query has no GROUP BY, pre-aggregation not applicable");
+            return PreAggregationMatchResult.noMatch(
+                    "PREAGG_GROUP_BY_REQUIRED",
+                    "Query has no GROUP BY, pre-aggregation not applicable");
         }
 
         // 有自定义 SQL 条件（query.andSql() 等）时不使用预聚合，因为无法解析
         if (requirement.isHasCustomSqlConditions()) {
-            return PreAggregationMatchResult.noMatch("Query has custom SQL conditions, pre-aggregation not supported");
+            return PreAggregationMatchResult.noMatch(
+                    "PREAGG_CUSTOM_SQL_UNSUPPORTED",
+                    "Query has custom SQL conditions, pre-aggregation not supported");
         }
 
         // 注意：有 slice 条件时可以继续匹配，isSatisfiableBy() 会检查 slice 列是否在预聚合中
@@ -148,7 +154,9 @@ public class PreAggregationMatcher {
         }
 
         if (candidates.isEmpty()) {
-            return PreAggregationMatchResult.noMatch("No pre-aggregation satisfies the query requirements");
+            return PreAggregationMatchResult.noMatch(
+                    "PREAGG_NO_COMPATIBLE_CANDIDATE",
+                    "No pre-aggregation satisfies the query requirements");
         }
 
         // 按分数排序（降序）

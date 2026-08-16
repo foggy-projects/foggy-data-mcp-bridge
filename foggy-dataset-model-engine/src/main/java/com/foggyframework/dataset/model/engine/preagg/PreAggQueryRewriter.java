@@ -74,7 +74,8 @@ public class PreAggQueryRewriter {
                                         DbQueryRequestDef queryRequest,
                                         JdbcModelQueryEngine queryEngine) {
         if (!matchResult.isMatched()) {
-            return PreAggRewriteResult.notApplied();
+            return PreAggRewriteResult.notApplied(
+                    matchResult.getReasonCode(), matchResult.getReason());
         }
 
         PreAggregation preAgg = matchResult.getPreAggregation();
@@ -87,7 +88,9 @@ public class PreAggQueryRewriter {
                     || boundary.isAfter(LocalDate.now())) {
                 log.debug("Pre-aggregation hybrid rewrite refused because watermark is not "
                         + "a proven LocalDate exclusive boundary");
-                return PreAggRewriteResult.notApplied();
+                return PreAggRewriteResult.notApplied(
+                        "PREAGG_HYBRID_WATERMARK_UNPROVEN",
+                        "Hybrid watermark is not a proven LocalDate exclusive boundary");
             }
         }
 
@@ -97,7 +100,9 @@ public class PreAggQueryRewriter {
         // the governed source query instead of emitting guessed SQL.
         if (isHybrid && hasAggregationProjection(jdbcQuery)) {
             log.debug("Pre-aggregation hybrid rewrite refused for aggregate projection wrappers");
-            return PreAggRewriteResult.notApplied();
+            return PreAggRewriteResult.notApplied(
+                    "PREAGG_HYBRID_PROJECTION_UNPROVEN",
+                    "Hybrid projection equivalence cannot be proven");
         }
 
         // The legacy hybrid SQL builder applies the request predicate only
@@ -108,7 +113,9 @@ public class PreAggQueryRewriter {
         if (isHybrid && hasQueryPredicates(jdbcQuery, queryRequest)) {
             log.debug("Pre-aggregation hybrid rewrite refused because predicates cannot be "
                     + "proved for both UNION branches");
-            return PreAggRewriteResult.notApplied();
+            return PreAggRewriteResult.notApplied(
+                    "PREAGG_HYBRID_PREDICATE_UNPROVEN",
+                    "Hybrid predicate equivalence cannot be proven");
         }
 
         try {
@@ -155,7 +162,8 @@ public class PreAggQueryRewriter {
         } catch (Exception e) {
             log.warn("Failed to rewrite query for pre-aggregation '{}': {}",
                     preAgg.getName(), e.getMessage(), e);
-            return PreAggRewriteResult.notApplied();
+            return PreAggRewriteResult.notApplied(
+                    "PREAGG_REWRITE_FAILED", "Pre-aggregation SQL rewrite failed");
         }
     }
 

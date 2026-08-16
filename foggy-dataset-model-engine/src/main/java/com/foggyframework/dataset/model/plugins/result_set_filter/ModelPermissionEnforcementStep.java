@@ -6,6 +6,8 @@ import com.foggyframework.dataset.model.semantic.permission.ModelPermissionServi
 import com.foggyframework.dataset.model.semantic.permission.PermissionAction;
 import com.foggyframework.dataset.model.semantic.permission.PermissionDecision;
 import com.foggyframework.dataset.model.semantic.permission.PermissionPredicate;
+import com.foggyframework.dataset.model.semantic.explain.ExplainTraceCollector;
+import com.foggyframework.dataset.model.semantic.explain.SemanticExplainResponse;
 import com.foggyframework.dataset.model.semantic.member.SyntheticMemberQueryModelResolver;
 import com.foggyframework.dataset.model.spi.DbQueryColumn;
 import com.foggyframework.dataset.model.spi.QueryModel;
@@ -55,7 +57,10 @@ public class ModelPermissionEnforcementStep implements DataSetResultStep {
         ctx.setPermissionDecision(decision);
         if (!alreadyApplied) {
             mergeDecisionAttributes(ctx, decision);
-            mergeRowPredicates(ctx, target.mapPredicates(decision.getRowPredicates()));
+            mergeRowPredicates(
+                    ctx,
+                    target.mapPredicates(decision.getRowPredicates()),
+                    target.action());
         }
         return CONTINUE;
     }
@@ -119,7 +124,11 @@ public class ModelPermissionEnforcementStep implements DataSetResultStep {
         securityContext.setAttributes(Map.copyOf(merged));
     }
 
-    private void mergeRowPredicates(ModelResultContext ctx, List<PermissionPredicate> predicates) {
+    private void mergeRowPredicates(
+            ModelResultContext ctx,
+            List<PermissionPredicate> predicates,
+            PermissionAction action
+    ) {
         if (predicates.isEmpty()) {
             return;
         }
@@ -127,8 +136,31 @@ public class ModelPermissionEnforcementStep implements DataSetResultStep {
         if (ctx.getSystemSlice() != null) {
             merged.addAll(ctx.getSystemSlice());
         }
-        predicates.stream().map(PermissionPredicate::toSlice).forEach(merged::add);
+        ExplainTraceCollector collector = ctx.getExplainTraceCollector();
+        for (PermissionPredicate predicate : predicates) {
+            SliceRequestDef condition = predicate.toSlice();
+            merged.add(condition);
+            if (collector != null) {
+                SemanticExplainResponse.ConditionOrigin origin =
+                        predicate.getOrigin() == PermissionPredicate.Origin.LEGACY_ACCESS
+                                ? SemanticExplainResponse.ConditionOrigin.ACCESS_BUILDER
+                                : action == PermissionAction.MEMBER_QUERY
+                                ? SemanticExplainResponse.ConditionOrigin.MEMBER_PERMISSION
+                                : SemanticExplainResponse.ConditionOrigin.MODEL_PERMISSION;
+                collector.registerConditionOrigin(condition, origin);
+            }
+        }
         ctx.setSystemSlice(List.copyOf(merged));
+        if (collector != null) {
+            collector.record(
+                    "SECURITY",
+                    "MODEL_PERMISSION_APPLIED",
+                    SemanticExplainResponse.StageStatus.EVALUATED,
+                    "CONSTRAINED",
+                    "MODEL_PERMISSION_PREDICATES_INJECTED",
+                    SemanticExplainResponse.Confidence.EXACT,
+                    Map.of("predicateCount", predicates.size(), "action", action.name()));
+        }
     }
 
     private record AuthorizationTarget(

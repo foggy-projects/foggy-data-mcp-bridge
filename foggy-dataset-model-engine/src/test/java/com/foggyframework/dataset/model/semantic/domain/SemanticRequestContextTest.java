@@ -8,6 +8,7 @@ import com.foggyframework.dataset.model.lifecycle.identity.CatalogGeneration;
 import com.foggyframework.dataset.model.lifecycle.identity.CatalogIdentity;
 import com.foggyframework.dataset.model.lifecycle.identity.SourceRevision;
 import com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext;
+import com.foggyframework.dataset.model.semantic.explain.ExplainTraceCollector;
 import com.foggyframework.dataset.model.spi.QueryModel;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -52,6 +53,23 @@ class SemanticRequestContextTest {
         assertNull(ctx.getNamespace());
         assertNull(ctx.getSecurityContext());
         assertNull(ctx.getAuthorization());
+        assertNull(ctx.getExplainTraceCollector());
+    }
+
+    @Test
+    @DisplayName("explain collector 在上下文派生过程中保持请求级同一实例")
+    void explainCollectorSurvivesDerivedContexts() {
+        ExplainTraceCollector collector = new ExplainTraceCollector();
+        SemanticRequestContext explained = SemanticRequestContext.ofNamespace("sales")
+                .withExplainTraceCollector(collector)
+                .withPermissionAction(
+                        com.foggyframework.dataset.model.semantic.permission.PermissionAction.EXECUTE)
+                .withGovernance(Set.of("amount"), List.of(), List.of());
+
+        assertSame(collector, explained.getExplainTraceCollector());
+        assertTrue(explained.toString().contains("explainTrace=true"));
+        assertThrows(IllegalStateException.class,
+                () -> explained.withExplainTraceCollector(new ExplainTraceCollector()));
     }
 
     @Test

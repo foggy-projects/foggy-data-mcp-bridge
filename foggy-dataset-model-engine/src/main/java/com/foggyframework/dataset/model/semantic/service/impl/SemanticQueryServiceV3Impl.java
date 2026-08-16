@@ -28,10 +28,16 @@ import com.foggyframework.dataset.model.lifecycle.catalog.CatalogResolution;
 import com.foggyframework.dataset.model.lifecycle.identity.CatalogIdentity;
 import com.foggyframework.dataset.model.port.AdvancedQueryExecutionPort;
 import com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext;
+import com.foggyframework.dataset.model.plugins.query_execution.ManagedRelationOptions;
+import com.foggyframework.dataset.model.plugins.query_execution.ManagedSqlRelation;
+import com.foggyframework.dataset.model.plugins.query_execution.QueryExecutionContext;
 import com.foggyframework.dataset.model.semantic.domain.DomainTransportPlanSpec;
 import com.foggyframework.dataset.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.model.semantic.explain.ExplainTraceCollector;
+import com.foggyframework.dataset.model.semantic.explain.SemanticExplainCompilation;
+import com.foggyframework.dataset.model.semantic.explain.SemanticExplainResponse;
 import com.foggyframework.dataset.model.semantic.memorygrid.GridSqlContractValidator;
 import com.foggyframework.dataset.model.semantic.memorygrid.MemoryGridDialectDescriptor;
 import com.foggyframework.dataset.model.semantic.memorygrid.MemoryGridEngine;
@@ -408,6 +414,187 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
     }
 
     @Override
+    public SemanticExplainCompilation compileForExplain(
+            String model,
+            SemanticQueryRequest request,
+            SemanticRequestContext context
+    ) {
+        if (request == null) {
+            throw RX.throwB("Explain recompilation requires a semantic query payload");
+        }
+        if (request.getColumns() == null || request.getColumns().isEmpty()) {
+            throw RX.throwB("请指定查询字段");
+        }
+        if (request.isPivotMode()) {
+            throw RX.throwB("EXPLAIN_PIVOT_RECOMPILE_NOT_SUPPORTED");
+        }
+        validateTimeWindowResultStageBoundary(request);
+
+        SemanticRequestContext safeContext = context != null
+                ? context
+                : SemanticRequestContext.empty();
+        ExplainTraceCollector collector = safeContext.getExplainTraceCollector();
+
+        QueryContextV3 queryContext = new QueryContextV3();
+        queryContext.model = model;
+        queryContext.originalRequest = request;
+
+        PagingRequest<DbQueryRequestDef> jdbcRequest = buildJdbcRequest(
+                model, request, queryContext, safeContext.getNamespace(), safeContext);
+        if (collector != null) {
+            registerConditionOrigins(
+                    collector,
+                    jdbcRequest.getParam().getSlice(),
+                    SemanticExplainResponse.ConditionOrigin.USER_SLICE);
+            registerConditionOrigins(
+                    collector,
+                    jdbcRequest.getParam().getHaving(),
+                    SemanticExplainResponse.ConditionOrigin.USER_SLICE);
+            registerConditionOrigins(
+                    collector,
+                    jdbcRequest.getParam().getPostSlice(),
+                    SemanticExplainResponse.ConditionOrigin.USER_SLICE);
+            registerConditionOrigins(
+                    collector,
+                    safeContext.getSystemSlice(),
+                    SemanticExplainResponse.ConditionOrigin.SYSTEM_SLICE);
+            collector.record(
+                    "NORMALIZATION",
+                    "SEMANTIC_DSL_NORMALIZED",
+                    SemanticExplainResponse.StageStatus.EVALUATED,
+                    "NORMALIZED",
+                    "DSL_NORMALIZED",
+                    SemanticExplainResponse.Confidence.EXACT,
+                    Map.of("requestedFieldCount", request.getColumns().size())
+            );
+        }
+
+        ModelResultContext resultContext = buildSemanticResultContext(
+                jdbcRequest, request, safeContext);
+        resultContext.setPermissionAction(
+                com.foggyframework.dataset.model.semantic.permission.PermissionAction.EXECUTE);
+        // Explain must plan the real governed relation, but must not consult L1/L2
+        // or execute JDBC. Pre-aggregation remains enabled so routing is observable.
+        resultContext.setCacheConfig(ModelResultContext.QueryCacheConfig.disabled());
+
+        if (request.getTimeWindow() != null && !request.getTimeWindow().isEmpty()) {
+            SqlGenerationResult baseSql = queryFacade.buildSqlOnly(resultContext);
+            String finalSql = baseSql.getSql();
+            List<Object> finalParams = baseSql.getParams();
+            String sourceOfTruth = "JdbcQueryModelImpl.generateSql";
+            if (resultContext.getExtData() != null
+                    && (resultContext.getExtData().containsKey("timeWindowPlan")
+                    || resultContext.getExtData().containsKey("comparativePlan"))) {
+                com.foggyframework.dataset.model.engine.compose.plan.QueryPlan timeWindowPlan =
+                        (com.foggyframework.dataset.model.engine.compose.plan.QueryPlan)
+                                resultContext.getExtData().getOrDefault(
+                                        "timeWindowPlan",
+                                        resultContext.getExtData().get("comparativePlan"));
+                com.foggyframework.dataset.model.engine.compose.ComposedSql composedSql =
+                        compileTimeWindowPlan(timeWindowPlan, safeContext, resultContext.getExtData());
+                finalSql = composedSql.getSql();
+                finalParams = composedSql.getParams();
+                sourceOfTruth = "ComposeSqlCompiler.output";
+            }
+            if (collector != null) {
+                collector.record(
+                        "TIME_WINDOW",
+                        "TIME_WINDOW_PLAN_COMPILED",
+                        SemanticExplainResponse.StageStatus.EVALUATED,
+                        "COMPOSED_SQL",
+                        "TIME_WINDOW_COMPOSE_PLAN_COMPILED",
+                        SemanticExplainResponse.Confidence.EXACT,
+                        Map.of("parameterCount", finalParams == null ? 0 : finalParams.size()));
+            }
+            return new SemanticExplainCompilation(
+                    jdbcRequest.getParam(),
+                    null,
+                    resultContext,
+                    new SemanticExplainCompilation.SqlEvidence(
+                            baseSql.getSql(),
+                            finalSql,
+                            finalParams,
+                            sourceOfTruth,
+                            SemanticExplainResponse.Confidence.EXACT),
+                    new SemanticExplainCompilation.RoutingEvidence(
+                            SemanticExplainResponse.StageStatus.NOT_EVALUATED,
+                            "NOT_EVALUATED",
+                            null,
+                            "NOT_EVALUATED",
+                            "PREAGG_NOT_EVALUATED_FOR_TIME_WINDOW_COMPOSE"));
+        }
+
+        ManagedSqlRelation relation = queryFacade.prepareManagedRelation(
+                resultContext,
+                ManagedRelationOptions.builder()
+                        .purpose("semantic-query-explain")
+                        .disableInnerCacheShortCircuit(true)
+                        .requireStableAliases(true)
+                        .build()
+        );
+
+        if (collector != null) {
+            collector.record(
+                    "SQL",
+                    "FINAL_QUERY_EXECUTION_CONTEXT_CAPTURED",
+                    SemanticExplainResponse.StageStatus.EVALUATED,
+                    relation.isPreAggApplied() ? "PREAGG" : "RAW",
+                    relation.isPreAggApplied() ? "PREAGG_APPLIED" : "PREAGG_NOT_APPLIED",
+                    SemanticExplainResponse.Confidence.EXACT,
+                    Map.of(
+                            "parameterCount", relation.getParams() == null ? 0 : relation.getParams().size(),
+                            "preAggApplied", relation.isPreAggApplied()
+                    )
+            );
+        }
+        QueryExecutionContext executionContext = relation.getExecutionContext();
+        String preAggRoute = String.valueOf(executionContext.getExtData().getOrDefault(
+                "preAggRoute", relation.isPreAggApplied() ? "PREAGG_DIRECT" : "RAW"));
+        String preAggReasonCode = String.valueOf(executionContext.getExtData().getOrDefault(
+                "preAggReasonCode",
+                relation.isPreAggApplied() ? preAggRoute : "PREAGG_NOT_APPLIED"));
+        Object preAggName = executionContext.getExtData("preAggUsed");
+        return new SemanticExplainCompilation(
+                jdbcRequest.getParam(),
+                relation,
+                resultContext,
+                new SemanticExplainCompilation.SqlEvidence(
+                        relation.getQueryEngine() == null
+                                ? null
+                                : relation.getQueryEngine().getSql(),
+                        executionContext.getSql(),
+                        executionContext.getParams(),
+                        "QueryExecutionContext.sql",
+                        SemanticExplainResponse.Confidence.EXACT),
+                new SemanticExplainCompilation.RoutingEvidence(
+                        SemanticExplainResponse.StageStatus.EVALUATED,
+                        preAggRoute,
+                        preAggName == null ? null : String.valueOf(preAggName),
+                        relation.isPreAggApplied() ? "SELECTED" : "SOURCE_QUERY_RETAINED",
+                        preAggReasonCode));
+    }
+
+    private void registerConditionOrigins(
+            ExplainTraceCollector collector,
+            List<? extends CondRequestDef> conditions,
+            SemanticExplainResponse.ConditionOrigin origin
+    ) {
+        if (conditions == null) {
+            return;
+        }
+        for (CondRequestDef condition : conditions) {
+            if (condition == null) {
+                continue;
+            }
+            if (condition._isLogicalGroup()) {
+                registerConditionOrigins(collector, condition._getGroupChildren(), origin);
+            } else {
+                collector.registerConditionOrigin(condition, origin);
+            }
+        }
+    }
+
+    @Override
     public Optional<String> resolveFieldSqlExpression(String model, String field, String namespace) {
         if (StringUtils.isEmpty(model) || StringUtils.isEmpty(field)) {
             return Optional.empty();
@@ -464,6 +651,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             resultContext.setFieldAccess(context.getFieldAccess());
             resultContext.setDeniedColumns(context.getDeniedColumns());
             resultContext.setSystemSlice(context.getSystemSlice());
+            resultContext.setExplainTraceCollector(context.getExplainTraceCollector());
             if (context.getCatalogResolution() != null) {
                 resultContext.pinCatalogResolution(
                         context.getCatalogResolution(), context.getNamespace());

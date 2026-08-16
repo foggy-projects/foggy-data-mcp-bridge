@@ -7,6 +7,7 @@ import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.model.engine.pivot.transport.DomainTransportPlan;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogResolution;
 import com.foggyframework.dataset.model.lifecycle.identity.CatalogIdentity;
+import com.foggyframework.dataset.model.semantic.explain.ExplainTraceCollector;
 import com.foggyframework.dataset.model.spi.QueryModel;
 import com.foggyframework.dataset.model.semantic.permission.PermissionEvaluationSession;
 import com.foggyframework.dataset.model.semantic.permission.PermissionAction;
@@ -53,6 +54,7 @@ public class SemanticRequestContext {
     private final List<DomainTransportPlanSpec> domainTransportPlans;
     private final CatalogResolution<QueryModel> catalogResolution;
     private final SystemBundlesContext executionBundlesContext;
+    private final ExplainTraceCollector explainTraceCollector;
     private PermissionAction permissionAction;
 
     private SemanticRequestContext(String namespace, ModelResultContext.SecurityContext securityContext,
@@ -62,7 +64,8 @@ public class SemanticRequestContext {
                                    CatalogResolution<QueryModel> catalogResolution,
                                    RequestIdentity requestIdentity,
                                    PermissionEvaluationSession permissionSession,
-                                   SystemBundlesContext executionBundlesContext) {
+                                   SystemBundlesContext executionBundlesContext,
+                                   ExplainTraceCollector explainTraceCollector) {
         this.namespace = namespace;
         this.securityContext = securityContext;
         String authorization = securityContext != null ? securityContext.getAuthorization() : null;
@@ -78,18 +81,19 @@ public class SemanticRequestContext {
         this.domainTransportPlans = domainTransportPlans != null ? List.copyOf(domainTransportPlans) : null;
         this.catalogResolution = catalogResolution;
         this.executionBundlesContext = executionBundlesContext;
+        this.explainTraceCollector = explainTraceCollector;
     }
 
     /** 空上下文 -- 无命名空间、无安全信息、无列权限限制 */
     public static SemanticRequestContext empty() {
         return new SemanticRequestContext(null, null, null, null, null, null, null,
-                RequestIdentity.anonymous(), new PermissionEvaluationSession(), null);
+                RequestIdentity.anonymous(), new PermissionEvaluationSession(), null, null);
     }
 
     /** 仅命名空间 */
     public static SemanticRequestContext ofNamespace(String namespace) {
         return new SemanticRequestContext(namespace, null, null, null, null, null, null,
-                RequestIdentity.anonymous(), new PermissionEvaluationSession(), null);
+                RequestIdentity.anonymous(), new PermissionEvaluationSession(), null, null);
     }
 
     /** 从 authorization 字符串自动构建 SecurityContext */
@@ -100,13 +104,13 @@ public class SemanticRequestContext {
         }
         RequestIdentity identity = RequestIdentity.fromAuthorization(authorization);
         return new SemanticRequestContext(namespace, sc, null, null, null, null, null,
-                identity, new PermissionEvaluationSession(), null);
+                identity, new PermissionEvaluationSession(), null, null);
     }
 
     /** 显式传入 SecurityContext */
     public static SemanticRequestContext of(String namespace, ModelResultContext.SecurityContext securityContext) {
         return new SemanticRequestContext(namespace, securityContext, null, null, null, null, null,
-                null, new PermissionEvaluationSession(), null);
+                null, new PermissionEvaluationSession(), null, null);
     }
 
     /**
@@ -120,7 +124,7 @@ public class SemanticRequestContext {
     public static SemanticRequestContext of(String namespace, ModelResultContext.SecurityContext securityContext,
                                             Set<String> fieldAccess) {
         return new SemanticRequestContext(namespace, securityContext, fieldAccess, null, null, null, null,
-                null, new PermissionEvaluationSession(), null);
+                null, new PermissionEvaluationSession(), null, null);
     }
 
     /**
@@ -135,7 +139,7 @@ public class SemanticRequestContext {
                                                          ModelResultContext.SecurityContext securityContext,
                                                          List<DeniedPhysicalColumn> deniedColumns) {
         return new SemanticRequestContext(namespace, securityContext, null, deniedColumns, null, null, null,
-                null, new PermissionEvaluationSession(), null);
+                null, new PermissionEvaluationSession(), null, null);
     }
 
     /**
@@ -150,7 +154,7 @@ public class SemanticRequestContext {
     public static SemanticRequestContext of(String namespace, ModelResultContext.SecurityContext securityContext,
                                             Set<String> fieldAccess, List<DeniedPhysicalColumn> deniedColumns) {
         return new SemanticRequestContext(namespace, securityContext, fieldAccess, deniedColumns, null, null, null,
-                null, new PermissionEvaluationSession(), null);
+                null, new PermissionEvaluationSession(), null, null);
     }
 
     /**
@@ -167,7 +171,7 @@ public class SemanticRequestContext {
                                             Set<String> fieldAccess, List<DeniedPhysicalColumn> deniedColumns,
                                             List<SliceRequestDef> systemSlice) {
         return new SemanticRequestContext(namespace, securityContext, fieldAccess, deniedColumns, systemSlice, null, null,
-                null, new PermissionEvaluationSession(), null);
+                null, new PermissionEvaluationSession(), null, null);
     }
 
     public String getNamespace() {
@@ -225,7 +229,7 @@ public class SemanticRequestContext {
         SemanticRequestContext copy = new SemanticRequestContext(
                 namespace, next, fieldAccess, deniedColumns, systemSlice,
                 domainTransportPlans, catalogResolution, requestIdentity, permissionSession,
-                executionBundlesContext);
+                executionBundlesContext, explainTraceCollector);
         copy.permissionAction = permissionAction;
         return copy;
     }
@@ -249,7 +253,8 @@ public class SemanticRequestContext {
                 catalogResolution,
                 requestIdentity,
                 permissionSession,
-                executionBundlesContext
+                executionBundlesContext,
+                explainTraceCollector
         );
         copy.permissionAction = permissionAction;
         return copy;
@@ -327,6 +332,31 @@ public class SemanticRequestContext {
         return executionBundlesContext;
     }
 
+    /** Optional request-local collector. Ordinary queries always leave this null. */
+    public ExplainTraceCollector getExplainTraceCollector() {
+        return explainTraceCollector;
+    }
+
+    /**
+     * Return a context carrying the explain-only collector while preserving all
+     * identity, governance, namespace, and lifecycle pins.
+     */
+    public SemanticRequestContext withExplainTraceCollector(ExplainTraceCollector collector) {
+        Objects.requireNonNull(collector, "collector");
+        if (explainTraceCollector == collector) {
+            return this;
+        }
+        if (explainTraceCollector != null) {
+            throw new IllegalStateException("CONFLICTING_EXPLAIN_TRACE_COLLECTOR");
+        }
+        SemanticRequestContext copy = new SemanticRequestContext(
+                namespace, securityContext, fieldAccess, deniedColumns, systemSlice,
+                domainTransportPlans, catalogResolution, requestIdentity, permissionSession,
+                executionBundlesContext, collector);
+        copy.permissionAction = permissionAction;
+        return copy;
+    }
+
     /**
      * Return a context carrying one lifecycle pin. Re-applying the exact same
      * projection is idempotent; replacing it with another projection is rejected.
@@ -345,7 +375,7 @@ public class SemanticRequestContext {
         }
         SemanticRequestContext copy = new SemanticRequestContext(namespace, securityContext, fieldAccess, deniedColumns,
                 systemSlice, domainTransportPlans, resolution, requestIdentity, permissionSession,
-                executionBundlesContext);
+                executionBundlesContext, explainTraceCollector);
         copy.permissionAction = permissionAction;
         return copy;
     }
@@ -378,7 +408,8 @@ public class SemanticRequestContext {
                 pinned.catalogResolution,
                 pinned.requestIdentity,
                 pinned.permissionSession,
-                bundlesContext
+                bundlesContext,
+                pinned.explainTraceCollector
         );
         copy.permissionAction = pinned.permissionAction;
         return copy;
@@ -397,7 +428,7 @@ public class SemanticRequestContext {
                 : null;
         SemanticRequestContext copy = new SemanticRequestContext(namespace, securityContext, fieldAccess, deniedColumns,
                 systemSlice, plans, catalogResolution, requestIdentity, permissionSession,
-                executionBundlesContext);
+                executionBundlesContext, explainTraceCollector);
         copy.permissionAction = permissionAction;
         return copy;
     }
@@ -406,7 +437,7 @@ public class SemanticRequestContext {
         SemanticRequestContext copy = new SemanticRequestContext(
                 namespace, securityContext, fieldAccess, deniedColumns, systemSlice,
                 domainTransportPlans, catalogResolution, requestIdentity, permissionSession,
-                executionBundlesContext);
+                executionBundlesContext, explainTraceCollector);
         copy.permissionAction = permissionAction;
         return copy;
     }
@@ -432,6 +463,7 @@ public class SemanticRequestContext {
                 (deniedColumns != null ? ", deniedColumns=" + deniedColumns.size() + " cols" : "") +
                 (domainTransportPlans != null ? ", domainTransportPlans=" + domainTransportPlans.size() : "") +
                 (catalogResolution != null ? ", catalogPinned=true" : "") +
+                (explainTraceCollector != null ? ", explainTrace=true" : "") +
                 (executionBundlesContext != null ? ", candidateExecution=true" : "") + "}";
     }
 }

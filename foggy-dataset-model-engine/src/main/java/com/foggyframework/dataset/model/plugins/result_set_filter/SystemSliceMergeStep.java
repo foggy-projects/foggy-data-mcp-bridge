@@ -1,7 +1,10 @@
 package com.foggyframework.dataset.model.plugins.result_set_filter;
 
 import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.model.def.query.request.CondRequestDef;
 import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
+import com.foggyframework.dataset.model.semantic.explain.ExplainTraceCollector;
+import com.foggyframework.dataset.model.semantic.explain.SemanticExplainResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
@@ -51,11 +54,48 @@ public class SystemSliceMergeStep implements DataSetResultStep {
         mergedSlice.addAll(systemSlice);
         request.setSlice(mergedSlice);
 
+        ExplainTraceCollector collector = ctx.getExplainTraceCollector();
+        if (collector != null) {
+            int conditionCount = registerSystemOrigins(collector, systemSlice);
+            collector.record(
+                    "SECURITY",
+                    "SYSTEM_SLICE_MERGED",
+                    SemanticExplainResponse.StageStatus.EVALUATED,
+                    "CONSTRAINED",
+                    "SYSTEM_SLICE_MERGED",
+                    SemanticExplainResponse.Confidence.EXACT,
+                    java.util.Map.of("conditionCount", conditionCount));
+        }
+
         if (log.isDebugEnabled()) {
             log.debug("Merged {} system_slice conditions into request slice (total: {})",
                     systemSlice.size(), mergedSlice.size());
         }
 
         return CONTINUE;
+    }
+
+    private int registerSystemOrigins(
+            ExplainTraceCollector collector,
+            List<? extends CondRequestDef> conditions
+    ) {
+        int count = 0;
+        for (CondRequestDef condition : conditions) {
+            if (condition == null) {
+                continue;
+            }
+            if (condition._isLogicalGroup()) {
+                List<? extends CondRequestDef> children = condition._getGroupChildren();
+                if (children != null) {
+                    count += registerSystemOrigins(collector, children);
+                }
+            } else {
+                collector.registerConditionOrigin(
+                        condition,
+                        SemanticExplainResponse.ConditionOrigin.SYSTEM_SLICE);
+                count++;
+            }
+        }
+        return count;
     }
 }
