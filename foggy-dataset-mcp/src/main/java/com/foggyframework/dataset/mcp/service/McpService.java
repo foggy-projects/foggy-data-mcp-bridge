@@ -27,6 +27,7 @@ public class McpService {
 
     private final McpToolDispatcher toolDispatcher;
     private final ToolFilterService toolFilterService;
+    private final NamespaceToolPolicyService namespaceToolPolicyService;
 
     /**
      * 处理 MCP initialize 请求
@@ -53,6 +54,14 @@ public class McpService {
      * 处理 tools/list 请求（根据用户角色过滤）
      */
     public McpResponse handleToolsList(McpRequest request, UserRole userRole) {
+        return handleToolsList(request, McpRequestContext.builder().userRole(userRole).build());
+    }
+
+    /**
+     * 处理 tools/list 请求，并应用 namespace 级的动态工具策略。
+     */
+    public McpResponse handleToolsList(McpRequest request, McpRequestContext context) {
+        UserRole userRole = context.getUserRole();
         // 获取所有工具定义
         List<Map<String, Object>> allToolDefinitions = toolDispatcher.getToolDefinitions();
 
@@ -65,6 +74,18 @@ public class McpService {
                 allTools,
                 userRole
         );
+
+        List<String> registeredNames = allTools.stream().map(McpTool::getName).toList();
+        var availableNames = namespaceToolPolicyService.resolveAvailableTools(
+                registeredNames,
+                context.getNamespace(),
+                context.getAuthorization(),
+                userRole != null ? userRole.name() : null,
+                context.getTraceId(),
+                context.getHeaders());
+        filteredDefinitions = filteredDefinitions.stream()
+                .filter(definition -> availableNames.contains(String.valueOf(definition.get("name"))))
+                .toList();
 
         log.info("tools/list for role {}: {} tools available", userRole, filteredDefinitions.size());
 
@@ -93,7 +114,7 @@ public class McpService {
         Map<String, Object> arguments = (Map<String, Object>) params.getOrDefault("arguments", new HashMap<>());
 
         // 检查用户是否有权限访问该工具
-        if (!canAccessTool(toolName, context.getUserRole())) {
+        if (!canAccessTool(toolName, context)) {
             log.warn("User role {} attempted to access unauthorized tool: {}", context.getUserRole(), toolName);
             return McpResponse.error(
                     request.getId(),
@@ -146,7 +167,7 @@ public class McpService {
         Map<String, Object> arguments = request.getParams() != null ? request.getParams() : new HashMap<>();
 
         // 检查用户是否有权限访问该工具
-        if (!canAccessTool(toolName, context.getUserRole())) {
+        if (!canAccessTool(toolName, context)) {
             log.warn("User role {} attempted to access unauthorized tool: {}", context.getUserRole(), toolName);
             return McpResponse.error(
                     request.getId(),
@@ -205,24 +226,35 @@ public class McpService {
     /**
      * 检查用户角色是否可以访问指定工具
      */
-    private boolean canAccessTool(String toolName, UserRole userRole) {
+    private boolean canAccessTool(String toolName, McpRequestContext context) {
         if (!toolDispatcher.hasTool(toolName)) {
             return false;
         }
 
-        // 管理员可以访问所有工具
-        if (userRole == UserRole.ADMIN) {
-            return true;
-        }
+        UserRole userRole = context.getUserRole();
 
+        // 管理员可以访问所有工具
         // 获取工具对象
         McpTool tool = toolDispatcher.getTool(toolName);
         if (tool == null) {
             return false;
         }
 
-        // 使用过滤服务检查权限
-        return toolFilterService.canAccessTool(tool, userRole);
+        // 先保持既有角色过滤，再应用 namespace 级动态策略。管理员仍受
+        // namespace 配置约束，这是管理员主动配置的工具暴露边界。
+        boolean roleAllowed = userRole == UserRole.ADMIN || toolFilterService.canAccessTool(tool, userRole);
+        if (!roleAllowed) {
+            return false;
+        }
+        List<String> registeredNames = toolDispatcher.getAllTools().stream().map(McpTool::getName).toList();
+        return namespaceToolPolicyService.isAvailable(
+                toolName,
+                registeredNames,
+                context.getNamespace(),
+                context.getAuthorization(),
+                userRole != null ? userRole.name() : null,
+                context.getTraceId(),
+                context.getHeaders());
     }
 
     /**

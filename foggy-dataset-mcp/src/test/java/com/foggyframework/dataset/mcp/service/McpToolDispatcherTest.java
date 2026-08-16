@@ -19,16 +19,15 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.verify;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 /**
  * McpToolDispatcher 单元测试
@@ -333,6 +332,28 @@ class McpToolDispatcherTest extends BaseMcpTest {
                     .expectNextMatches(e -> "error".equals(e.getEventType()) &&
                             hasErrorCode(e, "TOOL_NOT_FOUND"))
                     .verifyComplete();
+        }
+
+        @Test
+        @DisplayName("namespace 策略拒绝时流式调用应返回 TOOL_NOT_FOUND")
+        void namespacePolicyDenied_shouldReturnErrorEvent() {
+            NamespaceToolPolicyService policy = org.mockito.Mockito.mock(NamespaceToolPolicyService.class);
+            ReflectionTestUtils.setField(dispatcher, "namespaceToolPolicyService", policy);
+            when(policy.isAvailable(
+                    eq("dataset.get_metadata"), anyCollection(), eq("wwi"), eq("Bearer token"),
+                    eq("ANALYST"), eq("trace-policy"), any())).thenReturn(false);
+            McpRequest request = McpRequest.builder()
+                    .method("tools/call")
+                    .params(Map.of("name", "dataset.get_metadata", "arguments", Map.of()))
+                    .build();
+
+            Flux<ProgressEvent> flux = dispatcher.executeWithProgress(
+                    request, "trace-policy", "Bearer token", "wwi", Map.of("X-NS", "wwi"), "ANALYST");
+
+            StepVerifier.create(flux)
+                    .expectNextMatches(e -> "error".equals(e.getEventType()) && hasErrorCode(e, "TOOL_NOT_FOUND"))
+                    .verifyComplete();
+            verify(metadataTool, never()).execute(any(), any());
         }
 
         @Test

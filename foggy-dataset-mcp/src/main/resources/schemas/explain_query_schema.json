@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["model"],
+  "properties": {
+    "model": {
+      "type": "string",
+      "minLength": 1,
+      "description": "要解释的 queryModel 名称。"
+    },
+    "fields": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true,
+      "description": "可选的 QM 字段或指标；省略 payload 时可仅解释字段定义。"
+    },
+    "payload": {
+      "type": "object",
+      "description": "可选的原始语义查询 payload。提供后会在当前模型 revision 与调用者上下文中重新编译。"
+    },
+    "depth": {
+      "type": "string",
+      "enum": ["SUMMARY", "STANDARD", "DETAILED"],
+      "default": "STANDARD"
+    },
+    "includeSql": {
+      "type": "boolean",
+      "default": false,
+      "description": "是否在解释中包含可用的逻辑 SQL 与最终物理 SQL。"
+    },
+    "includePhysicalNames": {
+      "type": "boolean",
+      "default": false,
+      "description": "是否包含物理关系及列名。由 namespace 管理员决定是否向调用者开放该能力。"
+    }
+  }
+}

@@ -102,7 +102,13 @@ public class AnalystMcpController {
                     case "initialize":
                         return ResponseEntity.ok(mcpService.handleInitialize(request, USER_ROLE));
                     case "tools/list":
-                        return ResponseEntity.ok(mcpService.handleToolsList(request, USER_ROLE));
+                        return ResponseEntity.ok(mcpService.handleToolsList(request,
+                                McpRequestContext.of(traceId, requestId, authorization, USER_ROLE, namespace,
+                                        requestScopedHeaders(
+                                                remoteCompose, traceId, authorization, userId,
+                                                remoteNamespace, namespace, roles, permissionTags,
+                                                recipeOwnerRoles, registryActorRole, deptId, tenantId,
+                                                policySnapshotId))));
                     case "tools/call":
                         return ResponseEntity.ok(mcpService.handleToolsCall(request,
                                 McpRequestContext.of(traceId, requestId, authorization, USER_ROLE, namespace,
@@ -193,7 +199,7 @@ public class AnalystMcpController {
                                 remoteCompose, traceId, authorization, userId,
                                 remoteNamespace, namespace, roles, permissionTags,
                                 recipeOwnerRoles, registryActorRole, deptId, tenantId,
-                                policySnapshotId))
+                                policySnapshotId), USER_ROLE.name())
                 .map(event -> ServerSentEvent.<Object>builder()
                         .id(event.getId())
                         .event(event.getEventType())

@@ -44,6 +44,9 @@ public class McpToolDispatcher {
     @Autowired(required = false)
     private DatasetProperties datasetProperties;
 
+    @Autowired(required = false)
+    private NamespaceToolPolicyService namespaceToolPolicyService;
+
     private final Map<String, McpTool> toolRegistry = new ConcurrentHashMap<>();
 
     @PostConstruct
@@ -266,6 +269,15 @@ public class McpToolDispatcher {
      */
     public Flux<ProgressEvent> executeWithProgress(McpRequest request, String traceId, String authorization,
                                                    String namespace, Map<String, String> headers) {
+        return executeWithProgress(request, traceId, authorization, namespace, headers, null);
+    }
+
+    /**
+     * 执行工具（带进度流），并应用 namespace 级工具策略。
+     */
+    public Flux<ProgressEvent> executeWithProgress(McpRequest request, String traceId, String authorization,
+                                                   String namespace, Map<String, String> headers,
+                                                   String userRole) {
         String effectiveNamespace = resolveNamespace(namespace);
         Map<String, Object> params = request.getParams();
         if (params == null) {
@@ -291,6 +303,16 @@ public class McpToolDispatcher {
         if (tool == null) {
             return Flux.just(ProgressEvent.error("TOOL_NOT_FOUND", "Unknown tool: " + toolName));
         }
+        if (namespaceToolPolicyService != null && !namespaceToolPolicyService.isAvailable(
+                toolName,
+                toolRegistry.keySet(),
+                effectiveNamespace,
+                authorization,
+                userRole,
+                traceId,
+                headers)) {
+            return Flux.just(ProgressEvent.error("TOOL_NOT_FOUND", "Tool not found or access denied: " + toolName));
+        }
 
         log.info("Stream executeWithProgress: tool={}, traceId={}, namespace={}", toolName, traceId, effectiveNamespace);
 
@@ -298,6 +320,7 @@ public class McpToolDispatcher {
         ToolExecutionContext context = ToolExecutionContext.builder()
                 .traceId(traceId)
                 .authorization(authorization)
+                .userRole(userRole)
                 .namespace(effectiveNamespace)
                 .headers(headers == null ? new LinkedHashMap<>() : new LinkedHashMap<>(headers))
                 .build();

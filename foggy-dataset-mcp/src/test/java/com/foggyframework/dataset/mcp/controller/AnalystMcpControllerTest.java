@@ -73,7 +73,7 @@ class AnalystMcpControllerTest {
                     )
             ));
 
-            when(mcpService.handleToolsList(any(McpRequest.class), eq(UserRole.ANALYST)))
+            when(mcpService.handleToolsList(any(McpRequest.class), any(McpRequestContext.class)))
                     .thenReturn(mockResponse);
 
             mockMvc.perform(post("/mcp/analyst/rpc")
@@ -87,7 +87,7 @@ class AnalystMcpControllerTest {
                     .andExpect(jsonPath("$.result.tools[*].name",
                             not(hasItem("dataset_nl.query"))));
 
-            verify(mcpService).handleToolsList(any(McpRequest.class), eq(UserRole.ANALYST));
+            verify(mcpService).handleToolsList(any(McpRequest.class), any(McpRequestContext.class));
         }
 
         @Test
@@ -101,7 +101,7 @@ class AnalystMcpControllerTest {
                     )
             ));
 
-            when(mcpService.handleToolsList(any(McpRequest.class), eq(UserRole.ANALYST)))
+            when(mcpService.handleToolsList(any(McpRequest.class), any(McpRequestContext.class)))
                     .thenReturn(mockResponse);
 
             mockMvc.perform(post("/mcp/analyst/rpc")

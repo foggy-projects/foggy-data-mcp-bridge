@@ -68,7 +68,7 @@ class BusinessMcpControllerTest {
                     )
             ));
 
-            when(mcpService.handleToolsList(any(McpRequest.class), eq(UserRole.BUSINESS)))
+            when(mcpService.handleToolsList(any(McpRequest.class), any(McpRequestContext.class)))
                     .thenReturn(mockResponse);
 
             mockMvc.perform(post("/mcp/business/rpc")
@@ -81,7 +81,7 @@ class BusinessMcpControllerTest {
                     .andExpect(jsonPath("$.result.tools", hasSize(1)))
                     .andExpect(jsonPath("$.result.tools[0].name").value("dataset_nl.query"));
 
-            verify(mcpService).handleToolsList(any(McpRequest.class), eq(UserRole.BUSINESS));
+            verify(mcpService).handleToolsList(any(McpRequest.class), any(McpRequestContext.class));
         }
     }
 

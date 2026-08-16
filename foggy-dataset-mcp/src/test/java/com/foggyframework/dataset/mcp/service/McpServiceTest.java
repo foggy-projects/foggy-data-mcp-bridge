@@ -7,6 +7,7 @@ import com.foggyframework.dataset.mcp.base.MockToolFactory;
 import com.foggyframework.dataset.mcp.enums.UserRole;
 import com.foggyframework.dataset.mcp.schema.McpError;
 import com.foggyframework.dataset.mcp.schema.McpRequest;
+import com.foggyframework.dataset.mcp.schema.McpRequestContext;
 import com.foggyframework.dataset.mcp.schema.McpResponse;
 import com.foggyframework.mcp.spi.McpTool;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
 import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -43,8 +45,21 @@ class McpServiceTest extends BaseMcpTest {
     @Mock
     private ToolFilterService toolFilterService;
 
+    @Mock
+    private NamespaceToolPolicyService namespaceToolPolicyService;
+
     @InjectMocks
     private McpService mcpService;
+
+    @BeforeEach
+    void allowNamespaceToolsByDefault() {
+        when(namespaceToolPolicyService.resolveAvailableTools(
+                anyCollection(), any(), any(), any(), any(), any()))
+                .thenAnswer(invocation -> new LinkedHashSet<>(invocation.getArgument(0)));
+        when(namespaceToolPolicyService.isAvailable(
+                anyString(), anyCollection(), any(), any(), any(), any(), any()))
+                .thenReturn(true);
+    }
 
     // ==================== handleInitialize 测试 ====================
 
@@ -157,9 +172,9 @@ class McpServiceTest extends BaseMcpTest {
             McpRequest request = createToolsListRequest();
 
             List<Map<String, Object>> allDefs = List.of(
-                    Map.of("name", "tool1"),
-                    Map.of("name", "tool2"),
-                    Map.of("name", "tool3")
+                    Map.of("name", "dataset.get_metadata"),
+                    Map.of("name", "dataset.query_model"),
+                    Map.of("name", "dataset_nl.query")
             );
             List<McpTool> allTools = List.of(
                     MockToolFactory.createMetadataTool(),
@@ -202,6 +217,32 @@ class McpServiceTest extends BaseMcpTest {
             List<Map<String, Object>> tools = extractToolsList(response);
             assertEquals(1, tools.size());
             assertEquals("dataset_nl.query", tools.get(0).get("name"));
+        }
+
+        @Test
+        @DisplayName("namespace 策略应继续过滤角色可见工具")
+        void namespacePolicy_shouldFilterRoleVisibleTools() {
+            McpRequest request = createToolsListRequest();
+            List<Map<String, Object>> definitions = List.of(
+                    Map.of("name", "dataset.query_model"),
+                    Map.of("name", "dataset.explain_query"));
+            McpTool queryTool = MockToolFactory.createQueryModelTool();
+            McpTool explainTool = mock(McpTool.class);
+            when(explainTool.getName()).thenReturn("dataset.explain_query");
+            when(toolDispatcher.getToolDefinitions()).thenReturn(definitions);
+            when(toolDispatcher.getAllTools()).thenReturn(List.of(queryTool, explainTool));
+            when(toolFilterService.filterToolDefinitionsByRole(
+                    definitions, List.of(queryTool, explainTool), UserRole.ANALYST)).thenReturn(definitions);
+            when(namespaceToolPolicyService.resolveAvailableTools(
+                    anyCollection(), eq("wwi"), eq("Bearer token"), eq("ANALYST"), eq("trace-policy"), any()))
+                    .thenReturn(new LinkedHashSet<>(List.of("dataset.explain_query")));
+
+            McpResponse response = mcpService.handleToolsList(request, McpRequestContext.of(
+                    "trace-policy", "request-policy", "Bearer token", UserRole.ANALYST, "wwi"));
+
+            List<Map<String, Object>> tools = extractToolsList(response);
+            assertEquals(1, tools.size());
+            assertEquals("dataset.explain_query", tools.get(0).get("name"));
         }
     }
 
@@ -271,6 +312,27 @@ class McpServiceTest extends BaseMcpTest {
             assertNotNull(response.getError());
             assertEquals(McpError.METHOD_NOT_FOUND, response.getError().getCode());
             assertTrue(response.getError().getMessage().contains("access denied"));
+        }
+
+        @Test
+        @DisplayName("namespace 策略拒绝时直接调用也应返回 METHOD_NOT_FOUND")
+        void namespacePolicyDenied_shouldReturnMethodNotFound() {
+            McpRequest request = createToolsCallRequest("dataset.explain_query", Map.of("model", "sales"));
+            McpTool explainTool = mock(McpTool.class);
+            when(explainTool.getName()).thenReturn("dataset.explain_query");
+            when(toolDispatcher.hasTool("dataset.explain_query")).thenReturn(true);
+            when(toolDispatcher.getTool("dataset.explain_query")).thenReturn(explainTool);
+            when(toolDispatcher.getAllTools()).thenReturn(List.of(explainTool));
+            when(namespaceToolPolicyService.isAvailable(
+                    eq("dataset.explain_query"), anyCollection(), eq("wwi"), eq("Bearer token"),
+                    eq("ADMIN"), eq("trace-policy"), any())).thenReturn(false);
+
+            McpResponse response = mcpService.handleToolsCall(request, McpRequestContext.of(
+                    "trace-policy", "request-policy", "Bearer token", UserRole.ADMIN, "wwi"));
+
+            assertNotNull(response.getError());
+            assertEquals(McpError.METHOD_NOT_FOUND, response.getError().getCode());
+            verify(toolDispatcher, never()).executeTool(any(), any(), any(), any(), any(), any(), any(), any());
         }
 
         @Test

@@ -111,7 +111,7 @@ class AdminMcpControllerTest {
                     )
             ));
 
-            when(mcpService.handleToolsList(any(McpRequest.class), eq(UserRole.ADMIN)))
+            when(mcpService.handleToolsList(any(McpRequest.class), any(McpRequestContext.class)))
                     .thenReturn(mockResponse);
 
             mockMvc.perform(post("/mcp/admin/rpc")
