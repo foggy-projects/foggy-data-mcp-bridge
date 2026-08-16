@@ -503,7 +503,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                         SemanticExplainResponse.StageStatus.EVALUATED,
                         "COMPOSED_SQL",
                         "TIME_WINDOW_COMPOSE_PLAN_COMPILED",
-                        SemanticExplainResponse.Confidence.EXACT,
+                        SemanticExplainResponse.Confidence.OBSERVED,
                         Map.of("parameterCount", finalParams == null ? 0 : finalParams.size()));
             }
             return new SemanticExplainCompilation(
@@ -515,7 +515,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                             finalSql,
                             finalParams,
                             sourceOfTruth,
-                            SemanticExplainResponse.Confidence.EXACT),
+                            SemanticExplainResponse.Confidence.OBSERVED),
                     new SemanticExplainCompilation.RoutingEvidence(
                             SemanticExplainResponse.StageStatus.NOT_EVALUATED,
                             "NOT_EVALUATED",
@@ -533,39 +533,43 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                         .build()
         );
 
-        if (collector != null) {
-            collector.record(
-                    "SQL",
-                    "FINAL_QUERY_EXECUTION_CONTEXT_CAPTURED",
-                    SemanticExplainResponse.StageStatus.EVALUATED,
-                    relation.isPreAggApplied() ? "PREAGG" : "RAW",
-                    relation.isPreAggApplied() ? "PREAGG_APPLIED" : "PREAGG_NOT_APPLIED",
-                    SemanticExplainResponse.Confidence.EXACT,
-                    Map.of(
-                            "parameterCount", relation.getParams() == null ? 0 : relation.getParams().size(),
-                            "preAggApplied", relation.isPreAggApplied()
-                    )
-            );
-        }
         QueryExecutionContext executionContext = relation.getExecutionContext();
+        String logicalSql = relation.getQueryEngine() == null
+                ? null
+                : relation.getQueryEngine().getSql();
         String preAggRoute = String.valueOf(executionContext.getExtData().getOrDefault(
                 "preAggRoute", relation.isPreAggApplied() ? "PREAGG_DIRECT" : "RAW"));
         String preAggReasonCode = String.valueOf(executionContext.getExtData().getOrDefault(
                 "preAggReasonCode",
                 relation.isPreAggApplied() ? preAggRoute : "PREAGG_NOT_APPLIED"));
         Object preAggName = executionContext.getExtData("preAggUsed");
+        if (collector != null) {
+            collector.record(
+                    "SQL",
+                    "FINAL_QUERY_EXECUTION_CONTEXT_CAPTURED",
+                    SemanticExplainResponse.StageStatus.EVALUATED,
+                    preAggRoute,
+                    preAggReasonCode,
+                    SemanticExplainResponse.Confidence.OBSERVED,
+                    Map.of(
+                            "parameterCount",
+                            executionContext.getParams() == null ? 0 : executionContext.getParams().size(),
+                            "preAggApplied", relation.isPreAggApplied(),
+                            "sqlChanged", !java.util.Objects.equals(logicalSql, executionContext.getSql()),
+                            "sourceOfTruth", "QueryExecutionContext.sql"
+                    )
+            );
+        }
         return new SemanticExplainCompilation(
                 jdbcRequest.getParam(),
                 relation,
                 resultContext,
                 new SemanticExplainCompilation.SqlEvidence(
-                        relation.getQueryEngine() == null
-                                ? null
-                                : relation.getQueryEngine().getSql(),
+                        logicalSql,
                         executionContext.getSql(),
                         executionContext.getParams(),
                         "QueryExecutionContext.sql",
-                        SemanticExplainResponse.Confidence.EXACT),
+                        SemanticExplainResponse.Confidence.OBSERVED),
                 new SemanticExplainCompilation.RoutingEvidence(
                         SemanticExplainResponse.StageStatus.EVALUATED,
                         preAggRoute,

@@ -214,21 +214,36 @@ public class PreAggQueryRequirement {
      * @return 是否满足
      */
     public boolean isSatisfiableBy(PreAggregation preAgg) {
-        if (securityFailureReason(preAgg) != null) {
-            return false;
+        return incompatibilityReasonCode(preAgg) == null;
+    }
+
+    /**
+     * Evaluates one materialization candidate without exposing query values.
+     *
+     * <p>The returned reason code is deliberately stable and field-value free,
+     * so explain mode can report why a candidate was rejected without parsing
+     * debug logs or reverse engineering generated SQL.</p>
+     */
+    public String incompatibilityReasonCode(PreAggregation preAgg) {
+        if (preAgg == null) {
+            return "PREAGG_CANDIDATE_UNAVAILABLE";
+        }
+        String securityFailure = securityFailureReason(preAgg);
+        if (securityFailure != null) {
+            return "PREAGG_SECURITY_" + securityFailure;
         }
         // A permanently filtered materialization is not equivalent to an
         // unfiltered semantic model unless its filter implication can be
         // proven. That proof is not represented in the current requirement,
         // so filtered pre-aggregations must fail closed.
         if (preAgg.getFilters() != null && !preAgg.getFilters().isEmpty()) {
-            return false;
+            return "PREAGG_FILTER_IMPLICATION_UNPROVEN";
         }
 
         // 1. 检查维度：查询的维度必须都在预聚合中
         for (String dim : dimensionNames) {
             if (!preAgg.hasDimension(dim)) {
-                return false;
+                return "PREAGG_DIMENSION_MISSING";
             }
         }
 
@@ -240,7 +255,7 @@ public class PreAggQueryRequirement {
 
             for (String prop : queryProps) {
                 if (!preAgg.hasMaterializedDimensionProperty(dimName, prop)) {
-                    return false;
+                    return "PREAGG_DIMENSION_PROPERTY_NOT_MATERIALIZED";
                 }
             }
         }
@@ -256,11 +271,11 @@ public class PreAggQueryRequirement {
             // missing declaration as an implicit fine-grained key would turn
             // an unknown contract into an unsafe optimization assumption.
             if (queryGranularity != null && preAggGranularity == null) {
-                return false;
+                return "PREAGG_TIME_GRAIN_UNDECLARED";
             }
             if (preAggGranularity != null && queryGranularity != null
                     && !preAggGranularity.canRollupTo(queryGranularity)) {
-                return false;
+                return "PREAGG_TIME_GRAIN_INCOMPATIBLE";
             }
         }
 
@@ -270,13 +285,13 @@ public class PreAggQueryRequirement {
             DbAggregation queryAgg = entry.getValue();
 
             if (!preAgg.hasMeasure(measureName)) {
-                return false;
+                return "PREAGG_MEASURE_MISSING";
             }
 
             // 5. 检查聚合兼容性
             DbAggregation preAggAgg = preAgg.getMeasureAggregations().get(measureName);
             if (!isAggregationCompatible(preAggAgg, queryAgg)) {
-                return false;
+                return "PREAGG_AGGREGATION_INCOMPATIBLE";
             }
         }
 
@@ -287,20 +302,20 @@ public class PreAggQueryRequirement {
 
             // 首先检查维度是否存在
             if (!preAgg.hasDimension(dimName)) {
-                return false;
+                return "PREAGG_SLICE_DIMENSION_MISSING";
             }
 
             // Slice 属性同样不能依赖粒度或列名猜测。
             if (propName != null && !propName.isEmpty()) {
                 if (!preAgg.hasMaterializedDimensionProperty(dimName, propName)) {
-                    return false;
+                    return "PREAGG_SLICE_PROPERTY_NOT_MATERIALIZED";
                 }
             } else if (!preAgg.hasMaterializedDimensionProperty(dimName, "id")) {
-                return false;
+                return "PREAGG_SLICE_PROPERTY_NOT_MATERIALIZED";
             }
         }
 
-        return true;
+        return null;
     }
 
     /**

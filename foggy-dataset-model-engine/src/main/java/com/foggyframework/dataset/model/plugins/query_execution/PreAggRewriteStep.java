@@ -5,6 +5,7 @@ import com.foggyframework.dataset.model.engine.JdbcModelQueryEngine;
 import com.foggyframework.dataset.model.engine.preagg.PreAggQueryRewriter;
 import com.foggyframework.dataset.model.engine.preagg.PreAggRewriteResult;
 import com.foggyframework.dataset.model.engine.preagg.PreAggregationInterceptor;
+import com.foggyframework.dataset.model.engine.preagg.PreAggregationMatcher;
 import com.foggyframework.dataset.model.engine.stage.QueryStagePlan;
 import com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.model.semantic.explain.ExplainTraceCollector;
@@ -14,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -91,7 +93,7 @@ public class PreAggRewriteStep implements QueryExecutionStep {
         PreAggregationInterceptor interceptor = createInterceptor(ctx);
         StagePlanPreAggPolicy stagePlanPolicy = stagePlanPreAggPolicy(ctx);
         boolean skipMainPreAggForStagePlan = stagePlanPolicy.restrictsMainRewrite();
-        PreAggRewriteResult preAggResult = PreAggRewriteResult.notApplied();
+        PreAggRewriteResult preAggResult;
 
         if (skipMainPreAggForStagePlan) {
             markMainPreAggSkippedByStagePlan(ctx, stagePlanPolicy.policy);
@@ -207,6 +209,13 @@ public class PreAggRewriteStep implements QueryExecutionStep {
         boolean hybridEnabled = isHybridQueryEnabled(ctx);
         interceptor.setHybridQueryEnabled(hybridEnabled);
         ModelResultContext modelContext = ctx.getModelResultContext();
+        ExplainTraceCollector collector = modelContext == null
+                ? null
+                : modelContext.getExplainTraceCollector();
+        if (collector != null) {
+            interceptor.setCandidateDecisionObserver(
+                    decision -> recordCandidateDecision(collector, decision));
+        }
         if (modelContext != null && modelContext.getPermissionDecision() != null) {
             boolean signatureAvailable =
                     modelContext.getPermissionDecision().isPublicDecision()
@@ -219,6 +228,30 @@ public class PreAggRewriteStep implements QueryExecutionStep {
             );
         }
         return interceptor;
+    }
+
+    private void recordCandidateDecision(
+            ExplainTraceCollector collector,
+            PreAggregationMatcher.CandidateDecision candidate
+    ) {
+        Map<String, Object> details = new LinkedHashMap<>();
+        if (candidate.preAggregation() != null) {
+            details.put("preAggregation", candidate.preAggregation());
+        }
+        if (candidate.route() != null) {
+            details.put("route", candidate.route());
+        }
+        if (candidate.score() != null) {
+            details.put("score", candidate.score());
+        }
+        collector.record(
+                "MATERIALIZATION",
+                "PRE_AGGREGATION_CANDIDATE_EVALUATED",
+                SemanticExplainResponse.StageStatus.EVALUATED,
+                candidate.decision(),
+                candidate.reasonCode(),
+                SemanticExplainResponse.Confidence.EXACT,
+                details);
     }
 
     /**

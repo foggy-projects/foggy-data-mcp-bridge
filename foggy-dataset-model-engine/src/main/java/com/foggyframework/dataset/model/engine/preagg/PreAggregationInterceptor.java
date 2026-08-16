@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * 预聚合拦截器
@@ -55,6 +56,7 @@ public class PreAggregationInterceptor {
     private boolean hybridQueryEnabled = true;
     private List<PermissionPredicate> securityPredicates = List.of();
     private boolean securityContextCacheable = true;
+    private Consumer<PreAggregationMatcher.CandidateDecision> candidateDecisionObserver;
 
     public PreAggregationInterceptor(ApplicationContext applicationContext) {
         this.applicationContext = applicationContext;
@@ -78,6 +80,13 @@ public class PreAggregationInterceptor {
     ) {
         this.securityPredicates = predicates == null ? List.of() : List.copyOf(predicates);
         this.securityContextCacheable = cacheable;
+    }
+
+    /** Installs an optional request-scoped observer used only by explain mode. */
+    public void setCandidateDecisionObserver(
+            Consumer<PreAggregationMatcher.CandidateDecision> observer
+    ) {
+        this.candidateDecisionObserver = observer;
     }
 
     /**
@@ -112,7 +121,8 @@ public class PreAggregationInterceptor {
         }
 
         // 3. 匹配最佳预聚合
-        PreAggregationMatchResult matchResult = matcher.findBestMatch(requirement, preAggregations);
+        PreAggregationMatchResult matchResult = matcher.findBestMatch(
+                requirement, preAggregations, candidateDecisionObserver);
 
         if (!matchResult.isMatched()) {
             if (log.isDebugEnabled()) {

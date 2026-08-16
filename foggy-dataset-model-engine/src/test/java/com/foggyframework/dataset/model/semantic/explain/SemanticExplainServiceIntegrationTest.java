@@ -104,6 +104,10 @@ class SemanticExplainServiceIntegrationTest extends EcommerceTestSupport {
                         SemanticExplainResponse.ConditionOrigin.USER_SLICE);
         assertThat(response.compilationTrace().events()).isEmpty();
         assertThat(response.sqlTrace().sourceOfTruth()).isEqualTo("QueryExecutionContext.sql");
+        assertThat(response.sqlTrace().confidence())
+                .isEqualTo(SemanticExplainResponse.Confidence.OBSERVED);
+        assertThat(response.sqlTrace().reasonCode())
+                .isEqualTo("SQL_CAPTURED_FROM_QUERY_EXECUTION_CONTEXT");
         assertThat(response.sqlTrace().finalPhysicalSql()).isNotBlank();
         assertThat(response.sqlTrace().parameters())
                 .allSatisfy(parameter -> assertThat(parameter.redactedValue()).isEqualTo("***"));
@@ -122,6 +126,88 @@ class SemanticExplainServiceIntegrationTest extends EcommerceTestSupport {
         assertThat(response.limitations())
                 .extracting(SemanticExplainResponse.Limitation::code)
                 .contains("RECOMPILED_NOT_EXECUTED_TRACE");
+    }
+
+    @Test
+    void recompiledCapturesCandidateReasonsAndRewrittenSqlFromExecutionContext() {
+        SemanticQueryRequest payload = new SemanticQueryRequest();
+        payload.setColumns(List.of("product$categoryName", "salesAmount"));
+        payload.setGroupBy(List.of(
+                new SemanticQueryRequest.GroupByItem("product$categoryName", null)));
+        payload.setLimit(20);
+
+        SemanticExplainRequest request = new SemanticExplainRequest();
+        request.setPayload(payload);
+        request.setDepth(SemanticExplainRequest.Depth.DETAILED);
+        request.setIncludeSql(true);
+        request.setIncludePhysicalNames(true);
+
+        SemanticExplainResponse response = explainService.explain(
+                "FactSalesPreAggQueryModel",
+                request,
+                SemanticRequestContext.empty());
+
+        assertThat(response.basis()).isEqualTo(SemanticExplainResponse.Basis.RECOMPILED);
+        assertThat(response.materializationTrace().status())
+                .isEqualTo(SemanticExplainResponse.StageStatus.EVALUATED);
+        assertThat(response.materializationTrace().route()).isEqualTo("PREAGG_ROLLUP");
+        assertThat(response.materializationTrace().preAggregation())
+                .isEqualTo("monthly_category_sales");
+        assertThat(response.materializationTrace().reasonCode()).isEqualTo("PREAGG_ROLLUP");
+        assertThat(response.compilationTrace().events())
+                .filteredOn(event -> "PRE_AGGREGATION_CANDIDATE_EVALUATED".equals(event.event()))
+                .extracting(ExplainTraceCollector.Event::reasonCode)
+                .contains(
+                        "PREAGG_HYBRID_WATERMARK_MISSING",
+                        "PREAGG_DIMENSION_MISSING",
+                        "PREAGG_ROLLUP");
+        assertThat(response.sqlTrace().logicalSql()).contains("fact_sales");
+        assertThat(response.sqlTrace().finalPhysicalSql())
+                .contains("preagg_monthly_category_sales")
+                .isNotEqualTo(response.sqlTrace().logicalSql());
+        assertThat(response.sqlTrace().sourceOfTruth()).isEqualTo("QueryExecutionContext.sql");
+        assertThat(response.sqlTrace().confidence())
+                .isEqualTo(SemanticExplainResponse.Confidence.OBSERVED);
+        assertThat(response.sqlTrace().reasonCode())
+                .isEqualTo("SQL_CAPTURED_FROM_QUERY_EXECUTION_CONTEXT");
+        assertThat(response.executionTrace().l1Cache())
+                .isEqualTo(SemanticExplainResponse.StageStatus.NOT_EVALUATED);
+        assertThat(response.executionTrace().l2Cache())
+                .isEqualTo(SemanticExplainResponse.StageStatus.NOT_EVALUATED);
+        assertThat(response.executionTrace().jdbc())
+                .isEqualTo(SemanticExplainResponse.StageStatus.NOT_EVALUATED);
+    }
+
+    @Test
+    void recompiledReportsStableOverallReasonWhenEveryCandidateRejectsTheSameShape() {
+        SemanticQueryRequest payload = new SemanticQueryRequest();
+        payload.setColumns(List.of("store$caption", "salesAmount"));
+        payload.setGroupBy(List.of(
+                new SemanticQueryRequest.GroupByItem("store$caption", null)));
+
+        SemanticExplainRequest request = new SemanticExplainRequest();
+        request.setPayload(payload);
+        request.setDepth(SemanticExplainRequest.Depth.DETAILED);
+
+        SemanticExplainResponse response = explainService.explain(
+                "FactSalesPreAggQueryModel",
+                request,
+                SemanticRequestContext.empty());
+
+        assertThat(response.materializationTrace().route()).isEqualTo("RAW");
+        assertThat(response.materializationTrace().decision())
+                .isEqualTo("SOURCE_QUERY_RETAINED");
+        assertThat(response.materializationTrace().reasonCode())
+                .isEqualTo("PREAGG_DIMENSION_MISSING");
+        assertThat(response.compilationTrace().events())
+                .filteredOn(event -> "PRE_AGGREGATION_CANDIDATE_EVALUATED".equals(event.event()))
+                .hasSize(3)
+                .allSatisfy(event -> {
+                    assertThat(event.decision()).isEqualTo("REJECTED");
+                    assertThat(event.reasonCode()).isEqualTo("PREAGG_DIMENSION_MISSING");
+                    assertThat(event.details()).containsKey("preAggregation");
+                });
+        assertThat(response.executionTrace().route()).isEqualTo("NOT_EVALUATED");
     }
 
     @Test
@@ -157,6 +243,10 @@ class SemanticExplainServiceIntegrationTest extends EcommerceTestSupport {
 
         assertThat(response.basis()).isEqualTo(SemanticExplainResponse.Basis.RECOMPILED);
         assertThat(response.sqlTrace().sourceOfTruth()).isEqualTo("ComposeSqlCompiler.output");
+        assertThat(response.sqlTrace().confidence())
+                .isEqualTo(SemanticExplainResponse.Confidence.OBSERVED);
+        assertThat(response.sqlTrace().reasonCode())
+                .isEqualTo("SQL_CAPTURED_FROM_COMPOSE_COMPILER");
         assertThat(response.sqlTrace().finalPhysicalSql()).isNotBlank();
         assertThat(response.materializationTrace().status())
                 .isEqualTo(SemanticExplainResponse.StageStatus.NOT_EVALUATED);

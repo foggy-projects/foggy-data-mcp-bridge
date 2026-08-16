@@ -695,6 +695,14 @@ public class SemanticExplainServiceImpl implements SemanticExplainService {
                     "PHYSICAL_SQL_REDACTED",
                     "Physical SQL was withheld because includePhysicalNames is false; Foggy does not guess at safe SQL token redaction.",
                     Confidence.EXACT));
+        } else if (evidence == null) {
+            reasonCode = "SQL_EVIDENCE_UNAVAILABLE";
+        } else if ("QueryExecutionContext.sql".equals(evidence.sourceOfTruth())) {
+            reasonCode = "SQL_CAPTURED_FROM_QUERY_EXECUTION_CONTEXT";
+        } else if ("ComposeSqlCompiler.output".equals(evidence.sourceOfTruth())) {
+            reasonCode = "SQL_CAPTURED_FROM_COMPOSE_COMPILER";
+        } else {
+            reasonCode = "SQL_CAPTURED_FROM_COMPILER";
         }
         List<SemanticExplainResponse.ParameterTrace> parameters = new ArrayList<>();
         List<Object> values = evidence == null ? List.of() : evidence.parameters();
@@ -716,7 +724,7 @@ public class SemanticExplainServiceImpl implements SemanticExplainService {
                 evidence == null ? null : evidence.sourceOfTruth(),
                 List.copyOf(parameters),
                 evidence == null ? Confidence.OPAQUE : evidence.confidence(),
-                evidence == null && reasonCode == null ? "SQL_EVIDENCE_UNAVAILABLE" : reasonCode);
+                reasonCode);
     }
 
     private List<ConditionOrigin> parameterOrigins(

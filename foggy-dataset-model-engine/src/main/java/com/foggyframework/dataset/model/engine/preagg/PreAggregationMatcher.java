@@ -13,6 +13,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * 预聚合匹配器
@@ -61,6 +62,21 @@ public class PreAggregationMatcher {
      */
     public PreAggregationMatchResult findBestMatch(PreAggQueryRequirement requirement,
                                                     List<PreAggregation> preAggregations) {
+        return findBestMatch(requirement, preAggregations, null);
+    }
+
+    /**
+     * Finds the best match and optionally emits value-free candidate decisions.
+     *
+     * <p>The observer is intended for request-scoped explain collection. The
+     * ordinary query path calls the two-argument overload and performs no
+     * candidate evidence allocation.</p>
+     */
+    public PreAggregationMatchResult findBestMatch(
+            PreAggQueryRequirement requirement,
+            List<PreAggregation> preAggregations,
+            Consumer<CandidateDecision> decisionObserver
+    ) {
         if (preAggregations == null || preAggregations.isEmpty()) {
             return PreAggregationMatchResult.noMatch(
                     "PREAGG_NOT_CONFIGURED", "No pre-aggregations configured");
@@ -89,18 +105,25 @@ public class PreAggregationMatcher {
 
         // 过滤满足条件的预聚合并计算分数
         List<Candidate> candidates = new ArrayList<>();
+        RejectionSummary rejections = new RejectionSummary();
         for (PreAggregation preAgg : preAggregations) {
             // 跳过未启用的预聚合
             if (!preAgg.isEnabled()) {
                 if (log.isDebugEnabled()) {
                     log.debug("Skipping disabled pre-aggregation: {}", preAgg.getName());
                 }
+                reject(decisionObserver, rejections, preAgg,
+                        "PREAGG_CANDIDATE_DISABLED",
+                        "Pre-aggregation candidate is disabled");
                 continue;
             }
-            String securityFailure = requirement.securityFailureReason(preAgg);
-            if (securityFailure != null) {
+
+            String incompatibilityReasonCode = requirement.incompatibilityReasonCode(preAgg);
+            if (incompatibilityReasonCode != null) {
                 log.debug("Skipping pre-aggregation '{}': {}",
-                        preAgg.getName(), securityFailure);
+                        preAgg.getName(), incompatibilityReasonCode);
+                reject(decisionObserver, rejections, preAgg,
+                        incompatibilityReasonCode, reasonFor(incompatibilityReasonCode));
                 continue;
             }
 
@@ -109,54 +132,59 @@ public class PreAggregationMatcher {
             // cannot prove a safe materialized/source split.
             Object dataWatermark = preAgg.getDataWatermark();
             if (hybridQueryEnabled && preAgg.supportsHybridQuery()) {
-                String invalidWatermark = invalidHybridWatermark(dataWatermark);
-                if (invalidWatermark != null) {
+                String invalidWatermarkCode = invalidHybridWatermarkReasonCode(dataWatermark);
+                if (invalidWatermarkCode != null) {
+                    String invalidWatermarkReason = reasonFor(invalidWatermarkCode);
                     log.debug("Skipping hybrid pre-aggregation '{}': {}",
-                            preAgg.getName(), invalidWatermark);
+                            preAgg.getName(), invalidWatermarkReason);
+                    reject(decisionObserver, rejections, preAgg,
+                            invalidWatermarkCode, invalidWatermarkReason);
                     continue;
                 }
             }
 
             // 检查是否满足需求
-            if (requirement.isSatisfiableBy(preAgg)) {
-                int score = calculateScore(preAgg, requirement);
-                boolean needsRollup = checkNeedsRollup(preAgg, requirement);
-                boolean needsHybrid = requiresHybridQuery(preAgg, dataWatermark);
-                if (needsRollup && !supportsRollupMeasures(preAgg, requirement)) {
-                    log.debug("Skipping pre-aggregation '{}': one or more measures cannot be rolled up safely",
-                            preAgg.getName());
-                    continue;
-                }
-                if (needsHybrid && !supportsHybridMeasures(preAgg, requirement)) {
-                    log.debug("Skipping pre-aggregation '{}': one or more measures cannot be merged safely "
-                                    + "with source rows in hybrid mode",
-                            preAgg.getName());
-                    continue;
-                }
-                if (needsHybrid && !hasMaterializedWatermarkContract(preAgg)) {
-                    log.debug("Skipping pre-aggregation '{}': hybrid watermark column '{}' "
-                                    + "has no materialized column contract",
-                            preAgg.getName(), preAgg.getWatermarkColumn());
-                    continue;
-                }
-                Object watermark = needsHybrid ? dataWatermark : null;
-                candidates.add(new Candidate(preAgg, score, needsRollup, needsHybrid, watermark));
+            int score = calculateScore(preAgg, requirement);
+            boolean needsRollup = checkNeedsRollup(preAgg, requirement);
+            boolean needsHybrid = requiresHybridQuery(preAgg, dataWatermark);
+            if (needsRollup && !supportsRollupMeasures(preAgg, requirement)) {
+                log.debug("Skipping pre-aggregation '{}': one or more measures cannot be rolled up safely",
+                        preAgg.getName());
+                reject(decisionObserver, rejections, preAgg,
+                        "PREAGG_ROLLUP_MEASURE_UNSUPPORTED",
+                        "One or more measures cannot be rolled up safely");
+                continue;
+            }
+            if (needsHybrid && !supportsHybridMeasures(preAgg, requirement)) {
+                log.debug("Skipping pre-aggregation '{}': one or more measures cannot be merged safely "
+                                + "with source rows in hybrid mode",
+                        preAgg.getName());
+                reject(decisionObserver, rejections, preAgg,
+                        "PREAGG_HYBRID_MEASURE_UNSUPPORTED",
+                        "One or more measures cannot be merged safely in hybrid mode");
+                continue;
+            }
+            if (needsHybrid && !hasMaterializedWatermarkContract(preAgg)) {
+                log.debug("Skipping pre-aggregation '{}': hybrid watermark column '{}' "
+                                + "has no materialized column contract",
+                        preAgg.getName(), preAgg.getWatermarkColumn());
+                reject(decisionObserver, rejections, preAgg,
+                        "PREAGG_HYBRID_WATERMARK_COLUMN_UNDECLARED",
+                        "Hybrid watermark has no materialized column contract");
+                continue;
+            }
+            Object watermark = needsHybrid ? dataWatermark : null;
+            candidates.add(new Candidate(preAgg, score, needsRollup, needsHybrid, watermark));
 
-                if (log.isDebugEnabled()) {
-                    log.debug("Pre-aggregation '{}' is a candidate: score={}, needsRollup={}, needsHybrid={}",
-                            preAgg.getName(), score, needsRollup, needsHybrid);
-                }
-            } else {
-                if (log.isDebugEnabled()) {
-                    log.debug("Pre-aggregation '{}' does not satisfy requirements", preAgg.getName());
-                }
+            if (log.isDebugEnabled()) {
+                log.debug("Pre-aggregation '{}' is a candidate: score={}, needsRollup={}, needsHybrid={}",
+                        preAgg.getName(), score, needsRollup, needsHybrid);
             }
         }
 
         if (candidates.isEmpty()) {
             return PreAggregationMatchResult.noMatch(
-                    "PREAGG_NO_COMPATIBLE_CANDIDATE",
-                    "No pre-aggregation satisfies the query requirements");
+                    rejections.reasonCode(), rejections.reason());
         }
 
         // 按分数排序（降序）
@@ -164,6 +192,17 @@ public class PreAggregationMatcher {
 
         // 选择最高分的候选
         Candidate best = candidates.get(0);
+        if (decisionObserver != null) {
+            for (Candidate candidate : candidates) {
+                boolean selected = candidate == best;
+                decisionObserver.accept(new CandidateDecision(
+                        candidate.getPreAggregation().getName(),
+                        selected ? "SELECTED" : "NOT_SELECTED",
+                        selected ? candidateRoute(candidate) : null,
+                        selected ? candidateRoute(candidate) : "PREAGG_NOT_SELECTED_BY_SCORE",
+                        candidate.getScore()));
+            }
+        }
 
         if (log.isInfoEnabled()) {
             log.info("Selected pre-aggregation '{}' with score {} (needsRollup={}, hybridQuery={})",
@@ -220,17 +259,71 @@ public class PreAggregationMatcher {
         return watermark != null;
     }
 
-    private String invalidHybridWatermark(Object watermark) {
+    private String invalidHybridWatermarkReasonCode(Object watermark) {
         if (watermark == null) {
-            return "watermark is null";
+            return "PREAGG_HYBRID_WATERMARK_MISSING";
         }
         if (!(watermark instanceof LocalDate boundary)) {
-            return "watermark is not a LocalDate exclusive boundary";
+            return "PREAGG_HYBRID_WATERMARK_TYPE_UNSUPPORTED";
         }
         if (boundary.isAfter(LocalDate.now())) {
-            return "watermark is in the future";
+            return "PREAGG_HYBRID_WATERMARK_FUTURE";
         }
         return null;
+    }
+
+    private void reject(
+            Consumer<CandidateDecision> observer,
+            RejectionSummary rejections,
+            PreAggregation preAggregation,
+            String reasonCode,
+            String reason
+    ) {
+        rejections.add(reasonCode, reason);
+        if (observer != null) {
+            observer.accept(new CandidateDecision(
+                    preAggregation == null ? null : preAggregation.getName(),
+                    "REJECTED",
+                    null,
+                    reasonCode,
+                    null));
+        }
+    }
+
+    private String candidateRoute(Candidate candidate) {
+        if (candidate.isNeedsHybrid()) {
+            return "PREAGG_HYBRID";
+        }
+        return candidate.isNeedsRollup() ? "PREAGG_ROLLUP" : "PREAGG_DIRECT";
+    }
+
+    private String reasonFor(String reasonCode) {
+        return switch (reasonCode) {
+            case "PREAGG_CANDIDATE_UNAVAILABLE" -> "Pre-aggregation candidate is unavailable";
+            case "PREAGG_FILTER_IMPLICATION_UNPROVEN" ->
+                    "Candidate filter implication cannot be proven";
+            case "PREAGG_DIMENSION_MISSING" -> "Candidate does not materialize a required dimension";
+            case "PREAGG_DIMENSION_PROPERTY_NOT_MATERIALIZED" ->
+                    "Candidate does not explicitly materialize a required dimension property";
+            case "PREAGG_TIME_GRAIN_UNDECLARED" ->
+                    "Candidate does not declare a required time grain";
+            case "PREAGG_TIME_GRAIN_INCOMPATIBLE" ->
+                    "Candidate time grain cannot roll up to the requested grain";
+            case "PREAGG_MEASURE_MISSING" -> "Candidate does not materialize a required measure";
+            case "PREAGG_AGGREGATION_INCOMPATIBLE" ->
+                    "Candidate measure aggregation is incompatible with the request";
+            case "PREAGG_SLICE_DIMENSION_MISSING" ->
+                    "Candidate does not materialize a dimension required by a predicate";
+            case "PREAGG_SLICE_PROPERTY_NOT_MATERIALIZED" ->
+                    "Candidate does not explicitly materialize a property required by a predicate";
+            case "PREAGG_HYBRID_WATERMARK_MISSING" -> "Hybrid watermark is missing";
+            case "PREAGG_HYBRID_WATERMARK_TYPE_UNSUPPORTED" ->
+                    "Hybrid watermark is not a LocalDate exclusive boundary";
+            case "PREAGG_HYBRID_WATERMARK_FUTURE" -> "Hybrid watermark is in the future";
+            default -> reasonCode != null && reasonCode.startsWith("PREAGG_SECURITY_")
+                    ? "Candidate cannot reproduce the governed security constraint"
+                    : "Candidate does not satisfy the query requirements";
+        };
     }
 
     /**
@@ -380,5 +473,42 @@ public class PreAggregationMatcher {
         private boolean needsRollup;
         private boolean needsHybrid;
         private Object watermark;
+    }
+
+    /** Value-free matcher evidence emitted only when an observer is supplied. */
+    public record CandidateDecision(
+            String preAggregation,
+            String decision,
+            String route,
+            String reasonCode,
+            Integer score
+    ) {
+    }
+
+    private static final class RejectionSummary {
+        private String reasonCode;
+        private String reason;
+        private boolean mixed;
+
+        void add(String candidateReasonCode, String candidateReason) {
+            if (reasonCode == null) {
+                reasonCode = candidateReasonCode;
+                reason = candidateReason;
+            } else if (!reasonCode.equals(candidateReasonCode)) {
+                mixed = true;
+            }
+        }
+
+        String reasonCode() {
+            return reasonCode == null || mixed
+                    ? "PREAGG_NO_COMPATIBLE_CANDIDATE"
+                    : reasonCode;
+        }
+
+        String reason() {
+            return reasonCode == null || mixed
+                    ? "No pre-aggregation satisfies the query requirements"
+                    : reason;
+        }
     }
 }

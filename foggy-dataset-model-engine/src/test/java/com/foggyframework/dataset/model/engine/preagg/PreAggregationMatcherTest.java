@@ -453,6 +453,54 @@ class PreAggregationMatcherTest {
     }
 
     @Test
+    @DisplayName("explain observer 区分 DIRECT、ROLLUP、HYBRID 与候选淘汰")
+    void explainObserverReportsStableCandidateDecisions() {
+        PreAggQueryRequirement exact = new PreAggQueryRequirement();
+        exact.setHasGroupBy(true);
+        exact.addDimension("product");
+        exact.addDimension("salesDate");
+        exact.addMeasure("salesAmount", DbAggregation.SUM);
+
+        List<PreAggregationMatcher.CandidateDecision> direct = new ArrayList<>();
+        assertTrue(matcher.findBestMatch(
+                exact, List.of(createDailyProductPreAgg()), direct::add).isMatched());
+        assertEquals(List.of("PREAGG_DIRECT"),
+                direct.stream().map(PreAggregationMatcher.CandidateDecision::route).toList());
+        assertEquals(List.of("PREAGG_DIRECT"),
+                direct.stream().map(PreAggregationMatcher.CandidateDecision::reasonCode).toList());
+
+        PreAggQueryRequirement coarser = new PreAggQueryRequirement();
+        coarser.setHasGroupBy(true);
+        coarser.addDimension("product");
+        coarser.addMeasure("salesAmount", DbAggregation.SUM);
+        List<PreAggregationMatcher.CandidateDecision> rollup = new ArrayList<>();
+        assertTrue(matcher.findBestMatch(
+                coarser, List.of(createDailyProductPreAgg()), rollup::add).isMatched());
+        assertEquals("PREAGG_ROLLUP", rollup.get(0).route());
+
+        PreAggregation incremental = createDailyProductPreAgg(
+                "salesAmount", "SUM", true);
+        incremental.setDataWatermark(LocalDate.now().minusDays(1));
+        List<PreAggregationMatcher.CandidateDecision> hybrid = new ArrayList<>();
+        assertTrue(matcher.findBestMatch(
+                exact, List.of(incremental), hybrid::add).isHybridQuery());
+        assertEquals("PREAGG_HYBRID", hybrid.get(0).route());
+
+        PreAggQueryRequirement unsupported = new PreAggQueryRequirement();
+        unsupported.setHasGroupBy(true);
+        unsupported.addDimension("customer");
+        unsupported.addMeasure("salesAmount", DbAggregation.SUM);
+        List<PreAggregationMatcher.CandidateDecision> rejected = new ArrayList<>();
+        PreAggregationMatchResult miss = matcher.findBestMatch(
+                unsupported, List.of(createDailyProductPreAgg()), rejected::add);
+        assertFalse(miss.isMatched());
+        assertEquals("PREAGG_DIMENSION_MISSING", miss.getReasonCode());
+        assertEquals("REJECTED", rejected.get(0).decision());
+        assertEquals("PREAGG_DIMENSION_MISSING", rejected.get(0).reasonCode());
+        assertNull(rejected.get(0).route());
+    }
+
+    @Test
     @DisplayName("禁用的预聚合不被选择")
     void testDisabledPreAggSkipped() {
         PreAggregationDef def = new PreAggregationDef();
@@ -473,6 +521,7 @@ class PreAggregationMatcherTest {
 
         PreAggregationMatchResult result = matcher.findBestMatch(requirement, preAggregations);
         assertFalse(result.isMatched());
+        assertEquals("PREAGG_CANDIDATE_DISABLED", result.getReasonCode());
     }
 
     @Test
@@ -497,6 +546,7 @@ class PreAggregationMatcherTest {
 
         assertFalse(result.isMatched(),
                 "an unknown materialization grain must not masquerade as DAY");
+        assertEquals("PREAGG_TIME_GRAIN_UNDECLARED", result.getReasonCode());
     }
 
     @Test
