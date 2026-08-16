@@ -2,6 +2,8 @@
 
 Java MCP Bridge 会在当前 `X-NS` 对应的 bundle 中查找唯一的 `tools.config.js`。没有该文件时，所有已注册且符合既有角色规则的工具均保持开放；配置加载或执行失败时也默认放行。
 
+可直接复制随模块发布的 [`tools.config.js` 模板](../src/main/resources/examples/namespace/tools.config.js) 到 namespace 模型 bundle 根目录。模板中的 `policyUrl` 默认为 `null`，因此默认开放既有角色允许的全部工具；填写策略服务 URL 后才会执行远程 `post`。
+
 脚本使用 Foggy FSScript 语法，`export default` 可以是工具名数组，也可以是接收请求上下文的函数。返回 `[]` 表示不开放任何工具，返回 `["*"]` 表示开放全部已注册工具；未知工具名会被忽略。策略同时作用于 `tools/list`、`tools/call`、直接工具调用和 SSE 调用。
 
 静态示例：

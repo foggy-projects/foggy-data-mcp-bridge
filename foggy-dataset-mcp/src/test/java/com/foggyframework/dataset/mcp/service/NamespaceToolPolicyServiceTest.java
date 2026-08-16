@@ -19,8 +19,11 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationContext;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -127,5 +130,24 @@ class NamespaceToolPolicyServiceTest {
                 FsscriptFunction.class, evaluator.getExportObject("default"));
         assertEquals(List.of("dataset.explain_query"), function.threadSafeAccept(
                 Map.of("registeredTools", List.of("dataset.explain_query"))));
+    }
+
+    @Test
+    void bundledTemplateParsesAndIsDefaultOpen() throws IOException {
+        String source = new ClassPathResource("examples/namespace/tools.config.js")
+                .getContentAsString(StandardCharsets.UTF_8);
+        SimpleFsscriptClosureDefinitionSpace space = new SimpleFsscriptClosureDefinitionSpace();
+        FsscriptClosureDefinition definition = space.newFsscriptClosureDefinition();
+        Exp exp = ExpUtils.compileEl(definition, source, null);
+        ExpEvaluator evaluator = DefaultExpEvaluator.newInstance(null, definition.newFoggyClosure());
+
+        exp.evalResult(evaluator);
+        FsscriptFunction function = assertInstanceOf(
+                FsscriptFunction.class, evaluator.getExportObject("default"));
+        List<String> registeredTools = List.of("dataset.query_model", "dataset.explain_query");
+        assertEquals(registeredTools, function.threadSafeAccept(Map.of(
+                "registeredTools", registeredTools,
+                "namespace", "wwi",
+                "userRole", "ANALYST")));
     }
 }
