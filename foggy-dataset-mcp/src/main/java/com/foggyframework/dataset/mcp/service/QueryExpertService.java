@@ -15,7 +15,9 @@ import com.foggyframework.mcp.spi.McpTool;
 import com.foggyframework.mcp.spi.ProgressEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.tool.ToolCallback;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
@@ -37,6 +39,7 @@ import java.util.regex.Pattern;
  */
 @Slf4j
 @Service
+@ConditionalOnBean({ChatModel.class, ChatClient.Builder.class})
 public class QueryExpertService {
 
     private final ChatClient.Builder chatClientBuilder;

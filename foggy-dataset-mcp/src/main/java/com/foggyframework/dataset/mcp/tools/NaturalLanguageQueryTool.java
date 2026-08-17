@@ -9,6 +9,9 @@ import com.foggyframework.mcp.spi.ToolCategory;
 import com.foggyframework.mcp.spi.ToolExecutionContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 
@@ -22,6 +25,7 @@ import java.util.*;
  */
 @Slf4j
 @Component
+@ConditionalOnBean({ChatModel.class, ChatClient.Builder.class})
 public class NaturalLanguageQueryTool implements McpTool {
 
     private final QueryExpertService queryExpertService;

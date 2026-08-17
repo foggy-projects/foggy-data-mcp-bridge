@@ -2,6 +2,9 @@ package io.foggytest.launcher;
 
 import com.foggyframework.dataset.model.semantic.controller.SemanticServiceV3TestController;
 import com.foggyframework.dataset.mcp.controller.DevToolsController;
+import com.foggyframework.dataset.mcp.service.McpToolDispatcher;
+import com.foggyframework.dataset.mcp.service.QueryExpertService;
+import com.foggyframework.dataset.mcp.tools.NaturalLanguageQueryTool;
 import com.foggyframework.mcp.launcher.DemoSecurityIdentityResolver;
 import com.foggyframework.mcp.launcher.McpLauncherApplication;
 import com.foggyframework.mcp.launcher.SavedQueryTestController;
@@ -74,6 +77,9 @@ class LauncherExplicitTestRoutesSmokeTest {
         assertThat(applicationContext.getBeansOfType(SemanticServiceV3TestController.class)).hasSize(1);
         assertThat(applicationContext.getBeansOfType(SavedQueryTestController.class)).hasSize(1);
         assertThat(applicationContext.getBeansOfType(DemoSecurityIdentityResolver.class)).hasSize(1);
+        assertThat(applicationContext.getBeansOfType(QueryExpertService.class)).hasSize(1);
+        assertThat(applicationContext.getBeansOfType(NaturalLanguageQueryTool.class)).hasSize(1);
+        assertThat(applicationContext.getBean(McpToolDispatcher.class).hasTool("dataset_nl.query")).isTrue();
 
         mockMvc.perform(get("/dev/tables"))
                 .andExpect(status().isOk());

@@ -3,8 +3,11 @@ package io.foggytest.launcher;
 import com.foggyframework.dataset.model.semantic.controller.SemanticServiceV3TestController;
 import com.foggyframework.dataset.mcp.controller.ChartImageController;
 import com.foggyframework.dataset.mcp.controller.DevToolsController;
+import com.foggyframework.dataset.mcp.service.McpToolDispatcher;
 import com.foggyframework.dataset.mcp.service.NamespaceToolPolicyService;
+import com.foggyframework.dataset.mcp.service.QueryExpertService;
 import com.foggyframework.dataset.mcp.tools.ExplainQueryTool;
+import com.foggyframework.dataset.mcp.tools.NaturalLanguageQueryTool;
 import com.foggyframework.mcp.launcher.DemoSecurityIdentityResolver;
 import com.foggyframework.mcp.launcher.McpLauncherApplication;
 import com.foggyframework.mcp.launcher.SavedQueryTestController;
@@ -39,13 +42,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
                         + "org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration,"
                         + "org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration,"
                         + "org.springframework.boot.autoconfigure.data.mongo.MongoRepositoriesAutoConfiguration",
-                "spring.ai.openai.api-key=test-key",
-                "spring.ai.openai.base-url=http://127.0.0.1:9",
-                "spring.ai.model.embedding=none",
-                "spring.ai.model.image=none",
-                "spring.ai.model.audio.transcription=none",
-                "spring.ai.model.audio.speech=none",
-                "spring.ai.model.moderation=none",
+                "spring.ai.openai.api-key=",
                 "spring.datasource.url=jdbc:sqlite:file:/tmp/foggy-launcher-smoke-default.db",
                 "foggy.auth.token=",
                 "foggy.runtime-api.enabled=false",
@@ -76,6 +73,12 @@ class LauncherDefaultRouteIsolationSmokeTest {
         assertThat(applicationContext.getBeansOfType(ChartImageController.class)).hasSize(1);
         assertThat(applicationContext.getBeansOfType(NamespaceToolPolicyService.class)).hasSize(1);
         assertThat(applicationContext.getBeansOfType(ExplainQueryTool.class)).hasSize(1);
+        assertThat(applicationContext.getBeansOfType(QueryExpertService.class)).isEmpty();
+        assertThat(applicationContext.getBeansOfType(NaturalLanguageQueryTool.class)).isEmpty();
+
+        McpToolDispatcher toolDispatcher = applicationContext.getBean(McpToolDispatcher.class);
+        assertThat(toolDispatcher.hasTool("dataset.explain_query")).isTrue();
+        assertThat(toolDispatcher.hasTool("dataset_nl.query")).isFalse();
 
         mockMvc.perform(get("/dev/tables"))
                 .andExpect(status().isNotFound());
