@@ -74,18 +74,18 @@ default.
 
 ### 1. Download and start the Runtime
 
-The commands below pin launcher `0.1.16`. Check the
+The commands below pin launcher `0.1.17`. Check the
 [releases page](https://github.com/foggy-projects/foggy-data-mcp-bridge/releases)
 for a newer version.
 
 ```bash
 mkdir foggy-runtime && cd foggy-runtime
 
-curl -fLO https://github.com/foggy-projects/foggy-data-mcp-bridge/releases/download/foggy-runtime-launcher-v0.1.16/foggy-runtime-launcher-0.1.16.jar
-curl -fLO https://github.com/foggy-projects/foggy-data-mcp-bridge/releases/download/foggy-runtime-launcher-v0.1.16/start-foggy-runtime.sh
-curl -fLO https://github.com/foggy-projects/foggy-data-mcp-bridge/releases/download/foggy-runtime-launcher-v0.1.16/SHA256SUMS
+curl -fLO https://github.com/foggy-projects/foggy-data-mcp-bridge/releases/download/foggy-runtime-launcher-v0.1.17/foggy-runtime-launcher-0.1.17.jar
+curl -fLO https://github.com/foggy-projects/foggy-data-mcp-bridge/releases/download/foggy-runtime-launcher-v0.1.17/start-foggy-runtime.sh
+curl -fLO https://github.com/foggy-projects/foggy-data-mcp-bridge/releases/download/foggy-runtime-launcher-v0.1.17/SHA256SUMS
 
-grep -E 'foggy-runtime-launcher-0.1.16.jar|start-foggy-runtime.sh' SHA256SUMS | sha256sum -c -
+grep -E 'foggy-runtime-launcher-0.1.17.jar|start-foggy-runtime.sh' SHA256SUMS | sha256sum -c -
 chmod +x start-foggy-runtime.sh
 ./start-foggy-runtime.sh
 ```

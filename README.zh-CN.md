@@ -63,18 +63,18 @@ AI 面对的是销售额、客户、商品、下单日期等业务概念。Foggy
 
 ### 1. 下载并启动 Runtime
 
-下面的命令固定使用 Launcher `0.1.16`。如有新版本，请以
+下面的命令固定使用 Launcher `0.1.17`。如有新版本，请以
 [Releases](https://github.com/foggy-projects/foggy-data-mcp-bridge/releases)
 页面为准。
 
 ```bash
 mkdir foggy-runtime && cd foggy-runtime
 
-curl -fLO https://github.com/foggy-projects/foggy-data-mcp-bridge/releases/download/foggy-runtime-launcher-v0.1.16/foggy-runtime-launcher-0.1.16.jar
-curl -fLO https://github.com/foggy-projects/foggy-data-mcp-bridge/releases/download/foggy-runtime-launcher-v0.1.16/start-foggy-runtime.sh
-curl -fLO https://github.com/foggy-projects/foggy-data-mcp-bridge/releases/download/foggy-runtime-launcher-v0.1.16/SHA256SUMS
+curl -fLO https://github.com/foggy-projects/foggy-data-mcp-bridge/releases/download/foggy-runtime-launcher-v0.1.17/foggy-runtime-launcher-0.1.17.jar
+curl -fLO https://github.com/foggy-projects/foggy-data-mcp-bridge/releases/download/foggy-runtime-launcher-v0.1.17/start-foggy-runtime.sh
+curl -fLO https://github.com/foggy-projects/foggy-data-mcp-bridge/releases/download/foggy-runtime-launcher-v0.1.17/SHA256SUMS
 
-grep -E 'foggy-runtime-launcher-0.1.16.jar|start-foggy-runtime.sh' SHA256SUMS | sha256sum -c -
+grep -E 'foggy-runtime-launcher-0.1.17.jar|start-foggy-runtime.sh' SHA256SUMS | sha256sum -c -
 chmod +x start-foggy-runtime.sh
 ./start-foggy-runtime.sh
 ```
