@@ -13,6 +13,27 @@
 
     <name>Foggy Dataset Model Core</name>
     <description>Backend catalog and provider resolution without adapter dependencies</description>
+    <url>https://github.com/foggy-projects/foggy-data-mcp-bridge</url>
+
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <name>JianguangFeng</name>
+            <email>oldseasoul@163.com</email>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:git://github.com/foggy-projects/foggy-data-mcp-bridge.git</connection>
+        <developerConnection>scm:git:ssh://github.com:foggy-projects/foggy-data-mcp-bridge.git</developerConnection>
+        <url>https://github.com/foggy-projects/foggy-data-mcp-bridge</url>
+    </scm>
 
     <properties>
         <maven.compiler.release>17</maven.compiler.release>
@@ -47,4 +68,65 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>release</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-source-plugin</artifactId>
+                        <version>3.3.1</version>
+                        <executions>
+                            <execution>
+                                <id>attach-sources</id>
+                                <goals><goal>jar-no-fork</goal></goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>flatten-maven-plugin</artifactId>
+                        <version>1.6.0</version>
+                        <configuration>
+                            <updatePomFile>true</updatePomFile>
+                            <flattenMode>ossrh</flattenMode>
+                        </configuration>
+                        <executions>
+                            <execution><id>flatten</id><phase>process-resources</phase><goals><goal>flatten</goal></goals></execution>
+                            <execution><id>flatten.clean</id><phase>clean</phase><goals><goal>clean</goal></goals></execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <version>3.11.2</version>
+                        <configuration>
+                            <encoding>UTF-8</encoding><charset>UTF-8</charset><docencoding>UTF-8</docencoding>
+                            <doclint>none</doclint><failOnError>false</failOnError>
+                        </configuration>
+                        <executions>
+                            <execution><id>attach-javadocs</id><goals><goal>jar</goal></goals></execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <version>3.2.7</version>
+                        <executions>
+                            <execution><id>sign-artifacts</id><phase>verify</phase><goals><goal>sign</goal></goals></execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.sonatype.central</groupId>
+                        <artifactId>central-publishing-maven-plugin</artifactId>
+                        <version>0.6.0</version>
+                        <extensions>true</extensions>
+                        <configuration><publishingServerId>central</publishingServerId><autoPublish>true</autoPublish></configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
