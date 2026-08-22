@@ -5,7 +5,7 @@
     <parent>
         <groupId>com.foggysource</groupId>
         <artifactId>foggy-data-mcp-bridge</artifactId>
-        <version>9.2.0</version>
+        <version>9.3.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>foggy-dataset-memory-grid-bridge</artifactId>

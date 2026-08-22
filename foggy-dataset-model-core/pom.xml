@@ -8,7 +8,7 @@
          Spring and implementation dependencies to every child. -->
     <groupId>com.foggysource</groupId>
     <artifactId>foggy-dataset-model-core</artifactId>
-    <version>9.2.0</version>
+    <version>9.3.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>Foggy Dataset Model Core</name>
