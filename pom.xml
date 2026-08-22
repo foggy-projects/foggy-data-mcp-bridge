@@ -13,7 +13,7 @@
     <groupId>com.foggysource</groupId>
     <artifactId>foggy-data-mcp-bridge</artifactId>
     <!-- Keep this development coordinate stable until the owner approves a formal release. -->
-    <version>9.2.0-SNAPSHOT</version>
+    <version>9.2.0</version>
     <name>Java Data MCP Bridge</name>
     <description>嵌入式语义层框架 - 声明式维度建模、动态查询和 AI 驱动的数据分析</description>
     <packaging>pom</packaging>
@@ -112,7 +112,7 @@
         <spring-boot.version>3.4.5</spring-boot.version>
 
         <!-- 框架内部版本 -->
-        <foggy-framework.version>9.2.0-SNAPSHOT</foggy-framework.version>
+        <foggy-framework.version>9.2.0</foggy-framework.version>
 
         <!-- 第三方依赖版本 -->
         <alibaba-fastjson.version>2.0.57</alibaba-fastjson.version>
