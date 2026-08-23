@@ -14,6 +14,8 @@ public final class FapAnalyticsFunctionRefs {
             "foggy.analytics.bundles.validate@v1";
     public static final String BUNDLES_DESCRIBE =
             "foggy.analytics.bundles.describe@v1";
+    public static final String ARTIFACTS_DESCRIBE =
+            "foggy.analytics.artifacts.describe@v1";
     public static final String REPORTS_PREVIEW =
             "foggy.analytics.reports.preview@v1";
     public static final String DASHBOARDS_PREVIEW =
@@ -26,6 +28,7 @@ public final class FapAnalyticsFunctionRefs {
             Map.entry(BUNDLES_LIST, AnalyticsFunctionOperations.BUNDLES_LIST),
             Map.entry(BUNDLES_VALIDATE, AnalyticsFunctionOperations.BUNDLES_VALIDATE),
             Map.entry(BUNDLES_DESCRIBE, AnalyticsFunctionOperations.BUNDLES_DESCRIBE),
+            Map.entry(ARTIFACTS_DESCRIBE, AnalyticsFunctionOperations.ARTIFACTS_DESCRIBE),
             Map.entry(REPORTS_PREVIEW, AnalyticsFunctionOperations.REPORTS_PREVIEW),
             Map.entry(DASHBOARDS_PREVIEW, AnalyticsFunctionOperations.DASHBOARDS_PREVIEW),
             Map.entry(DASHBOARDS_RENDER, AnalyticsFunctionOperations.DASHBOARDS_RENDER));
@@ -35,6 +38,7 @@ public final class FapAnalyticsFunctionRefs {
             Map.entry(AnalyticsFunctionOperations.BUNDLES_LIST, BUNDLES_LIST),
             Map.entry(AnalyticsFunctionOperations.BUNDLES_VALIDATE, BUNDLES_VALIDATE),
             Map.entry(AnalyticsFunctionOperations.BUNDLES_DESCRIBE, BUNDLES_DESCRIBE),
+            Map.entry(AnalyticsFunctionOperations.ARTIFACTS_DESCRIBE, ARTIFACTS_DESCRIBE),
             Map.entry(AnalyticsFunctionOperations.REPORTS_PREVIEW, REPORTS_PREVIEW),
             Map.entry(AnalyticsFunctionOperations.DASHBOARDS_PREVIEW, DASHBOARDS_PREVIEW),
             Map.entry(AnalyticsFunctionOperations.DASHBOARDS_RENDER, DASHBOARDS_RENDER));

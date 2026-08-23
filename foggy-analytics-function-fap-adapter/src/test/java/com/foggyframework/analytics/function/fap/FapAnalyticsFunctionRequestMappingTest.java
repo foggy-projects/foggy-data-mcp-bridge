@@ -3,6 +3,8 @@ package com.foggyframework.analytics.function.fap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.foggyframework.analytics.function.contract.AnalyticsArtifactDescription;
+import com.foggyframework.analytics.function.contract.AnalyticsArtifactFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleList;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionAuthority;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionEnvelope;
@@ -114,6 +116,53 @@ class FapAnalyticsFunctionRequestMappingTest {
         assertThat(outcome).isInstanceOf(FapAnalyticsFunctionOutcome.Success.class);
         assertThat(client.calls).isEqualTo(1);
         assertThat(resolutions).hasValue(0);
+    }
+
+    @Test
+    void mapsExactArtifactInspectionWithoutResolvingDataAuthority() {
+        class Client extends FapAnalyticsAdapterTestSupport.StubClient {
+            AnalyticsArtifactFunctionRequest request;
+
+            @Override
+            public AnalyticsFunctionEnvelope<AnalyticsArtifactDescription> describeArtifact(
+                    AnalyticsArtifactFunctionRequest value) {
+                calls++;
+                request = value;
+                return AnalyticsFunctionEnvelope.ok(
+                        "foggy-analytics-runtime-api/v1",
+                        "analytics-runtime/v1",
+                        new AnalyticsArtifactDescription(
+                                value.bundleRef(),
+                                value.expectedBundleRevision(),
+                                value.artifactKind(),
+                                value.artifactRef()),
+                        FapAnalyticsAdapterTestSupport.context(value.context()));
+            }
+        }
+        Client client = new Client();
+        AtomicInteger resolutions = new AtomicInteger();
+        FapAnalyticsFunctionAdapter adapter = new FapAnalyticsFunctionAdapter(
+                client,
+                (caller, operation) -> {
+                    resolutions.incrementAndGet();
+                    return new AnalyticsFunctionAuthority("tms", "unused");
+                });
+
+        FapAnalyticsFunctionOutcome outcome = adapter.invoke(
+                FapAnalyticsAdapterTestSupport.invocation(
+                        FapAnalyticsFunctionRefs.ARTIFACTS_DESCRIBE,
+                        Map.of(
+                                "bundleRef", "sales-analytics",
+                                "artifactKind", "report",
+                                "artifactRef", "sales-report",
+                                "expectedBundleRevision",
+                                FapAnalyticsAdapterTestSupport.REVISION)));
+
+        assertThat(outcome).isInstanceOf(FapAnalyticsFunctionOutcome.Success.class);
+        assertThat(client.calls).isEqualTo(1);
+        assertThat(resolutions).hasValue(0);
+        assertThat(client.request.artifactKind()).isEqualTo("report");
+        assertThat(client.request.artifactRef()).isEqualTo("sales-report");
     }
 
     @Test

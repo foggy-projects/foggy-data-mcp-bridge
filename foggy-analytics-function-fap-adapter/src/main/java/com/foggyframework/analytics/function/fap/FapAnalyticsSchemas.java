@@ -45,6 +45,23 @@ final class FapAnalyticsSchemas {
                 false);
     }
 
+    static Map<String, Object> artifactArguments() {
+        return object(
+                map(
+                        "bundleRef", string(LOGICAL_REF),
+                        "artifactKind", map(
+                                "type", "string",
+                                "enum", List.of("report", "dashboard")),
+                        "artifactRef", string(LOGICAL_REF),
+                        "expectedBundleRevision", string(REVISION)),
+                List.of(
+                        "bundleRef",
+                        "artifactKind",
+                        "artifactRef",
+                        "expectedBundleRevision"),
+                false);
+    }
+
     static Map<String, Object> capabilitiesResult(String operation) {
         return result(
                 operation,
@@ -88,6 +105,25 @@ final class FapAnalyticsSchemas {
 
     static Map<String, Object> bundleDescriptionResult(String operation) {
         return result(operation, bundleDescription());
+    }
+
+    static Map<String, Object> artifactDescriptionResult(String operation) {
+        return result(
+                operation,
+                object(
+                        map(
+                                "bundleRef", string(LOGICAL_REF),
+                                "bundleRevision", string(REVISION),
+                                "artifactKind", map(
+                                        "type", "string",
+                                        "enum", List.of("report", "dashboard")),
+                                "artifactRef", string(LOGICAL_REF)),
+                        List.of(
+                                "bundleRef",
+                                "bundleRevision",
+                                "artifactKind",
+                                "artifactRef"),
+                        false));
     }
 
     static Map<String, Object> renderResult(String operation) {

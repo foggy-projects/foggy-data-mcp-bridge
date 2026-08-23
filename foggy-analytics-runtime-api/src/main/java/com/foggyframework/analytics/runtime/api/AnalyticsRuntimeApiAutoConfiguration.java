@@ -112,10 +112,12 @@ public class AnalyticsRuntimeApiAutoConfiguration {
     @ConditionalOnMissingBean
     AnalyticsBundleFunctionOperations analyticsBundleFunctionOperations(
             FoggyAnalyticsRuntimeApiProperties properties,
-            AnalyticsBundleStore bundleStore) {
+            AnalyticsBundleStore bundleStore,
+            AnalyticsDefinitionResolver definitionResolver) {
         return new AnalyticsBundleFunctionOperations(
                 properties.registrations(),
-                bundleStore);
+                bundleStore,
+                definitionResolver);
     }
 
     @Bean

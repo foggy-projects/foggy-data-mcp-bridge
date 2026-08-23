@@ -1,5 +1,6 @@
 package com.foggyframework.analytics.function.fap;
 
+import com.foggyframework.analytics.function.contract.AnalyticsArtifactFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleDescription;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleList;
@@ -31,6 +32,8 @@ public final class FapAnalyticsFunctionAdapter {
     private static final Set<String> EMPTY_ARGUMENTS = Set.of();
     private static final Set<String> BUNDLE_ARGUMENTS = Set.of(
             "bundleRef", "expectedBundleRevision");
+    private static final Set<String> ARTIFACT_ARGUMENTS = Set.of(
+            "bundleRef", "artifactKind", "artifactRef", "expectedBundleRevision");
     private static final Set<String> RENDER_ARGUMENTS = Set.of(
             "bundleRef",
             "artifactRef",
@@ -104,6 +107,11 @@ public final class FapAnalyticsFunctionAdapter {
                         operation,
                         client.describeBundle(bundleRequest(invocation)),
                         FapAnalyticsResults::bundleDescription);
+                case AnalyticsFunctionOperations.ARTIFACTS_DESCRIBE -> complete(
+                        invocation,
+                        operation,
+                        client.describeArtifact(artifactRequest(invocation)),
+                        FapAnalyticsResults::artifactDescription);
                 case AnalyticsFunctionOperations.REPORTS_PREVIEW -> complete(
                         invocation,
                         operation,
@@ -220,6 +228,23 @@ public final class FapAnalyticsFunctionAdapter {
                 validated.locale(),
                 authority,
                 validated.context());
+    }
+
+    private AnalyticsArtifactFunctionRequest artifactRequest(
+            FapAnalyticsFunctionInvocation invocation) {
+        try {
+            requireArguments(invocation.arguments(), ARTIFACT_ARGUMENTS);
+            return new AnalyticsArtifactFunctionRequest(
+                    requiredString(invocation.arguments(), "bundleRef"),
+                    requiredString(invocation.arguments(), "artifactKind"),
+                    requiredString(invocation.arguments(), "artifactRef"),
+                    requiredString(invocation.arguments(), "expectedBundleRevision"),
+                    context(invocation));
+        } catch (ArgumentsInvalid invalid) {
+            throw invalid;
+        } catch (IllegalArgumentException | NullPointerException invalid) {
+            throw new ArgumentsInvalid();
+        }
     }
 
     private <T> FapAnalyticsFunctionOutcome complete(

@@ -30,7 +30,7 @@ class FapAnalyticsFunctionCatalogTest {
         List<FapAnalyticsFunctionDescriptor> descriptors =
                 FapAnalyticsFunctionCatalog.descriptors();
 
-        assertThat(descriptors).hasSize(7);
+        assertThat(descriptors).hasSize(8);
         assertThat(descriptors)
                 .extracting(FapAnalyticsFunctionDescriptor::operation)
                 .containsExactlyInAnyOrderElementsOf(AnalyticsFunctionOperations.SDK_V1);
@@ -146,6 +146,11 @@ class FapAnalyticsFunctionCatalogTest {
     @Test
     void descriptorDigestsAreFrozenForFapPublication() {
         Map<String, List<String>> expected = Map.ofEntries(
+                Map.entry(
+                        FapAnalyticsFunctionRefs.ARTIFACTS_DESCRIBE,
+                        List.of(
+                                "sha256:dfa8f1ef4c627f33b2a9a4bf4ead3d96db95887df35b06e53d2a3667a831d782",
+                                "sha256:204afedf7c4cde8415fec7b15531beefdec19d59d8c5a6d1d00b4fd3edb67048")),
                 Map.entry(
                         FapAnalyticsFunctionRefs.BUNDLES_DESCRIBE,
                         List.of(

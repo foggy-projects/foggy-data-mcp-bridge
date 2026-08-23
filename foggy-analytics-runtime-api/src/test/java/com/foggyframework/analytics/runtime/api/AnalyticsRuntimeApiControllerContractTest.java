@@ -1,5 +1,7 @@
 package com.foggyframework.analytics.runtime.api;
 
+import com.foggyframework.analytics.function.contract.AnalyticsArtifactDescription;
+import com.foggyframework.analytics.function.contract.AnalyticsArtifactFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleDescription;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleList;
@@ -162,6 +164,32 @@ class AnalyticsRuntimeApiControllerContractTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.bundles[0].bundleRef").value("sales"))
                 .andExpect(jsonPath("$.data.bundles[0].valid").value(true));
+    }
+
+    @Test
+    void describesAnExactParsedArtifactWithoutDataAuthority() throws Exception {
+        when(endpoint.describeArtifact(any())).thenReturn(responses.ok(
+                new AnalyticsArtifactDescription(
+                        "sales", REVISION, "report", "sales-summary"),
+                "request-artifact",
+                "trace-artifact"));
+
+        mvc().perform(post(
+                        "/analytics/api/v1/bundles/sales/artifacts/report/"
+                                + "sales-summary/describe")
+                        .contentType("application/json")
+                        .content(bundleRequest("request-artifact", "trace-artifact")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.bundleRef").value("sales"))
+                .andExpect(jsonPath("$.data.bundleRevision").value(REVISION))
+                .andExpect(jsonPath("$.data.artifactKind").value("report"))
+                .andExpect(jsonPath("$.data.artifactRef").value("sales-summary"));
+
+        ArgumentCaptor<AnalyticsArtifactFunctionRequest> request =
+                ArgumentCaptor.forClass(AnalyticsArtifactFunctionRequest.class);
+        verify(endpoint).describeArtifact(request.capture());
+        assertEquals("report", request.getValue().artifactKind());
+        assertEquals(REVISION, request.getValue().expectedBundleRevision());
     }
 
     @Test

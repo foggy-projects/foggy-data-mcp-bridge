@@ -30,6 +30,7 @@ class AnalyticsFunctionContractTest {
                         "analytics.bundles.list",
                         "analytics.bundles.validate",
                         "analytics.bundles.describe",
+                        "analytics.artifacts.describe",
                         "analytics.reports.preview",
                         "analytics.dashboards.preview",
                         "analytics.dashboards.render"),
@@ -66,6 +67,20 @@ class AnalyticsFunctionContractTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> new AnalyticsFunctionAuthority("tms", "  "));
+        assertEquals("report", new AnalyticsArtifactFunctionRequest(
+                "sales",
+                "report",
+                "sales-summary",
+                REVISION,
+                AnalyticsFunctionRequestContext.empty()).artifactKind());
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new AnalyticsArtifactFunctionRequest(
+                        "sales",
+                        "query",
+                        "sales-summary",
+                        REVISION,
+                        AnalyticsFunctionRequestContext.empty()));
     }
 
     @Test
@@ -164,6 +179,7 @@ class AnalyticsFunctionContractTest {
     void publicRequestTypesContainNoProductOwnershipOrFapLifecycleFields() {
         Set<String> fields = Arrays.stream(new Class<?>[]{
                         AnalyticsBundleFunctionRequest.class,
+                        AnalyticsArtifactFunctionRequest.class,
                         AnalyticsRenderFunctionRequest.class,
                         AnalyticsFunctionAuthority.class
                 })

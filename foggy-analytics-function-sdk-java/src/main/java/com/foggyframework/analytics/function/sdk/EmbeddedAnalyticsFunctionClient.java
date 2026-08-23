@@ -1,5 +1,7 @@
 package com.foggyframework.analytics.function.sdk;
 
+import com.foggyframework.analytics.function.contract.AnalyticsArtifactDescription;
+import com.foggyframework.analytics.function.contract.AnalyticsArtifactFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleDescription;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleList;
@@ -43,6 +45,12 @@ public final class EmbeddedAnalyticsFunctionClient implements AnalyticsFunctionC
     public AnalyticsFunctionEnvelope<AnalyticsBundleDescription> describeBundle(
             AnalyticsBundleFunctionRequest request) {
         return requireOutcome(endpoint.describeBundle(request));
+    }
+
+    @Override
+    public AnalyticsFunctionEnvelope<AnalyticsArtifactDescription> describeArtifact(
+            AnalyticsArtifactFunctionRequest request) {
+        return requireOutcome(endpoint.describeArtifact(request));
     }
 
     @Override

@@ -1,11 +1,14 @@
 package com.foggyframework.analytics.runtime.api.controller;
 
+import com.foggyframework.analytics.function.contract.AnalyticsArtifactDescription;
+import com.foggyframework.analytics.function.contract.AnalyticsArtifactFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleDescription;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleList;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionEndpoint;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionEnvelope;
 import com.foggyframework.analytics.runtime.api.AnalyticsRuntimeApiRoutes;
+import com.foggyframework.analytics.runtime.api.dto.AnalyticsArtifactDescriptionRequest;
 import com.foggyframework.analytics.runtime.api.dto.AnalyticsBundleValidationRequest;
 import com.foggyframework.analytics.runtime.api.service.AnalyticsRuntimeApiResponseFactory;
 import com.foggyframework.analytics.runtime.api.service.AnalyticsRuntimeHttpResponseMapper;
@@ -60,6 +63,23 @@ public class AnalyticsBundlesController {
             @PathVariable String bundleRef,
             @RequestBody(required = false) AnalyticsBundleValidationRequest request) {
         return http.map(endpoint.describeBundle(bundleRequest(bundleRef, request)));
+    }
+
+    @PostMapping("/{bundleRef}/artifacts/{artifactKind}/{artifactRef}/describe")
+    public ResponseEntity<AnalyticsFunctionEnvelope<AnalyticsArtifactDescription>>
+            describeArtifact(
+                    @PathVariable String bundleRef,
+                    @PathVariable String artifactKind,
+                    @PathVariable String artifactRef,
+                    @RequestBody AnalyticsArtifactDescriptionRequest request) {
+        return http.map(endpoint.describeArtifact(new AnalyticsArtifactFunctionRequest(
+                bundleRef,
+                artifactKind,
+                artifactRef,
+                request == null ? null : request.expectedBundleRevision(),
+                responses.requestContext(
+                        request == null ? null : request.requestId(),
+                        request == null ? null : request.traceId()))));
     }
 
     private AnalyticsBundleFunctionRequest bundleRequest(

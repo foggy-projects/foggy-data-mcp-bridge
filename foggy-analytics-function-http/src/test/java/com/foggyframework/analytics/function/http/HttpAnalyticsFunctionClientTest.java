@@ -2,6 +2,8 @@ package com.foggyframework.analytics.function.http;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.foggyframework.analytics.function.contract.AnalyticsArtifactDescription;
+import com.foggyframework.analytics.function.contract.AnalyticsArtifactFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleDescription;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleList;
@@ -85,6 +87,7 @@ class HttpAnalyticsFunctionClientTest {
         assertTrue(client.listBundles(CONTEXT).success());
         assertTrue(client.validateBundle(bundleRequest()).success());
         assertTrue(client.describeBundle(bundleRequest()).success());
+        assertTrue(client.describeArtifact(artifactRequest()).success());
         assertTrue(client.previewReport(renderRequest()).success());
         assertTrue(client.previewDashboard(renderRequest()).success());
         assertTrue(client.renderDashboard(renderRequest()).success());
@@ -94,29 +97,32 @@ class HttpAnalyticsFunctionClientTest {
                         "/analytics/api/v1/bundles",
                         "/analytics/api/v1/bundles/sales/validate",
                         "/analytics/api/v1/bundles/sales/describe",
+                        "/analytics/api/v1/bundles/sales/artifacts/report/"
+                                + "sales-summary/describe",
                         "/analytics/api/v1/bundles/sales/reports/sales-summary/preview",
                         "/analytics/api/v1/bundles/sales/dashboards/sales-summary/preview",
                         "/analytics/api/v1/bundles/sales/dashboards/sales-summary/render"),
                 requests.stream().map(CapturedRequest::path).toList());
-        assertEquals(List.of("GET", "GET", "POST", "POST", "POST", "POST", "POST"),
+        assertEquals(List.of(
+                        "GET", "GET", "POST", "POST", "POST", "POST", "POST", "POST"),
                 requests.stream().map(CapturedRequest::method).toList());
         requests.forEach(request -> assertEquals(
                 "management-secret", request.authCode()));
-        requests.subList(0, 4).forEach(request ->
+        requests.subList(0, 5).forEach(request ->
                 assertNull(request.authorization()));
-        requests.subList(4, 7).forEach(request -> assertEquals(
+        requests.subList(5, 8).forEach(request -> assertEquals(
                 "Bearer data-secret", request.authorization()));
         assertEquals(REVISION,
                 requests.get(2).body().get("expectedBundleRevision"));
         assertFalse(requests.get(2).body().containsKey("bundleRef"));
         @SuppressWarnings("unchecked")
         Map<String, Object> authority = (Map<String, Object>)
-                requests.get(4).body().get("authority");
+                requests.get(5).body().get("authority");
         assertEquals("tms", authority.get("provider"));
         assertEquals("subject:42", authority.get("reference"));
         @SuppressWarnings("unchecked")
         Map<String, Object> parameters = (Map<String, Object>)
-                requests.get(4).body().get("parameters");
+                requests.get(5).body().get("parameters");
         assertEquals(2, parameters.get("limit"));
         assertTrue(parameters.containsKey("optional"));
         assertNull(parameters.get("optional"));
@@ -269,6 +275,8 @@ class HttpAnalyticsFunctionClientTest {
         } else if ("GET".equals(request.method())
                 && request.path().endsWith("/bundles")) {
             data = new AnalyticsBundleList(List.of(description()));
+        } else if (request.path().contains("/artifacts/")) {
+            data = artifactDescription();
         } else if (request.path().endsWith("/validate")
                 || request.path().endsWith("/describe")) {
             data = description();
@@ -284,6 +292,11 @@ class HttpAnalyticsFunctionClientTest {
 
     private static AnalyticsBundleFunctionRequest bundleRequest() {
         return new AnalyticsBundleFunctionRequest("sales", REVISION, CONTEXT);
+    }
+
+    private static AnalyticsArtifactFunctionRequest artifactRequest() {
+        return new AnalyticsArtifactFunctionRequest(
+                "sales", "report", "sales-summary", REVISION, CONTEXT);
     }
 
     private static AnalyticsRenderFunctionRequest renderRequest() {
@@ -313,6 +326,11 @@ class HttpAnalyticsFunctionClientTest {
                 false,
                 true,
                 null);
+    }
+
+    private static AnalyticsArtifactDescription artifactDescription() {
+        return new AnalyticsArtifactDescription(
+                "sales", REVISION, "report", "sales-summary");
     }
 
     private static AnalyticsFunctionCapabilities capabilities() {

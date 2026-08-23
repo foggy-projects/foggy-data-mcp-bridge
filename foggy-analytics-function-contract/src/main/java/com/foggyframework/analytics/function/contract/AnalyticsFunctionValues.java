@@ -1,6 +1,7 @@
 package com.foggyframework.analytics.function.contract;
 
 import java.util.Objects;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 final class AnalyticsFunctionValues {
@@ -9,6 +10,7 @@ final class AnalyticsFunctionValues {
     private static final Pattern LOGICAL_REF = Pattern.compile(
             "[A-Za-z0-9][A-Za-z0-9._~-]{0,127}");
     private static final int MAX_CORRELATION_LENGTH = 256;
+    private static final Set<String> ARTIFACT_KINDS = Set.of("report", "dashboard");
 
     private AnalyticsFunctionValues() {
     }
@@ -46,6 +48,15 @@ final class AnalyticsFunctionValues {
         if (!REVISION.matcher(value).matches()) {
             throw new IllegalArgumentException(
                     field + " must be a canonical SHA-256 revision");
+        }
+        return value;
+    }
+
+    static String requireArtifactKind(String value) {
+        requireText("artifactKind", value);
+        if (!ARTIFACT_KINDS.contains(value)) {
+            throw new IllegalArgumentException(
+                    "artifactKind must be report or dashboard");
         }
         return value;
     }

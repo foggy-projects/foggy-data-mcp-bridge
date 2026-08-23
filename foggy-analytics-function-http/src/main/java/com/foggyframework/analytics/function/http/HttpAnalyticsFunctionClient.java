@@ -3,6 +3,8 @@ package com.foggyframework.analytics.function.http;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.foggyframework.analytics.function.contract.AnalyticsArtifactDescription;
+import com.foggyframework.analytics.function.contract.AnalyticsArtifactFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleDescription;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleList;
@@ -111,6 +113,21 @@ public final class HttpAnalyticsFunctionClient implements AnalyticsFunctionClien
                 request.context(),
                 false,
                 AnalyticsBundleDescription.class);
+    }
+
+    @Override
+    public AnalyticsFunctionEnvelope<AnalyticsArtifactDescription> describeArtifact(
+            AnalyticsArtifactFunctionRequest request) {
+        Objects.requireNonNull(request, "request");
+        return invoke(
+                "POST",
+                "/bundles/" + pathSegment(request.bundleRef())
+                        + "/artifacts/" + pathSegment(request.artifactKind())
+                        + '/' + pathSegment(request.artifactRef()) + "/describe",
+                artifactBody(request),
+                request.context(),
+                false,
+                AnalyticsArtifactDescription.class);
     }
 
     @Override
@@ -272,6 +289,14 @@ public final class HttpAnalyticsFunctionClient implements AnalyticsFunctionClien
         if (request.expectedBundleRevision() != null) {
             body.put("expectedBundleRevision", request.expectedBundleRevision());
         }
+        putContext(body, request.context());
+        return body;
+    }
+
+    private static Map<String, Object> artifactBody(
+            AnalyticsArtifactFunctionRequest request) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("expectedBundleRevision", request.expectedBundleRevision());
         putContext(body, request.context());
         return body;
     }

@@ -1,5 +1,7 @@
 package com.foggyframework.analytics.runtime.api;
 
+import com.foggyframework.analytics.definition.api.AnalyticsArtifactKind;
+import com.foggyframework.analytics.definition.api.AnalyticsArtifactRef;
 import com.foggyframework.analytics.definition.api.AnalyticsBundleDependencyState;
 import com.foggyframework.analytics.definition.api.AnalyticsBundleLifecycle;
 import com.foggyframework.analytics.definition.api.AnalyticsBundleManifest;
@@ -7,7 +9,12 @@ import com.foggyframework.analytics.definition.api.AnalyticsBundleRef;
 import com.foggyframework.analytics.definition.api.AnalyticsBundleRevision;
 import com.foggyframework.analytics.definition.api.AnalyticsBundleSourceState;
 import com.foggyframework.analytics.definition.api.AnalyticsNamespaceRef;
+import com.foggyframework.analytics.definition.api.AnalyticsQueryRef;
+import com.foggyframework.analytics.definition.api.AnalyticsReportDefinition;
 import com.foggyframework.analytics.definition.api.AnalyticsSchemaVersion;
+import com.foggyframework.analytics.definition.api.AnalyticsVisualIntent;
+import com.foggyframework.analytics.definition.api.AnalyticsVisualKind;
+import com.foggyframework.analytics.definition.core.AnalyticsBundleIndex;
 import com.foggyframework.analytics.definition.core.AnalyticsBundleRegistration;
 import com.foggyframework.analytics.definition.core.AnalyticsBundleStore;
 import com.foggyframework.analytics.definition.core.AnalyticsBundleStoreException;
@@ -15,10 +22,12 @@ import com.foggyframework.analytics.definition.core.ResolvedAnalyticsBundle;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleDescription;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleList;
 import com.foggyframework.analytics.runtime.core.function.AnalyticsBundleFunctionOperations;
+import com.foggyframework.analytics.runtime.core.render.AnalyticsRenderException;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -94,6 +103,38 @@ class AnalyticsBundleOperationsTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> operations.validate(SALES.value(), "   "));
+    }
+
+    @Test
+    void describesOnlyAnExistingParsedArtifactAtTheExactRevision() {
+        AnalyticsBundleStore store = mock(AnalyticsBundleStore.class);
+        when(store.resolve(SALES)).thenReturn(resolved());
+        AnalyticsArtifactRef reportRef = new AnalyticsArtifactRef(
+                AnalyticsArtifactKind.REPORT, "sales-summary");
+        AnalyticsBundleIndex index = new AnalyticsBundleIndex(
+                resolved(),
+                Map.of(),
+                Map.of(reportRef, new AnalyticsReportDefinition(
+                        reportRef,
+                        new AnalyticsQueryRef("sales-query"),
+                        new AnalyticsVisualIntent(AnalyticsVisualKind.TABLE, Map.of()))),
+                Map.of());
+        AnalyticsBundleFunctionOperations operations =
+                new AnalyticsBundleFunctionOperations(
+                        registrations().subList(0, 1),
+                        store,
+                        (bundleRef, revision) -> index);
+
+        var description = operations.describeArtifact(
+                "sales", "report", "sales-summary", REVISION.value());
+
+        assertEquals("sales", description.bundleRef());
+        assertEquals(REVISION.value(), description.bundleRevision());
+        assertEquals("report", description.artifactKind());
+        assertThrows(
+                AnalyticsRenderException.class,
+                () -> operations.describeArtifact(
+                        "sales", "dashboard", "sales-summary", REVISION.value()));
     }
 
     private static List<AnalyticsBundleRegistration> registrations() {

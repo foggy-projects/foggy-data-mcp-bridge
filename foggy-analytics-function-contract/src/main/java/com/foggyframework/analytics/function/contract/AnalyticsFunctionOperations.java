@@ -9,6 +9,7 @@ public final class AnalyticsFunctionOperations {
     public static final String BUNDLES_LIST = "analytics.bundles.list";
     public static final String BUNDLES_VALIDATE = "analytics.bundles.validate";
     public static final String BUNDLES_DESCRIBE = "analytics.bundles.describe";
+    public static final String ARTIFACTS_DESCRIBE = "analytics.artifacts.describe";
     public static final String BUNDLES_PULL = "analytics.bundles.pull";
     public static final String BUNDLES_SAVE = "analytics.bundles.save";
     public static final String REPORTS_PREVIEW = "analytics.reports.preview";
@@ -20,6 +21,7 @@ public final class AnalyticsFunctionOperations {
             BUNDLES_LIST,
             BUNDLES_VALIDATE,
             BUNDLES_DESCRIBE,
+            ARTIFACTS_DESCRIBE,
             REPORTS_PREVIEW,
             DASHBOARDS_PREVIEW,
             DASHBOARDS_RENDER);

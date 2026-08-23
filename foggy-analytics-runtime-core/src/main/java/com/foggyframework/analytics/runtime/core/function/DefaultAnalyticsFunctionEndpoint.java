@@ -4,6 +4,8 @@ import com.foggyframework.analytics.definition.api.AnalyticsArtifactKind;
 import com.foggyframework.analytics.definition.api.AnalyticsArtifactRef;
 import com.foggyframework.analytics.definition.api.AnalyticsBundleRef;
 import com.foggyframework.analytics.definition.api.AnalyticsBundleRevision;
+import com.foggyframework.analytics.function.contract.AnalyticsArtifactDescription;
+import com.foggyframework.analytics.function.contract.AnalyticsArtifactFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleDescription;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleList;
@@ -96,6 +98,17 @@ public final class DefaultAnalyticsFunctionEndpoint
     }
 
     @Override
+    public AnalyticsFunctionEnvelope<AnalyticsArtifactDescription> describeArtifact(
+            AnalyticsArtifactFunctionRequest request) {
+        Objects.requireNonNull(request, "request");
+        return execute(request.context(), ignored -> bundleOperations.describeArtifact(
+                request.bundleRef(),
+                request.artifactKind(),
+                request.artifactRef(),
+                request.expectedBundleRevision()));
+    }
+
+    @Override
     public AnalyticsFunctionEnvelope<AnalyticsRenderResult> previewReport(
             AnalyticsRenderFunctionRequest request) {
         Objects.requireNonNull(request, "request");
@@ -132,6 +145,9 @@ public final class DefaultAnalyticsFunctionEndpoint
         operations.put(AnalyticsFunctionOperations.BUNDLES_LIST, "supported");
         operations.put(AnalyticsFunctionOperations.BUNDLES_VALIDATE, "supported");
         operations.put(AnalyticsFunctionOperations.BUNDLES_DESCRIBE, "supported");
+        operations.put(
+                AnalyticsFunctionOperations.ARTIFACTS_DESCRIBE,
+                status(bundleOperations.artifactInspectionAvailable()));
         operations.put(AnalyticsFunctionOperations.BUNDLES_PULL, "unsupported");
         operations.put(AnalyticsFunctionOperations.BUNDLES_SAVE, "unsupported");
         operations.put(

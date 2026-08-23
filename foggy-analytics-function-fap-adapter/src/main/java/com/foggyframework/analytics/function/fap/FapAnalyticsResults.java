@@ -1,5 +1,6 @@
 package com.foggyframework.analytics.function.fap;
 
+import com.foggyframework.analytics.function.contract.AnalyticsArtifactDescription;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleDescription;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleList;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionCapabilities;
@@ -66,6 +67,14 @@ final class FapAnalyticsResults {
         result.put("valid", value.valid());
         result.put("errorCode", value.errorCode());
         return FapAnalyticsValues.object("bundleDescription", result);
+    }
+
+    static Map<String, Object> artifactDescription(AnalyticsArtifactDescription value) {
+        return FapAnalyticsValues.object("artifactDescription", Map.of(
+                "bundleRef", value.bundleRef(),
+                "bundleRevision", value.bundleRevision(),
+                "artifactKind", value.artifactKind(),
+                "artifactRef", value.artifactRef()));
     }
 
     static Map<String, Object> render(AnalyticsRenderResult value) {

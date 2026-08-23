@@ -63,6 +63,18 @@ public final class FapAnalyticsFunctionCatalog {
                                             AnalyticsFunctionOperations.BUNDLES_DESCRIBE),
                                     List.of(bundleExample())),
                             descriptor(
+                                    AnalyticsFunctionOperations.ARTIFACTS_DESCRIBE,
+                                    FapAnalyticsFunctionRefs.ARTIFACTS_DESCRIBE,
+                                    "analytics.artifacts.describe",
+                                    "Describe an Analytics artifact",
+                                    "Confirm one parsed Report or Dashboard at an exact Bundle revision.",
+                                    "analytics artifact report dashboard describe revision definition",
+                                    List.of("analytics", "artifact", "describe", "read", "sync"),
+                                    FapAnalyticsSchemas.artifactArguments(),
+                                    FapAnalyticsSchemas.artifactDescriptionResult(
+                                            AnalyticsFunctionOperations.ARTIFACTS_DESCRIBE),
+                                    List.of(artifactExample())),
+                            descriptor(
                                     AnalyticsFunctionOperations.REPORTS_PREVIEW,
                                     FapAnalyticsFunctionRefs.REPORTS_PREVIEW,
                                     "analytics.reports.preview",
@@ -158,5 +170,13 @@ public final class FapAnalyticsFunctionCatalog {
                 "parameters", Map.of("region", "east"),
                 "timezone", "Asia/Shanghai",
                 "locale", "zh-CN");
+    }
+
+    private static Map<String, Object> artifactExample() {
+        return Map.of(
+                "bundleRef", "sales-analytics",
+                "artifactKind", "report",
+                "artifactRef", "sales-report",
+                "expectedBundleRevision", EXAMPLE_REVISION);
     }
 }
