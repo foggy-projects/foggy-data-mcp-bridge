@@ -11,6 +11,10 @@ public interface AnalyticsArtifactStore {
             AnalyticsBundleRevision expectedRevision,
             String relativePath);
 
+    AnalyticsDefinitionSnapshot readDefinitionSnapshot(
+            AnalyticsBundleRef bundleRef,
+            AnalyticsBundleRevision expectedRevision);
+
     ResolvedAnalyticsBundle saveArtifact(
             AnalyticsBundleRef bundleRef,
             AnalyticsBundleRevision expectedRevision,

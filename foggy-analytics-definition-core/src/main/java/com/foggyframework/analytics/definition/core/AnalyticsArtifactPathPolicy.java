@@ -50,11 +50,15 @@ final class AnalyticsArtifactPathPolicy {
     }
 
     boolean isSupportedArtifact(String portablePath) {
-        return typedJson(portablePath, "queries/", ".query.json")
-                || typedJson(portablePath, "reports/", ".report.json")
-                || typedJson(portablePath, "dashboards/", ".dashboard.json")
+        return isDefinitionArtifact(portablePath)
                 || (portablePath.startsWith("assets/")
                 && portablePath.length() > "assets/".length());
+    }
+
+    boolean isDefinitionArtifact(String portablePath) {
+        return typedJson(portablePath, "queries/", ".query.json")
+                || typedJson(portablePath, "reports/", ".report.json")
+                || typedJson(portablePath, "dashboards/", ".dashboard.json");
     }
 
     boolean isSupportedDirectory(String portablePath) {

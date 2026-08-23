@@ -31,7 +31,7 @@ class AnalyticsBundleRevisionCalculatorTest {
         AnalyticsBundleRevision revision = calculator.calculate(bundle);
 
         assertEquals(
-                "sha256:e8e7f390af7eeb644307f7555c634c7c7a5cedb6c7668d828d81b6b3b379c60b",
+                "sha256:f92c55147438a95b865f2e78c9ee3523c9813a0157761cc466ef527f5b62b919",
                 revision.value());
     }
 
@@ -41,7 +41,7 @@ class AnalyticsBundleRevisionCalculatorTest {
         Path second = copyFixture(tempDir.resolve("second"));
         Path manifest = second.resolve("manifest.json");
         String changedManifest = Files.readString(manifest, StandardCharsets.UTF_8)
-                .replace("sha256:e8e7f390af7eeb644307f7555c634c7c7a5cedb6c7668d828d81b6b3b379c60b",
+                .replace("sha256:f92c55147438a95b865f2e78c9ee3523c9813a0157761cc466ef527f5b62b919",
                         "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
                 .replace("2026-08-23T00:00:00Z", "2026-08-23T01:02:03Z")
                 .replace("\"algorithm\": \"none\"", "\"algorithm\": \"future\"");
@@ -96,6 +96,29 @@ class AnalyticsBundleRevisionCalculatorTest {
                   "modelDependencies":[]
                 }
                 """).formatted("0".repeat(64)).getBytes(StandardCharsets.UTF_8);
+
+        assertThrows(IllegalArgumentException.class, () -> codec.read(invalid));
+    }
+
+    @Test
+    void manifestCodecRejectsRuntimeCatalogIdentity() {
+        byte[] invalid = ("""
+                {
+                  "kind":"analytics",
+                  "schemaVersion":"1.0",
+                  "bundleRef":"sales",
+                  "bundleRevision":"sha256:%s",
+                  "namespaceRef":"default",
+                  "modelDependencies":[{
+                    "namespace":"default",
+                    "modelKind":"qm",
+                    "modelName":"SalesOrder",
+                    "modelRevision":"sha256:%s",
+                    "catalogIdentity":"runtime-only"
+                  }]
+                }
+                """).formatted("0".repeat(64), "1".repeat(64))
+                .getBytes(StandardCharsets.UTF_8);
 
         assertThrows(IllegalArgumentException.class, () -> codec.read(invalid));
     }

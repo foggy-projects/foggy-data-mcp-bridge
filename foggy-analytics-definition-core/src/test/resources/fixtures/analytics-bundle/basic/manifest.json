@@ -2,7 +2,7 @@
   "kind": "analytics",
   "schemaVersion": "1.0",
   "bundleRef": "sales",
-  "bundleRevision": "sha256:e8e7f390af7eeb644307f7555c634c7c7a5cedb6c7668d828d81b6b3b379c60b",
+  "bundleRevision": "sha256:f92c55147438a95b865f2e78c9ee3523c9813a0157761cc466ef527f5b62b919",
   "namespaceRef": "default",
   "generatedAt": "2026-08-23T00:00:00Z",
   "signature": {
@@ -13,9 +13,7 @@
       "namespace": "default",
       "modelKind": "qm",
       "modelName": "SalesOrder",
-      "sourceBundleRef": "sales-models",
-      "sourceBundleRevision": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-      "catalogIdentity": "catalog:default/SalesOrder"
+      "modelRevision": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
     }
   ]
 }

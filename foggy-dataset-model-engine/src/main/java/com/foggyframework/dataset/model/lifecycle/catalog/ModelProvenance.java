@@ -2,6 +2,7 @@ package com.foggyframework.dataset.model.lifecycle.catalog;
 
 import com.foggyframework.dataset.model.lifecycle.identity.DatasourceBindingIdentity;
 import com.foggyframework.dataset.model.lifecycle.identity.SourceRevision;
+import com.foggyframework.fsscript.parser.spi.FsscriptSourceContentRevision;
 
 import java.util.List;
 import java.util.Map;
@@ -63,8 +64,16 @@ public record ModelProvenance(
     public record ModelSource(
             String bundleName,
             String namespace,
-            String resourceIdentity
+            String resourceIdentity,
+            String sourceClosureRevision
     ) {
+        public ModelSource(
+                String bundleName,
+                String namespace,
+                String resourceIdentity) {
+            this(bundleName, namespace, resourceIdentity, null);
+        }
+
         public ModelSource {
             if (bundleName == null || bundleName.isBlank()) {
                 throw new IllegalArgumentException("bundleName must not be blank");
@@ -78,6 +87,12 @@ public record ModelProvenance(
                         "resourceIdentity must not be blank");
             }
             resourceIdentity = resourceIdentity.trim();
+            if (sourceClosureRevision != null
+                    && !FsscriptSourceContentRevision.isCanonical(
+                    sourceClosureRevision)) {
+                throw new IllegalArgumentException(
+                        "sourceClosureRevision must be a canonical SHA-256 revision");
+            }
         }
     }
 }

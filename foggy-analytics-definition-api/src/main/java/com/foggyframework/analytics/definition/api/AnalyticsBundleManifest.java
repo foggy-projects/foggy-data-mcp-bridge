@@ -35,11 +35,10 @@ public record AnalyticsBundleManifest(
         for (AnalyticsModelDependency dependency : modelDependencies) {
             String identity = dependency.namespace().value()
                     + '\0' + dependency.modelKind()
-                    + '\0' + dependency.modelName()
-                    + '\0' + dependency.catalogIdentity();
+                    + '\0' + dependency.modelName();
             if (!dependencyIdentities.add(identity)) {
                 throw new IllegalArgumentException(
-                        "modelDependencies must not pin the same model identity twice");
+                        "modelDependencies must not pin the same logical model twice");
             }
         }
     }

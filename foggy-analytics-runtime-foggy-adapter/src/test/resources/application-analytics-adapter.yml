@@ -1,0 +1,37 @@
+spring:
+  application:
+    name: foggy-analytics-adapter-test
+  datasource:
+    url: jdbc:sqlite:file:analytics-adapter?mode=memory&cache=shared
+    driver-class-name: org.sqlite.JDBC
+    hikari:
+      minimum-idle: 1
+      maximum-pool-size: 2
+      connection-test-query: SELECT 1
+  jpa:
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        dialect: org.hibernate.community.dialect.SQLiteDialect
+    open-in-view: false
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:analytics-adapter/schema.sql
+      data-locations: classpath:analytics-adapter/data.sql
+
+foggy:
+  dataset:
+    templates-path: classpath:/foggy/templates/
+    show-sql: false
+    cache:
+      enabled: false
+    query:
+      max-rows: 100
+      timeout: 30000
+
+logging:
+  level:
+    root: WARN
+    com.foggyframework: WARN

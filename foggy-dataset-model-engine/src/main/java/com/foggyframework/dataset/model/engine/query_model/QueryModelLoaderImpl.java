@@ -50,6 +50,7 @@ import com.foggyframework.dataset.model.spi.support.QueryColumnGroup;
 import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
+import com.foggyframework.fsscript.parser.spi.FsscriptSourceClosureRevision;
 import jakarta.annotation.Resource;
 import lombok.Getter;
 import lombok.Setter;
@@ -881,7 +882,8 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
         return new ModelProvenance.ModelSource(
                 bundle.getName(),
                 normalizeNamespace(namespace),
-                fsscript.getPath());
+                fsscript.getPath(),
+                FsscriptSourceClosureRevision.calculate(fsscript).orElse(null));
     }
 
     private CatalogResolution<QueryModel> resolution(

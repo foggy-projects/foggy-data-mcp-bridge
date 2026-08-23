@@ -101,7 +101,7 @@ public abstract class AbstractFileFsscriptLoader extends FsscriptLoader {
             if (errorIfNull) {
                 Assert.notNull(exp, "编辑" + fscriptResource + "返回空？？");
             }
-            FsscriptImpl fScriptImpl = new FsscriptImpl(d, exp);
+            FsscriptImpl fScriptImpl = new FsscriptImpl(d, exp, str);
             parentLoader.setFsscript(path, fScriptImpl);
 
             if (changeHandler != null) {

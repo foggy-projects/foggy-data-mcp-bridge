@@ -8,13 +8,21 @@ import com.foggyframework.fsscript.parser.spi.Exp;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
 import com.foggyframework.fsscript.parser.spi.FsscriptClosureDefinition;
+import com.foggyframework.fsscript.parser.spi.FsscriptImportBinding;
+import com.foggyframework.fsscript.parser.spi.FsscriptSourceContentRevision;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
+
+import java.util.Optional;
+import java.util.ArrayList;
+import java.util.List;
 @Slf4j
 public class FsscriptImpl implements Fsscript {
     FsscriptClosureDefinition fsscriptClosureDefinition;
 
     Exp exp;
+
+    private final String sourceContentRevision;
 
     public FsscriptClosureDefinition getFsscriptClosureDefinition() {
         return fsscriptClosureDefinition;
@@ -23,6 +31,36 @@ public class FsscriptImpl implements Fsscript {
     @Override
     public String getPath() {
         return fsscriptClosureDefinition.getFsscriptClosureDefinitionSpace().getPath();
+    }
+
+    @Override
+    public Optional<String> getSourceContentRevision() {
+        return Optional.ofNullable(sourceContentRevision);
+    }
+
+    @Override
+    public List<FsscriptImportBinding> getDirectImportBindings() {
+        List<FsscriptImportBinding> imports = new ArrayList<>();
+        if (exp instanceof ImportFsscriptExp importExp) {
+            addImport(imports, importExp);
+        } else if (exp instanceof NCountExp expressions) {
+            for (Exp expression : expressions.getValue()) {
+                if (expression instanceof ImportFsscriptExp importExp) {
+                    addImport(imports, importExp);
+                }
+            }
+        }
+        return List.copyOf(imports);
+    }
+
+    private static void addImport(
+            List<FsscriptImportBinding> imports,
+            ImportFsscriptExp importExpression) {
+        if (importExpression.getFsscript() != null) {
+            imports.add(new FsscriptImportBinding(
+                    importExpression.getFile(),
+                    importExpression.getFsscript()));
+        }
     }
 
     @Override
@@ -48,8 +86,18 @@ public class FsscriptImpl implements Fsscript {
     }
 
     public FsscriptImpl(FsscriptClosureDefinition fsscriptClosureDefinition, Exp exp) {
+        this(fsscriptClosureDefinition, exp, null);
+    }
+
+    public FsscriptImpl(
+            FsscriptClosureDefinition fsscriptClosureDefinition,
+            Exp exp,
+            String compiledSource) {
         this.fsscriptClosureDefinition = fsscriptClosureDefinition;
         this.exp = exp;
+        this.sourceContentRevision = compiledSource == null
+                ? null
+                : FsscriptSourceContentRevision.calculate(compiledSource);
     }
 
     @Override

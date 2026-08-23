@@ -16,21 +16,21 @@ class AnalyticsDefinitionContractTest {
     @Test
     void manifestUsesStableTechnicalIdentityAndImmutableDependencies() {
         AnalyticsBundleRef bundleRef = new AnalyticsBundleRef("sales");
-        AnalyticsBundleRevision sourceRevision =
+        AnalyticsBundleRevision bundleRevision =
                 AnalyticsBundleRevision.fromSha256Hex(SHA256_HEX);
+        AnalyticsModelRevision modelRevision =
+                AnalyticsModelRevision.fromSha256Hex(SHA256_HEX);
         AnalyticsModelDependency dependency = new AnalyticsModelDependency(
                 new AnalyticsNamespaceRef("tenant-default"),
                 "qm",
                 "sales-order",
-                new AnalyticsBundleRef("models-sales"),
-                sourceRevision,
-                "catalog:default/sales-order");
+                modelRevision);
 
         AnalyticsBundleManifest manifest = new AnalyticsBundleManifest(
                 AnalyticsBundleManifest.ANALYTICS_KIND,
                 new AnalyticsSchemaVersion("1.0"),
                 bundleRef,
-                sourceRevision,
+                bundleRevision,
                 new AnalyticsNamespaceRef("tenant-default"),
                 List.of(dependency));
 
@@ -43,16 +43,14 @@ class AnalyticsDefinitionContractTest {
                 AnalyticsBundleManifest.ANALYTICS_KIND,
                 new AnalyticsSchemaVersion("1.0"),
                 bundleRef,
-                sourceRevision,
+                bundleRevision,
                 new AnalyticsNamespaceRef("tenant-default"),
                 List.of(dependency, dependency)));
         assertThrows(IllegalArgumentException.class, () -> new AnalyticsModelDependency(
                 new AnalyticsNamespaceRef("tenant-default"),
                 "fsscript",
                 "unsafe-script",
-                new AnalyticsBundleRef("scripts"),
-                sourceRevision,
-                "catalog:unsafe-script"));
+                modelRevision));
     }
 
     @Test
@@ -61,6 +59,8 @@ class AnalyticsDefinitionContractTest {
                 () -> new AnalyticsBundleRevision("sha256:abc"));
         assertThrows(IllegalArgumentException.class,
                 () -> new AnalyticsBundleRevision("sha256:" + "g".repeat(64)));
+        assertThrows(IllegalArgumentException.class,
+                () -> new AnalyticsModelRevision("catalog:boot-identity"));
         assertThrows(IllegalArgumentException.class,
                 () -> new AnalyticsSchemaVersion("v1"));
         assertThrows(IllegalArgumentException.class,

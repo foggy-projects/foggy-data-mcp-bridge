@@ -3,14 +3,17 @@ package com.foggyframework.analytics.definition.api;
 import java.util.Objects;
 import java.util.Set;
 
-/** Immutable identity of a TM/QM model dependency used by an Analytics Bundle. */
+/**
+ * Immutable persisted identity of a TM/QM model dependency used by an Analytics Bundle.
+ *
+ * <p>The revision identifies stable model content. Adapter-owned runtime catalog
+ * identities must never be persisted here.</p>
+ */
 public record AnalyticsModelDependency(
         AnalyticsNamespaceRef namespace,
         String modelKind,
         String modelName,
-        AnalyticsBundleRef sourceBundleRef,
-        AnalyticsBundleRevision sourceBundleRevision,
-        String catalogIdentity) {
+        AnalyticsModelRevision modelRevision) {
 
     private static final Set<String> SUPPORTED_MODEL_KINDS = Set.of("tm", "qm");
 
@@ -21,9 +24,7 @@ public record AnalyticsModelDependency(
             throw new IllegalArgumentException("modelKind must be 'tm' or 'qm'");
         }
         modelName = requireValue("modelName", modelName);
-        sourceBundleRef = Objects.requireNonNull(sourceBundleRef, "sourceBundleRef");
-        sourceBundleRevision = Objects.requireNonNull(sourceBundleRevision, "sourceBundleRevision");
-        catalogIdentity = requireValue("catalogIdentity", catalogIdentity);
+        modelRevision = Objects.requireNonNull(modelRevision, "modelRevision");
     }
 
     private static String requireValue(String field, String value) {

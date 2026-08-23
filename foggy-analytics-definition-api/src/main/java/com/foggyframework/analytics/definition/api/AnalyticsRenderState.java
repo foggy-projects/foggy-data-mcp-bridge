@@ -4,6 +4,7 @@ package com.foggyframework.analytics.definition.api;
 public enum AnalyticsRenderState {
     READY,
     EMPTY,
+    PARTIAL,
     UNSUPPORTED,
     ERROR
 }

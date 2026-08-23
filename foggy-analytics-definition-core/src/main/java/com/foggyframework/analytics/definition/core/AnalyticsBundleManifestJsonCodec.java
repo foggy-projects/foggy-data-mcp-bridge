@@ -1,5 +1,7 @@
 package com.foggyframework.analytics.definition.core;
 
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -7,6 +9,7 @@ import com.foggyframework.analytics.definition.api.AnalyticsBundleManifest;
 import com.foggyframework.analytics.definition.api.AnalyticsBundleRef;
 import com.foggyframework.analytics.definition.api.AnalyticsBundleRevision;
 import com.foggyframework.analytics.definition.api.AnalyticsModelDependency;
+import com.foggyframework.analytics.definition.api.AnalyticsModelRevision;
 import com.foggyframework.analytics.definition.api.AnalyticsNamespaceRef;
 import com.foggyframework.analytics.definition.api.AnalyticsSchemaVersion;
 
@@ -39,14 +42,12 @@ public final class AnalyticsBundleManifestJsonCodec {
             "namespace",
             "modelKind",
             "modelName",
-            "sourceBundleRef",
-            "sourceBundleRevision",
-            "catalogIdentity");
+            "modelRevision");
 
     private final ObjectMapper objectMapper;
 
     public AnalyticsBundleManifestJsonCodec() {
-        this(new ObjectMapper());
+        this(strictObjectMapper());
     }
 
     public AnalyticsBundleManifestJsonCodec(ObjectMapper objectMapper) {
@@ -71,9 +72,7 @@ public final class AnalyticsBundleManifestJsonCodec {
                         new AnalyticsNamespaceRef(text(dependency, "namespace")),
                         text(dependency, "modelKind"),
                         text(dependency, "modelName"),
-                        new AnalyticsBundleRef(text(dependency, "sourceBundleRef")),
-                        new AnalyticsBundleRevision(text(dependency, "sourceBundleRevision")),
-                        text(dependency, "catalogIdentity")));
+                        new AnalyticsModelRevision(text(dependency, "modelRevision"))));
             }
             AnalyticsSchemaVersion schemaVersion = new AnalyticsSchemaVersion(
                     text(root, "schemaVersion"));
@@ -108,19 +107,14 @@ public final class AnalyticsBundleManifestJsonCodec {
                                         dependency.namespace().value())
                                 .thenComparing(AnalyticsModelDependency::modelKind)
                                 .thenComparing(AnalyticsModelDependency::modelName)
-                                .thenComparing(dependency -> dependency.sourceBundleRef().value())
-                                .thenComparing(dependency ->
-                                        dependency.sourceBundleRevision().value())
-                                .thenComparing(AnalyticsModelDependency::catalogIdentity))
+                                .thenComparing(dependency -> dependency.modelRevision().value()))
                         .toList();
                 output.writeInt(dependencies.size());
                 for (AnalyticsModelDependency dependency : dependencies) {
                     write(output, dependency.namespace().value());
                     write(output, dependency.modelKind());
                     write(output, dependency.modelName());
-                    write(output, dependency.sourceBundleRef().value());
-                    write(output, dependency.sourceBundleRevision().value());
-                    write(output, dependency.catalogIdentity());
+                    write(output, dependency.modelRevision().value());
                 }
             }
             return bytes.toByteArray();
@@ -181,6 +175,13 @@ public final class AnalyticsBundleManifestJsonCodec {
         if (!unknown.isEmpty()) {
             throw invalid(field + " contains unsupported fields: " + unknown);
         }
+    }
+
+    private static ObjectMapper strictObjectMapper() {
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
+        mapper.enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
+        return mapper;
     }
 
     private static IllegalArgumentException invalid(String message) {

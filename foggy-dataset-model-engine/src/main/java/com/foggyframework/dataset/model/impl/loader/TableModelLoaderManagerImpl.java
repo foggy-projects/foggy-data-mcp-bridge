@@ -46,6 +46,7 @@ import com.foggyframework.dataset.utils.DbUtils;
 import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
+import com.foggyframework.fsscript.parser.spi.FsscriptSourceClosureRevision;
 import jakarta.annotation.Resource;
 import lombok.Getter;
 import lombok.Setter;
@@ -353,7 +354,8 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
         return new ModelProvenance.ModelSource(
                 bundle.getName(),
                 normalizeNamespace(namespace),
-                fsscript.getPath());
+                fsscript.getPath(),
+                FsscriptSourceClosureRevision.calculate(fsscript).orElse(null));
     }
 
     private void ensureBindingStillCurrent(ResolvedDatasourceBinding binding) {

@@ -3,6 +3,10 @@ package com.foggyframework.fsscript.parser.spi;
 import org.springframework.context.ApplicationContext;
 
 import java.util.Map;
+import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Optional;
+import java.util.Set;
 
 public interface Fsscript {
 
@@ -36,6 +40,26 @@ public interface Fsscript {
     FsscriptClosureDefinition getFsscriptClosureDefinition();
 
     String getPath();
+
+    /**
+     * Canonical digest of the exact normalized source text compiled into this
+     * script. Dynamic/script-engine instances may return empty.
+     */
+    default Optional<String> getSourceContentRevision() {
+        return Optional.empty();
+    }
+
+    /** Logical direct-import bindings resolved while this script was evaluated. */
+    default List<FsscriptImportBinding> getDirectImportBindings() {
+        return List.of();
+    }
+
+    /** Compatibility view of direct imported script objects. */
+    default Set<Fsscript> getDirectImports() {
+        LinkedHashSet<Fsscript> imports = new LinkedHashSet<>();
+        getDirectImportBindings().forEach(binding -> imports.add(binding.fsscript()));
+        return Set.copyOf(imports);
+    }
 
     ExpEvaluator newInstance(ApplicationContext appCtx);
 

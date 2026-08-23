@@ -1,0 +1,18 @@
+const sales = loadTableModel('AnalyticsSalesModel');
+
+export const queryModel = {
+    name: 'AnalyticsSalesQueryModel',
+    caption: 'Analytics adapter sales query',
+    description: 'Minimal governed query model for the Analytics Foggy adapter test.',
+    model: sales,
+    columnGroups: [
+        {
+            caption: 'Sales',
+            items: [
+                { ref: sales.region },
+                { ref: sales.amount }
+            ]
+        }
+    ],
+    accesses: []
+};

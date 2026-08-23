@@ -1,9 +1,8 @@
 package com.foggyframework.analytics.runtime.core.query;
 
 import com.foggyframework.analytics.definition.api.AnalyticsColumnSchema;
-import com.foggyframework.analytics.definition.api.AnalyticsBundleRef;
-import com.foggyframework.analytics.definition.api.AnalyticsBundleRevision;
 import com.foggyframework.analytics.definition.api.AnalyticsModelDependency;
+import com.foggyframework.analytics.definition.api.AnalyticsModelRevision;
 import com.foggyframework.analytics.definition.api.AnalyticsNamespaceRef;
 import com.foggyframework.analytics.definition.api.AnalyticsQueryRef;
 import com.foggyframework.analytics.definition.api.AnalyticsQuerySpec;
@@ -29,9 +28,7 @@ class QueryRuntimePortContractTest {
                 new AnalyticsNamespaceRef("default"),
                 "qm",
                 "SalesOrder",
-                new AnalyticsBundleRef("sales-models"),
-                AnalyticsBundleRevision.fromSha256Hex("a".repeat(64)),
-                "catalog:default/SalesOrder");
+                AnalyticsModelRevision.fromSha256Hex("a".repeat(64)));
         QueryAuthorityRequest authorityRequest = new QueryAuthorityRequest(
                 dependency,
                 new QueryAuthorityBinding("host", "authority-42"),
@@ -50,6 +47,7 @@ class QueryRuntimePortContractTest {
                 query,
                 dependency,
                 parameters,
+                100,
                 ZoneId.of("Asia/Shanghai"),
                 Locale.SIMPLIFIED_CHINESE,
                 authorityRequest.requestId(),
@@ -67,23 +65,23 @@ class QueryRuntimePortContractTest {
 
         assertEquals("authority=authority-42", result.diagnostics().get(0));
         assertNull(context.parameters().get("optionalRegion"));
+        assertEquals(100, context.rowLimit());
         assertNull(result.rows().get(0).get("amount"));
         assertEquals(
-                dependency.sourceBundleRevision(),
-                context.modelDependency().sourceBundleRevision());
+                dependency.modelRevision(),
+                context.modelDependency().modelRevision());
         assertThrows(UnsupportedOperationException.class,
                 () -> context.parameters().put("rawSql", "select 1"));
         AnalyticsModelDependency otherModel = new AnalyticsModelDependency(
                 dependency.namespace(),
                 "qm",
                 "OtherModel",
-                dependency.sourceBundleRef(),
-                dependency.sourceBundleRevision(),
-                "catalog:default/OtherModel");
+                dependency.modelRevision());
         assertThrows(IllegalArgumentException.class, () -> new QueryExecutionContext<>(
                 query,
                 otherModel,
                 parameters,
+                100,
                 ZoneId.of("Asia/Shanghai"),
                 Locale.SIMPLIFIED_CHINESE,
                 authorityRequest.requestId(),

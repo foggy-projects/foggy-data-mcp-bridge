@@ -15,6 +15,7 @@ public record QueryExecutionContext<A>(
         AnalyticsQuerySpec querySpec,
         AnalyticsModelDependency modelDependency,
         Map<String, Object> parameters,
+        int rowLimit,
         ZoneId timezone,
         Locale locale,
         String requestId,
@@ -30,6 +31,9 @@ public record QueryExecutionContext<A>(
                     "querySpec must match the pinned modelDependency identity");
         }
         parameters = immutableParameters(parameters);
+        if (rowLimit <= 0) {
+            throw new IllegalArgumentException("rowLimit must be positive");
+        }
         timezone = Objects.requireNonNull(timezone, "timezone");
         locale = Objects.requireNonNull(locale, "locale");
         requestId = requireValue("requestId", requestId);

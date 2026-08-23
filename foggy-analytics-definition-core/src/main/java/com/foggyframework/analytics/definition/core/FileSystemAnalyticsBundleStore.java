@@ -134,6 +134,39 @@ public final class FileSystemAnalyticsBundleStore implements AnalyticsBundleStor
     }
 
     @Override
+    public AnalyticsDefinitionSnapshot readDefinitionSnapshot(
+            AnalyticsBundleRef bundleRef,
+            AnalyticsBundleRevision expectedRevision) {
+        Objects.requireNonNull(expectedRevision, "expectedRevision");
+        AnalyticsBundleRegistration registration = registration(bundleRef);
+        StoreOperation<AnalyticsDefinitionSnapshot> read = () -> {
+            if (registration.sourceState() == AnalyticsBundleSourceState.RUNTIME_OWNED) {
+                recoverRequired(registration);
+            }
+            ResolvedAnalyticsBundle resolved = resolveInternal(registration);
+            requireExpectedRevision(resolved, expectedRevision);
+            Map<String, byte[]> artifacts = new LinkedHashMap<>();
+            try (var paths = Files.walk(registration.root())) {
+                for (Path path : paths
+                        .filter(candidate -> Files.isRegularFile(
+                                candidate,
+                                LinkOption.NOFOLLOW_LINKS))
+                        .sorted()
+                        .toList()) {
+                    String relativePath = portable(registration.root(), path);
+                    if (pathPolicy.isDefinitionArtifact(relativePath)) {
+                        artifacts.put(relativePath, Files.readAllBytes(path));
+                    }
+                }
+            }
+            return new AnalyticsDefinitionSnapshot(resolved, artifacts);
+        };
+        return registration.sourceState() == AnalyticsBundleSourceState.RUNTIME_OWNED
+                ? withControlLock(registration, read)
+                : callUnchecked(registration, read);
+    }
+
+    @Override
     public ResolvedAnalyticsBundle saveArtifact(
             AnalyticsBundleRef bundleRef,
             AnalyticsBundleRevision expectedRevision,
