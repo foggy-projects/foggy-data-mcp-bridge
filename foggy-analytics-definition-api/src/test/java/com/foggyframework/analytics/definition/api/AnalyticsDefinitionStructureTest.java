@@ -48,6 +48,8 @@ class AnalyticsDefinitionStructureTest {
 
         assertEquals(1, dashboard.widgets().size());
         assertThrows(IllegalArgumentException.class, () -> new AnalyticsDashboardWidget(
+                "../sales-widget", widget.reportRef(), null, chart));
+        assertThrows(IllegalArgumentException.class, () -> new AnalyticsDashboardWidget(
                 "invalid", widget.reportRef(), new AnalyticsQueryRef("query"), chart));
     }
 
@@ -79,5 +81,13 @@ class AnalyticsDefinitionStructureTest {
         assertTrue(model.diagnostics().isEmpty());
         assertThrows(UnsupportedOperationException.class,
                 () -> model.widgets().add(widgetData));
+        assertThrows(IllegalArgumentException.class, () -> new AnalyticsWidgetData(
+                "sales/widget",
+                visualIntent,
+                AnalyticsRenderState.READY,
+                List.of(),
+                List.of(),
+                false,
+                List.of()));
     }
 }

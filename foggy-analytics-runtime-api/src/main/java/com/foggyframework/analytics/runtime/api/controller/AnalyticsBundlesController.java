@@ -1,14 +1,16 @@
 package com.foggyframework.analytics.runtime.api.controller;
 
-import com.foggyframework.analytics.definition.api.AnalyticsBundleRef;
+import com.foggyframework.analytics.function.contract.AnalyticsBundleDescription;
+import com.foggyframework.analytics.function.contract.AnalyticsBundleFunctionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsBundleList;
+import com.foggyframework.analytics.function.contract.AnalyticsFunctionEndpoint;
+import com.foggyframework.analytics.function.contract.AnalyticsFunctionEnvelope;
 import com.foggyframework.analytics.runtime.api.AnalyticsRuntimeApiRoutes;
-import com.foggyframework.analytics.runtime.api.dto.AnalyticsBundleListResponse;
-import com.foggyframework.analytics.runtime.api.dto.AnalyticsBundleSummary;
 import com.foggyframework.analytics.runtime.api.dto.AnalyticsBundleValidationRequest;
-import com.foggyframework.analytics.runtime.api.dto.AnalyticsRuntimeEnvelope;
-import com.foggyframework.analytics.runtime.api.service.AnalyticsBundleOperations;
 import com.foggyframework.analytics.runtime.api.service.AnalyticsRuntimeApiResponseFactory;
+import com.foggyframework.analytics.runtime.api.service.AnalyticsRuntimeHttpResponseMapper;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,34 +27,49 @@ import org.springframework.web.bind.annotation.RestController;
         havingValue = "true")
 public class AnalyticsBundlesController {
 
-    private final AnalyticsBundleOperations operations;
+    private final AnalyticsFunctionEndpoint endpoint;
     private final AnalyticsRuntimeApiResponseFactory responses;
+    private final AnalyticsRuntimeHttpResponseMapper http;
 
     public AnalyticsBundlesController(
-            AnalyticsBundleOperations operations,
-            AnalyticsRuntimeApiResponseFactory responses) {
-        this.operations = operations;
+            AnalyticsFunctionEndpoint endpoint,
+            AnalyticsRuntimeApiResponseFactory responses,
+            AnalyticsRuntimeHttpResponseMapper http) {
+        this.endpoint = endpoint;
         this.responses = responses;
+        this.http = http;
     }
 
     @GetMapping
-    public AnalyticsRuntimeEnvelope<AnalyticsBundleListResponse> list(
+    public ResponseEntity<AnalyticsFunctionEnvelope<AnalyticsBundleList>> list(
             @RequestHeader(value = "X-Request-Id", required = false) String requestId,
             @RequestHeader(value = "X-Trace-Id", required = false) String traceId) {
-        return responses.ok(operations.list(), requestId, traceId);
+        return http.map(endpoint.listBundles(
+                responses.requestContext(requestId, traceId)));
     }
 
     @PostMapping("/{bundleRef}/validate")
-    public AnalyticsRuntimeEnvelope<AnalyticsBundleSummary> validate(
+    public ResponseEntity<AnalyticsFunctionEnvelope<AnalyticsBundleDescription>> validate(
             @PathVariable String bundleRef,
             @RequestBody(required = false) AnalyticsBundleValidationRequest request) {
-        String expectedRevision = request == null ? null : request.expectedBundleRevision();
-        AnalyticsBundleSummary result = operations.validate(
-                new AnalyticsBundleRef(bundleRef),
-                expectedRevision);
-        return responses.ok(
-                result,
-                request == null ? null : request.requestId(),
-                request == null ? null : request.traceId());
+        return http.map(endpoint.validateBundle(bundleRequest(bundleRef, request)));
+    }
+
+    @PostMapping("/{bundleRef}/describe")
+    public ResponseEntity<AnalyticsFunctionEnvelope<AnalyticsBundleDescription>> describe(
+            @PathVariable String bundleRef,
+            @RequestBody(required = false) AnalyticsBundleValidationRequest request) {
+        return http.map(endpoint.describeBundle(bundleRequest(bundleRef, request)));
+    }
+
+    private AnalyticsBundleFunctionRequest bundleRequest(
+            String bundleRef,
+            AnalyticsBundleValidationRequest request) {
+        return new AnalyticsBundleFunctionRequest(
+                bundleRef,
+                request == null ? null : request.expectedBundleRevision(),
+                responses.requestContext(
+                        request == null ? null : request.requestId(),
+                        request == null ? null : request.traceId()));
     }
 }

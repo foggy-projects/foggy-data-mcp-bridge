@@ -19,11 +19,31 @@
     <dependencies>
         <dependency>
             <groupId>com.foggysource</groupId>
+            <artifactId>foggy-analytics-function-contract</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.foggysource</groupId>
+            <artifactId>foggy-analytics-definition-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.foggysource</groupId>
+            <artifactId>foggy-analytics-definition-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.foggysource</groupId>
             <artifactId>foggy-analytics-runtime-core</artifactId>
         </dependency>
         <dependency>
             <groupId>com.foggysource</groupId>
             <artifactId>foggy-analytics-runtime-foggy-adapter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.foggysource</groupId>
+            <artifactId>foggy-dataset-model-engine</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

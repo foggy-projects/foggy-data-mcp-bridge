@@ -7,14 +7,6 @@ public record AnalyticsArtifactRef(AnalyticsArtifactKind kind, String value) {
 
     public AnalyticsArtifactRef {
         kind = Objects.requireNonNull(kind, "kind");
-        value = requireIdentity("artifactRef", value);
-    }
-
-    private static String requireIdentity(String field, String value) {
-        Objects.requireNonNull(value, field);
-        if (value.isBlank() || !value.equals(value.trim())) {
-            throw new IllegalArgumentException(field + " must be non-blank and trimmed");
-        }
-        return value;
+        value = AnalyticsLogicalRefValues.require("artifactRef", value);
     }
 }

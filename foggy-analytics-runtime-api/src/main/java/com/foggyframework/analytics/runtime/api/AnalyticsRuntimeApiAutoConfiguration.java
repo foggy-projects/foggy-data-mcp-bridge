@@ -5,15 +5,19 @@ import com.foggyframework.analytics.definition.core.AnalyticsBundleStore;
 import com.foggyframework.analytics.definition.core.AnalyticsDefinitionResolver;
 import com.foggyframework.analytics.definition.core.FileSystemAnalyticsBundleStore;
 import com.foggyframework.analytics.definition.core.StoreBackedAnalyticsDefinitionResolver;
+import com.foggyframework.analytics.function.contract.AnalyticsFunctionEndpoint;
 import com.foggyframework.analytics.runtime.api.config.FoggyAnalyticsRuntimeApiProperties;
 import com.foggyframework.analytics.runtime.api.controller.AnalyticsBundlesController;
 import com.foggyframework.analytics.runtime.api.controller.AnalyticsCapabilitiesController;
 import com.foggyframework.analytics.runtime.api.controller.AnalyticsRenderController;
 import com.foggyframework.analytics.runtime.api.controller.AnalyticsRuntimeApiExceptionHandler;
-import com.foggyframework.analytics.runtime.api.service.AnalyticsBundleOperations;
 import com.foggyframework.analytics.runtime.api.service.AnalyticsRuntimeApiResponseFactory;
-import com.foggyframework.analytics.runtime.api.service.AnalyticsRuntimeRenderOperations;
-import com.foggyframework.analytics.runtime.api.service.CoreAnalyticsRuntimeRenderOperations;
+import com.foggyframework.analytics.runtime.api.service.AnalyticsRuntimeHttpResponseMapper;
+import com.foggyframework.analytics.runtime.core.function.AnalyticsBundleFunctionOperations;
+import com.foggyframework.analytics.runtime.core.function.AnalyticsFunctionFailureMapper;
+import com.foggyframework.analytics.runtime.core.function.AnalyticsFunctionRenderOperations;
+import com.foggyframework.analytics.runtime.core.function.CoreAnalyticsFunctionRenderOperations;
+import com.foggyframework.analytics.runtime.core.function.DefaultAnalyticsFunctionEndpoint;
 import com.foggyframework.analytics.runtime.core.render.AnalyticsRenderService;
 import com.foggyframework.analytics.runtime.foggy.FoggyAnalyticsAuthority;
 import com.foggyframework.analytics.runtime.foggy.FoggyAnalyticsBundleDependencyStateResolver;
@@ -33,6 +37,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplicat
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.beans.factory.ObjectProvider;
 
 @AutoConfiguration(afterName = "com.foggyframework.dataset.model.DbModelAutoConfiguration")
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
@@ -54,6 +59,18 @@ public class AnalyticsRuntimeApiAutoConfiguration {
     AnalyticsRuntimeApiResponseFactory analyticsRuntimeApiResponseFactory(
             FoggyAnalyticsRuntimeApiProperties properties) {
         return new AnalyticsRuntimeApiResponseFactory(properties);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    AnalyticsFunctionFailureMapper analyticsFunctionFailureMapper() {
+        return new AnalyticsFunctionFailureMapper();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    AnalyticsRuntimeHttpResponseMapper analyticsRuntimeHttpResponseMapper() {
+        return new AnalyticsRuntimeHttpResponseMapper();
     }
 
     @Bean
@@ -93,22 +110,22 @@ public class AnalyticsRuntimeApiAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    AnalyticsBundleOperations analyticsBundleOperations(
+    AnalyticsBundleFunctionOperations analyticsBundleFunctionOperations(
             FoggyAnalyticsRuntimeApiProperties properties,
             AnalyticsBundleStore bundleStore) {
-        return new AnalyticsBundleOperations(
+        return new AnalyticsBundleFunctionOperations(
                 properties.registrations(),
                 bundleStore);
     }
 
     @Bean
-    @ConditionalOnMissingBean(AnalyticsRuntimeRenderOperations.class)
+    @ConditionalOnMissingBean(AnalyticsFunctionRenderOperations.class)
     @ConditionalOnBean({
             FoggySemanticRequestContextResolver.class,
             SemanticModelCatalogReadPort.class,
             SemanticQueryExecutionPort.class
     })
-    AnalyticsRuntimeRenderOperations analyticsRuntimeRenderOperations(
+    AnalyticsFunctionRenderOperations analyticsFunctionRenderOperations(
             FoggyAnalyticsRuntimeApiProperties properties,
             AnalyticsDefinitionResolver definitionResolver,
             SemanticModelCatalogReadPort catalogReadPort,
@@ -124,6 +141,24 @@ public class AnalyticsRuntimeApiAutoConfiguration {
                                 semanticContextResolver),
                         new FoggyAnalyticsQueryExecutor(queryExecutionPort),
                         properties.getMaxRows());
-        return new CoreAnalyticsRuntimeRenderOperations(renderService);
+        return new CoreAnalyticsFunctionRenderOperations<>(renderService);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(AnalyticsFunctionEndpoint.class)
+    AnalyticsFunctionEndpoint analyticsFunctionEndpoint(
+            FoggyAnalyticsRuntimeApiProperties properties,
+            AnalyticsBundleFunctionOperations bundleOperations,
+            ObjectProvider<AnalyticsFunctionRenderOperations> renderOperations,
+            AnalyticsRuntimeApiResponseFactory responses,
+            AnalyticsFunctionFailureMapper failures) {
+        return new DefaultAnalyticsFunctionEndpoint(
+                properties.isEnabled(),
+                properties.getSecurityMode(),
+                properties.getMaxRows(),
+                bundleOperations,
+                renderOperations::getIfAvailable,
+                responses.functionResponses(),
+                failures);
     }
 }

@@ -22,6 +22,11 @@
     <dependencies>
         <dependency>
             <groupId>com.foggysource</groupId>
+            <artifactId>foggy-analytics-function-contract</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.foggysource</groupId>
             <artifactId>foggy-analytics-definition-core</artifactId>
             <version>${project.version}</version>
         </dependency>

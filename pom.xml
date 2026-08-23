@@ -54,9 +54,12 @@
         <module>foggy-dataset-model-tck</module>
         <module>foggy-dataset-model-engine</module>
         <module>foggy-analytics-definition-api</module>
+        <module>foggy-analytics-function-contract</module>
         <module>foggy-analytics-definition-core</module>
         <module>foggy-analytics-runtime-core</module>
         <module>foggy-analytics-runtime-foggy-adapter</module>
+        <module>foggy-analytics-function-sdk-java</module>
+        <module>foggy-analytics-function-http</module>
         <module>foggy-analytics-runtime-api</module>
         <module>foggy-runtime-api</module>
         <module>foggy-dataset-memory-grid-bridge</module>
@@ -241,6 +244,11 @@
             </dependency>
             <dependency>
                 <groupId>com.foggysource</groupId>
+                <artifactId>foggy-analytics-function-contract</artifactId>
+                <version>${foggy-framework.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.foggysource</groupId>
                 <artifactId>foggy-analytics-definition-core</artifactId>
                 <version>${foggy-framework.version}</version>
             </dependency>
@@ -252,6 +260,16 @@
             <dependency>
                 <groupId>com.foggysource</groupId>
                 <artifactId>foggy-analytics-runtime-foggy-adapter</artifactId>
+                <version>${foggy-framework.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.foggysource</groupId>
+                <artifactId>foggy-analytics-function-sdk-java</artifactId>
+                <version>${foggy-framework.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.foggysource</groupId>
+                <artifactId>foggy-analytics-function-http</artifactId>
                 <version>${foggy-framework.version}</version>
             </dependency>
             <dependency>

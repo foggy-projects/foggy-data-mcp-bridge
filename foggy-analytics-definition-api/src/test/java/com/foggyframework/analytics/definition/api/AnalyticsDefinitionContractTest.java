@@ -74,6 +74,19 @@ class AnalyticsDefinitionContractTest {
     }
 
     @Test
+    void logicalReferencesAreSingleUrlSafeSegments() {
+        assertEquals("sales.v1_~", new AnalyticsBundleRef("sales.v1_~").value());
+        assertThrows(IllegalArgumentException.class,
+                () -> new AnalyticsBundleRef("sales/eu"));
+        assertThrows(IllegalArgumentException.class,
+                () -> new AnalyticsArtifactRef(AnalyticsArtifactKind.REPORT, ".."));
+        assertThrows(IllegalArgumentException.class,
+                () -> new AnalyticsQueryRef("销售查询"));
+        assertThrows(IllegalArgumentException.class,
+                () -> new AnalyticsQueryRef("a".repeat(129)));
+    }
+
+    @Test
     void lifecycleSeparatesStorageImmutabilityFromDependencyStaleness() {
         AnalyticsBundleLifecycle configured = new AnalyticsBundleLifecycle(
                 AnalyticsBundleSourceState.CONFIGURED,

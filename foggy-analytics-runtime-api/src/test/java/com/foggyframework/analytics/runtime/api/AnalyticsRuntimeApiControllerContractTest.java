@@ -1,47 +1,44 @@
 package com.foggyframework.analytics.runtime.api;
 
-import com.foggyframework.analytics.definition.api.AnalyticsArtifactKind;
-import com.foggyframework.analytics.definition.api.AnalyticsArtifactRef;
-import com.foggyframework.analytics.definition.api.AnalyticsBundleRevision;
-import com.foggyframework.analytics.definition.api.AnalyticsColumnSchema;
-import com.foggyframework.analytics.definition.api.AnalyticsRenderModel;
-import com.foggyframework.analytics.definition.api.AnalyticsRenderState;
-import com.foggyframework.analytics.definition.api.AnalyticsVisualIntent;
-import com.foggyframework.analytics.definition.api.AnalyticsVisualKind;
-import com.foggyframework.analytics.definition.api.AnalyticsWidgetData;
-import com.foggyframework.analytics.definition.core.AnalyticsBundleStoreException;
+import com.foggyframework.analytics.function.contract.AnalyticsBundleDescription;
+import com.foggyframework.analytics.function.contract.AnalyticsBundleFunctionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsBundleList;
+import com.foggyframework.analytics.function.contract.AnalyticsFunctionCapabilities;
+import com.foggyframework.analytics.function.contract.AnalyticsFunctionEndpoint;
+import com.foggyframework.analytics.function.contract.AnalyticsFunctionErrorCodes;
+import com.foggyframework.analytics.function.contract.AnalyticsFunctionOperations;
+import com.foggyframework.analytics.function.contract.AnalyticsFunctionRequestContext;
+import com.foggyframework.analytics.function.contract.AnalyticsRenderFunctionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsRenderResult;
 import com.foggyframework.analytics.runtime.api.config.FoggyAnalyticsRuntimeApiProperties;
 import com.foggyframework.analytics.runtime.api.controller.AnalyticsBundlesController;
 import com.foggyframework.analytics.runtime.api.controller.AnalyticsCapabilitiesController;
 import com.foggyframework.analytics.runtime.api.controller.AnalyticsRenderController;
 import com.foggyframework.analytics.runtime.api.controller.AnalyticsRuntimeApiExceptionHandler;
-import com.foggyframework.analytics.runtime.api.dto.AnalyticsBundleSummary;
-import com.foggyframework.analytics.runtime.api.service.AnalyticsBundleOperations;
 import com.foggyframework.analytics.runtime.api.service.AnalyticsRuntimeApiResponseFactory;
-import com.foggyframework.analytics.runtime.api.service.AnalyticsRuntimeRenderOperations;
-import com.foggyframework.analytics.runtime.core.render.AnalyticsReportPreviewRequest;
+import com.foggyframework.analytics.runtime.api.service.AnalyticsRuntimeHttpResponseMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.support.StaticListableBeanFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.LinkedHashMap;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup;
@@ -50,58 +47,59 @@ class AnalyticsRuntimeApiControllerContractTest {
 
     private static final String REVISION = "sha256:" + "a".repeat(64);
 
-    private FoggyAnalyticsRuntimeApiProperties properties;
-    private AnalyticsBundleOperations bundleOperations;
-    private AnalyticsRuntimeRenderOperations renderOperations;
+    private AnalyticsFunctionEndpoint endpoint;
     private AnalyticsRuntimeApiResponseFactory responses;
+    private AnalyticsRuntimeHttpResponseMapper http;
 
     @BeforeEach
     void setUp() {
-        properties = new FoggyAnalyticsRuntimeApiProperties();
+        FoggyAnalyticsRuntimeApiProperties properties =
+                new FoggyAnalyticsRuntimeApiProperties();
         properties.setEnabled(true);
-        bundleOperations = mock(AnalyticsBundleOperations.class);
-        renderOperations = mock(AnalyticsRuntimeRenderOperations.class);
+        endpoint = mock(AnalyticsFunctionEndpoint.class);
         responses = new AnalyticsRuntimeApiResponseFactory(properties);
+        http = new AnalyticsRuntimeHttpResponseMapper();
     }
 
     @Test
-    void exposesIndependentCapabilitiesAndHonestUnsupportedOperations() throws Exception {
-        when(bundleOperations.configuredBundleCount()).thenReturn(2);
+    void exposesIndependentCapabilitiesAndFunctionContractVersion() throws Exception {
+        when(endpoint.capabilities(any())).thenReturn(responses.ok(
+                capabilities(),
+                "request-capabilities",
+                "trace-capabilities"));
 
-        MockMvc mvc = mvc(provider(renderOperations));
-
-        mvc.perform(get("/analytics/api/v1/capabilities")
+        mvc().perform(get("/analytics/api/v1/capabilities")
                         .header("X-Request-Id", "request-capabilities")
                         .header("X-Trace-Id", "trace-capabilities"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.functionContractVersion")
+                        .value("foggy-analytics-function/v1"))
                 .andExpect(jsonPath("$.analyticsRuntimeApiVersion")
                         .value("foggy-analytics-runtime-api/v1"))
-                .andExpect(jsonPath("$.data.api").value("analytics"))
+                .andExpect(jsonPath("$.data.operations['analytics.bundles.describe']")
+                        .value("supported"))
                 .andExpect(jsonPath("$.data.operations['analytics.bundles.pull']")
                         .value("unsupported"))
-                .andExpect(jsonPath("$.data.operations['analytics.bundles.save']")
-                        .value("unsupported"))
-                .andExpect(jsonPath("$.data.operations['analytics.reports.preview']")
-                        .value("supported"))
                 .andExpect(jsonPath("$.data.operations['models.list']").doesNotExist())
-                .andExpect(jsonPath("$.context.requestId").value("request-capabilities"))
-                .andExpect(jsonPath("$.context.traceId").value("trace-capabilities"));
+                .andExpect(jsonPath("$.context.requestId")
+                        .value("request-capabilities"))
+                .andExpect(jsonPath("$.context.traceId")
+                        .value("trace-capabilities"));
+
+        ArgumentCaptor<AnalyticsFunctionRequestContext> context =
+                ArgumentCaptor.forClass(AnalyticsFunctionRequestContext.class);
+        verify(endpoint).capabilities(context.capture());
+        assertEquals("request-capabilities", context.getValue().requestId());
     }
 
     @Test
     void cohostsWithFoggyRuntimeApiRouteWithoutMergingContracts() throws Exception {
-        when(bundleOperations.configuredBundleCount()).thenReturn(0);
-        ObjectProvider<AnalyticsRuntimeRenderOperations> provider =
-                provider(renderOperations);
+        when(endpoint.capabilities(any())).thenReturn(responses.ok(
+                capabilities(), null, null));
         MockMvc cohosted = standaloneSetup(
-                        new AnalyticsCapabilitiesController(
-                                properties,
-                                bundleOperations,
-                                provider,
-                                responses),
-                        new FoggyRuntimeSiblingController())
-                .build();
+                capabilitiesController(),
+                new FoggyRuntimeSiblingController()).build();
 
         cohosted.perform(get("/api/v1/capabilities"))
                 .andExpect(status().isOk())
@@ -109,62 +107,73 @@ class AnalyticsRuntimeApiControllerContractTest {
                         .value("foggy-runtime-api/v1"))
                 .andExpect(jsonPath("$.data.capabilities['runtime.capabilities']")
                         .value("supported"))
-                .andExpect(jsonPath("$.data.operations").doesNotExist());
+                .andExpect(jsonPath("$.functionContractVersion").doesNotExist());
         cohosted.perform(get("/analytics/api/v1/capabilities"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.analyticsRuntimeApiVersion")
-                        .value("foggy-analytics-runtime-api/v1"))
+                .andExpect(jsonPath("$.functionContractVersion")
+                        .value("foggy-analytics-function/v1"))
                 .andExpect(jsonPath("$.data.operations['analytics.capabilities']")
                         .value("supported"))
                 .andExpect(jsonPath("$.data.capabilities").doesNotExist());
     }
 
     @Test
-    void validatesTrustedBundleWithoutExposingFilesystemRoots() throws Exception {
-        AnalyticsBundleSummary summary = new AnalyticsBundleSummary(
-                "sales",
-                REVISION,
-                "1.0",
-                "default",
-                "CONFIGURED",
-                "CURRENT",
-                false,
-                true,
-                null);
-        when(bundleOperations.validate(any(), any())).thenReturn(summary);
+    void validatesAndDescribesLogicalBundleWithoutExposingFilesystemRoots()
+            throws Exception {
+        AnalyticsBundleDescription description = description();
+        when(endpoint.validateBundle(any())).thenReturn(responses.ok(
+                description, "request-validate", "trace-validate"));
+        when(endpoint.describeBundle(any())).thenReturn(responses.ok(
+                description, "request-describe", "trace-describe"));
 
-        String response = mvc(provider(renderOperations))
+        String validateResponse = mvc()
                 .perform(post("/analytics/api/v1/bundles/sales/validate")
                         .contentType("application/json")
-                        .content("""
-                                {
-                                  "expectedBundleRevision": "%s",
-                                  "requestId": "request-validate",
-                                  "traceId": "trace-validate"
-                                }
-                                """.formatted(REVISION)))
+                        .content(bundleRequest("request-validate", "trace-validate")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.bundleRef").value("sales"))
                 .andExpect(jsonPath("$.data.bundleRevision").value(REVISION))
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
+                .andReturn().getResponse().getContentAsString();
+        mvc().perform(post("/analytics/api/v1/bundles/sales/describe")
+                        .contentType("application/json")
+                        .content(bundleRequest("request-describe", "trace-describe")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.namespaceRef").value("default"));
 
-        assertFalse(response.contains("path"));
-        assertFalse(response.contains("root"));
-        verify(bundleOperations).validate(
-                new com.foggyframework.analytics.definition.api.AnalyticsBundleRef("sales"),
-                REVISION);
+        assertFalse(validateResponse.contains("path"));
+        assertFalse(validateResponse.contains("root"));
+        ArgumentCaptor<AnalyticsBundleFunctionRequest> request =
+                ArgumentCaptor.forClass(AnalyticsBundleFunctionRequest.class);
+        verify(endpoint).validateBundle(request.capture());
+        assertEquals("sales", request.getValue().bundleRef());
+        assertEquals(REVISION, request.getValue().expectedBundleRevision());
     }
 
     @Test
-    void mapsReportPreviewToExactRevisionAndOpaqueAuthorityBinding() throws Exception {
-        when(renderOperations.previewReport(any())).thenReturn(renderModel());
-        ArgumentCaptor<AnalyticsReportPreviewRequest> requestCaptor =
-                ArgumentCaptor.forClass(AnalyticsReportPreviewRequest.class);
+    void listsOnlyContractBundleDescriptions() throws Exception {
+        when(endpoint.listBundles(any())).thenReturn(responses.ok(
+                new AnalyticsBundleList(List.of(description())),
+                "request-list",
+                "trace-list"));
 
-        mvc(provider(renderOperations))
-                .perform(post("/analytics/api/v1/bundles/sales/reports/sales-summary/preview")
+        mvc().perform(get("/analytics/api/v1/bundles")
+                        .header("X-Request-Id", "request-list")
+                        .header("X-Trace-Id", "trace-list"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.bundles[0].bundleRef").value("sales"))
+                .andExpect(jsonPath("$.data.bundles[0].valid").value(true));
+    }
+
+    @Test
+    void mapsReportPreviewToExactRevisionAndOpaqueAuthorityBinding()
+            throws Exception {
+        when(endpoint.previewReport(any())).thenReturn(responses.ok(
+                renderResult(), "request-preview", "trace-preview"));
+        ArgumentCaptor<AnalyticsRenderFunctionRequest> request =
+                ArgumentCaptor.forClass(AnalyticsRenderFunctionRequest.class);
+
+        mvc().perform(post(
+                        "/analytics/api/v1/bundles/sales/reports/sales-summary/preview")
                         .contentType("application/json")
                         .content(renderRequest()))
                 .andExpect(status().isOk())
@@ -172,23 +181,76 @@ class AnalyticsRuntimeApiControllerContractTest {
                 .andExpect(jsonPath("$.data.artifact.ref").value("sales-summary"))
                 .andExpect(jsonPath("$.data.resolvedBundleRevision").value(REVISION))
                 .andExpect(jsonPath("$.data.widgets[0].visual.kind").value("table"))
-                .andExpect(jsonPath("$.context.requestId").value("request-preview"))
-                .andExpect(jsonPath("$.context.traceId").value("trace-preview"));
+                .andExpect(jsonPath("$.context.requestId").value("request-preview"));
 
-        verify(renderOperations).previewReport(requestCaptor.capture());
-        AnalyticsReportPreviewRequest mapped = requestCaptor.getValue();
-        assertEquals("sales", mapped.bundleRef().value());
-        assertEquals(REVISION, mapped.expectedBundleRevision().value());
-        assertEquals("sales-summary", mapped.reportRef().value());
-        assertEquals("tms", mapped.context().authorityBinding().provider());
-        assertEquals("subject:42", mapped.context().authorityBinding().reference());
-        assertEquals("east", mapped.context().parameters().get("region"));
+        verify(endpoint).previewReport(request.capture());
+        AnalyticsRenderFunctionRequest mapped = request.getValue();
+        assertEquals("sales", mapped.bundleRef());
+        assertEquals(REVISION, mapped.expectedBundleRevision());
+        assertEquals("sales-summary", mapped.artifactRef());
+        assertEquals("tms", mapped.authority().provider());
+        assertEquals("subject:42", mapped.authority().reference());
+        assertEquals("east", mapped.parameters().get("region"));
+        assertEquals(BigInteger.valueOf(2), mapped.parameters().get("limit"));
+        assertEquals(
+                new BigDecimal("0.123456789012345678901234567890"),
+                mapped.parameters().get("ratio"));
+        assertNull(mapped.parameters().get("optional"));
     }
 
     @Test
-    void failsClosedWhenHostAuthorityCompositionIsMissing() throws Exception {
-        mvc(provider(null))
-                .perform(post("/analytics/api/v1/bundles/sales/reports/sales-summary/preview")
+    void rejectsProvidedHeaderUnsafeCorrelationInsteadOfSilentlyReplacingIt()
+            throws Exception {
+        mvc().perform(post("/analytics/api/v1/bundles/sales/validate")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "requestId": "bad id"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code")
+                        .value("ANALYTICS_INVALID_REQUEST"))
+                .andExpect(jsonPath("$.context.requestId").isNotEmpty());
+    }
+
+    @Test
+    void allowsRuntimeToGenerateMissingCorrelationForTransportParity()
+            throws Exception {
+        when(endpoint.previewReport(any())).thenAnswer(invocation -> {
+            AnalyticsRenderFunctionRequest request = invocation.getArgument(0);
+            var normalized = responses.functionResponses().context(request.context());
+            return responses.functionResponses().ok(renderResult(), normalized);
+        });
+
+        mvc().perform(post(
+                        "/analytics/api/v1/bundles/sales/reports/sales-summary/preview")
+                        .contentType("application/json")
+                        .content(renderRequestWithoutContext()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.context.requestId").isNotEmpty())
+                .andExpect(jsonPath("$.context.traceId").isNotEmpty());
+
+        ArgumentCaptor<AnalyticsRenderFunctionRequest> request =
+                ArgumentCaptor.forClass(AnalyticsRenderFunctionRequest.class);
+        verify(endpoint).previewReport(request.capture());
+        assertNull(request.getValue().context().requestId());
+        assertNull(request.getValue().context().traceId());
+    }
+
+    @Test
+    void preservesUnavailableCompositionAsCanonicalFunctionFailure()
+            throws Exception {
+        when(endpoint.previewReport(any())).thenReturn(responses.fail(
+                "ANALYTICS_RENDER_UNAVAILABLE",
+                "composition",
+                "Analytics preview/render is unavailable in this host composition.",
+                false,
+                "request-preview",
+                "trace-preview"));
+
+        mvc().perform(post(
+                        "/analytics/api/v1/bundles/sales/reports/sales-summary/preview")
                         .contentType("application/json")
                         .content(renderRequest()))
                 .andExpect(status().isServiceUnavailable())
@@ -199,80 +261,182 @@ class AnalyticsRuntimeApiControllerContractTest {
     }
 
     @Test
-    void sanitizesBundleFailuresAtTheApiBoundary() throws Exception {
-        when(bundleOperations.validate(any(), any())).thenThrow(
-                new AnalyticsBundleStoreException(
-                        AnalyticsBundleStoreException.Code.INVALID_BUNDLE,
-                        "invalid file at /srv/private/customer-a/manifest.json"));
+    void returnsSanitizedBundleFailureWithoutTransportSpecificMutation()
+            throws Exception {
+        when(endpoint.validateBundle(any())).thenReturn(responses.fail(
+                "ANALYTICS_BUNDLE_INVALID_BUNDLE",
+                "bundle",
+                "Analytics Bundle validation failed.",
+                false,
+                "request-validate",
+                "trace-validate"));
 
-        String response = mvc(provider(renderOperations))
+        String response = mvc()
                 .perform(post("/analytics/api/v1/bundles/sales/validate")
                         .contentType("application/json")
-                        .content("{}"))
+                        .content(bundleRequest("request-validate", "trace-validate")))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.error.code")
                         .value("ANALYTICS_BUNDLE_INVALID_BUNDLE"))
                 .andExpect(jsonPath("$.error.message")
                         .value("Analytics Bundle validation failed."))
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
+                .andReturn().getResponse().getContentAsString();
 
         assertFalse(response.contains("/srv/private"));
         assertFalse(response.contains("customer-a"));
     }
 
-    private MockMvc mvc(ObjectProvider<AnalyticsRuntimeRenderOperations> provider) {
-        AnalyticsCapabilitiesController capabilities = new AnalyticsCapabilitiesController(
-                properties,
-                bundleOperations,
-                provider,
-                responses);
-        AnalyticsBundlesController bundles = new AnalyticsBundlesController(
-                bundleOperations,
-                responses);
-        AnalyticsRenderController render = new AnalyticsRenderController(provider, responses);
-        return standaloneSetup(capabilities, bundles, render)
+    @Test
+    void mapsCanonicalBundleNotRegisteredCodeToHttpNotFound() throws Exception {
+        when(endpoint.describeBundle(any())).thenReturn(responses.fail(
+                "ANALYTICS_BUNDLE_NOT_REGISTERED",
+                "bundle",
+                "Analytics Bundle is not registered.",
+                false,
+                "request-describe",
+                "trace-describe"));
+
+        mvc().perform(post("/analytics/api/v1/bundles/missing/describe")
+                        .contentType("application/json")
+                        .content(bundleRequest("request-describe", "trace-describe")))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code")
+                        .value("ANALYTICS_BUNDLE_NOT_REGISTERED"));
+    }
+
+    @Test
+    void mapsEveryCoreFunctionErrorFamilyToAStableHttpStatus() {
+        Map<String, HttpStatus> expected = Map.ofEntries(
+                Map.entry(AnalyticsFunctionErrorCodes.INVALID_REQUEST,
+                        HttpStatus.BAD_REQUEST),
+                Map.entry(AnalyticsFunctionErrorCodes.BUNDLE_NOT_REGISTERED,
+                        HttpStatus.NOT_FOUND),
+                Map.entry(AnalyticsFunctionErrorCodes.REPORT_NOT_FOUND,
+                        HttpStatus.NOT_FOUND),
+                Map.entry(AnalyticsFunctionErrorCodes.DASHBOARD_NOT_FOUND,
+                        HttpStatus.NOT_FOUND),
+                Map.entry(AnalyticsFunctionErrorCodes.QUERY_NOT_FOUND,
+                        HttpStatus.NOT_FOUND),
+                Map.entry(AnalyticsFunctionErrorCodes.MODEL_DEPENDENCY_NOT_FOUND,
+                        HttpStatus.NOT_FOUND),
+                Map.entry(AnalyticsFunctionErrorCodes.BUNDLE_REVISION_CONFLICT,
+                        HttpStatus.CONFLICT),
+                Map.entry(AnalyticsFunctionErrorCodes.BUNDLE_DEPENDENCY_STALE,
+                        HttpStatus.CONFLICT),
+                Map.entry(AnalyticsFunctionErrorCodes.BUNDLE_IMMUTABLE,
+                        HttpStatus.FORBIDDEN),
+                Map.entry(AnalyticsFunctionErrorCodes.BUNDLE_INVALID,
+                        HttpStatus.UNPROCESSABLE_ENTITY),
+                Map.entry(AnalyticsFunctionErrorCodes.BUNDLE_IDENTITY_MISMATCH,
+                        HttpStatus.UNPROCESSABLE_ENTITY),
+                Map.entry(AnalyticsFunctionErrorCodes.BUNDLE_DIGEST_MISMATCH,
+                        HttpStatus.UNPROCESSABLE_ENTITY),
+                Map.entry(AnalyticsFunctionErrorCodes.BUNDLE_UNSAFE_PATH,
+                        HttpStatus.UNPROCESSABLE_ENTITY),
+                Map.entry(
+                        AnalyticsFunctionErrorCodes.BUNDLE_UNSUPPORTED_RESOURCE_PATH,
+                        HttpStatus.UNPROCESSABLE_ENTITY),
+                Map.entry(AnalyticsFunctionErrorCodes.BUNDLE_UNAVAILABLE,
+                        HttpStatus.SERVICE_UNAVAILABLE),
+                Map.entry(AnalyticsFunctionErrorCodes.BUNDLE_RECOVERY_FAILED,
+                        HttpStatus.SERVICE_UNAVAILABLE),
+                Map.entry(AnalyticsFunctionErrorCodes.RENDER_UNAVAILABLE,
+                        HttpStatus.SERVICE_UNAVAILABLE),
+                Map.entry(AnalyticsFunctionErrorCodes.INTERNAL_ERROR,
+                        HttpStatus.INTERNAL_SERVER_ERROR));
+
+        expected.forEach((code, status) -> assertEquals(
+                status,
+                http.map(responses.fail(
+                        code,
+                        "test",
+                        "sanitized",
+                        false,
+                        "request-status",
+                        "trace-status")).getStatusCode()));
+    }
+
+    private MockMvc mvc() {
+        return standaloneSetup(
+                        capabilitiesController(),
+                        new AnalyticsBundlesController(endpoint, responses, http),
+                        new AnalyticsRenderController(endpoint, responses, http))
                 .setControllerAdvice(new AnalyticsRuntimeApiExceptionHandler(responses))
                 .build();
     }
 
-    private static ObjectProvider<AnalyticsRuntimeRenderOperations> provider(
-            AnalyticsRuntimeRenderOperations operations) {
-        StaticListableBeanFactory factory = new StaticListableBeanFactory();
-        if (operations != null) {
-            factory.addBean("analyticsRuntimeRenderOperations", operations);
-        }
-        return factory.getBeanProvider(AnalyticsRuntimeRenderOperations.class);
+    private AnalyticsCapabilitiesController capabilitiesController() {
+        return new AnalyticsCapabilitiesController(endpoint, responses, http);
     }
 
-    private static AnalyticsRenderModel renderModel() {
-        Map<String, Object> row = new LinkedHashMap<>();
-        row.put("region", "east");
-        row.put("amount", null);
-        AnalyticsWidgetData widget = new AnalyticsWidgetData(
-                "sales-summary",
-                new AnalyticsVisualIntent(AnalyticsVisualKind.TABLE, Map.of()),
-                AnalyticsRenderState.READY,
-                List.of(
-                        new AnalyticsColumnSchema("region", "string", true),
-                        new AnalyticsColumnSchema("amount", "decimal", true)),
-                List.of(row),
+    private static AnalyticsFunctionCapabilities capabilities() {
+        return new AnalyticsFunctionCapabilities(
+                "analytics",
+                "foggy-analytics-runtime-api/v1",
+                "analytics-runtime/v1",
+                true,
+                "host-managed",
+                Map.of(
+                        AnalyticsFunctionOperations.CAPABILITIES, "supported",
+                        AnalyticsFunctionOperations.BUNDLES_DESCRIBE, "supported",
+                        AnalyticsFunctionOperations.BUNDLES_PULL, "unsupported"),
+                new AnalyticsFunctionCapabilities.Limits(1_000, 2),
+                List.of());
+    }
+
+    private static AnalyticsBundleDescription description() {
+        return new AnalyticsBundleDescription(
+                "sales",
+                REVISION,
+                "1.0",
+                "default",
+                "CONFIGURED",
+                "CURRENT",
                 false,
+                true,
+                null);
+    }
+
+    private static AnalyticsRenderResult renderResult() {
+        return new AnalyticsRenderResult(
+                new AnalyticsRenderResult.Artifact("report", "sales-summary"),
+                REVISION,
+                "ready",
+                List.of(new AnalyticsRenderResult.Widget(
+                        "sales-summary",
+                        new AnalyticsRenderResult.Visual("table", Map.of()),
+                        "ready",
+                        List.of(
+                                new AnalyticsRenderResult.Column(
+                                        "region", "string", true),
+                                new AnalyticsRenderResult.Column(
+                                        "amount", "decimal", true)),
+                        List.of(Map.of("region", "east", "amount", 42)),
+                        false,
+                        List.of())),
                 List.of());
-        return new AnalyticsRenderModel(
-                new AnalyticsArtifactRef(AnalyticsArtifactKind.REPORT, "sales-summary"),
-                new AnalyticsBundleRevision(REVISION),
-                AnalyticsRenderState.READY,
-                List.of(widget),
-                List.of());
+    }
+
+    private static String bundleRequest(String requestId, String traceId) {
+        return """
+                {
+                  "expectedBundleRevision": "%s",
+                  "requestId": "%s",
+                  "traceId": "%s"
+                }
+                """.formatted(REVISION, requestId, traceId);
     }
 
     private static String renderRequest() {
         return """
                 {
                   "expectedBundleRevision": "%s",
-                  "parameters": {"region": "east"},
+                  "parameters": {
+                    "region": "east",
+                    "limit": 2,
+                    "ratio": 0.123456789012345678901234567890,
+                    "optional": null
+                  },
                   "timezone": "Asia/Shanghai",
                   "locale": "zh-CN",
                   "authority": {
@@ -281,6 +445,26 @@ class AnalyticsRuntimeApiControllerContractTest {
                   },
                   "requestId": "request-preview",
                   "traceId": "trace-preview"
+                }
+                """.formatted(REVISION);
+    }
+
+    private static String renderRequestWithoutContext() {
+        return """
+                {
+                  "expectedBundleRevision": "%s",
+                  "parameters": {
+                    "region": "east",
+                    "limit": 2,
+                    "ratio": 0.123456789012345678901234567890,
+                    "optional": null
+                  },
+                  "timezone": "Asia/Shanghai",
+                  "locale": "zh-CN",
+                  "authority": {
+                    "provider": "tms",
+                    "reference": "subject:42"
+                  }
                 }
                 """.formatted(REVISION);
     }

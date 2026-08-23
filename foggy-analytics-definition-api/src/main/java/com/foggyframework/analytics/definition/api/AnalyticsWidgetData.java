@@ -17,7 +17,7 @@ public record AnalyticsWidgetData(
         List<String> diagnostics) {
 
     public AnalyticsWidgetData {
-        widgetRef = requireValue(widgetRef);
+        widgetRef = AnalyticsLogicalRefValues.require("widgetRef", widgetRef);
         visualIntent = Objects.requireNonNull(visualIntent, "visualIntent");
         state = Objects.requireNonNull(state, "state");
         columns = List.copyOf(Objects.requireNonNull(columns, "columns"));
@@ -37,11 +37,4 @@ public record AnalyticsWidgetData(
         return Collections.unmodifiableMap(copy);
     }
 
-    private static String requireValue(String value) {
-        Objects.requireNonNull(value, "widgetRef");
-        if (value.isBlank() || !value.equals(value.trim())) {
-            throw new IllegalArgumentException("widgetRef must be non-blank and trimmed");
-        }
-        return value;
-    }
 }

@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.foggysource</groupId>
+    <artifactId>foggy-analytics-function-sdk-java</artifactId>
+    <version>9.3.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
+
+    <name>Foggy Analytics Function SDK Java</name>
+    <description>Java facade and embedded client for Analytics functions</description>
+    <url>https://github.com/foggy-projects/foggy-data-mcp-bridge</url>
+
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+        </license>
+    </licenses>
+    <developers>
+        <developer>
+            <name>JianguangFeng</name>
+            <email>oldseasoul@163.com</email>
+        </developer>
+    </developers>
+    <scm>
+        <connection>scm:git:git://github.com/foggy-projects/foggy-data-mcp-bridge.git</connection>
+        <developerConnection>scm:git:ssh://github.com/foggy-projects/foggy-data-mcp-bridge.git</developerConnection>
+        <url>https://github.com/foggy-projects/foggy-data-mcp-bridge</url>
+    </scm>
+
+    <properties>
+        <maven.compiler.release>17</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.foggysource</groupId>
+            <artifactId>foggy-analytics-function-contract</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.11.4</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.3</version>
+            </plugin>
+        </plugins>
+    </build>
+</project>

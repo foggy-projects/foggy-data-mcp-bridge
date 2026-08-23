@@ -12,9 +12,9 @@ import com.foggyframework.analytics.definition.core.AnalyticsBundleRegistration;
 import com.foggyframework.analytics.definition.core.AnalyticsBundleStore;
 import com.foggyframework.analytics.definition.core.AnalyticsBundleStoreException;
 import com.foggyframework.analytics.definition.core.ResolvedAnalyticsBundle;
-import com.foggyframework.analytics.runtime.api.dto.AnalyticsBundleListResponse;
-import com.foggyframework.analytics.runtime.api.dto.AnalyticsBundleSummary;
-import com.foggyframework.analytics.runtime.api.service.AnalyticsBundleOperations;
+import com.foggyframework.analytics.function.contract.AnalyticsBundleDescription;
+import com.foggyframework.analytics.function.contract.AnalyticsBundleList;
+import com.foggyframework.analytics.runtime.core.function.AnalyticsBundleFunctionOperations;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Path;
@@ -41,39 +41,41 @@ class AnalyticsBundleOperationsTest {
         when(store.resolve(BROKEN)).thenThrow(new AnalyticsBundleStoreException(
                 AnalyticsBundleStoreException.Code.DIGEST_MISMATCH,
                 "private path must not escape"));
-        AnalyticsBundleOperations operations = new AnalyticsBundleOperations(
+        AnalyticsBundleFunctionOperations operations =
+                new AnalyticsBundleFunctionOperations(
                 registrations(),
                 store);
 
-        AnalyticsBundleListResponse response = operations.list();
+        AnalyticsBundleList response = operations.list();
 
         assertEquals(2, response.bundles().size());
-        AnalyticsBundleSummary valid = response.bundles().get(0);
+        AnalyticsBundleDescription valid = response.bundles().get(0);
         assertEquals("sales", valid.bundleRef());
         assertEquals(REVISION.value(), valid.bundleRevision());
         assertTrue(valid.valid());
         assertFalse(valid.writable());
-        AnalyticsBundleSummary invalid = response.bundles().get(1);
+        AnalyticsBundleDescription invalid = response.bundles().get(1);
         assertEquals("broken", invalid.bundleRef());
         assertFalse(invalid.valid());
-        assertEquals("DIGEST_MISMATCH", invalid.errorCode());
+        assertEquals("ANALYTICS_BUNDLE_DIGEST_MISMATCH", invalid.errorCode());
     }
 
     @Test
     void validatesAnOptionalExactRevisionAndRejectsConflict() {
         AnalyticsBundleStore store = mock(AnalyticsBundleStore.class);
         when(store.resolve(SALES)).thenReturn(resolved());
-        AnalyticsBundleOperations operations = new AnalyticsBundleOperations(
+        AnalyticsBundleFunctionOperations operations =
+                new AnalyticsBundleFunctionOperations(
                 registrations().subList(0, 1),
                 store);
 
         assertEquals(
                 REVISION.value(),
-                operations.validate(SALES, REVISION.value()).bundleRevision());
+                operations.validate(SALES.value(), REVISION.value()).bundleRevision());
         AnalyticsBundleStoreException conflict = assertThrows(
                 AnalyticsBundleStoreException.class,
                 () -> operations.validate(
-                        SALES,
+                        SALES.value(),
                         AnalyticsBundleRevision.fromSha256Hex("b".repeat(64)).value()));
         assertEquals(
                 AnalyticsBundleStoreException.Code.REVISION_CONFLICT,
@@ -84,13 +86,14 @@ class AnalyticsBundleOperationsTest {
     void rejectsWhitespaceRevisionInsteadOfTreatingItAsAbsent() {
         AnalyticsBundleStore store = mock(AnalyticsBundleStore.class);
         when(store.resolve(SALES)).thenReturn(resolved());
-        AnalyticsBundleOperations operations = new AnalyticsBundleOperations(
+        AnalyticsBundleFunctionOperations operations =
+                new AnalyticsBundleFunctionOperations(
                 registrations().subList(0, 1),
                 store);
 
         assertThrows(
                 IllegalArgumentException.class,
-                () -> operations.validate(SALES, "   "));
+                () -> operations.validate(SALES.value(), "   "));
     }
 
     private static List<AnalyticsBundleRegistration> registrations() {
