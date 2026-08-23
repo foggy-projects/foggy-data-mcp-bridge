@@ -1,0 +1,7 @@
+{
+  "queryRef": "sales-by-region",
+  "namespaceRef": "default",
+  "modelName": "SalesOrder",
+  "columns": ["region", "amount"],
+  "groupBy": ["region"]
+}

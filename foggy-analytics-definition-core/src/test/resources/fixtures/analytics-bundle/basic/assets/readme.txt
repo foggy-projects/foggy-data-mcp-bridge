@@ -1,0 +1,1 @@
+Foggy Analytics fixture asset.

@@ -1,0 +1,7 @@
+{
+  "artifactRef": "sales-report",
+  "queryRef": "sales-by-region",
+  "visualIntent": {
+    "kind": "TABLE"
+  }
+}

@@ -53,6 +53,11 @@
         <module>foggy-dataset-model-web</module>
         <module>foggy-dataset-model-tck</module>
         <module>foggy-dataset-model-engine</module>
+        <module>foggy-analytics-definition-api</module>
+        <module>foggy-analytics-definition-core</module>
+        <module>foggy-analytics-runtime-core</module>
+        <module>foggy-analytics-runtime-foggy-adapter</module>
+        <module>foggy-analytics-runtime-api</module>
         <module>foggy-runtime-api</module>
         <module>foggy-dataset-memory-grid-bridge</module>
         <module>foggy-dataset-memory-grid-duckdb</module>
@@ -227,6 +232,31 @@
             <dependency>
                 <groupId>com.foggysource</groupId>
                 <artifactId>foggy-runtime-api</artifactId>
+                <version>${foggy-framework.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.foggysource</groupId>
+                <artifactId>foggy-analytics-definition-api</artifactId>
+                <version>${foggy-framework.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.foggysource</groupId>
+                <artifactId>foggy-analytics-definition-core</artifactId>
+                <version>${foggy-framework.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.foggysource</groupId>
+                <artifactId>foggy-analytics-runtime-core</artifactId>
+                <version>${foggy-framework.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.foggysource</groupId>
+                <artifactId>foggy-analytics-runtime-foggy-adapter</artifactId>
+                <version>${foggy-framework.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.foggysource</groupId>
+                <artifactId>foggy-analytics-runtime-api</artifactId>
                 <version>${foggy-framework.version}</version>
             </dependency>
             <dependency>
