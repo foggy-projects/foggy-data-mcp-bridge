@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice(assignableTypes = {
         AnalyticsCapabilitiesController.class,
         AnalyticsBundlesController.class,
+        AnalyticsModelDependenciesController.class,
         AnalyticsRenderController.class
 })
 @ConditionalOnProperty(

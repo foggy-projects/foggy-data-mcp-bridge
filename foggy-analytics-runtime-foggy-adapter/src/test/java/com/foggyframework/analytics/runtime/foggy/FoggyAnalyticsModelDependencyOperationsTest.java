@@ -29,6 +29,23 @@ class FoggyAnalyticsModelDependencyOperationsTest {
     }
 
     @Test
+    void delegatesExactTableModelResolutionToTheStableRevisionPort() {
+        FoggyAnalyticsModelDependencyOperations operations = operations(
+                FoggyAdapterTestFixtures.trackedView(),
+                true);
+
+        var resolved = operations.resolve(
+                FoggyAdapterTestFixtures.NAMESPACE,
+                "tm",
+                "SalesOrderModel");
+
+        assertEquals("tm", resolved.modelKind());
+        assertEquals("SalesOrderModel", resolved.modelName());
+        assertEquals(FoggyAdapterTestFixtures.MODEL_REVISION.value(),
+                resolved.modelRevision());
+    }
+
+    @Test
     void rejectsAliasAndMissingCanonicalModel() {
         FoggyAnalyticsModelDependencyOperations operations = operations(
                 FoggyAdapterTestFixtures.trackedView(),
@@ -58,6 +75,24 @@ class FoggyAnalyticsModelDependencyOperationsTest {
                         FoggyAdapterTestFixtures.NAMESPACE,
                         "qm",
                         FoggyAdapterTestFixtures.MODEL));
+
+        assertEquals(
+                AnalyticsModelDependencyResolutionException.Code.REVISION_UNAVAILABLE,
+                failure.code());
+    }
+
+    @Test
+    void failsClosedForAMissingTableModelReportedByTheRevisionPort() {
+        FoggyAnalyticsModelDependencyOperations operations = operations(
+                FoggyAdapterTestFixtures.trackedView(),
+                false);
+
+        AnalyticsModelDependencyResolutionException failure = assertThrows(
+                AnalyticsModelDependencyResolutionException.class,
+                () -> operations.resolve(
+                        FoggyAdapterTestFixtures.NAMESPACE,
+                        "tm",
+                        "MissingTableModel"));
 
         assertEquals(
                 AnalyticsModelDependencyResolutionException.Code.REVISION_UNAVAILABLE,

@@ -40,6 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -232,6 +233,41 @@ class AnalyticsRuntimeApiControllerContractTest {
         assertFalse(response.contains("owner"));
         assertFalse(response.contains("authority"));
         assertFalse(response.contains("catalogIdentity"));
+    }
+
+    @Test
+    void sanitizesInvalidModelDependencyRequestsBeforeEndpointInvocation()
+            throws Exception {
+        List<String> invalidBodies = List.of(
+                """
+                {
+                  "namespace": "tms-ai",
+                  "modelKind": "sql",
+                  "modelName": "TenantOrgManagementQuery"
+                }
+                """,
+                """
+                {
+                  "namespace": "",
+                  "modelKind": "qm",
+                  "modelName": "TenantOrgManagementQuery"
+                }
+                """,
+                "null",
+                "{");
+
+        for (String body : invalidBodies) {
+            mvc().perform(post("/analytics/api/v1/model-dependencies/resolve")
+                            .contentType("application/json")
+                            .content(body))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.error.code")
+                            .value("ANALYTICS_INVALID_REQUEST"))
+                    .andExpect(jsonPath("$.error.message")
+                            .value("Analytics request is invalid."));
+        }
+
+        verify(endpoint, never()).resolveModelDependency(any());
     }
 
     @Test

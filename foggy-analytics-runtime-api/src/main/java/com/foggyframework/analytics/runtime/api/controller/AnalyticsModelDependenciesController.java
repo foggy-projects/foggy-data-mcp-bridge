@@ -42,6 +42,9 @@ public class AnalyticsModelDependenciesController {
     @PostMapping("/resolve")
     public ResponseEntity<AnalyticsFunctionEnvelope<AnalyticsModelDependencyDescription>>
             resolve(@RequestBody AnalyticsModelDependencyResolutionHttpRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("request is required");
+        }
         return http.map(endpoint.resolveModelDependency(
                 new AnalyticsModelDependencyResolutionRequest(
                         request.namespace(),
