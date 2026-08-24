@@ -16,6 +16,18 @@ public interface AnalyticsFunctionEndpoint {
             AnalyticsBundleFunctionRequest request);
 
     /**
+     * Resolves a current model into the stable identity stored by Analytics manifests.
+     *
+     * <p>This design-time read does not resolve product ownership, ACL, or query authority.
+     * The default keeps older custom endpoint implementations binary compatible.</p>
+     */
+    default AnalyticsFunctionEnvelope<AnalyticsModelDependencyDescription>
+            resolveModelDependency(AnalyticsModelDependencyResolutionRequest request) {
+        throw new UnsupportedOperationException(
+                "Analytics model dependency resolution is not implemented");
+    }
+
+    /**
      * Describes one parsed Report or Dashboard at an exact Bundle revision.
      *
      * <p>The default preserves binary compatibility for older custom endpoints;

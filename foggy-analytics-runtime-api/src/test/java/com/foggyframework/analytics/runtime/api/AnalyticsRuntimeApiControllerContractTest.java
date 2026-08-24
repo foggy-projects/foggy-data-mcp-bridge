@@ -10,11 +10,14 @@ import com.foggyframework.analytics.function.contract.AnalyticsFunctionEndpoint;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionErrorCodes;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionOperations;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionRequestContext;
+import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyDescription;
+import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyResolutionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderResult;
 import com.foggyframework.analytics.runtime.api.config.FoggyAnalyticsRuntimeApiProperties;
 import com.foggyframework.analytics.runtime.api.controller.AnalyticsBundlesController;
 import com.foggyframework.analytics.runtime.api.controller.AnalyticsCapabilitiesController;
+import com.foggyframework.analytics.runtime.api.controller.AnalyticsModelDependenciesController;
 import com.foggyframework.analytics.runtime.api.controller.AnalyticsRenderController;
 import com.foggyframework.analytics.runtime.api.controller.AnalyticsRuntimeApiExceptionHandler;
 import com.foggyframework.analytics.runtime.api.service.AnalyticsRuntimeApiResponseFactory;
@@ -193,6 +196,45 @@ class AnalyticsRuntimeApiControllerContractTest {
     }
 
     @Test
+    void resolvesStableModelRevisionWithoutProductOrDataAuthority() throws Exception {
+        when(endpoint.resolveModelDependency(any())).thenReturn(responses.ok(
+                new AnalyticsModelDependencyDescription(
+                        "tms-ai",
+                        "qm",
+                        "TenantOrgManagementQuery",
+                        REVISION),
+                "request-model",
+                "trace-model"));
+
+        String response = mvc().perform(post(
+                        "/analytics/api/v1/model-dependencies/resolve")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "namespace": "tms-ai",
+                                  "modelKind": "qm",
+                                  "modelName": "TenantOrgManagementQuery",
+                                  "requestId": "request-model",
+                                  "traceId": "trace-model"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.modelRevision").value(REVISION))
+                .andExpect(jsonPath("$.data.namespace").value("tms-ai"))
+                .andReturn().getResponse().getContentAsString();
+
+        ArgumentCaptor<AnalyticsModelDependencyResolutionRequest> request =
+                ArgumentCaptor.forClass(
+                        AnalyticsModelDependencyResolutionRequest.class);
+        verify(endpoint).resolveModelDependency(request.capture());
+        assertEquals("qm", request.getValue().modelKind());
+        assertEquals("request-model", request.getValue().context().requestId());
+        assertFalse(response.contains("owner"));
+        assertFalse(response.contains("authority"));
+        assertFalse(response.contains("catalogIdentity"));
+    }
+
+    @Test
     void mapsReportPreviewToExactRevisionAndOpaqueAuthorityBinding()
             throws Exception {
         when(endpoint.previewReport(any())).thenReturn(responses.ok(
@@ -347,6 +389,9 @@ class AnalyticsRuntimeApiControllerContractTest {
                         HttpStatus.NOT_FOUND),
                 Map.entry(AnalyticsFunctionErrorCodes.MODEL_DEPENDENCY_NOT_FOUND,
                         HttpStatus.NOT_FOUND),
+                Map.entry(
+                        AnalyticsFunctionErrorCodes.MODEL_DEPENDENCY_REVISION_UNAVAILABLE,
+                        HttpStatus.SERVICE_UNAVAILABLE),
                 Map.entry(AnalyticsFunctionErrorCodes.BUNDLE_REVISION_CONFLICT,
                         HttpStatus.CONFLICT),
                 Map.entry(AnalyticsFunctionErrorCodes.BUNDLE_DEPENDENCY_STALE,
@@ -388,6 +433,7 @@ class AnalyticsRuntimeApiControllerContractTest {
         return standaloneSetup(
                         capabilitiesController(),
                         new AnalyticsBundlesController(endpoint, responses, http),
+                        new AnalyticsModelDependenciesController(endpoint, responses, http),
                         new AnalyticsRenderController(endpoint, responses, http))
                 .setControllerAdvice(new AnalyticsRuntimeApiExceptionHandler(responses))
                 .build();

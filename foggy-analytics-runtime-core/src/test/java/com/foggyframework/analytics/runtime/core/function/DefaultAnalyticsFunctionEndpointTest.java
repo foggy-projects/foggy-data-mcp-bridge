@@ -23,6 +23,8 @@ import com.foggyframework.analytics.function.contract.AnalyticsFunctionContract;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionEnvelope;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionOperations;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionRequestContext;
+import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyDescription;
+import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyResolutionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderResult;
 import com.foggyframework.analytics.runtime.core.render.AnalyticsDashboardRenderRequest;
@@ -63,6 +65,59 @@ class DefaultAnalyticsFunctionEndpointTest {
                 AnalyticsFunctionOperations.BUNDLES_SAVE));
         assertEquals("unavailable", outcome.data().operations().get(
                 AnalyticsFunctionOperations.REPORTS_PREVIEW));
+        assertEquals("unavailable", outcome.data().operations().get(
+                AnalyticsFunctionOperations.MODEL_DEPENDENCIES_RESOLVE));
+    }
+
+    @Test
+    void resolvesStableModelDependencyWithoutProductOrAuthorityContext() {
+        AnalyticsModelDependencyOperations models = (namespace, modelKind, modelName) ->
+                new AnalyticsModelDependencyDescription(
+                        namespace, modelKind, modelName, REVISION.value());
+        DefaultAnalyticsFunctionEndpoint endpoint = endpoint(
+                store(ignored -> resolved()),
+                models,
+                null);
+
+        var outcome = endpoint.resolveModelDependency(
+                new AnalyticsModelDependencyResolutionRequest(
+                        "default",
+                        "qm",
+                        "SalesQuery",
+                        new AnalyticsFunctionRequestContext("request-model", "trace-model")));
+
+        assertTrue(outcome.success());
+        assertEquals(REVISION.value(), outcome.data().modelRevision());
+        assertEquals("supported", endpoint.capabilities(
+                AnalyticsFunctionRequestContext.empty()).data().operations().get(
+                        AnalyticsFunctionOperations.MODEL_DEPENDENCIES_RESOLVE));
+    }
+
+    @Test
+    void sanitizesUnavailableStableRevision() {
+        AnalyticsModelDependencyOperations models = (namespace, modelKind, modelName) -> {
+            throw new AnalyticsModelDependencyResolutionException(
+                    AnalyticsModelDependencyResolutionException.Code.REVISION_UNAVAILABLE,
+                    "private catalog provenance");
+        };
+        DefaultAnalyticsFunctionEndpoint endpoint = endpoint(
+                store(ignored -> resolved()),
+                models,
+                null);
+
+        var outcome = endpoint.resolveModelDependency(
+                new AnalyticsModelDependencyResolutionRequest(
+                        "default",
+                        "qm",
+                        "SalesQuery",
+                        AnalyticsFunctionRequestContext.empty()));
+
+        assertFalse(outcome.success());
+        assertEquals(
+                "ANALYTICS_MODEL_DEPENDENCY_REVISION_UNAVAILABLE",
+                outcome.error().code());
+        assertTrue(outcome.error().retryable());
+        assertFalse(outcome.error().message().contains("private"));
     }
 
     @Test
@@ -182,6 +237,13 @@ class DefaultAnalyticsFunctionEndpointTest {
     private static DefaultAnalyticsFunctionEndpoint endpoint(
             AnalyticsBundleStore store,
             AnalyticsFunctionRenderOperations render) {
+        return endpoint(store, null, render);
+    }
+
+    private static DefaultAnalyticsFunctionEndpoint endpoint(
+            AnalyticsBundleStore store,
+            AnalyticsModelDependencyOperations models,
+            AnalyticsFunctionRenderOperations render) {
         AnalyticsBundleFunctionOperations bundleOperations =
                 new AnalyticsBundleFunctionOperations(
                         List.of(new AnalyticsBundleRegistration(
@@ -194,6 +256,7 @@ class DefaultAnalyticsFunctionEndpointTest {
                 "host-managed",
                 1_000,
                 bundleOperations,
+                () -> models,
                 () -> render,
                 new AnalyticsFunctionResponseFactory(
                         AnalyticsFunctionContract.DEFAULT_RUNTIME_API_VERSION,

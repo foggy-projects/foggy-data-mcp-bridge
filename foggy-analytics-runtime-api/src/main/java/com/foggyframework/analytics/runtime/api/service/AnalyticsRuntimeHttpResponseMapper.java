@@ -43,6 +43,7 @@ public final class AnalyticsRuntimeHttpResponseMapper {
                     HttpStatus.UNPROCESSABLE_ENTITY;
             case AnalyticsFunctionErrorCodes.BUNDLE_UNAVAILABLE,
                     AnalyticsFunctionErrorCodes.BUNDLE_RECOVERY_FAILED,
+                    AnalyticsFunctionErrorCodes.MODEL_DEPENDENCY_REVISION_UNAVAILABLE,
                     AnalyticsFunctionErrorCodes.RENDER_UNAVAILABLE ->
                     HttpStatus.SERVICE_UNAVAILABLE;
             default -> HttpStatus.INTERNAL_SERVER_ERROR;

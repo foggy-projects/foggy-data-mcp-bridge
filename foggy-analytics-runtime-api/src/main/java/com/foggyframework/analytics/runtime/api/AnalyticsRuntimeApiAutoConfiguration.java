@@ -9,18 +9,21 @@ import com.foggyframework.analytics.function.contract.AnalyticsFunctionEndpoint;
 import com.foggyframework.analytics.runtime.api.config.FoggyAnalyticsRuntimeApiProperties;
 import com.foggyframework.analytics.runtime.api.controller.AnalyticsBundlesController;
 import com.foggyframework.analytics.runtime.api.controller.AnalyticsCapabilitiesController;
+import com.foggyframework.analytics.runtime.api.controller.AnalyticsModelDependenciesController;
 import com.foggyframework.analytics.runtime.api.controller.AnalyticsRenderController;
 import com.foggyframework.analytics.runtime.api.controller.AnalyticsRuntimeApiExceptionHandler;
 import com.foggyframework.analytics.runtime.api.service.AnalyticsRuntimeApiResponseFactory;
 import com.foggyframework.analytics.runtime.api.service.AnalyticsRuntimeHttpResponseMapper;
 import com.foggyframework.analytics.runtime.core.function.AnalyticsBundleFunctionOperations;
 import com.foggyframework.analytics.runtime.core.function.AnalyticsFunctionFailureMapper;
+import com.foggyframework.analytics.runtime.core.function.AnalyticsModelDependencyOperations;
 import com.foggyframework.analytics.runtime.core.function.AnalyticsFunctionRenderOperations;
 import com.foggyframework.analytics.runtime.core.function.CoreAnalyticsFunctionRenderOperations;
 import com.foggyframework.analytics.runtime.core.function.DefaultAnalyticsFunctionEndpoint;
 import com.foggyframework.analytics.runtime.core.render.AnalyticsRenderService;
 import com.foggyframework.analytics.runtime.foggy.FoggyAnalyticsAuthority;
 import com.foggyframework.analytics.runtime.foggy.FoggyAnalyticsBundleDependencyStateResolver;
+import com.foggyframework.analytics.runtime.foggy.FoggyAnalyticsModelDependencyOperations;
 import com.foggyframework.analytics.runtime.foggy.FoggyAnalyticsQueryExecutor;
 import com.foggyframework.analytics.runtime.foggy.FoggyCatalogStableModelRevisionReadPort;
 import com.foggyframework.analytics.runtime.foggy.FoggyQueryAuthorityResolver;
@@ -49,10 +52,21 @@ import org.springframework.beans.factory.ObjectProvider;
 @Import({
         AnalyticsCapabilitiesController.class,
         AnalyticsBundlesController.class,
+        AnalyticsModelDependenciesController.class,
         AnalyticsRenderController.class,
         AnalyticsRuntimeApiExceptionHandler.class
 })
 public class AnalyticsRuntimeApiAutoConfiguration {
+
+    @Bean
+    @ConditionalOnMissingBean(AnalyticsModelDependencyOperations.class)
+    AnalyticsModelDependencyOperations analyticsModelDependencyOperations(
+            SemanticModelCatalogReadPort catalogReadPort,
+            FoggyStableModelRevisionReadPort revisionReadPort) {
+        return new FoggyAnalyticsModelDependencyOperations(
+                catalogReadPort,
+                revisionReadPort);
+    }
 
     @Bean
     @ConditionalOnMissingBean
@@ -151,6 +165,7 @@ public class AnalyticsRuntimeApiAutoConfiguration {
     AnalyticsFunctionEndpoint analyticsFunctionEndpoint(
             FoggyAnalyticsRuntimeApiProperties properties,
             AnalyticsBundleFunctionOperations bundleOperations,
+            ObjectProvider<AnalyticsModelDependencyOperations> modelDependencyOperations,
             ObjectProvider<AnalyticsFunctionRenderOperations> renderOperations,
             AnalyticsRuntimeApiResponseFactory responses,
             AnalyticsFunctionFailureMapper failures) {
@@ -159,6 +174,7 @@ public class AnalyticsRuntimeApiAutoConfiguration {
                 properties.getSecurityMode(),
                 properties.getMaxRows(),
                 bundleOperations,
+                modelDependencyOperations::getIfAvailable,
                 renderOperations::getIfAvailable,
                 responses.functionResponses(),
                 failures);

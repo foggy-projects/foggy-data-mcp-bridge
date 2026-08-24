@@ -33,7 +33,7 @@ class FapAnalyticsFunctionCatalogTest {
         assertThat(descriptors).hasSize(8);
         assertThat(descriptors)
                 .extracting(FapAnalyticsFunctionDescriptor::operation)
-                .containsExactlyInAnyOrderElementsOf(AnalyticsFunctionOperations.SDK_V1);
+                .containsExactlyInAnyOrderElementsOf(AnalyticsFunctionOperations.FAP_V1);
         assertThat(descriptors)
                 .extracting(FapAnalyticsFunctionDescriptor::sideEffect)
                 .containsOnly(FapAnalyticsFunctionDescriptor.SideEffect.READ_ONLY);

@@ -31,10 +31,13 @@ class AnalyticsFunctionContractTest {
                         "analytics.bundles.validate",
                         "analytics.bundles.describe",
                         "analytics.artifacts.describe",
+                        "analytics.model-dependencies.resolve",
                         "analytics.reports.preview",
                         "analytics.dashboards.preview",
                         "analytics.dashboards.render"),
                 AnalyticsFunctionOperations.SDK_V1);
+        assertFalse(AnalyticsFunctionOperations.FAP_V1.contains(
+                AnalyticsFunctionOperations.MODEL_DEPENDENCIES_RESOLVE));
         assertFalse(AnalyticsFunctionOperations.SDK_V1.contains(
                 AnalyticsFunctionOperations.BUNDLES_PULL));
         assertFalse(AnalyticsFunctionOperations.SDK_V1.contains(
@@ -80,6 +83,25 @@ class AnalyticsFunctionContractTest {
                         "query",
                         "sales-summary",
                         REVISION,
+                        AnalyticsFunctionRequestContext.empty()));
+        AnalyticsModelDependencyResolutionRequest dependencyRequest =
+                new AnalyticsModelDependencyResolutionRequest(
+                        "tms-ai",
+                        "qm",
+                        "TenantOrgManagementQuery",
+                        AnalyticsFunctionRequestContext.empty());
+        assertEquals("qm", dependencyRequest.modelKind());
+        assertEquals(REVISION, new AnalyticsModelDependencyDescription(
+                "tms-ai",
+                "qm",
+                "TenantOrgManagementQuery",
+                REVISION).modelRevision());
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new AnalyticsModelDependencyResolutionRequest(
+                        "tms-ai",
+                        "sql",
+                        "TenantOrgManagementQuery",
                         AnalyticsFunctionRequestContext.empty()));
     }
 
@@ -180,6 +202,7 @@ class AnalyticsFunctionContractTest {
         Set<String> fields = Arrays.stream(new Class<?>[]{
                         AnalyticsBundleFunctionRequest.class,
                         AnalyticsArtifactFunctionRequest.class,
+                        AnalyticsModelDependencyResolutionRequest.class,
                         AnalyticsRenderFunctionRequest.class,
                         AnalyticsFunctionAuthority.class
                 })

@@ -4,6 +4,7 @@ import com.foggyframework.analytics.definition.core.AnalyticsBundleStore;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionEndpoint;
 import com.foggyframework.analytics.runtime.api.controller.AnalyticsCapabilitiesController;
 import com.foggyframework.analytics.runtime.core.function.AnalyticsFunctionRenderOperations;
+import com.foggyframework.analytics.runtime.core.function.AnalyticsModelDependencyOperations;
 import com.foggyframework.analytics.runtime.foggy.FoggySemanticRequestContextResolver;
 import com.foggyframework.analytics.runtime.foggy.FoggyStableModelRevisionReadPort;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogSnapshotStore;
@@ -46,6 +47,8 @@ class AnalyticsRuntimeApiAutoConfigurationTest {
                     assertThat(context).hasSingleBean(AnalyticsCapabilitiesController.class);
                     assertThat(context).hasSingleBean(AnalyticsBundleStore.class);
                     assertThat(context).hasSingleBean(FoggyStableModelRevisionReadPort.class);
+                    assertThat(context).hasSingleBean(
+                            AnalyticsModelDependencyOperations.class);
                     assertThat(context).hasSingleBean(AnalyticsFunctionEndpoint.class);
                     assertThat(context)
                             .doesNotHaveBean(AnalyticsFunctionRenderOperations.class);

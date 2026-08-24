@@ -33,6 +33,8 @@ public final class AnalyticsFunctionErrorCodes {
     public static final String QUERY_NOT_FOUND = "ANALYTICS_QUERY_NOT_FOUND";
     public static final String MODEL_DEPENDENCY_NOT_FOUND =
             "ANALYTICS_MODEL_DEPENDENCY_NOT_FOUND";
+    public static final String MODEL_DEPENDENCY_REVISION_UNAVAILABLE =
+            "ANALYTICS_MODEL_DEPENDENCY_REVISION_UNAVAILABLE";
 
     public static final String CLIENT_TRANSPORT_ERROR =
             "ANALYTICS_CLIENT_TRANSPORT_ERROR";

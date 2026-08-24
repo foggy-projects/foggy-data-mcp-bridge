@@ -9,6 +9,14 @@ import com.foggyframework.analytics.runtime.core.render.AnalyticsRenderException
 public final class AnalyticsFunctionFailureMapper {
 
     public AnalyticsFunctionError map(Throwable failure) {
+        if (failure instanceof AnalyticsModelDependencyResolutionException dependencyFailure) {
+            return new AnalyticsFunctionError(
+                    dependencyErrorCode(dependencyFailure.code()),
+                    "model-dependency",
+                    dependencyMessage(dependencyFailure.code()),
+                    dependencyFailure.code()
+                            == AnalyticsModelDependencyResolutionException.Code.REVISION_UNAVAILABLE);
+        }
         if (failure instanceof AnalyticsBundleStoreException bundleFailure) {
             return new AnalyticsFunctionError(
                     bundleErrorCode(bundleFailure.code()),
@@ -36,6 +44,24 @@ public final class AnalyticsFunctionFailureMapper {
                 "runtime",
                 "Analytics operation failed.",
                 false);
+    }
+
+    private static String dependencyErrorCode(
+            AnalyticsModelDependencyResolutionException.Code code) {
+        return switch (code) {
+            case MODEL_NOT_FOUND -> AnalyticsFunctionErrorCodes.MODEL_DEPENDENCY_NOT_FOUND;
+            case REVISION_UNAVAILABLE ->
+                    AnalyticsFunctionErrorCodes.MODEL_DEPENDENCY_REVISION_UNAVAILABLE;
+        };
+    }
+
+    private static String dependencyMessage(
+            AnalyticsModelDependencyResolutionException.Code code) {
+        return switch (code) {
+            case MODEL_NOT_FOUND -> "Analytics model dependency does not exist.";
+            case REVISION_UNAVAILABLE ->
+                    "Analytics model dependency revision is temporarily unavailable.";
+        };
     }
 
     static String bundleErrorCode(

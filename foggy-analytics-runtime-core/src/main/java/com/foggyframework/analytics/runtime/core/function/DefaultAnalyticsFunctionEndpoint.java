@@ -17,6 +17,8 @@ import com.foggyframework.analytics.function.contract.AnalyticsFunctionError;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionErrorCodes;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionOperations;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionRequestContext;
+import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyDescription;
+import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyResolutionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderResult;
 import com.foggyframework.analytics.runtime.core.query.QueryAuthorityBinding;
@@ -43,6 +45,7 @@ public final class DefaultAnalyticsFunctionEndpoint
     private final String securityMode;
     private final int maxRows;
     private final AnalyticsBundleFunctionOperations bundleOperations;
+    private final Supplier<AnalyticsModelDependencyOperations> modelDependencyOperations;
     private final Supplier<AnalyticsFunctionRenderOperations> renderOperations;
     private final AnalyticsFunctionResponseFactory responses;
     private final AnalyticsFunctionFailureMapper failures;
@@ -55,6 +58,26 @@ public final class DefaultAnalyticsFunctionEndpoint
             Supplier<AnalyticsFunctionRenderOperations> renderOperations,
             AnalyticsFunctionResponseFactory responses,
             AnalyticsFunctionFailureMapper failures) {
+        this(
+                enabled,
+                securityMode,
+                maxRows,
+                bundleOperations,
+                () -> null,
+                renderOperations,
+                responses,
+                failures);
+    }
+
+    public DefaultAnalyticsFunctionEndpoint(
+            boolean enabled,
+            String securityMode,
+            int maxRows,
+            AnalyticsBundleFunctionOperations bundleOperations,
+            Supplier<AnalyticsModelDependencyOperations> modelDependencyOperations,
+            Supplier<AnalyticsFunctionRenderOperations> renderOperations,
+            AnalyticsFunctionResponseFactory responses,
+            AnalyticsFunctionFailureMapper failures) {
         this.enabled = enabled;
         this.securityMode = requireValue("securityMode", securityMode);
         if (maxRows <= 0) {
@@ -63,6 +86,8 @@ public final class DefaultAnalyticsFunctionEndpoint
         this.maxRows = maxRows;
         this.bundleOperations = Objects.requireNonNull(
                 bundleOperations, "bundleOperations");
+        this.modelDependencyOperations = Objects.requireNonNull(
+                modelDependencyOperations, "modelDependencyOperations");
         this.renderOperations = Objects.requireNonNull(
                 renderOperations, "renderOperations");
         this.responses = Objects.requireNonNull(responses, "responses");
@@ -109,6 +134,23 @@ public final class DefaultAnalyticsFunctionEndpoint
     }
 
     @Override
+    public AnalyticsFunctionEnvelope<AnalyticsModelDependencyDescription>
+            resolveModelDependency(AnalyticsModelDependencyResolutionRequest request) {
+        Objects.requireNonNull(request, "request");
+        return execute(request.context(), ignored -> {
+            AnalyticsModelDependencyOperations operations =
+                    modelDependencyOperations.get();
+            if (operations == null) {
+                throw new AnalyticsModelDependencyResolutionException(
+                        AnalyticsModelDependencyResolutionException.Code.REVISION_UNAVAILABLE,
+                        "Model dependency resolution is unavailable");
+            }
+            return operations.resolve(
+                    request.namespace(), request.modelKind(), request.modelName());
+        });
+    }
+
+    @Override
     public AnalyticsFunctionEnvelope<AnalyticsRenderResult> previewReport(
             AnalyticsRenderFunctionRequest request) {
         Objects.requireNonNull(request, "request");
@@ -140,6 +182,8 @@ public final class DefaultAnalyticsFunctionEndpoint
 
     private AnalyticsFunctionCapabilities capabilitiesData() {
         boolean renderAvailable = renderOperations.get() != null;
+        boolean modelDependencyResolutionAvailable =
+                modelDependencyOperations.get() != null;
         Map<String, String> operations = new LinkedHashMap<>();
         operations.put(AnalyticsFunctionOperations.CAPABILITIES, "supported");
         operations.put(AnalyticsFunctionOperations.BUNDLES_LIST, "supported");
@@ -148,6 +192,9 @@ public final class DefaultAnalyticsFunctionEndpoint
         operations.put(
                 AnalyticsFunctionOperations.ARTIFACTS_DESCRIBE,
                 status(bundleOperations.artifactInspectionAvailable()));
+        operations.put(
+                AnalyticsFunctionOperations.MODEL_DEPENDENCIES_RESOLVE,
+                status(modelDependencyResolutionAvailable));
         operations.put(AnalyticsFunctionOperations.BUNDLES_PULL, "unsupported");
         operations.put(AnalyticsFunctionOperations.BUNDLES_SAVE, "unsupported");
         operations.put(
@@ -164,6 +211,10 @@ public final class DefaultAnalyticsFunctionEndpoint
         if (!renderAvailable) {
             warnings.add(
                     "Preview/render requires a host authority resolver composition.");
+        }
+        if (!modelDependencyResolutionAvailable) {
+            warnings.add(
+                    "Stable model dependency resolution is unavailable in this host composition.");
         }
         if (bundleOperations.configuredBundleCount() == 0) {
             warnings.add("No trusted Analytics Bundle registrations are configured.");

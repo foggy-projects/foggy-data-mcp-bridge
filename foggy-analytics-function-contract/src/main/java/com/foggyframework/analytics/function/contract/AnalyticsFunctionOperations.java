@@ -10,6 +10,8 @@ public final class AnalyticsFunctionOperations {
     public static final String BUNDLES_VALIDATE = "analytics.bundles.validate";
     public static final String BUNDLES_DESCRIBE = "analytics.bundles.describe";
     public static final String ARTIFACTS_DESCRIBE = "analytics.artifacts.describe";
+    public static final String MODEL_DEPENDENCIES_RESOLVE =
+            "analytics.model-dependencies.resolve";
     public static final String BUNDLES_PULL = "analytics.bundles.pull";
     public static final String BUNDLES_SAVE = "analytics.bundles.save";
     public static final String REPORTS_PREVIEW = "analytics.reports.preview";
@@ -17,6 +19,18 @@ public final class AnalyticsFunctionOperations {
     public static final String DASHBOARDS_RENDER = "analytics.dashboards.render";
 
     public static final Set<String> SDK_V1 = Set.of(
+            CAPABILITIES,
+            BUNDLES_LIST,
+            BUNDLES_VALIDATE,
+            BUNDLES_DESCRIBE,
+            ARTIFACTS_DESCRIBE,
+            MODEL_DEPENDENCIES_RESOLVE,
+            REPORTS_PREVIEW,
+            DASHBOARDS_PREVIEW,
+            DASHBOARDS_RENDER);
+
+    /** Operations projected into the FAP function catalog. */
+    public static final Set<String> FAP_V1 = Set.of(
             CAPABILITIES,
             BUNDLES_LIST,
             BUNDLES_VALIDATE,

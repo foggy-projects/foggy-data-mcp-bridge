@@ -15,6 +15,8 @@ import com.foggyframework.analytics.function.contract.AnalyticsFunctionEnvelope;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionError;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionErrorCodes;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionRequestContext;
+import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyDescription;
+import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyResolutionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderResult;
 import com.foggyframework.analytics.function.sdk.AnalyticsFunctionClient;
@@ -128,6 +130,25 @@ public final class HttpAnalyticsFunctionClient implements AnalyticsFunctionClien
                 request.context(),
                 false,
                 AnalyticsArtifactDescription.class);
+    }
+
+    @Override
+    public AnalyticsFunctionEnvelope<AnalyticsModelDependencyDescription>
+            resolveModelDependency(AnalyticsModelDependencyResolutionRequest request) {
+        Objects.requireNonNull(request, "request");
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("namespace", request.namespace());
+        body.put("modelKind", request.modelKind());
+        body.put("modelName", request.modelName());
+        body.put("requestId", request.context().requestId());
+        body.put("traceId", request.context().traceId());
+        return invoke(
+                "POST",
+                "/model-dependencies/resolve",
+                body,
+                request.context(),
+                false,
+                AnalyticsModelDependencyDescription.class);
     }
 
     @Override

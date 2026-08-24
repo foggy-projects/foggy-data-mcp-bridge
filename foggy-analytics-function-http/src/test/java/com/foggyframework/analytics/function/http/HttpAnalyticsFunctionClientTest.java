@@ -16,6 +16,8 @@ import com.foggyframework.analytics.function.contract.AnalyticsFunctionEnvelope;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionError;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionOperations;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionRequestContext;
+import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyDescription;
+import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyResolutionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderResult;
 import com.foggyframework.analytics.function.sdk.AnalyticsFunctionClient;
@@ -88,6 +90,7 @@ class HttpAnalyticsFunctionClientTest {
         assertTrue(client.validateBundle(bundleRequest()).success());
         assertTrue(client.describeBundle(bundleRequest()).success());
         assertTrue(client.describeArtifact(artifactRequest()).success());
+        assertTrue(client.resolveModelDependency(modelDependencyRequest()).success());
         assertTrue(client.previewReport(renderRequest()).success());
         assertTrue(client.previewDashboard(renderRequest()).success());
         assertTrue(client.renderDashboard(renderRequest()).success());
@@ -99,33 +102,38 @@ class HttpAnalyticsFunctionClientTest {
                         "/analytics/api/v1/bundles/sales/describe",
                         "/analytics/api/v1/bundles/sales/artifacts/report/"
                                 + "sales-summary/describe",
+                        "/analytics/api/v1/model-dependencies/resolve",
                         "/analytics/api/v1/bundles/sales/reports/sales-summary/preview",
                         "/analytics/api/v1/bundles/sales/dashboards/sales-summary/preview",
                         "/analytics/api/v1/bundles/sales/dashboards/sales-summary/render"),
                 requests.stream().map(CapturedRequest::path).toList());
         assertEquals(List.of(
-                        "GET", "GET", "POST", "POST", "POST", "POST", "POST", "POST"),
+                        "GET", "GET", "POST", "POST", "POST", "POST", "POST", "POST",
+                        "POST"),
                 requests.stream().map(CapturedRequest::method).toList());
         requests.forEach(request -> assertEquals(
                 "management-secret", request.authCode()));
-        requests.subList(0, 5).forEach(request ->
+        requests.subList(0, 6).forEach(request ->
                 assertNull(request.authorization()));
-        requests.subList(5, 8).forEach(request -> assertEquals(
+        requests.subList(6, 9).forEach(request -> assertEquals(
                 "Bearer data-secret", request.authorization()));
         assertEquals(REVISION,
                 requests.get(2).body().get("expectedBundleRevision"));
         assertFalse(requests.get(2).body().containsKey("bundleRef"));
         @SuppressWarnings("unchecked")
         Map<String, Object> authority = (Map<String, Object>)
-                requests.get(5).body().get("authority");
+                requests.get(6).body().get("authority");
         assertEquals("tms", authority.get("provider"));
         assertEquals("subject:42", authority.get("reference"));
         @SuppressWarnings("unchecked")
         Map<String, Object> parameters = (Map<String, Object>)
-                requests.get(5).body().get("parameters");
+                requests.get(6).body().get("parameters");
         assertEquals(2, parameters.get("limit"));
         assertTrue(parameters.containsKey("optional"));
         assertNull(parameters.get("optional"));
+        assertEquals("tms-ai", requests.get(5).body().get("namespace"));
+        assertEquals("TenantOrgManagementQuery",
+                requests.get(5).body().get("modelName"));
     }
 
     @Test
@@ -277,6 +285,8 @@ class HttpAnalyticsFunctionClientTest {
             data = new AnalyticsBundleList(List.of(description()));
         } else if (request.path().contains("/artifacts/")) {
             data = artifactDescription();
+        } else if (request.path().endsWith("/model-dependencies/resolve")) {
+            data = modelDependencyDescription();
         } else if (request.path().endsWith("/validate")
                 || request.path().endsWith("/describe")) {
             data = description();
@@ -297,6 +307,11 @@ class HttpAnalyticsFunctionClientTest {
     private static AnalyticsArtifactFunctionRequest artifactRequest() {
         return new AnalyticsArtifactFunctionRequest(
                 "sales", "report", "sales-summary", REVISION, CONTEXT);
+    }
+
+    private static AnalyticsModelDependencyResolutionRequest modelDependencyRequest() {
+        return new AnalyticsModelDependencyResolutionRequest(
+                "tms-ai", "qm", "TenantOrgManagementQuery", CONTEXT);
     }
 
     private static AnalyticsRenderFunctionRequest renderRequest() {
@@ -331,6 +346,11 @@ class HttpAnalyticsFunctionClientTest {
     private static AnalyticsArtifactDescription artifactDescription() {
         return new AnalyticsArtifactDescription(
                 "sales", REVISION, "report", "sales-summary");
+    }
+
+    private static AnalyticsModelDependencyDescription modelDependencyDescription() {
+        return new AnalyticsModelDependencyDescription(
+                "tms-ai", "qm", "TenantOrgManagementQuery", REVISION);
     }
 
     private static AnalyticsFunctionCapabilities capabilities() {
