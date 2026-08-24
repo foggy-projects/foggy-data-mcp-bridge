@@ -1,7 +1,10 @@
 package com.foggyframework.analytics.console.model;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /** Durable Console-to-FAP binding; credentials and prompts are deliberately absent. */
 public record AnalyticsConsoleConversation(
@@ -13,11 +16,16 @@ public record AnalyticsConsoleConversation(
         String askInvocationRef,
         String runtimeExecutionId,
         String runtimeTaskId,
-        Instant createdAt) {
+        Instant createdAt,
+        AnalyticsConsoleConversationMode mode,
+        String questionProfileId,
+        String namespace,
+        String modelName,
+        String modelRevision,
+        List<AnalyticsConsoleAskBinding> askBindings) {
 
     public AnalyticsConsoleConversation {
         conversationId = required(conversationId, "conversationId");
-        assetId = required(assetId, "assetId");
         ownerSubjectRef = required(ownerSubjectRef, "ownerSubjectRef");
         externalConversationRef = required(externalConversationRef, "externalConversationRef");
         askRequestId = required(askRequestId, "askRequestId");
@@ -25,6 +33,104 @@ public record AnalyticsConsoleConversation(
         runtimeExecutionId = required(runtimeExecutionId, "runtimeExecutionId");
         runtimeTaskId = required(runtimeTaskId, "runtimeTaskId");
         createdAt = Objects.requireNonNull(createdAt, "createdAt");
+        mode = mode == null ? AnalyticsConsoleConversationMode.DESIGN : mode;
+        if (mode == AnalyticsConsoleConversationMode.DESIGN) {
+            assetId = required(assetId, "assetId");
+            if (questionProfileId != null || namespace != null
+                    || modelName != null || modelRevision != null) {
+                throw new IllegalArgumentException(
+                        "design conversation cannot contain a question profile");
+            }
+        } else {
+            if (assetId != null) {
+                throw new IllegalArgumentException(
+                        "question conversation cannot be bound to an asset");
+            }
+            questionProfileId = required(questionProfileId, "questionProfileId");
+            namespace = required(namespace, "namespace");
+            modelName = required(modelName, "modelName");
+            modelRevision = required(modelRevision, "modelRevision");
+        }
+        AnalyticsConsoleAskBinding initial = new AnalyticsConsoleAskBinding(
+                askRequestId,
+                askInvocationRef,
+                runtimeExecutionId,
+                runtimeTaskId,
+                createdAt);
+        if (askBindings == null || askBindings.isEmpty()) {
+            askBindings = List.of(initial);
+        } else {
+            askBindings = List.copyOf(askBindings);
+            if (!askBindings.get(0).equals(initial)) {
+                throw new IllegalArgumentException(
+                        "initial Ask binding does not match conversation fields");
+            }
+        }
+    }
+
+    /** Legacy-compatible constructor retained for existing catalog fixtures and callers. */
+    public AnalyticsConsoleConversation(
+            String conversationId,
+            String assetId,
+            String ownerSubjectRef,
+            String externalConversationRef,
+            String askRequestId,
+            String askInvocationRef,
+            String runtimeExecutionId,
+            String runtimeTaskId,
+            Instant createdAt) {
+        this(
+                conversationId,
+                assetId,
+                ownerSubjectRef,
+                externalConversationRef,
+                askRequestId,
+                askInvocationRef,
+                runtimeExecutionId,
+                runtimeTaskId,
+                createdAt,
+                AnalyticsConsoleConversationMode.DESIGN,
+                null,
+                null,
+                null,
+                null,
+                null);
+    }
+
+    public Optional<AnalyticsConsoleAskBinding> askBinding(
+            String requestId,
+            String invocationRef) {
+        return askBindings.stream()
+                .filter(value -> value.askRequestId().equals(requestId))
+                .filter(value -> value.askInvocationRef().equals(invocationRef))
+                .findFirst();
+    }
+
+    public AnalyticsConsoleConversation withAskBinding(
+            AnalyticsConsoleAskBinding binding) {
+        Objects.requireNonNull(binding, "binding");
+        if (!runtimeExecutionId.equals(binding.runtimeExecutionId())) {
+            throw new IllegalArgumentException(
+                    "continued Ask must use the frozen Runtime execution");
+        }
+        List<AnalyticsConsoleAskBinding> next = new ArrayList<>(askBindings);
+        next.add(binding);
+        return new AnalyticsConsoleConversation(
+                conversationId,
+                assetId,
+                ownerSubjectRef,
+                externalConversationRef,
+                askRequestId,
+                askInvocationRef,
+                runtimeExecutionId,
+                runtimeTaskId,
+                createdAt,
+                mode,
+                questionProfileId,
+                namespace,
+                modelName,
+                modelRevision,
+                next);
     }
 
     private static String required(String value, String field) {

@@ -73,6 +73,33 @@ public final class HttpAnalyticsConsoleAgentGateway
     }
 
     @Override
+    public Accepted continueConversation(
+            AnalyticsConsoleFapBindingResolver.OutboundBinding binding,
+            ContinueCommand command) {
+        ObjectNode body = request("CREATE_ASK", command.requestId());
+        body.put("operation", "CONTINUE");
+        body.put("externalConversationRef", command.externalConversationRef());
+        body.put("runtimeExecutionId", command.runtimeExecutionId());
+        body.put("prompt", command.prompt());
+        body.put("modelVariantId", command.modelVariantId());
+        body.putArray("skills").addObject()
+                .put("mode", "NAME").put("name", command.skillName());
+        body.putArray("capabilities").addObject()
+                .put("mode", "NAME").put("name", command.capabilityName());
+        JsonNode response = exchange(
+                "POST", ROOT + "/asks", binding.authorization(), body, 202);
+        requireType(response, "ASK_ACCEPTED");
+        String executionId = required(response, "runtimeExecutionId");
+        if (!command.runtimeExecutionId().equals(executionId)) {
+            throw protocol("FAP CONTINUE changed the frozen Runtime execution", null);
+        }
+        return new Accepted(
+                required(response, "askInvocationRef"),
+                executionId,
+                required(response, "runtimeTaskId"));
+    }
+
+    @Override
     public List<Turn> turns(
             AnalyticsConsoleFapBindingResolver.OutboundBinding binding,
             String requestId,
@@ -87,14 +114,21 @@ public final class HttpAnalyticsConsoleAgentGateway
         }
         List<Turn> turns = new ArrayList<>();
         for (JsonNode value : values) {
+            JsonNode user = value.path("userMessage");
+            String userMessage = "AVAILABLE".equals(user.path("contentState").asText())
+                    ? user.path("text").asText(null)
+                    : null;
             JsonNode assistant = value.path("assistantMessage");
-            String message = "AVAILABLE".equals(assistant.path("state").asText())
+            String message = "AVAILABLE".equals(
+                    assistant.path("contentState").asText())
                     ? assistant.path("text").asText(null)
                     : null;
             turns.add(new Turn(
                     required(value, "askInvocationRef"),
+                    required(value, "operation"),
                     required(value, "displayState"),
                     value.path("definitiveTerminal").asBoolean(false),
+                    userMessage,
                     message,
                     optional(value, "failureCode")));
         }

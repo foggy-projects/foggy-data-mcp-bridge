@@ -12,7 +12,10 @@ import com.foggyframework.analytics.function.contract.AnalyticsFunctionOperation
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionRequestContext;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderResult;
+import com.foggyframework.analytics.function.contract.AnalyticsSemanticQueryFunctionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsSemanticQueryResult;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -163,6 +166,113 @@ class FapAnalyticsFunctionRequestMappingTest {
         assertThat(resolutions).hasValue(0);
         assertThat(client.request.artifactKind()).isEqualTo("report");
         assertThat(client.request.artifactRef()).isEqualTo("sales-report");
+    }
+
+    @Test
+    void mapsOnlyTheNarrowSemanticQueryAndResolvesAuthorityServerSide() {
+        class Client extends FapAnalyticsAdapterTestSupport.StubClient {
+            AnalyticsSemanticQueryFunctionRequest request;
+
+            @Override
+            public AnalyticsFunctionEnvelope<AnalyticsSemanticQueryResult>
+                    executeSemanticQuery(AnalyticsSemanticQueryFunctionRequest value) {
+                calls++;
+                request = value;
+                return AnalyticsFunctionEnvelope.ok(
+                        "foggy-analytics-runtime-api/v1",
+                        "analytics-runtime/v1",
+                        new AnalyticsSemanticQueryResult(
+                                value.namespace(),
+                                value.modelName(),
+                                value.expectedModelRevision(),
+                                List.of(new AnalyticsSemanticQueryResult.Column(
+                                        "orderCount", "LONG", "订单数")),
+                                List.of(Map.of("orderCount", 12)),
+                                1L,
+                                false,
+                                false,
+                                List.of()),
+                        FapAnalyticsAdapterTestSupport.context(value.context()));
+            }
+        }
+        Client client = new Client();
+        FapAnalyticsFunctionAdapter adapter = new FapAnalyticsFunctionAdapter(
+                client,
+                (caller, operation) -> {
+                    assertThat(operation).isEqualTo(
+                            AnalyticsFunctionOperations.SEMANTIC_QUERIES_EXECUTE);
+                    return new AnalyticsFunctionAuthority("tms", "opaque-authority-42");
+                });
+
+        FapAnalyticsFunctionOutcome outcome = adapter.invoke(
+                FapAnalyticsAdapterTestSupport.invocation(
+                        FapAnalyticsFunctionRefs.SEMANTIC_QUERIES_EXECUTE,
+                        Map.of(
+                                "namespace", "default",
+                                "modelName", "FactOrderQueryModel",
+                                "expectedModelRevision",
+                                FapAnalyticsAdapterTestSupport.REVISION,
+                                "query", Map.of(
+                                        "columns", List.of("orderCount"),
+                                        "filters", List.of(Map.of(
+                                                "field", "status",
+                                                "operator", "=",
+                                                "value", "SHIPPED")),
+                                        "groupBy", List.of(),
+                                        "orderBy", List.of(),
+                                        "limit", 100))));
+
+        assertThat(outcome).isInstanceOf(FapAnalyticsFunctionOutcome.Success.class);
+        assertThat(client.calls).isEqualTo(1);
+        assertThat(client.request.authority()).isEqualTo(
+                new AnalyticsFunctionAuthority("tms", "opaque-authority-42"));
+        assertThat(client.request.query().columns()).containsExactly("orderCount");
+        assertThat(client.request.query().filters()).hasSize(1);
+    }
+
+    @Test
+    void rejectsRawSqlAndUnknownNestedQueryFieldsBeforeCallingTheSdk() {
+        FapAnalyticsAdapterTestSupport.StubClient client =
+                new FapAnalyticsAdapterTestSupport.StubClient() { };
+        FapAnalyticsFunctionAdapter adapter = new FapAnalyticsFunctionAdapter(
+                client,
+                (caller, operation) -> new AnalyticsFunctionAuthority("tms", "unused"));
+        Map<String, Object> base = Map.of(
+                "namespace", "default",
+                "modelName", "FactOrderQueryModel",
+                "expectedModelRevision", FapAnalyticsAdapterTestSupport.REVISION,
+                "query", Map.of(
+                        "columns", List.of("orderCount"),
+                        "rawSql", "select * from private_orders"));
+
+        FapAnalyticsFunctionOutcome rawSql = adapter.invoke(
+                FapAnalyticsAdapterTestSupport.invocation(
+                        FapAnalyticsFunctionRefs.SEMANTIC_QUERIES_EXECUTE, base));
+        FapAnalyticsFunctionOutcome nested = adapter.invoke(
+                FapAnalyticsAdapterTestSupport.invocation(
+                        FapAnalyticsFunctionRefs.SEMANTIC_QUERIES_EXECUTE,
+                        Map.of(
+                                "namespace", "default",
+                                "modelName", "FactOrderQueryModel",
+                                "expectedModelRevision",
+                                FapAnalyticsAdapterTestSupport.REVISION,
+                                "query", Map.of(
+                                        "columns", List.of("orderCount"),
+                                        "filters", List.of(Map.of(
+                                                "field", "status",
+                                                "operator", "=",
+                                                "value", "SHIPPED",
+                                                "authority", "forged"))))));
+
+        assertThat(rawSql).isInstanceOfSatisfying(
+                FapAnalyticsFunctionOutcome.Failure.class,
+                failure -> assertThat(failure.code()).isEqualTo(
+                        FapAnalyticsErrorCodes.ARGUMENTS_INVALID));
+        assertThat(nested).isInstanceOfSatisfying(
+                FapAnalyticsFunctionOutcome.Failure.class,
+                failure -> assertThat(failure.code()).isEqualTo(
+                        FapAnalyticsErrorCodes.ARGUMENTS_INVALID));
+        assertThat(client.calls).isZero();
     }
 
     @Test

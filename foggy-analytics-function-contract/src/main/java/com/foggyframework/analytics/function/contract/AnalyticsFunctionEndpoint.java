@@ -39,6 +39,20 @@ public interface AnalyticsFunctionEndpoint {
                 "Analytics artifact inspection is not implemented");
     }
 
+    /** Describes one exact QM through the current caller's governed authority. */
+    default AnalyticsFunctionEnvelope<AnalyticsSemanticModelDescription> describeSemanticModel(
+            AnalyticsSemanticModelFunctionRequest request) {
+        throw new UnsupportedOperationException(
+                "Analytics semantic model description is not implemented");
+    }
+
+    /** Executes the strict Function v1 semantic-query subset; raw SQL is not accepted. */
+    default AnalyticsFunctionEnvelope<AnalyticsSemanticQueryResult> executeSemanticQuery(
+            AnalyticsSemanticQueryFunctionRequest request) {
+        throw new UnsupportedOperationException(
+                "Analytics semantic query execution is not implemented");
+    }
+
     AnalyticsFunctionEnvelope<AnalyticsRenderResult> previewReport(
             AnalyticsRenderFunctionRequest request);
 

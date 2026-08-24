@@ -13,6 +13,10 @@ import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyDe
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyResolutionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderResult;
+import com.foggyframework.analytics.function.contract.AnalyticsSemanticModelDescription;
+import com.foggyframework.analytics.function.contract.AnalyticsSemanticModelFunctionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsSemanticQueryFunctionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsSemanticQueryResult;
 
 import java.util.Objects;
 
@@ -59,6 +63,18 @@ public final class EmbeddedAnalyticsFunctionClient implements AnalyticsFunctionC
     public AnalyticsFunctionEnvelope<AnalyticsModelDependencyDescription>
             resolveModelDependency(AnalyticsModelDependencyResolutionRequest request) {
         return requireOutcome(endpoint.resolveModelDependency(request));
+    }
+
+    @Override
+    public AnalyticsFunctionEnvelope<AnalyticsSemanticModelDescription> describeSemanticModel(
+            AnalyticsSemanticModelFunctionRequest request) {
+        return requireOutcome(endpoint.describeSemanticModel(request));
+    }
+
+    @Override
+    public AnalyticsFunctionEnvelope<AnalyticsSemanticQueryResult> executeSemanticQuery(
+            AnalyticsSemanticQueryFunctionRequest request) {
+        return requireOutcome(endpoint.executeSemanticQuery(request));
     }
 
     @Override

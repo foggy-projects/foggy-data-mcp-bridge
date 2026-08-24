@@ -16,6 +16,7 @@ public class AnalyticsConsoleProperties {
     private long maxDefinitionBytes = 1_048_576;
     private DevSubject devSubject = new DevSubject();
     private Fap fap = new Fap();
+    private List<QuestionProfile> questionProfiles = new ArrayList<>();
 
     public boolean isEnabled() {
         return enabled;
@@ -65,6 +66,36 @@ public class AnalyticsConsoleProperties {
         this.fap = fap;
     }
 
+    public List<QuestionProfile> getQuestionProfiles() {
+        return questionProfiles;
+    }
+
+    public void setQuestionProfiles(List<QuestionProfile> questionProfiles) {
+        this.questionProfiles = questionProfiles == null
+                ? new ArrayList<>()
+                : new ArrayList<>(questionProfiles);
+    }
+
+    /** Server-owned allowlist entry shown as a business data scope in direct questions. */
+    public static final class QuestionProfile {
+        private String id;
+        private String displayName;
+        private String description;
+        private String namespace;
+        private String modelName;
+
+        public String getId() { return id; }
+        public void setId(String id) { this.id = id; }
+        public String getDisplayName() { return displayName; }
+        public void setDisplayName(String displayName) { this.displayName = displayName; }
+        public String getDescription() { return description; }
+        public void setDescription(String description) { this.description = description; }
+        public String getNamespace() { return namespace; }
+        public void setNamespace(String namespace) { this.namespace = namespace; }
+        public String getModelName() { return modelName; }
+        public void setModelName(String modelName) { this.modelName = modelName; }
+    }
+
     public static final class DevSubject {
         private String subjectRef = "local-admin";
         private String displayName = "Local Analytics Admin";
@@ -100,6 +131,16 @@ public class AnalyticsConsoleProperties {
         private int callbackCapabilityRevision = 1;
         private String callbackAuthorization;
         private int timeoutSeconds = 30;
+        private String questionSkillName = "analytics-question-answering";
+        private String questionCapabilityName = "analytics.question-read";
+        private String questionCallbackCapabilityId = "analytics.question-read";
+        private int questionCallbackCapabilityRevision = 1;
+        private String devAuthorization;
+        private String devWorkspaceRef;
+        private String devModelConfigRef;
+        private String devModelVariantId;
+        private String devTenantRef = "local-tenant";
+        private String devProviderSubjectRef = "local-provider-subject";
 
         public boolean isEnabled() { return enabled; }
         public void setEnabled(boolean enabled) { this.enabled = enabled; }
@@ -127,5 +168,39 @@ public class AnalyticsConsoleProperties {
         }
         public int getTimeoutSeconds() { return timeoutSeconds; }
         public void setTimeoutSeconds(int timeoutSeconds) { this.timeoutSeconds = timeoutSeconds; }
+        public String getQuestionSkillName() { return questionSkillName; }
+        public void setQuestionSkillName(String questionSkillName) {
+            this.questionSkillName = questionSkillName;
+        }
+        public String getQuestionCapabilityName() { return questionCapabilityName; }
+        public void setQuestionCapabilityName(String questionCapabilityName) {
+            this.questionCapabilityName = questionCapabilityName;
+        }
+        public String getQuestionCallbackCapabilityId() {
+            return questionCallbackCapabilityId;
+        }
+        public void setQuestionCallbackCapabilityId(String value) {
+            this.questionCallbackCapabilityId = value;
+        }
+        public int getQuestionCallbackCapabilityRevision() {
+            return questionCallbackCapabilityRevision;
+        }
+        public void setQuestionCallbackCapabilityRevision(int value) {
+            this.questionCallbackCapabilityRevision = value;
+        }
+        public String getDevAuthorization() { return devAuthorization; }
+        public void setDevAuthorization(String value) { this.devAuthorization = value; }
+        public String getDevWorkspaceRef() { return devWorkspaceRef; }
+        public void setDevWorkspaceRef(String value) { this.devWorkspaceRef = value; }
+        public String getDevModelConfigRef() { return devModelConfigRef; }
+        public void setDevModelConfigRef(String value) { this.devModelConfigRef = value; }
+        public String getDevModelVariantId() { return devModelVariantId; }
+        public void setDevModelVariantId(String value) { this.devModelVariantId = value; }
+        public String getDevTenantRef() { return devTenantRef; }
+        public void setDevTenantRef(String value) { this.devTenantRef = value; }
+        public String getDevProviderSubjectRef() { return devProviderSubjectRef; }
+        public void setDevProviderSubjectRef(String value) {
+            this.devProviderSubjectRef = value;
+        }
     }
 }

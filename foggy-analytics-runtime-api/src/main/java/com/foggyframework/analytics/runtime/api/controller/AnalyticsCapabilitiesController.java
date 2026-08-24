@@ -1,6 +1,7 @@
 package com.foggyframework.analytics.runtime.api.controller;
 
 import com.foggyframework.analytics.runtime.api.AnalyticsRuntimeApiRoutes;
+import com.foggyframework.analytics.runtime.api.AnalyticsRuntimeEndpoint;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionCapabilities;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionEndpoint;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionEnvelope;
@@ -26,7 +27,7 @@ public class AnalyticsCapabilitiesController {
     private final AnalyticsRuntimeHttpResponseMapper http;
 
     public AnalyticsCapabilitiesController(
-            AnalyticsFunctionEndpoint endpoint,
+            @AnalyticsRuntimeEndpoint AnalyticsFunctionEndpoint endpoint,
             AnalyticsRuntimeApiResponseFactory responses,
             AnalyticsRuntimeHttpResponseMapper http) {
         this.endpoint = endpoint;

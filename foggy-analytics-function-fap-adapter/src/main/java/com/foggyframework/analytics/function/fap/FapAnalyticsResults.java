@@ -7,6 +7,8 @@ import com.foggyframework.analytics.function.contract.AnalyticsFunctionCapabilit
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionContext;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionEnvelope;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderResult;
+import com.foggyframework.analytics.function.contract.AnalyticsSemanticModelDescription;
+import com.foggyframework.analytics.function.contract.AnalyticsSemanticQueryResult;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -92,6 +94,38 @@ final class FapAnalyticsResults {
         result.put("widgets", widgets);
         result.put("diagnostics", value.diagnostics());
         return FapAnalyticsValues.object("render", result);
+    }
+
+    static Map<String, Object> semanticModel(AnalyticsSemanticModelDescription value) {
+        return FapAnalyticsValues.object("semanticModel", Map.of(
+                "namespace", value.namespace(),
+                "modelName", value.modelName(),
+                "modelRevision", value.modelRevision(),
+                "format", value.format(),
+                "content", value.content()));
+    }
+
+    static Map<String, Object> semanticQuery(AnalyticsSemanticQueryResult value) {
+        List<Map<String, Object>> columns = value.columns().stream()
+                .map(column -> {
+                    Map<String, Object> result = new LinkedHashMap<>();
+                    result.put("name", column.name());
+                    result.put("type", column.type());
+                    result.put("title", column.title());
+                    return result;
+                })
+                .toList();
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("namespace", value.namespace());
+        result.put("modelName", value.modelName());
+        result.put("modelRevision", value.modelRevision());
+        result.put("columns", columns);
+        result.put("rows", value.rows());
+        result.put("total", value.total());
+        result.put("hasMore", value.hasMore());
+        result.put("truncated", value.truncated());
+        result.put("warnings", value.warnings());
+        return FapAnalyticsValues.object("semanticQuery", result);
     }
 
     private static Map<String, Object> context(AnalyticsFunctionContext value) {

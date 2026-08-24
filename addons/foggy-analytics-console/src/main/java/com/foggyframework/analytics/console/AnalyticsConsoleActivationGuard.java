@@ -7,6 +7,7 @@ import org.springframework.core.env.Environment;
 
 import java.net.URI;
 import java.util.Objects;
+import java.util.HashSet;
 
 /** Refuses a partially protected Console assembly. */
 final class AnalyticsConsoleActivationGuard implements InitializingBean {
@@ -46,10 +47,12 @@ final class AnalyticsConsoleActivationGuard implements InitializingBean {
             throw new IllegalStateException(
                     "Analytics Console security-mode must be host-managed or static-dev-only.");
         }
-        validateFap(properties.getFap());
+        validateFap(properties);
+        validateQuestionProfiles(properties);
     }
 
-    private static void validateFap(AnalyticsConsoleProperties.Fap fap) {
+    private static void validateFap(AnalyticsConsoleProperties properties) {
+        AnalyticsConsoleProperties.Fap fap = properties.getFap();
         if (!fap.isEnabled()) {
             return;
         }
@@ -80,9 +83,41 @@ final class AnalyticsConsoleActivationGuard implements InitializingBean {
                     "Analytics Console fap.callback-capability-revision must be positive.");
         }
         required(fap.getCallbackAuthorization(), "fap.callback-authorization");
+        required(fap.getQuestionSkillName(), "fap.question-skill-name");
+        required(fap.getQuestionCapabilityName(), "fap.question-capability-name");
+        required(
+                fap.getQuestionCallbackCapabilityId(),
+                "fap.question-callback-capability-id");
+        if (fap.getQuestionCallbackCapabilityRevision() < 1) {
+            throw new IllegalStateException(
+                    "Analytics Console fap.question-callback-capability-revision must be positive.");
+        }
         if (fap.getTimeoutSeconds() < 1 || fap.getTimeoutSeconds() > 120) {
             throw new IllegalStateException(
                     "Analytics Console fap.timeout-seconds is outside the safe range.");
+        }
+        if ("static-dev-only".equalsIgnoreCase(properties.getSecurityMode())) {
+            required(fap.getDevAuthorization(), "fap.dev-authorization");
+            required(fap.getDevWorkspaceRef(), "fap.dev-workspace-ref");
+            required(fap.getDevModelConfigRef(), "fap.dev-model-config-ref");
+            required(fap.getDevModelVariantId(), "fap.dev-model-variant-id");
+            required(fap.getDevTenantRef(), "fap.dev-tenant-ref");
+            required(fap.getDevProviderSubjectRef(), "fap.dev-provider-subject-ref");
+        }
+    }
+
+    private static void validateQuestionProfiles(AnalyticsConsoleProperties properties) {
+        HashSet<String> ids = new HashSet<>();
+        for (AnalyticsConsoleProperties.QuestionProfile profile
+                : properties.getQuestionProfiles()) {
+            String id = required(profile.getId(), "question-profiles[].id");
+            if (!ids.add(id)) {
+                throw new IllegalStateException(
+                        "Analytics Console question profile ids must be unique.");
+            }
+            required(profile.getDisplayName(), "question-profiles[].display-name");
+            required(profile.getNamespace(), "question-profiles[].namespace");
+            required(profile.getModelName(), "question-profiles[].model-name");
         }
     }
 

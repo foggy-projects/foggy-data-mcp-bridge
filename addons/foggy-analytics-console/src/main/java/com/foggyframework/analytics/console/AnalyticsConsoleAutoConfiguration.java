@@ -10,6 +10,7 @@ import com.foggyframework.analytics.console.agent.AnalyticsConsoleAgentGateway;
 import com.foggyframework.analytics.console.agent.AnalyticsConsoleAgentService;
 import com.foggyframework.analytics.console.agent.AnalyticsConsoleFapBindingResolver;
 import com.foggyframework.analytics.console.agent.HttpAnalyticsConsoleAgentGateway;
+import com.foggyframework.analytics.console.agent.StaticDevAnalyticsConsoleFapBindingResolver;
 import com.foggyframework.analytics.console.catalog.AnalyticsConsoleCatalogRepository;
 import com.foggyframework.analytics.console.catalog.FileAnalyticsConsoleCatalogRepository;
 import com.foggyframework.analytics.console.config.AnalyticsConsoleProperties;
@@ -21,6 +22,7 @@ import com.foggyframework.analytics.function.contract.AnalyticsFunctionEndpoint;
 import com.foggyframework.analytics.function.sdk.AnalyticsFunctionClient;
 import com.foggyframework.analytics.function.sdk.AnalyticsFunctionClients;
 import com.foggyframework.analytics.function.fap.FapAnalyticsFunctionAdapter;
+import com.foggyframework.analytics.runtime.api.AnalyticsRuntimeEndpoint;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -68,8 +70,20 @@ public class AnalyticsConsoleAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean(AnalyticsConsoleFapBindingResolver.class)
+    @ConditionalOnProperty(
+            prefix = "foggy.analytics-console",
+            name = "security-mode",
+            havingValue = "static-dev-only")
+    AnalyticsConsoleFapBindingResolver staticDevAnalyticsConsoleFapBindingResolver(
+            AnalyticsConsoleProperties properties) {
+        return new StaticDevAnalyticsConsoleFapBindingResolver(properties);
+    }
+
+    @Bean
     @ConditionalOnMissingBean(AnalyticsFunctionClient.class)
-    AnalyticsFunctionClient analyticsConsoleFunctionClient(AnalyticsFunctionEndpoint endpoint) {
+    AnalyticsFunctionClient analyticsConsoleFunctionClient(
+            @AnalyticsRuntimeEndpoint AnalyticsFunctionEndpoint endpoint) {
         return AnalyticsFunctionClients.embedded(endpoint);
     }
 
@@ -126,9 +140,10 @@ public class AnalyticsConsoleAutoConfiguration {
             AnalyticsConsoleCatalogRepository catalog,
             AnalyticsConsoleAgentGateway gateway,
             AnalyticsConsoleFapBindingResolver bindings,
-            AnalyticsConsoleProperties properties) {
+            AnalyticsConsoleProperties properties,
+            AnalyticsFunctionClient functions) {
         return new AnalyticsConsoleAgentService(
-                console, catalog, gateway, bindings, properties);
+                console, catalog, gateway, bindings, properties, functions);
     }
 
     @Bean

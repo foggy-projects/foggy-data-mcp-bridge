@@ -331,6 +331,24 @@ public final class AnalyticsConsoleService {
                 .anyMatch(asset -> canEdit(subject, asset) || canView(subject, asset));
     }
 
+    public boolean canInvokeFap(
+            AnalyticsConsoleSubject subject,
+            String assetId,
+            String bundleRef,
+            String artifactRef) {
+        requireAuthenticated(subject);
+        if (assetId == null || bundleRef == null) {
+            return false;
+        }
+        return catalog.read().assets().stream()
+                .map(this::current)
+                .filter(asset -> asset.assetId().equals(assetId))
+                .filter(asset -> asset.bundleRef().equals(bundleRef))
+                .filter(asset -> artifactRef == null
+                        || asset.artifactRef().equals(artifactRef))
+                .anyMatch(asset -> canEdit(subject, asset) || canView(subject, asset));
+    }
+
     public AnalyticsConsoleAsset requireAgentAsset(
             AnalyticsConsoleSubject subject,
             String assetId) {

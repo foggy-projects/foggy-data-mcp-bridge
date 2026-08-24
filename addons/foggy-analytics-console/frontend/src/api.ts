@@ -20,14 +20,29 @@ export interface CreateDraftInput {
 
 export interface Conversation {
   conversationId: string
-  assetId: string
+  assetId: string | null
+  mode: 'QUESTION' | 'DESIGN'
+  questionProfileId: string | null
+  namespace: string | null
+  modelName: string | null
+  modelRevision: string | null
   askInvocationRef: string
+}
+
+export interface QuestionProfile {
+  profileId: string
+  displayName: string
+  description: string | null
+  namespace: string
+  modelName: string
 }
 
 export interface AgentTurn {
   askInvocationRef: string
+  operation: 'START' | 'CONTINUE'
   displayState: string
   definitiveTerminal: boolean
+  userMessage: string | null
   assistantMessage: string | null
   failureCode: string | null
 }
@@ -85,6 +100,12 @@ export const api = {
       json('PUT', { visibility, viewerSubjectRefs })),
   ask: (assetId: string, prompt: string) =>
     call<Conversation>(`/assets/${encodeURIComponent(assetId)}/agent/asks`,
+      json('POST', { prompt })),
+  questionProfiles: () => call<QuestionProfile[]>('/agent/question-profiles'),
+  askQuestion: (profileId: string, prompt: string) =>
+    call<Conversation>('/agent/questions', json('POST', { profileId, prompt })),
+  continueConversation: (conversationId: string, prompt: string) =>
+    call<Conversation>(`/agent/conversations/${encodeURIComponent(conversationId)}/turns`,
       json('POST', { prompt })),
   turns: (conversationId: string) =>
     call<AgentTurn[]>(`/agent/conversations/${encodeURIComponent(conversationId)}/turns`)

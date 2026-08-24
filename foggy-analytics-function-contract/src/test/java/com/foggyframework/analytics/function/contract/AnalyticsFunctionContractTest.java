@@ -32,6 +32,8 @@ class AnalyticsFunctionContractTest {
                         "analytics.bundles.describe",
                         "analytics.artifacts.describe",
                         "analytics.model-dependencies.resolve",
+                        "analytics.semantic-models.describe",
+                        "analytics.semantic-queries.execute",
                         "analytics.reports.preview",
                         "analytics.dashboards.preview",
                         "analytics.dashboards.render"),
@@ -103,6 +105,51 @@ class AnalyticsFunctionContractTest {
                         "sql",
                         "TenantOrgManagementQuery",
                         AnalyticsFunctionRequestContext.empty()));
+    }
+
+    @Test
+    void semanticQuestionContractHasAClosedGovernedQueryShape() {
+        AnalyticsSemanticQuery query = new AnalyticsSemanticQuery(
+                List.of("orderCount"),
+                List.of(new AnalyticsSemanticQuery.Filter(
+                        "status", "=", "SHIPPED")),
+                List.of(),
+                List.of(new AnalyticsSemanticQuery.Order("orderCount", "desc")),
+                0,
+                100,
+                true,
+                false);
+        AnalyticsSemanticQueryFunctionRequest request =
+                new AnalyticsSemanticQueryFunctionRequest(
+                        "default",
+                        "FactOrderQueryModel",
+                        REVISION,
+                        query,
+                        new AnalyticsFunctionAuthority("tms", "subject:42"),
+                        AnalyticsFunctionRequestContext.empty());
+
+        assertEquals(List.of("orderCount"), request.query().columns());
+        assertThrows(IllegalArgumentException.class, () -> new AnalyticsSemanticQuery(
+                List.of("orderCount"), List.of(), List.of(), List.of(),
+                0, 1_001, false, false));
+        assertThrows(IllegalArgumentException.class, () ->
+                new AnalyticsSemanticQuery.Filter("status", "script", "x"));
+        assertThrows(IllegalArgumentException.class, () ->
+                new AnalyticsSemanticQuery.Filter(
+                        "status", "=", Map.of("authority", "forged")));
+        assertThrows(IllegalArgumentException.class, () ->
+                new AnalyticsSemanticQuery.Filter(
+                        "status", "in", java.util.Collections.nCopies(257, "x")));
+
+        Set<String> queryFields = Arrays.stream(
+                        AnalyticsSemanticQuery.class.getRecordComponents())
+                .map(component -> component.getName().toLowerCase())
+                .collect(Collectors.toSet());
+        assertFalse(queryFields.contains("rawsql"));
+        assertFalse(queryFields.contains("compose"));
+        assertFalse(queryFields.contains("script"));
+        assertFalse(queryFields.contains("hints"));
+        assertFalse(queryFields.contains("extdata"));
     }
 
     @Test
@@ -204,6 +251,8 @@ class AnalyticsFunctionContractTest {
                         AnalyticsArtifactFunctionRequest.class,
                         AnalyticsModelDependencyResolutionRequest.class,
                         AnalyticsRenderFunctionRequest.class,
+                        AnalyticsSemanticModelFunctionRequest.class,
+                        AnalyticsSemanticQueryFunctionRequest.class,
                         AnalyticsFunctionAuthority.class
                 })
                 .flatMap(type -> Arrays.stream(type.getRecordComponents()))

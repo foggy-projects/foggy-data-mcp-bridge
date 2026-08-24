@@ -14,11 +14,16 @@ import com.foggyframework.analytics.function.contract.AnalyticsFunctionContract;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionEnvelope;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionError;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionErrorCodes;
+import com.foggyframework.analytics.function.contract.AnalyticsFunctionAuthority;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionRequestContext;
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyDescription;
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyResolutionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderResult;
+import com.foggyframework.analytics.function.contract.AnalyticsSemanticModelDescription;
+import com.foggyframework.analytics.function.contract.AnalyticsSemanticModelFunctionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsSemanticQueryFunctionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsSemanticQueryResult;
 import com.foggyframework.analytics.function.sdk.AnalyticsFunctionClient;
 
 import java.io.IOException;
@@ -149,6 +154,42 @@ public final class HttpAnalyticsFunctionClient implements AnalyticsFunctionClien
                 request.context(),
                 false,
                 AnalyticsModelDependencyDescription.class);
+    }
+
+    @Override
+    public AnalyticsFunctionEnvelope<AnalyticsSemanticModelDescription>
+            describeSemanticModel(AnalyticsSemanticModelFunctionRequest request) {
+        Objects.requireNonNull(request, "request");
+        return invoke(
+                "POST",
+                semanticPath(request.modelName(), "describe"),
+                semanticBody(
+                        request.namespace(),
+                        request.expectedModelRevision(),
+                        request.authority(),
+                        null,
+                        request.context()),
+                request.context(),
+                true,
+                AnalyticsSemanticModelDescription.class);
+    }
+
+    @Override
+    public AnalyticsFunctionEnvelope<AnalyticsSemanticQueryResult>
+            executeSemanticQuery(AnalyticsSemanticQueryFunctionRequest request) {
+        Objects.requireNonNull(request, "request");
+        return invoke(
+                "POST",
+                semanticPath(request.modelName(), "query"),
+                semanticBody(
+                        request.namespace(),
+                        request.expectedModelRevision(),
+                        request.authority(),
+                        request.query(),
+                        request.context()),
+                request.context(),
+                true,
+                AnalyticsSemanticQueryResult.class);
     }
 
     @Override
@@ -336,6 +377,25 @@ public final class HttpAnalyticsFunctionClient implements AnalyticsFunctionClien
         return body;
     }
 
+    private static Map<String, Object> semanticBody(
+            String namespace,
+            String expectedModelRevision,
+            AnalyticsFunctionAuthority authority,
+            Object query,
+            AnalyticsFunctionRequestContext context) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("namespace", namespace);
+        body.put("expectedModelRevision", expectedModelRevision);
+        if (query != null) {
+            body.put("query", query);
+        }
+        body.put("authority", Map.of(
+                "provider", authority.provider(),
+                "reference", authority.reference()));
+        putContext(body, context);
+        return body;
+    }
+
     private static void putContext(
             Map<String, Object> body,
             AnalyticsFunctionRequestContext context) {
@@ -354,6 +414,10 @@ public final class HttpAnalyticsFunctionClient implements AnalyticsFunctionClien
         return "/bundles/" + pathSegment(request.bundleRef())
                 + '/' + collection + '/' + pathSegment(request.artifactRef())
                 + '/' + action;
+    }
+
+    private static String semanticPath(String modelName, String action) {
+        return "/semantic-models/" + pathSegment(modelName) + '/' + action;
     }
 
     private static AnalyticsFunctionRequestContext requireContext(

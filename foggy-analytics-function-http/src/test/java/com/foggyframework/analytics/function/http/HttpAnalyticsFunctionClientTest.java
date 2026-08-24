@@ -20,6 +20,11 @@ import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyDe
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyResolutionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderResult;
+import com.foggyframework.analytics.function.contract.AnalyticsSemanticModelDescription;
+import com.foggyframework.analytics.function.contract.AnalyticsSemanticModelFunctionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsSemanticQuery;
+import com.foggyframework.analytics.function.contract.AnalyticsSemanticQueryFunctionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsSemanticQueryResult;
 import com.foggyframework.analytics.function.sdk.AnalyticsFunctionClient;
 import com.foggyframework.analytics.function.sdk.AnalyticsFunctionClients;
 import com.sun.net.httpserver.HttpExchange;
@@ -91,6 +96,8 @@ class HttpAnalyticsFunctionClientTest {
         assertTrue(client.describeBundle(bundleRequest()).success());
         assertTrue(client.describeArtifact(artifactRequest()).success());
         assertTrue(client.resolveModelDependency(modelDependencyRequest()).success());
+        assertTrue(client.describeSemanticModel(semanticModelRequest()).success());
+        assertTrue(client.executeSemanticQuery(semanticQueryRequest()).success());
         assertTrue(client.previewReport(renderRequest()).success());
         assertTrue(client.previewDashboard(renderRequest()).success());
         assertTrue(client.renderDashboard(renderRequest()).success());
@@ -103,19 +110,21 @@ class HttpAnalyticsFunctionClientTest {
                         "/analytics/api/v1/bundles/sales/artifacts/report/"
                                 + "sales-summary/describe",
                         "/analytics/api/v1/model-dependencies/resolve",
+                        "/analytics/api/v1/semantic-models/FactOrderQueryModel/describe",
+                        "/analytics/api/v1/semantic-models/FactOrderQueryModel/query",
                         "/analytics/api/v1/bundles/sales/reports/sales-summary/preview",
                         "/analytics/api/v1/bundles/sales/dashboards/sales-summary/preview",
                         "/analytics/api/v1/bundles/sales/dashboards/sales-summary/render"),
                 requests.stream().map(CapturedRequest::path).toList());
         assertEquals(List.of(
                         "GET", "GET", "POST", "POST", "POST", "POST", "POST", "POST",
-                        "POST"),
+                        "POST", "POST", "POST"),
                 requests.stream().map(CapturedRequest::method).toList());
         requests.forEach(request -> assertEquals(
                 "management-secret", request.authCode()));
         requests.subList(0, 6).forEach(request ->
                 assertNull(request.authorization()));
-        requests.subList(6, 9).forEach(request -> assertEquals(
+        requests.subList(6, 11).forEach(request -> assertEquals(
                 "Bearer data-secret", request.authorization()));
         assertEquals(REVISION,
                 requests.get(2).body().get("expectedBundleRevision"));
@@ -127,13 +136,19 @@ class HttpAnalyticsFunctionClientTest {
         assertEquals("subject:42", authority.get("reference"));
         @SuppressWarnings("unchecked")
         Map<String, Object> parameters = (Map<String, Object>)
-                requests.get(6).body().get("parameters");
+                requests.get(8).body().get("parameters");
         assertEquals(2, parameters.get("limit"));
         assertTrue(parameters.containsKey("optional"));
         assertNull(parameters.get("optional"));
         assertEquals("tms-ai", requests.get(5).body().get("namespace"));
         assertEquals("TenantOrgManagementQuery",
                 requests.get(5).body().get("modelName"));
+        assertEquals(REVISION,
+                requests.get(7).body().get("expectedModelRevision"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> query = (Map<String, Object>)
+                requests.get(7).body().get("query");
+        assertFalse(query.containsKey("rawSql"));
     }
 
     @Test
@@ -287,6 +302,12 @@ class HttpAnalyticsFunctionClientTest {
             data = artifactDescription();
         } else if (request.path().endsWith("/model-dependencies/resolve")) {
             data = modelDependencyDescription();
+        } else if (request.path().contains("/semantic-models/")
+                && request.path().endsWith("/describe")) {
+            data = semanticModelDescription();
+        } else if (request.path().contains("/semantic-models/")
+                && request.path().endsWith("/query")) {
+            data = semanticQueryResult();
         } else if (request.path().endsWith("/validate")
                 || request.path().endsWith("/describe")) {
             data = description();
@@ -312,6 +333,33 @@ class HttpAnalyticsFunctionClientTest {
     private static AnalyticsModelDependencyResolutionRequest modelDependencyRequest() {
         return new AnalyticsModelDependencyResolutionRequest(
                 "tms-ai", "qm", "TenantOrgManagementQuery", CONTEXT);
+    }
+
+    private static AnalyticsSemanticModelFunctionRequest semanticModelRequest() {
+        return new AnalyticsSemanticModelFunctionRequest(
+                "default",
+                "FactOrderQueryModel",
+                REVISION,
+                new AnalyticsFunctionAuthority("tms", "subject:42"),
+                CONTEXT);
+    }
+
+    private static AnalyticsSemanticQueryFunctionRequest semanticQueryRequest() {
+        return new AnalyticsSemanticQueryFunctionRequest(
+                "default",
+                "FactOrderQueryModel",
+                REVISION,
+                new AnalyticsSemanticQuery(
+                        List.of("orderCount"),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        0,
+                        100,
+                        true,
+                        false),
+                new AnalyticsFunctionAuthority("tms", "subject:42"),
+                CONTEXT);
     }
 
     private static AnalyticsRenderFunctionRequest renderRequest() {
@@ -351,6 +399,25 @@ class HttpAnalyticsFunctionClientTest {
     private static AnalyticsModelDependencyDescription modelDependencyDescription() {
         return new AnalyticsModelDependencyDescription(
                 "tms-ai", "qm", "TenantOrgManagementQuery", REVISION);
+    }
+
+    private static AnalyticsSemanticModelDescription semanticModelDescription() {
+        return new AnalyticsSemanticModelDescription(
+                "default", "FactOrderQueryModel", REVISION, "markdown", "# Orders");
+    }
+
+    private static AnalyticsSemanticQueryResult semanticQueryResult() {
+        return new AnalyticsSemanticQueryResult(
+                "default",
+                "FactOrderQueryModel",
+                REVISION,
+                List.of(new AnalyticsSemanticQueryResult.Column(
+                        "orderCount", "LONG", "订单数")),
+                List.of(Map.of("orderCount", 12)),
+                1L,
+                false,
+                false,
+                List.of());
     }
 
     private static AnalyticsFunctionCapabilities capabilities() {

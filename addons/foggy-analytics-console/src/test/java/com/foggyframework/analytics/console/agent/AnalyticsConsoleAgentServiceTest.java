@@ -7,10 +7,17 @@ import com.foggyframework.analytics.console.model.AnalyticsConsoleAsset;
 import com.foggyframework.analytics.console.model.AnalyticsConsoleAssetKind;
 import com.foggyframework.analytics.console.model.AnalyticsConsoleAssetStatus;
 import com.foggyframework.analytics.console.model.AnalyticsConsoleCatalogState;
+import com.foggyframework.analytics.console.model.AnalyticsConsoleConversationMode;
 import com.foggyframework.analytics.console.model.AnalyticsConsoleVisibility;
 import com.foggyframework.analytics.console.security.AnalyticsConsoleRole;
 import com.foggyframework.analytics.console.security.AnalyticsConsoleSubject;
 import com.foggyframework.analytics.console.service.AnalyticsConsoleService;
+import com.foggyframework.analytics.function.contract.AnalyticsFunctionContext;
+import com.foggyframework.analytics.function.contract.AnalyticsFunctionContract;
+import com.foggyframework.analytics.function.contract.AnalyticsFunctionEnvelope;
+import com.foggyframework.analytics.function.contract.AnalyticsFunctionRequestContext;
+import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyDescription;
+import com.foggyframework.analytics.function.sdk.AnalyticsFunctionClient;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -26,6 +33,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 class AnalyticsConsoleAgentServiceTest {
@@ -101,6 +109,116 @@ class AnalyticsConsoleAgentServiceTest {
                 "wrong-request",
                 conversation.askInvocationRef()))
                 .hasMessageContaining("not bound");
+    }
+
+    @Test
+    void startsAndContinuesAQuestionWithoutCreatingAnAnalyticsAsset() throws Exception {
+        var catalog = new FileAnalyticsConsoleCatalogRepository(
+                tempDir.resolve("question-catalog.json"), new ObjectMapper());
+        AnalyticsConsoleService console = mock(AnalyticsConsoleService.class);
+        AnalyticsFunctionClient functions = mock(AnalyticsFunctionClient.class);
+        String revision = "sha256:" + "b".repeat(64);
+        AnalyticsFunctionContext context = AnalyticsFunctionContext.normalize(
+                AnalyticsFunctionRequestContext.empty());
+        when(functions.resolveModelDependency(any())).thenReturn(
+                AnalyticsFunctionEnvelope.ok(
+                        AnalyticsFunctionContract.DEFAULT_RUNTIME_API_VERSION,
+                        AnalyticsFunctionContract.DEFAULT_SCHEMA_VERSION,
+                        new AnalyticsModelDependencyDescription(
+                                "default", "qm", "FactOrderQueryModel", revision),
+                        context));
+
+        AtomicReference<AnalyticsConsoleAgentGateway.StartCommand> started =
+                new AtomicReference<>();
+        AtomicReference<AnalyticsConsoleAgentGateway.ContinueCommand> continued =
+                new AtomicReference<>();
+        AnalyticsConsoleAgentGateway gateway = new AnalyticsConsoleAgentGateway() {
+            @Override
+            public Accepted start(
+                    AnalyticsConsoleFapBindingResolver.OutboundBinding binding,
+                    StartCommand command) {
+                started.set(command);
+                return new Accepted("ask-question-1", "execution-question", "task-question-1");
+            }
+
+            @Override
+            public Accepted continueConversation(
+                    AnalyticsConsoleFapBindingResolver.OutboundBinding binding,
+                    ContinueCommand command) {
+                continued.set(command);
+                return new Accepted("ask-question-2", "execution-question", "task-question-2");
+            }
+
+            @Override
+            public List<Turn> turns(
+                    AnalyticsConsoleFapBindingResolver.OutboundBinding binding,
+                    String requestId,
+                    String externalConversationRef) {
+                return List.of();
+            }
+        };
+        AnalyticsConsoleSubject subject = new AnalyticsConsoleSubject(
+                "analyst", "Analyst", Set.of(AnalyticsConsoleRole.VIEWER),
+                "console", "authority-analyst");
+        AnalyticsConsoleFapBindingResolver bindings = bindings(subject);
+        AnalyticsConsoleProperties properties = new AnalyticsConsoleProperties();
+        AnalyticsConsoleProperties.QuestionProfile profile =
+                new AnalyticsConsoleProperties.QuestionProfile();
+        profile.setId("orders");
+        profile.setDisplayName("订单分析");
+        profile.setDescription("受治理的订单问数");
+        profile.setNamespace("default");
+        profile.setModelName("FactOrderQueryModel");
+        properties.setQuestionProfiles(List.of(profile));
+
+        AnalyticsConsoleAgentService service = new AnalyticsConsoleAgentService(
+                console,
+                catalog,
+                gateway,
+                bindings,
+                properties.getFap(),
+                properties.getQuestionProfiles(),
+                functions,
+                Clock.fixed(Instant.EPOCH, ZoneOffset.UTC));
+
+        var conversation = service.startQuestion(subject, "orders", "本月订单量是多少？");
+        var updated = service.continueConversation(
+                subject, conversation.conversationId(), "按销售团队拆分");
+
+        assertThat(conversation.mode()).isEqualTo(AnalyticsConsoleConversationMode.QUESTION);
+        assertThat(conversation.assetId()).isNull();
+        assertThat(conversation.modelRevision()).isEqualTo(revision);
+        assertThat(started.get().initialSystemInstruction())
+                .contains("FactOrderQueryModel", revision)
+                .contains("Do not create or modify a Report or Dashboard");
+        assertThat(started.get().skillName()).isEqualTo("analytics-question-answering");
+        assertThat(continued.get().runtimeExecutionId()).isEqualTo("execution-question");
+        assertThat(updated.askBindings()).hasSize(2);
+        assertThat(service.requireCallbackConversation(
+                subject,
+                updated.externalConversationRef(),
+                updated.askBindings().get(1).askRequestId(),
+                "ask-question-2")).isEqualTo(updated);
+        assertThat(Files.readString(tempDir.resolve("question-catalog.json")))
+                .doesNotContain("本月订单量是多少", "按销售团队拆分");
+    }
+
+    private static AnalyticsConsoleFapBindingResolver bindings(
+            AnalyticsConsoleSubject subject) {
+        return new AnalyticsConsoleFapBindingResolver() {
+            @Override
+            public OutboundBinding resolve(AnalyticsConsoleSubject ignored) {
+                return new OutboundBinding(
+                        "Bearer secret", "workspace-1", "model-1", "variant-1");
+            }
+
+            @Override
+            public AnalyticsConsoleSubject resolveCaller(
+                    com.foggyframework.analytics.function.fap
+                            .FapAnalyticsFunctionInvocation.Caller caller) {
+                return subject;
+            }
+        };
     }
 
     private static AnalyticsConsoleAsset asset() {

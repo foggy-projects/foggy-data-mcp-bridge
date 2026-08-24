@@ -160,9 +160,13 @@ public final class FileAnalyticsConsoleCatalogRepository
         }
         Set<String> conversations = new HashSet<>();
         for (var conversation : state.conversations()) {
+            boolean assetBindingValid = conversation.mode()
+                    == com.foggyframework.analytics.console.model
+                            .AnalyticsConsoleConversationMode.QUESTION
+                    || state.assets().stream().anyMatch(asset ->
+                            asset.assetId().equals(conversation.assetId()));
             if (!conversations.add(conversation.conversationId())
-                    || state.assets().stream().noneMatch(asset ->
-                            asset.assetId().equals(conversation.assetId()))) {
+                    || !assetBindingValid) {
                 throw failure("ANALYTICS_CONSOLE_CATALOG_INVALID",
                         "Analytics Console conversation binding is invalid", null);
             }

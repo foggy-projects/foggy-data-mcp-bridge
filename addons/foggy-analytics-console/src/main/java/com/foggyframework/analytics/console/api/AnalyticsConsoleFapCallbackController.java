@@ -5,11 +5,15 @@ import com.foggyframework.analytics.console.agent.AnalyticsConsoleFapBindingReso
 import com.foggyframework.analytics.console.catalog.AnalyticsConsoleCatalogException;
 import com.foggyframework.analytics.console.config.AnalyticsConsoleProperties;
 import com.foggyframework.analytics.console.model.AnalyticsConsoleConversation;
+import com.foggyframework.analytics.console.model.AnalyticsConsoleAskBinding;
+import com.foggyframework.analytics.console.model.AnalyticsConsoleConversationMode;
 import com.foggyframework.analytics.console.security.AnalyticsConsoleSubject;
 import com.foggyframework.analytics.console.service.AnalyticsConsoleService;
 import com.foggyframework.analytics.function.fap.FapAnalyticsFunctionAdapter;
 import com.foggyframework.analytics.function.fap.FapAnalyticsFunctionInvocation;
 import com.foggyframework.analytics.function.fap.FapAnalyticsFunctionOutcome;
+import com.foggyframework.analytics.function.fap.FapAnalyticsFunctionRefs;
+import com.foggyframework.analytics.function.contract.AnalyticsFunctionOperations;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -20,9 +24,23 @@ import org.springframework.web.bind.annotation.RestController;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 public class AnalyticsConsoleFapCallbackController {
+
+    private static final Set<String> DESIGN_OPERATIONS = Set.of(
+            AnalyticsFunctionOperations.CAPABILITIES,
+            AnalyticsFunctionOperations.BUNDLES_VALIDATE,
+            AnalyticsFunctionOperations.BUNDLES_DESCRIBE,
+            AnalyticsFunctionOperations.ARTIFACTS_DESCRIBE,
+            AnalyticsFunctionOperations.REPORTS_PREVIEW,
+            AnalyticsFunctionOperations.DASHBOARDS_PREVIEW,
+            AnalyticsFunctionOperations.DASHBOARDS_RENDER);
+    private static final Set<String> QUESTION_OPERATIONS = Set.of(
+            AnalyticsFunctionOperations.CAPABILITIES,
+            AnalyticsFunctionOperations.SEMANTIC_MODELS_DESCRIBE,
+            AnalyticsFunctionOperations.SEMANTIC_QUERIES_EXECUTE);
 
     private final AnalyticsConsoleProperties.Fap properties;
     private final AnalyticsConsoleFapBindingResolver bindings;
@@ -49,10 +67,7 @@ public class AnalyticsConsoleFapCallbackController {
             @Valid @RequestBody FapAnalyticsCallbackRequest request) {
         authenticate(authorization);
         if (!"PROVIDER_FUNCTION_CALLBACK".equals(request.type())
-                || !properties.getProviderRef().equals(request.providerRef())
-                || !properties.getCallbackCapabilityId().equals(request.capabilityId())
-                || properties.getCallbackCapabilityRevision()
-                        != request.capabilityRevision()) {
+                || !properties.getProviderRef().equals(request.providerRef())) {
             throw forbidden("FAP callback Provider is not accepted");
         }
         FapAnalyticsFunctionInvocation.Caller caller =
@@ -67,13 +82,42 @@ public class AnalyticsConsoleFapCallbackController {
                 request.externalConversationRef(),
                 request.askRequestId(),
                 request.askInvocationRef());
+        requireCapability(conversation, request);
+        AnalyticsConsoleAskBinding askBinding = agents.requireCallbackAskBinding(
+                conversation, request.askRequestId(), request.askInvocationRef());
+        String operation = FapAnalyticsFunctionRefs.operation(request.functionRef());
+        Set<String> allowed = conversation.mode()
+                == AnalyticsConsoleConversationMode.QUESTION
+                ? QUESTION_OPERATIONS
+                : DESIGN_OPERATIONS;
+        if (operation == null || !allowed.contains(operation)) {
+            throw forbidden("FAP callback Function is outside the conversation mode");
+        }
         String bundleRef = string(request.arguments().get("bundleRef"));
         String artifactRef = string(request.arguments().get("artifactRef"));
-        if (!console.canInvokeFap(subject, bundleRef, artifactRef)) {
-            throw forbidden("FAP callback cannot access the Analytics asset");
+        if (conversation.mode() == AnalyticsConsoleConversationMode.DESIGN) {
+            if (!AnalyticsFunctionOperations.CAPABILITIES.equals(operation)
+                    && !console.canInvokeFap(
+                            subject,
+                            conversation.assetId(),
+                            bundleRef,
+                            artifactRef)) {
+                throw forbidden("FAP callback cannot access the bound Analytics asset");
+            }
+        } else if (!AnalyticsFunctionOperations.CAPABILITIES.equals(operation)) {
+            if (!conversation.namespace().equals(
+                        string(request.arguments().get("namespace")))
+                    || !conversation.modelName().equals(
+                        string(request.arguments().get("modelName")))
+                    || !conversation.modelRevision().equals(
+                        string(request.arguments().get("expectedModelRevision")))) {
+                throw forbidden("FAP callback cannot change the question model scope");
+            }
         }
-        if (!request.binding().runtimeExecutionId().equals(conversation.runtimeExecutionId())
-                || !request.binding().runtimeTaskId().equals(conversation.runtimeTaskId())) {
+        if (!request.binding().runtimeExecutionId().equals(
+                    askBinding.runtimeExecutionId())
+                || !request.binding().runtimeTaskId().equals(
+                    askBinding.runtimeTaskId())) {
             throw forbidden("FAP callback Runtime binding does not match the Console conversation");
         }
         FapAnalyticsFunctionOutcome outcome = adapter.invoke(
@@ -87,6 +131,22 @@ public class AnalyticsConsoleFapCallbackController {
                         caller));
         return ResponseEntity.status(outcome.recommendedHttpStatus())
                 .body(outcome.callbackBody());
+    }
+
+    private void requireCapability(
+            AnalyticsConsoleConversation conversation,
+            FapAnalyticsCallbackRequest request) {
+        boolean question = conversation.mode() == AnalyticsConsoleConversationMode.QUESTION;
+        String expectedId = question
+                ? properties.getQuestionCallbackCapabilityId()
+                : properties.getCallbackCapabilityId();
+        int expectedRevision = question
+                ? properties.getQuestionCallbackCapabilityRevision()
+                : properties.getCallbackCapabilityRevision();
+        if (!expectedId.equals(request.capabilityId())
+                || expectedRevision != request.capabilityRevision()) {
+            throw forbidden("FAP callback Capability is not accepted for this conversation");
+        }
     }
 
     private void authenticate(String authorization) {

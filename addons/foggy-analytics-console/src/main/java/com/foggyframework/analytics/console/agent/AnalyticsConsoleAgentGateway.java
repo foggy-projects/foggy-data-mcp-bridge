@@ -8,6 +8,12 @@ public interface AnalyticsConsoleAgentGateway {
             AnalyticsConsoleFapBindingResolver.OutboundBinding binding,
             StartCommand command);
 
+    default Accepted continueConversation(
+            AnalyticsConsoleFapBindingResolver.OutboundBinding binding,
+            ContinueCommand command) {
+        throw new UnsupportedOperationException("FAP conversation continuation is unavailable");
+    }
+
     List<Turn> turns(
             AnalyticsConsoleFapBindingResolver.OutboundBinding binding,
             String requestId,
@@ -31,11 +37,39 @@ public interface AnalyticsConsoleAgentGateway {
             String runtimeTaskId) {
     }
 
+    record ContinueCommand(
+            String requestId,
+            String externalConversationRef,
+            String runtimeExecutionId,
+            String prompt,
+            String modelVariantId,
+            String skillName,
+            String capabilityName) {
+    }
+
     record Turn(
             String askInvocationRef,
+            String operation,
             String displayState,
             boolean definitiveTerminal,
+            String userMessage,
             String assistantMessage,
             String failureCode) {
+
+        public Turn(
+                String askInvocationRef,
+                String displayState,
+                boolean definitiveTerminal,
+                String assistantMessage,
+                String failureCode) {
+            this(
+                    askInvocationRef,
+                    "START",
+                    displayState,
+                    definitiveTerminal,
+                    null,
+                    assistantMessage,
+                    failureCode);
+        }
     }
 }

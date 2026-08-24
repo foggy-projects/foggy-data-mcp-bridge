@@ -16,6 +16,10 @@ public final class FapAnalyticsFunctionRefs {
             "foggy.analytics.bundles.describe@v1";
     public static final String ARTIFACTS_DESCRIBE =
             "foggy.analytics.artifacts.describe@v1";
+    public static final String SEMANTIC_MODELS_DESCRIBE =
+            "foggy.analytics.semantic-models.describe@v1";
+    public static final String SEMANTIC_QUERIES_EXECUTE =
+            "foggy.analytics.semantic-queries.execute@v1";
     public static final String REPORTS_PREVIEW =
             "foggy.analytics.reports.preview@v1";
     public static final String DASHBOARDS_PREVIEW =
@@ -29,6 +33,10 @@ public final class FapAnalyticsFunctionRefs {
             Map.entry(BUNDLES_VALIDATE, AnalyticsFunctionOperations.BUNDLES_VALIDATE),
             Map.entry(BUNDLES_DESCRIBE, AnalyticsFunctionOperations.BUNDLES_DESCRIBE),
             Map.entry(ARTIFACTS_DESCRIBE, AnalyticsFunctionOperations.ARTIFACTS_DESCRIBE),
+            Map.entry(SEMANTIC_MODELS_DESCRIBE,
+                    AnalyticsFunctionOperations.SEMANTIC_MODELS_DESCRIBE),
+            Map.entry(SEMANTIC_QUERIES_EXECUTE,
+                    AnalyticsFunctionOperations.SEMANTIC_QUERIES_EXECUTE),
             Map.entry(REPORTS_PREVIEW, AnalyticsFunctionOperations.REPORTS_PREVIEW),
             Map.entry(DASHBOARDS_PREVIEW, AnalyticsFunctionOperations.DASHBOARDS_PREVIEW),
             Map.entry(DASHBOARDS_RENDER, AnalyticsFunctionOperations.DASHBOARDS_RENDER));
@@ -39,6 +47,10 @@ public final class FapAnalyticsFunctionRefs {
             Map.entry(AnalyticsFunctionOperations.BUNDLES_VALIDATE, BUNDLES_VALIDATE),
             Map.entry(AnalyticsFunctionOperations.BUNDLES_DESCRIBE, BUNDLES_DESCRIBE),
             Map.entry(AnalyticsFunctionOperations.ARTIFACTS_DESCRIBE, ARTIFACTS_DESCRIBE),
+            Map.entry(AnalyticsFunctionOperations.SEMANTIC_MODELS_DESCRIBE,
+                    SEMANTIC_MODELS_DESCRIBE),
+            Map.entry(AnalyticsFunctionOperations.SEMANTIC_QUERIES_EXECUTE,
+                    SEMANTIC_QUERIES_EXECUTE),
             Map.entry(AnalyticsFunctionOperations.REPORTS_PREVIEW, REPORTS_PREVIEW),
             Map.entry(AnalyticsFunctionOperations.DASHBOARDS_PREVIEW, DASHBOARDS_PREVIEW),
             Map.entry(AnalyticsFunctionOperations.DASHBOARDS_RENDER, DASHBOARDS_RENDER));

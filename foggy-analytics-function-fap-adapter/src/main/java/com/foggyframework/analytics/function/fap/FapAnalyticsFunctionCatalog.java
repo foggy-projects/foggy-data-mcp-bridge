@@ -75,6 +75,30 @@ public final class FapAnalyticsFunctionCatalog {
                                             AnalyticsFunctionOperations.ARTIFACTS_DESCRIBE),
                                     List.of(artifactExample())),
                             descriptor(
+                                    AnalyticsFunctionOperations.SEMANTIC_MODELS_DESCRIBE,
+                                    FapAnalyticsFunctionRefs.SEMANTIC_MODELS_DESCRIBE,
+                                    "analytics.semantic-models.describe",
+                                    "Describe a governed semantic model",
+                                    "Read LLM-oriented metadata for one server-selected QM at an exact revision.",
+                                    "analytics semantic model fields measures dimensions describe governed",
+                                    List.of("analytics", "model", "question", "read", "sync"),
+                                    FapAnalyticsSchemas.semanticModelArguments(),
+                                    FapAnalyticsSchemas.semanticModelResult(
+                                            AnalyticsFunctionOperations.SEMANTIC_MODELS_DESCRIBE),
+                                    List.of(semanticModelExample())),
+                            descriptor(
+                                    AnalyticsFunctionOperations.SEMANTIC_QUERIES_EXECUTE,
+                                    FapAnalyticsFunctionRefs.SEMANTIC_QUERIES_EXECUTE,
+                                    "analytics.semantic-queries.execute",
+                                    "Execute a governed semantic query",
+                                    "Execute the strict read-only query subset against one exact QM using current user authority.",
+                                    "analytics semantic query rows evidence governed question",
+                                    List.of("analytics", "query", "question", "read", "sync"),
+                                    FapAnalyticsSchemas.semanticQueryArguments(),
+                                    FapAnalyticsSchemas.semanticQueryResult(
+                                            AnalyticsFunctionOperations.SEMANTIC_QUERIES_EXECUTE),
+                                    List.of(semanticQueryExample())),
+                            descriptor(
                                     AnalyticsFunctionOperations.REPORTS_PREVIEW,
                                     FapAnalyticsFunctionRefs.REPORTS_PREVIEW,
                                     "analytics.reports.preview",
@@ -178,5 +202,26 @@ public final class FapAnalyticsFunctionCatalog {
                 "artifactKind", "report",
                 "artifactRef", "sales-report",
                 "expectedBundleRevision", EXAMPLE_REVISION);
+    }
+
+    private static Map<String, Object> semanticModelExample() {
+        return Map.of(
+                "namespace", "sales",
+                "modelName", "FactOrderQueryModel",
+                "expectedModelRevision", EXAMPLE_REVISION);
+    }
+
+    private static Map<String, Object> semanticQueryExample() {
+        return Map.of(
+                "namespace", "sales",
+                "modelName", "FactOrderQueryModel",
+                "expectedModelRevision", EXAMPLE_REVISION,
+                "query", Map.of(
+                        "columns", List.of(
+                                "customerName", "sum(totalAmount) as totalAmount"),
+                        "groupBy", List.of(Map.of("field", "customerName")),
+                        "orderBy", List.of(Map.of(
+                                "field", "totalAmount", "direction", "desc")),
+                        "limit", 20));
     }
 }

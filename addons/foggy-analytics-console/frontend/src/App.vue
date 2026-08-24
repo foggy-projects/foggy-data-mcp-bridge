@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { api, type AgentTurn, type Conversation, type CreateDraftInput } from './api'
+import {
+  api,
+  type AgentTurn,
+  type Conversation,
+  type CreateDraftInput,
+  type QuestionProfile
+} from './api'
 import {
   assetsInFolder,
   canDesign,
@@ -26,9 +32,16 @@ const notice = ref('')
 const newFolderName = ref('')
 const showCreate = ref(false)
 const showAgent = ref(true)
+const workspaceMode = ref<'QUESTION' | 'STUDIO'>('QUESTION')
 const agentPrompt = ref('请检查当前定义，并给出更清晰的指标、图表和布局建议。')
-const conversation = ref<Conversation | null>(null)
-const turns = ref<AgentTurn[]>([])
+const designConversation = ref<Conversation | null>(null)
+const designTurns = ref<AgentTurn[]>([])
+const questionProfiles = ref<QuestionProfile[]>([])
+const selectedQuestionProfile = ref('')
+const questionPrompt = ref('本月订单量和销售额怎么样？和上月相比有什么变化？')
+const questionConversation = ref<Conversation | null>(null)
+const questionTurns = ref<AgentTurn[]>([])
+const pendingQuestion = ref('')
 
 const draft = ref<CreateDraftInput>({
   title: '',
@@ -68,17 +81,28 @@ const refreshCatalog = async () => {
   session.value = nextSession
   folders.value = nextFolders
   assets.value = nextAssets
-  if (!selectedId.value && nextAssets.length) await openAsset(nextAssets[0].assetId)
+  try {
+    questionProfiles.value = await api.questionProfiles()
+    selectedQuestionProfile.value ||= questionProfiles.value[0]?.profileId ?? ''
+  } catch {
+    questionProfiles.value = []
+  }
+  if (!selectedId.value && nextAssets.length) await loadAsset(nextAssets[0].assetId)
 }
 
-const openAsset = async (assetId: string) => {
+const loadAsset = async (assetId: string) => {
   selectedId.value = assetId
   preview.value = null
-  conversation.value = null
-  turns.value = []
   const loaded = await api.asset(assetId)
   detail.value = loaded
   editor.value = loaded.definitionContent ?? ''
+}
+
+const openAsset = async (assetId: string) => {
+  workspaceMode.value = 'STUDIO'
+  designConversation.value = null
+  designTurns.value = []
+  await loadAsset(assetId)
 }
 
 const mergeAsset = (asset: Asset) => {
@@ -136,24 +160,49 @@ const toggleAudience = () => selected.value && run('更新可见范围', async (
 })
 
 const askAgent = () => selected.value && run('提交给 FAP', async () => {
-  conversation.value = await api.ask(selected.value!.assetId, agentPrompt.value)
-  turns.value = []
+  designConversation.value = await api.ask(selected.value!.assetId, agentPrompt.value)
+  designTurns.value = []
   notice.value = 'FAP 已接受设计任务；定义不会被自动发布'
 })
 
-const refreshTurns = () => conversation.value && run('刷新 Agent', async () => {
-  turns.value = await api.turns(conversation.value!.conversationId)
+const refreshDesignTurns = () => designConversation.value && run('刷新设计建议', async () => {
+  designTurns.value = await api.turns(designConversation.value!.conversationId)
 })
+
+const askQuestion = () => run('提交问题', async () => {
+  const prompt = questionPrompt.value.trim()
+  if (!prompt || !selectedQuestionProfile.value) return
+  pendingQuestion.value = prompt
+  questionConversation.value = questionConversation.value
+    ? await api.continueConversation(questionConversation.value.conversationId, prompt)
+    : await api.askQuestion(selectedQuestionProfile.value, prompt)
+  questionPrompt.value = ''
+  notice.value = '问题已进入 FAP；回答将使用当前用户的 QM/TM 数据权限'
+})
+
+const refreshQuestionTurns = () => questionConversation.value && run('刷新回答', async () => {
+  questionTurns.value = await api.turns(questionConversation.value!.conversationId)
+  if (questionTurns.value.some(turn => turn.userMessage === pendingQuestion.value)) {
+    pendingQuestion.value = ''
+  }
+})
+
+const newQuestion = () => {
+  questionConversation.value = null
+  questionTurns.value = []
+  pendingQuestion.value = ''
+  questionPrompt.value = ''
+}
 
 onMounted(() => run('载入工作台', refreshCatalog))
 </script>
 
 <template>
-  <div class="app-frame">
+  <div class="app-frame" :class="{ 'question-mode': workspaceMode === 'QUESTION' }">
     <header class="masthead">
       <div class="brand-block">
         <span class="edition">FOGGY / ANALYTICS 01</span>
-        <h1>分析编辑室</h1>
+        <h1>分析工作室</h1>
       </div>
       <div class="masthead-center">
         <span class="signal-dot"></span>
@@ -172,16 +221,23 @@ onMounted(() => run('载入工作台', refreshCatalog))
     </div>
 
     <aside class="library-rail">
+      <button class="ask-entry" :class="{ active: workspaceMode === 'QUESTION' }"
+              @click="workspaceMode = 'QUESTION'">
+        <span>ASK / 直接问数</span>
+        <strong>先问一个业务问题</strong>
+        <em>→</em>
+      </button>
       <div class="rail-heading">
         <span>COLLECTIONS</span>
         <b>{{ assets.length.toString().padStart(2, '0') }}</b>
       </div>
-      <button class="folder-row" :class="{ active: selectedFolder === null }" @click="selectedFolder = null">
+      <button class="folder-row" :class="{ active: workspaceMode === 'STUDIO' && selectedFolder === null }"
+              @click="workspaceMode = 'STUDIO'; selectedFolder = null">
         <span>全部分析</span><em>{{ assets.length }}</em>
       </button>
       <button v-for="folder in folders" :key="folder.folderId" class="folder-row"
               :class="{ active: selectedFolder === folder.folderId }"
-              @click="selectedFolder = folder.folderId">
+              @click="workspaceMode = 'STUDIO'; selectedFolder = folder.folderId">
         <span>{{ folder.name }}</span>
         <em>{{ assets.filter(asset => asset.folderId === folder.folderId).length }}</em>
       </button>
@@ -196,6 +252,73 @@ onMounted(() => run('载入工作台', refreshCatalog))
     </aside>
 
     <main id="main" class="workspace">
+      <section v-if="workspaceMode === 'QUESTION'" class="question-workspace">
+        <div class="question-header">
+          <div>
+            <span>01 / ASK YOUR DATA</span>
+            <h2>先问问题，<br />再决定要不要做报表。</h2>
+          </div>
+          <p>FAP 负责理解问题，Java Analytics 只执行受治理的语义查询。每次回答都沿用你当前的 QM/TM 数据权限。</p>
+        </div>
+
+        <div v-if="questionProfiles.length" class="question-stage">
+          <div class="scope-strip">
+            <label for="question-profile">数据范围</label>
+            <select id="question-profile" v-model="selectedQuestionProfile"
+                    :disabled="Boolean(questionConversation)">
+              <option v-for="profile in questionProfiles" :key="profile.profileId"
+                      :value="profile.profileId">
+                {{ profile.displayName }}
+              </option>
+            </select>
+            <span v-if="questionConversation">EXACT MODEL REVISION LOCKED</span>
+            <button v-if="questionConversation" class="text-button" @click="newQuestion">新对话</button>
+          </div>
+
+          <div class="question-transcript" aria-live="polite">
+            <div v-if="!questionTurns.length && !pendingQuestion" class="question-opening">
+              <span>NO REPORT REQUIRED</span>
+              <strong>直接说你想知道什么</strong>
+              <p>例如：哪个区域本月收入下降最多？大客户的准时交付率如何？回答不会自动生成或保存报表。</p>
+            </div>
+            <template v-for="turn in questionTurns" :key="turn.askInvocationRef">
+              <div v-if="turn.userMessage" class="message user-message">
+                <span>YOU / {{ turn.operation }}</span><p>{{ turn.userMessage }}</p>
+              </div>
+              <div class="message analyst-message">
+                <span>FOGGY ANALYST / {{ turn.displayState }}</span>
+                <p>{{ turn.assistantMessage || turn.failureCode || '正在读取受治理数据…' }}</p>
+              </div>
+            </template>
+            <div v-if="pendingQuestion" class="message user-message pending-message">
+              <span>YOU / QUEUED</span><p>{{ pendingQuestion }}</p>
+            </div>
+          </div>
+
+          <form class="question-composer" @submit.prevent="askQuestion">
+            <label for="question-input">你的问题</label>
+            <textarea id="question-input" v-model="questionPrompt"
+                      placeholder="问订单、收入、客户、履约……" required></textarea>
+            <div>
+              <small>不接受原始 SQL；复杂或含糊的问题会先向你澄清。</small>
+              <button class="ink-button" :disabled="Boolean(busy) || !questionPrompt.trim()">
+                {{ questionConversation ? '继续追问' : '开始分析' }}
+              </button>
+            </div>
+          </form>
+          <button v-if="questionConversation" class="refresh-answer paper-button"
+                  :disabled="Boolean(busy)" @click="refreshQuestionTurns">刷新回答</button>
+        </div>
+
+        <div v-else class="question-unavailable">
+          <span>FAP NOT CONFIGURED</span>
+          <h3>直接问数尚未绑定数据范围</h3>
+          <p>管理员需要配置 question profile、FAP Skill/Capability 和服务端 Subject binding。报表设计能力仍可独立使用。</p>
+          <button class="paper-button" @click="workspaceMode = 'STUDIO'">进入分析资产</button>
+        </div>
+      </section>
+
+      <template v-else>
       <section class="catalog-strip">
         <div class="section-title">
           <div><span>01 / CATALOG</span><h2>分析资产</h2></div>
@@ -284,27 +407,41 @@ onMounted(() => run('载入工作台', refreshCatalog))
           </div>
         </article>
       </section>
+      </template>
     </main>
 
-    <aside v-if="detail && showAgent" class="agent-rail">
+    <aside v-if="workspaceMode === 'QUESTION'" class="question-context">
+      <div class="agent-title"><span>ANSWER CONTRACT</span></div>
+      <div class="context-number">01</div>
+      <h3>不是报表设计的前置步骤</h3>
+      <p>你可以只完成问答并离开。只有当结果值得长期复用时，后续才考虑保存为 Report 或 Dashboard。</p>
+      <dl>
+        <div><dt>理解与编排</dt><dd>FAP</dd></div>
+        <div><dt>语义查询</dt><dd>JAVA ANALYTICS</dd></div>
+        <div><dt>数据权限</dt><dd>QM / TM</dd></div>
+        <div><dt>自动写入</dt><dd>NONE</dd></div>
+      </dl>
+    </aside>
+
+    <aside v-else-if="detail && showAgent" class="agent-rail">
       <div class="agent-title"><span>FAP / DESIGN ASSIST</span><button @click="showAgent = false">×</button></div>
       <div class="agent-manifest">
         <i></i><div><b>只读协助</b><p>Agent 可以检查、预览并提出修改建议；保存和发布仍由你确认。</p></div>
       </div>
       <div class="turns">
-        <div v-for="turn in turns" :key="turn.askInvocationRef" class="turn">
+        <div v-for="turn in designTurns" :key="turn.askInvocationRef" class="turn">
           <span>{{ turn.displayState }}</span>
           <p>{{ turn.assistantMessage || turn.failureCode || '任务处理中…' }}</p>
         </div>
-        <div v-if="conversation && !turns.length" class="turn pending"><span>ACCEPTED</span><p>任务已进入 FAP。</p></div>
+        <div v-if="designConversation && !designTurns.length" class="turn pending"><span>ACCEPTED</span><p>任务已进入 FAP。</p></div>
       </div>
       <textarea v-model="agentPrompt" aria-label="给 Analytics Agent 的问题"></textarea>
       <div class="agent-actions">
         <button class="ink-button" :disabled="Boolean(busy) || !editable" @click="askAgent">提交设计任务</button>
-        <button v-if="conversation" class="paper-button" :disabled="Boolean(busy)" @click="refreshTurns">刷新结果</button>
+        <button v-if="designConversation" class="paper-button" :disabled="Boolean(busy)" @click="refreshDesignTurns">刷新结果</button>
       </div>
     </aside>
-    <button v-else-if="detail" class="agent-tab" @click="showAgent = true">FAP<br />ASSIST</button>
+    <button v-else-if="workspaceMode === 'STUDIO' && detail" class="agent-tab" @click="showAgent = true">FAP<br />ASSIST</button>
 
     <div v-if="showCreate" class="modal-backdrop" @click.self="showCreate = false">
       <form class="create-sheet" @submit.prevent="createDraft">

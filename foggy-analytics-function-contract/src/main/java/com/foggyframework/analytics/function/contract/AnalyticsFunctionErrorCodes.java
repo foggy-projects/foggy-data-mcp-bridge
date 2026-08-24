@@ -6,6 +6,14 @@ public final class AnalyticsFunctionErrorCodes {
     public static final String INVALID_REQUEST = "ANALYTICS_INVALID_REQUEST";
     public static final String INTERNAL_ERROR = "ANALYTICS_INTERNAL_ERROR";
     public static final String RENDER_UNAVAILABLE = "ANALYTICS_RENDER_UNAVAILABLE";
+    public static final String SEMANTIC_QUERY_UNAVAILABLE =
+            "ANALYTICS_SEMANTIC_QUERY_UNAVAILABLE";
+    public static final String SEMANTIC_QUERY_INVALID =
+            "ANALYTICS_SEMANTIC_QUERY_INVALID";
+    public static final String SEMANTIC_QUERY_FAILED =
+            "ANALYTICS_SEMANTIC_QUERY_FAILED";
+    public static final String MODEL_REVISION_CONFLICT =
+            "ANALYTICS_MODEL_REVISION_CONFLICT";
 
     public static final String BUNDLE_NOT_REGISTERED =
             "ANALYTICS_BUNDLE_NOT_REGISTERED";

@@ -36,7 +36,30 @@ public class AnalyticsConsoleAgentController {
             @PathVariable String assetId,
             @Valid @RequestBody StartAsk body,
             HttpServletRequest request) {
-        return ok(agents.start(subjects.resolve(request), assetId, body.prompt()));
+        return ok(agents.startDesign(subjects.resolve(request), assetId, body.prompt()));
+    }
+
+    @GetMapping("/agent/question-profiles")
+    public AnalyticsConsoleEnvelope<List<AnalyticsConsoleAgentService.QuestionProfile>>
+            questionProfiles(HttpServletRequest request) {
+        return ok(agents.questionProfiles(subjects.resolve(request)));
+    }
+
+    @PostMapping("/agent/questions")
+    public AnalyticsConsoleEnvelope<AnalyticsConsoleConversation> startQuestion(
+            @Valid @RequestBody StartQuestion body,
+            HttpServletRequest request) {
+        return ok(agents.startQuestion(
+                subjects.resolve(request), body.profileId(), body.prompt()));
+    }
+
+    @PostMapping("/agent/conversations/{conversationId}/turns")
+    public AnalyticsConsoleEnvelope<AnalyticsConsoleConversation> continueConversation(
+            @PathVariable String conversationId,
+            @Valid @RequestBody ContinueAsk body,
+            HttpServletRequest request) {
+        return ok(agents.continueConversation(
+                subjects.resolve(request), conversationId, body.prompt()));
     }
 
     @GetMapping("/agent/conversations/{conversationId}/turns")
@@ -51,5 +74,11 @@ public class AnalyticsConsoleAgentController {
     }
 
     public record StartAsk(@NotBlank String prompt) {
+    }
+
+    public record StartQuestion(@NotBlank String profileId, @NotBlank String prompt) {
+    }
+
+    public record ContinueAsk(@NotBlank String prompt) {
     }
 }

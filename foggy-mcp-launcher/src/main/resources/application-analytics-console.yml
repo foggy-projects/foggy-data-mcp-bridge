@@ -1,0 +1,50 @@
+# Local Analytics Console assembly. Package the launcher with -Panalytics-console
+# and activate this together with the datasource profile, for example:
+#   --spring.profiles.active=lite,analytics-console
+
+foggy:
+  analytics:
+    runtime-api:
+      enabled: true
+      security-mode: static-dev-only
+      max-rows: 1000
+
+  analytics-console:
+    enabled: true
+    security-mode: static-dev-only
+    catalog-path: "${ANALYTICS_CONSOLE_CATALOG_PATH:${java.io.tmpdir}/foggy_analytics_console/catalog.json}"
+    dev-subject:
+      subject-ref: local-analytics-admin
+      display-name: Local Analytics Admin
+      roles:
+        - ADMIN
+        - DESIGNER
+        - VIEWER
+      authority-provider: console
+      authority-reference: local-dev-only
+    question-profiles:
+      - id: orders
+        display-name: 订单分析
+        description: 直接询问订单、客户、日期、销售团队及订单指标。
+        namespace: default
+        model-name: FactOrderQueryModel
+    fap:
+      enabled: "${ANALYTICS_CONSOLE_FAP_ENABLED:false}"
+      base-url: "${ANALYTICS_CONSOLE_FAP_BASE_URL:}"
+      provider-ref: "${ANALYTICS_CONSOLE_FAP_PROVIDER_REF:foggy-analytics-console}"
+      skill-name: "${ANALYTICS_CONSOLE_FAP_DESIGN_SKILL:analytics-design-guidance}"
+      capability-name: "${ANALYTICS_CONSOLE_FAP_DESIGN_CAPABILITY:analytics.design-read}"
+      callback-capability-id: "${ANALYTICS_CONSOLE_FAP_DESIGN_CALLBACK_CAPABILITY:analytics.design-read}"
+      callback-capability-revision: "${ANALYTICS_CONSOLE_FAP_DESIGN_CALLBACK_REVISION:1}"
+      question-skill-name: "${ANALYTICS_CONSOLE_FAP_QUESTION_SKILL:analytics-question-answering}"
+      question-capability-name: "${ANALYTICS_CONSOLE_FAP_QUESTION_CAPABILITY:analytics.question-read}"
+      question-callback-capability-id: "${ANALYTICS_CONSOLE_FAP_QUESTION_CALLBACK_CAPABILITY:analytics.question-read}"
+      question-callback-capability-revision: "${ANALYTICS_CONSOLE_FAP_QUESTION_CALLBACK_REVISION:1}"
+      callback-authorization: "${ANALYTICS_CONSOLE_FAP_CALLBACK_AUTHORIZATION:}"
+      dev-authorization: "${ANALYTICS_CONSOLE_FAP_AUTHORIZATION:}"
+      dev-workspace-ref: "${ANALYTICS_CONSOLE_FAP_WORKSPACE_REF:}"
+      dev-model-config-ref: "${ANALYTICS_CONSOLE_FAP_MODEL_CONFIG_REF:}"
+      dev-model-variant-id: "${ANALYTICS_CONSOLE_FAP_MODEL_VARIANT_ID:}"
+      dev-tenant-ref: "${ANALYTICS_CONSOLE_FAP_TENANT_REF:local-tenant}"
+      dev-provider-subject-ref: "${ANALYTICS_CONSOLE_FAP_PROVIDER_SUBJECT_REF:local-provider-subject}"
+      timeout-seconds: "${ANALYTICS_CONSOLE_FAP_TIMEOUT_SECONDS:30}"

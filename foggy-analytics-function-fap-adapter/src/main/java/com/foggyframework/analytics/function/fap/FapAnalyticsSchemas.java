@@ -62,6 +62,79 @@ final class FapAnalyticsSchemas {
                 false);
     }
 
+    static Map<String, Object> semanticModelArguments() {
+        return object(
+                map(
+                        "namespace", nonBlankString(),
+                        "modelName", nonBlankString(),
+                        "expectedModelRevision", string(REVISION)),
+                List.of("namespace", "modelName", "expectedModelRevision"),
+                false);
+    }
+
+    static Map<String, Object> semanticQueryArguments() {
+        Map<String, Object> scalar = map(
+                "type", List.of("string", "number", "integer", "boolean"));
+        Map<String, Object> filter = object(
+                map(
+                        "field", nonBlankString(),
+                        "operator", map(
+                                "type", "string",
+                                "enum", List.of(
+                                        "=", "!=", ">", ">=", "<", "<=",
+                                        "like", "left_like", "right_like", "in", "not in",
+                                        "[]", "[)", "(]", "()", "is null", "is not null")),
+                        "value", map(
+                                "oneOf", List.of(
+                                        scalar,
+                                        map(
+                                                "type", "array",
+                                                "items", scalar,
+                                                "minItems", 1,
+                                                "maxItems", 256)))),
+                List.of("field", "operator"),
+                false);
+        Map<String, Object> group = object(
+                map(
+                        "field", nonBlankString(),
+                        "aggregation", map(
+                                "type", "string",
+                                "enum", List.of(
+                                        "MAX", "MIN", "SUM", "AVG", "COUNT",
+                                        "COUNT_DISTINCT", "STDDEV_POP", "STDDEV_SAMP",
+                                        "VAR_POP", "VAR_SAMP", "PK"))),
+                List.of("field"),
+                false);
+        Map<String, Object> order = object(
+                map(
+                        "field", nonBlankString(),
+                        "direction", map(
+                                "type", "string", "enum", List.of("asc", "desc"))),
+                List.of("field", "direction"),
+                false);
+        Map<String, Object> query = object(
+                map(
+                        "columns", array(nonBlankString()),
+                        "filters", array(filter),
+                        "groupBy", array(group),
+                        "orderBy", array(order),
+                        "start", integer(0),
+                        "limit", map(
+                                "type", "integer", "minimum", 1, "maximum", 1000),
+                        "returnTotal", map("type", "boolean"),
+                        "distinct", map("type", "boolean")),
+                List.of("columns"),
+                false);
+        return object(
+                map(
+                        "namespace", nonBlankString(),
+                        "modelName", nonBlankString(),
+                        "expectedModelRevision", string(REVISION),
+                        "query", query),
+                List.of("namespace", "modelName", "expectedModelRevision", "query"),
+                false);
+    }
+
     static Map<String, Object> capabilitiesResult(String operation) {
         return result(
                 operation,
@@ -180,6 +253,54 @@ final class FapAnalyticsSchemas {
                         "diagnostics"),
                 false);
         return result(operation, data);
+    }
+
+    static Map<String, Object> semanticModelResult(String operation) {
+        return result(
+                operation,
+                object(
+                        map(
+                                "namespace", nonBlankString(),
+                                "modelName", nonBlankString(),
+                                "modelRevision", string(REVISION),
+                                "format", map("const", "markdown"),
+                                "content", map(
+                                        "type", "string",
+                                        "minLength", 1,
+                                        "maxLength", 1_048_576)),
+                        List.of(
+                                "namespace", "modelName", "modelRevision",
+                                "format", "content"),
+                        false));
+    }
+
+    static Map<String, Object> semanticQueryResult(String operation) {
+        Map<String, Object> column = object(
+                map(
+                        "name", nonBlankString(),
+                        "type", nonBlankString(),
+                        "title", nullableNonBlankString()),
+                List.of("name", "type", "title"),
+                false);
+        return result(
+                operation,
+                object(
+                        map(
+                                "namespace", nonBlankString(),
+                                "modelName", nonBlankString(),
+                                "modelRevision", string(REVISION),
+                                "columns", array(column),
+                                "rows", array(object(Map.of(), List.of(), true)),
+                                "total", map(
+                                        "type", List.of("integer", "null"),
+                                        "minimum", 0),
+                                "hasMore", map("type", "boolean"),
+                                "truncated", map("type", "boolean"),
+                                "warnings", array(nonBlankString())),
+                        List.of(
+                                "namespace", "modelName", "modelRevision", "columns",
+                                "rows", "total", "hasMore", "truncated", "warnings"),
+                        false));
     }
 
     private static Map<String, Object> bundleDescription() {

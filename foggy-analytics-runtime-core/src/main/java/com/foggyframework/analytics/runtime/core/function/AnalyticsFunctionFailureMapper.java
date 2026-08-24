@@ -9,6 +9,13 @@ import com.foggyframework.analytics.runtime.core.render.AnalyticsRenderException
 public final class AnalyticsFunctionFailureMapper {
 
     public AnalyticsFunctionError map(Throwable failure) {
+        if (failure instanceof AnalyticsSemanticFunctionException semanticFailure) {
+            return new AnalyticsFunctionError(
+                    semanticErrorCode(semanticFailure.code()),
+                    "semantic-query",
+                    semanticMessage(semanticFailure.code()),
+                    false);
+        }
         if (failure instanceof AnalyticsModelDependencyResolutionException dependencyFailure) {
             return new AnalyticsFunctionError(
                     dependencyErrorCode(dependencyFailure.code()),
@@ -44,6 +51,30 @@ public final class AnalyticsFunctionFailureMapper {
                 "runtime",
                 "Analytics operation failed.",
                 false);
+    }
+
+    private static String semanticErrorCode(
+            AnalyticsSemanticFunctionException.Code code) {
+        return switch (code) {
+            case MODEL_NOT_FOUND -> AnalyticsFunctionErrorCodes.MODEL_DEPENDENCY_NOT_FOUND;
+            case MODEL_REVISION_CONFLICT ->
+                    AnalyticsFunctionErrorCodes.MODEL_REVISION_CONFLICT;
+            case QUERY_INVALID -> AnalyticsFunctionErrorCodes.SEMANTIC_QUERY_INVALID;
+            case QUERY_FAILED, RESPONSE_INVALID ->
+                    AnalyticsFunctionErrorCodes.SEMANTIC_QUERY_FAILED;
+        };
+    }
+
+    private static String semanticMessage(
+            AnalyticsSemanticFunctionException.Code code) {
+        return switch (code) {
+            case MODEL_NOT_FOUND -> "Analytics semantic model does not exist.";
+            case MODEL_REVISION_CONFLICT ->
+                    "Analytics semantic model revision does not match.";
+            case QUERY_INVALID -> "Analytics semantic query is invalid.";
+            case QUERY_FAILED -> "Analytics semantic query failed.";
+            case RESPONSE_INVALID -> "Analytics semantic query returned an invalid response.";
+        };
     }
 
     private static String dependencyErrorCode(

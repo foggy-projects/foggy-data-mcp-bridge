@@ -6,6 +6,7 @@ import com.foggyframework.analytics.function.contract.AnalyticsFunctionEnvelope;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderResult;
 import com.foggyframework.analytics.runtime.api.AnalyticsRuntimeApiRoutes;
+import com.foggyframework.analytics.runtime.api.AnalyticsRuntimeEndpoint;
 import com.foggyframework.analytics.runtime.api.dto.AnalyticsRenderRequest;
 import com.foggyframework.analytics.runtime.api.service.AnalyticsRuntimeApiResponseFactory;
 import com.foggyframework.analytics.runtime.api.service.AnalyticsRuntimeHttpResponseMapper;
@@ -31,7 +32,7 @@ public class AnalyticsRenderController {
     private final AnalyticsRuntimeHttpResponseMapper http;
 
     public AnalyticsRenderController(
-            AnalyticsFunctionEndpoint endpoint,
+            @AnalyticsRuntimeEndpoint AnalyticsFunctionEndpoint endpoint,
             AnalyticsRuntimeApiResponseFactory responses,
             AnalyticsRuntimeHttpResponseMapper http) {
         this.endpoint = endpoint;

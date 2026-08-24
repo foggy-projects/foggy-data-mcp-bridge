@@ -21,6 +21,10 @@ import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyDe
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyResolutionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderResult;
+import com.foggyframework.analytics.function.contract.AnalyticsSemanticModelDescription;
+import com.foggyframework.analytics.function.contract.AnalyticsSemanticModelFunctionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsSemanticQueryFunctionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsSemanticQueryResult;
 import com.foggyframework.analytics.runtime.core.query.QueryAuthorityBinding;
 import com.foggyframework.analytics.runtime.core.render.AnalyticsDashboardRenderRequest;
 import com.foggyframework.analytics.runtime.core.render.AnalyticsRenderRequestContext;
@@ -47,6 +51,7 @@ public final class DefaultAnalyticsFunctionEndpoint
     private final AnalyticsBundleFunctionOperations bundleOperations;
     private final Supplier<AnalyticsModelDependencyOperations> modelDependencyOperations;
     private final Supplier<AnalyticsFunctionRenderOperations> renderOperations;
+    private final Supplier<AnalyticsSemanticFunctionOperations> semanticOperations;
     private final AnalyticsFunctionResponseFactory responses;
     private final AnalyticsFunctionFailureMapper failures;
 
@@ -64,6 +69,7 @@ public final class DefaultAnalyticsFunctionEndpoint
                 maxRows,
                 bundleOperations,
                 () -> null,
+                () -> null,
                 renderOperations,
                 responses,
                 failures);
@@ -78,6 +84,28 @@ public final class DefaultAnalyticsFunctionEndpoint
             Supplier<AnalyticsFunctionRenderOperations> renderOperations,
             AnalyticsFunctionResponseFactory responses,
             AnalyticsFunctionFailureMapper failures) {
+        this(
+                enabled,
+                securityMode,
+                maxRows,
+                bundleOperations,
+                modelDependencyOperations,
+                () -> null,
+                renderOperations,
+                responses,
+                failures);
+    }
+
+    public DefaultAnalyticsFunctionEndpoint(
+            boolean enabled,
+            String securityMode,
+            int maxRows,
+            AnalyticsBundleFunctionOperations bundleOperations,
+            Supplier<AnalyticsModelDependencyOperations> modelDependencyOperations,
+            Supplier<AnalyticsSemanticFunctionOperations> semanticOperations,
+            Supplier<AnalyticsFunctionRenderOperations> renderOperations,
+            AnalyticsFunctionResponseFactory responses,
+            AnalyticsFunctionFailureMapper failures) {
         this.enabled = enabled;
         this.securityMode = requireValue("securityMode", securityMode);
         if (maxRows <= 0) {
@@ -88,6 +116,8 @@ public final class DefaultAnalyticsFunctionEndpoint
                 bundleOperations, "bundleOperations");
         this.modelDependencyOperations = Objects.requireNonNull(
                 modelDependencyOperations, "modelDependencyOperations");
+        this.semanticOperations = Objects.requireNonNull(
+                semanticOperations, "semanticOperations");
         this.renderOperations = Objects.requireNonNull(
                 renderOperations, "renderOperations");
         this.responses = Objects.requireNonNull(responses, "responses");
@@ -151,6 +181,22 @@ public final class DefaultAnalyticsFunctionEndpoint
     }
 
     @Override
+    public AnalyticsFunctionEnvelope<AnalyticsSemanticModelDescription> describeSemanticModel(
+            AnalyticsSemanticModelFunctionRequest request) {
+        Objects.requireNonNull(request, "request");
+        return execute(request.context(), context -> requireSemanticOperations()
+                .describeModel(request, context));
+    }
+
+    @Override
+    public AnalyticsFunctionEnvelope<AnalyticsSemanticQueryResult> executeSemanticQuery(
+            AnalyticsSemanticQueryFunctionRequest request) {
+        Objects.requireNonNull(request, "request");
+        return execute(request.context(), context -> requireSemanticOperations()
+                .executeQuery(request, context));
+    }
+
+    @Override
     public AnalyticsFunctionEnvelope<AnalyticsRenderResult> previewReport(
             AnalyticsRenderFunctionRequest request) {
         Objects.requireNonNull(request, "request");
@@ -184,6 +230,7 @@ public final class DefaultAnalyticsFunctionEndpoint
         boolean renderAvailable = renderOperations.get() != null;
         boolean modelDependencyResolutionAvailable =
                 modelDependencyOperations.get() != null;
+        boolean semanticAvailable = semanticOperations.get() != null;
         Map<String, String> operations = new LinkedHashMap<>();
         operations.put(AnalyticsFunctionOperations.CAPABILITIES, "supported");
         operations.put(AnalyticsFunctionOperations.BUNDLES_LIST, "supported");
@@ -195,6 +242,12 @@ public final class DefaultAnalyticsFunctionEndpoint
         operations.put(
                 AnalyticsFunctionOperations.MODEL_DEPENDENCIES_RESOLVE,
                 status(modelDependencyResolutionAvailable));
+        operations.put(
+                AnalyticsFunctionOperations.SEMANTIC_MODELS_DESCRIBE,
+                status(semanticAvailable));
+        operations.put(
+                AnalyticsFunctionOperations.SEMANTIC_QUERIES_EXECUTE,
+                status(semanticAvailable));
         operations.put(AnalyticsFunctionOperations.BUNDLES_PULL, "unsupported");
         operations.put(AnalyticsFunctionOperations.BUNDLES_SAVE, "unsupported");
         operations.put(
@@ -215,6 +268,10 @@ public final class DefaultAnalyticsFunctionEndpoint
         if (!modelDependencyResolutionAvailable) {
             warnings.add(
                     "Stable model dependency resolution is unavailable in this host composition.");
+        }
+        if (!semanticAvailable) {
+            warnings.add(
+                    "Direct semantic questions require a host authority resolver composition.");
         }
         if (bundleOperations.configuredBundleCount() == 0) {
             warnings.add("No trusted Analytics Bundle registrations are configured.");
@@ -257,6 +314,12 @@ public final class DefaultAnalyticsFunctionEndpoint
                     AnalyticsFunctionErrorCodes.RENDER_UNAVAILABLE,
                     "composition",
                     "Analytics preview/render is unavailable in this host composition.",
+                    false), context);
+        } catch (SemanticCompositionUnavailableException unavailable) {
+            return responses.fail(new AnalyticsFunctionError(
+                    AnalyticsFunctionErrorCodes.SEMANTIC_QUERY_UNAVAILABLE,
+                    "composition",
+                    "Analytics semantic questions are unavailable in this host composition.",
                     false), context);
         } catch (RuntimeException failure) {
             return responses.fail(failures.map(failure), context);
@@ -303,6 +366,14 @@ public final class DefaultAnalyticsFunctionEndpoint
         return available ? "supported" : "unavailable";
     }
 
+    private AnalyticsSemanticFunctionOperations requireSemanticOperations() {
+        AnalyticsSemanticFunctionOperations operations = semanticOperations.get();
+        if (operations == null) {
+            throw new SemanticCompositionUnavailableException();
+        }
+        return operations;
+    }
+
     private static String requireValue(String field, String value) {
         if (value == null || value.isBlank() || !value.equals(value.trim())) {
             throw new IllegalArgumentException(field + " must be non-blank and trimmed");
@@ -318,6 +389,10 @@ public final class DefaultAnalyticsFunctionEndpoint
     }
 
     private static final class RenderCompositionUnavailableException
+            extends RuntimeException {
+    }
+
+    private static final class SemanticCompositionUnavailableException
             extends RuntimeException {
     }
 }

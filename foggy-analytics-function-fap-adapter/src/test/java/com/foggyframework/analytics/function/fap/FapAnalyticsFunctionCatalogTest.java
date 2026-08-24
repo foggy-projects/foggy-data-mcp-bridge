@@ -30,7 +30,7 @@ class FapAnalyticsFunctionCatalogTest {
         List<FapAnalyticsFunctionDescriptor> descriptors =
                 FapAnalyticsFunctionCatalog.descriptors();
 
-        assertThat(descriptors).hasSize(8);
+        assertThat(descriptors).hasSize(10);
         assertThat(descriptors)
                 .extracting(FapAnalyticsFunctionDescriptor::operation)
                 .containsExactlyInAnyOrderElementsOf(AnalyticsFunctionOperations.FAP_V1);
@@ -71,6 +71,31 @@ class FapAnalyticsFunctionCatalogTest {
         assertThat(required).contains("expectedBundleRevision");
         assertThat(properties).doesNotContainKeys(
                 "authority", "securityContext", "filters", "rawSql");
+    }
+
+    @Test
+    void semanticQuerySchemaExposesOnlyTheGovernedQuestionSubset() {
+        FapAnalyticsFunctionDescriptor descriptor = FapAnalyticsFunctionCatalog
+                .findByFunctionRef(FapAnalyticsFunctionRefs.SEMANTIC_QUERIES_EXECUTE)
+                .orElseThrow();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> properties = (Map<String, Object>)
+                descriptor.projection().inputSchema().get("properties");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> query = (Map<String, Object>) properties.get("query");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> queryProperties = (Map<String, Object>)
+                query.get("properties");
+
+        assertThat(properties.keySet()).containsExactlyInAnyOrder(
+                "namespace", "modelName", "expectedModelRevision", "query");
+        assertThat(queryProperties.keySet()).containsExactlyInAnyOrder(
+                "columns", "filters", "groupBy", "orderBy", "start", "limit",
+                "returnTotal", "distinct");
+        assertThat(queryProperties).doesNotContainKeys(
+                "rawSql", "compose", "script", "calculatedFields", "hints",
+                "extData", "authority", "securityContext");
+        assertThat(query.get("additionalProperties")).isEqualTo(false);
     }
 
     @Test
@@ -185,7 +210,17 @@ class FapAnalyticsFunctionCatalogTest {
                         FapAnalyticsFunctionRefs.REPORTS_PREVIEW,
                         List.of(
                                 "sha256:539ba44bdcf6a18575e35c64d0beede46208a66b53a4d6450404df9cb42187f4",
-                                "sha256:683f91b7fc140a6c9bf664b4c8d2e0fca56be9d361723d54ca893442818ff74d")));
+                                "sha256:683f91b7fc140a6c9bf664b4c8d2e0fca56be9d361723d54ca893442818ff74d")),
+                Map.entry(
+                        FapAnalyticsFunctionRefs.SEMANTIC_MODELS_DESCRIBE,
+                        List.of(
+                                "sha256:cc4271d6b131642a89ab95f5b49db8092f40fc51cbcca3ec879019f2dc733e1d",
+                                "sha256:055082cb704b273bf88a3af0891857cb5bf26d67275fc47a7430b1e9f7973d87")),
+                Map.entry(
+                        FapAnalyticsFunctionRefs.SEMANTIC_QUERIES_EXECUTE,
+                        List.of(
+                                "sha256:70ee5f284208b3efaafd10077d4ea5fdc9b8c257fdc9971b375b3bfed4fc32be",
+                                "sha256:3b53bded6e0a2ed689dcbd479d6776449aaa0dfc7de9301c952889e7f0d5d98c")));
 
         Map<String, List<String>> actual = FapAnalyticsFunctionCatalog.descriptors()
                 .stream()

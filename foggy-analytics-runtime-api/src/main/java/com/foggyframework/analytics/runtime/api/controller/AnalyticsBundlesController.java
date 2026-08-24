@@ -8,6 +8,7 @@ import com.foggyframework.analytics.function.contract.AnalyticsBundleList;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionEndpoint;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionEnvelope;
 import com.foggyframework.analytics.runtime.api.AnalyticsRuntimeApiRoutes;
+import com.foggyframework.analytics.runtime.api.AnalyticsRuntimeEndpoint;
 import com.foggyframework.analytics.runtime.api.dto.AnalyticsArtifactDescriptionRequest;
 import com.foggyframework.analytics.runtime.api.dto.AnalyticsBundleValidationRequest;
 import com.foggyframework.analytics.runtime.api.service.AnalyticsRuntimeApiResponseFactory;
@@ -35,7 +36,7 @@ public class AnalyticsBundlesController {
     private final AnalyticsRuntimeHttpResponseMapper http;
 
     public AnalyticsBundlesController(
-            AnalyticsFunctionEndpoint endpoint,
+            @AnalyticsRuntimeEndpoint AnalyticsFunctionEndpoint endpoint,
             AnalyticsRuntimeApiResponseFactory responses,
             AnalyticsRuntimeHttpResponseMapper http) {
         this.endpoint = endpoint;

@@ -14,12 +14,15 @@ import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyDe
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyResolutionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderResult;
+import com.foggyframework.analytics.function.contract.AnalyticsSemanticQueryFunctionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsSemanticQueryResult;
 import com.foggyframework.analytics.runtime.api.config.FoggyAnalyticsRuntimeApiProperties;
 import com.foggyframework.analytics.runtime.api.controller.AnalyticsBundlesController;
 import com.foggyframework.analytics.runtime.api.controller.AnalyticsCapabilitiesController;
 import com.foggyframework.analytics.runtime.api.controller.AnalyticsModelDependenciesController;
 import com.foggyframework.analytics.runtime.api.controller.AnalyticsRenderController;
 import com.foggyframework.analytics.runtime.api.controller.AnalyticsRuntimeApiExceptionHandler;
+import com.foggyframework.analytics.runtime.api.controller.AnalyticsSemanticQueryController;
 import com.foggyframework.analytics.runtime.api.service.AnalyticsRuntimeApiResponseFactory;
 import com.foggyframework.analytics.runtime.api.service.AnalyticsRuntimeHttpResponseMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -168,6 +171,63 @@ class AnalyticsRuntimeApiControllerContractTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.bundles[0].bundleRef").value("sales"))
                 .andExpect(jsonPath("$.data.bundles[0].valid").value(true));
+    }
+
+    @Test
+    void executesOnlyTheTypedSemanticQueryAgainstAnExactModelRevision()
+            throws Exception {
+        when(endpoint.executeSemanticQuery(any())).thenReturn(responses.ok(
+                new AnalyticsSemanticQueryResult(
+                        "default",
+                        "FactOrderQueryModel",
+                        REVISION,
+                        List.of(new AnalyticsSemanticQueryResult.Column(
+                                "orderCount", "LONG", "订单数")),
+                        List.of(Map.of("orderCount", 12)),
+                        1L,
+                        false,
+                        false,
+                        List.of()),
+                "request-question",
+                "trace-question"));
+
+        mvc().perform(post(
+                        "/analytics/api/v1/semantic-models/FactOrderQueryModel/query")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "namespace": "default",
+                                  "expectedModelRevision": "%s",
+                                  "query": {
+                                    "columns": ["orderCount"],
+                                    "filters": [],
+                                    "groupBy": [],
+                                    "orderBy": [],
+                                    "start": 0,
+                                    "limit": 100,
+                                    "returnTotal": true,
+                                    "distinct": false
+                                  },
+                                  "authority": {
+                                    "provider": "tms",
+                                    "reference": "subject:42"
+                                  },
+                                  "requestId": "request-question",
+                                  "traceId": "trace-question"
+                                }
+                                """.formatted(REVISION)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.rows[0].orderCount").value(12))
+                .andExpect(jsonPath("$.data.modelRevision").value(REVISION))
+                .andExpect(jsonPath("$.data.debug").doesNotExist());
+
+        ArgumentCaptor<AnalyticsSemanticQueryFunctionRequest> captured =
+                ArgumentCaptor.forClass(AnalyticsSemanticQueryFunctionRequest.class);
+        verify(endpoint).executeSemanticQuery(captured.capture());
+        assertEquals("FactOrderQueryModel", captured.getValue().modelName());
+        assertEquals(REVISION, captured.getValue().expectedModelRevision());
+        assertEquals("subject:42", captured.getValue().authority().reference());
+        assertEquals(List.of("orderCount"), captured.getValue().query().columns());
     }
 
     @Test
@@ -470,7 +530,8 @@ class AnalyticsRuntimeApiControllerContractTest {
                         capabilitiesController(),
                         new AnalyticsBundlesController(endpoint, responses, http),
                         new AnalyticsModelDependenciesController(endpoint, responses, http),
-                        new AnalyticsRenderController(endpoint, responses, http))
+                        new AnalyticsRenderController(endpoint, responses, http),
+                        new AnalyticsSemanticQueryController(endpoint, responses, http))
                 .setControllerAdvice(new AnalyticsRuntimeApiExceptionHandler(responses))
                 .build();
     }

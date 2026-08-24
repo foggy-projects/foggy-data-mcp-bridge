@@ -46,6 +46,7 @@ public final class FapAnalyticsFunctionAdapter {
 
     private final AnalyticsFunctionClient client;
     private final FapAnalyticsAuthorityResolver authorityResolver;
+    private final FapAnalyticsSemanticRequestMapper semanticRequests;
 
     public FapAnalyticsFunctionAdapter(
             AnalyticsFunctionClient client,
@@ -53,6 +54,8 @@ public final class FapAnalyticsFunctionAdapter {
         this.client = Objects.requireNonNull(client, "client");
         this.authorityResolver = Objects.requireNonNull(
                 authorityResolver, "authorityResolver");
+        this.semanticRequests = new FapAnalyticsSemanticRequestMapper(
+                authorityResolver);
     }
 
     public FapAnalyticsFunctionOutcome invoke(
@@ -112,6 +115,18 @@ public final class FapAnalyticsFunctionAdapter {
                         operation,
                         client.describeArtifact(artifactRequest(invocation)),
                         FapAnalyticsResults::artifactDescription);
+                case AnalyticsFunctionOperations.SEMANTIC_MODELS_DESCRIBE -> complete(
+                        invocation,
+                        operation,
+                        client.describeSemanticModel(semanticRequests.model(
+                                invocation, operation)),
+                        FapAnalyticsResults::semanticModel);
+                case AnalyticsFunctionOperations.SEMANTIC_QUERIES_EXECUTE -> complete(
+                        invocation,
+                        operation,
+                        client.executeSemanticQuery(semanticRequests.query(
+                                invocation, operation)),
+                        FapAnalyticsResults::semanticQuery);
                 case AnalyticsFunctionOperations.REPORTS_PREVIEW -> complete(
                         invocation,
                         operation,
@@ -141,7 +156,21 @@ public final class FapAnalyticsFunctionAdapter {
                     "FAP Analytics function arguments are invalid",
                     false,
                     422);
+        } catch (FapAnalyticsSemanticRequestMapper.ArgumentsInvalid invalid) {
+            return failure(
+                    invocation,
+                    FapAnalyticsErrorCodes.ARGUMENTS_INVALID,
+                    "FAP Analytics function arguments are invalid",
+                    false,
+                    422);
         } catch (AuthorityUnavailable unavailable) {
+            return failure(
+                    invocation,
+                    FapAnalyticsErrorCodes.AUTHORITY_UNAVAILABLE,
+                    "Analytics data authority is unavailable for the FAP Subject",
+                    false,
+                    403);
+        } catch (FapAnalyticsSemanticRequestMapper.AuthorityUnavailable unavailable) {
             return failure(
                     invocation,
                     FapAnalyticsErrorCodes.AUTHORITY_UNAVAILABLE,
@@ -318,16 +347,19 @@ public final class FapAnalyticsFunctionAdapter {
                     AnalyticsFunctionErrorCodes.QUERY_NOT_FOUND,
                     AnalyticsFunctionErrorCodes.MODEL_DEPENDENCY_NOT_FOUND -> 404;
             case AnalyticsFunctionErrorCodes.BUNDLE_REVISION_CONFLICT,
-                    AnalyticsFunctionErrorCodes.BUNDLE_DEPENDENCY_STALE -> 409;
+                    AnalyticsFunctionErrorCodes.BUNDLE_DEPENDENCY_STALE,
+                    AnalyticsFunctionErrorCodes.MODEL_REVISION_CONFLICT -> 409;
             case AnalyticsFunctionErrorCodes.BUNDLE_IMMUTABLE -> 403;
             case AnalyticsFunctionErrorCodes.BUNDLE_INVALID,
                     AnalyticsFunctionErrorCodes.BUNDLE_IDENTITY_MISMATCH,
                     AnalyticsFunctionErrorCodes.BUNDLE_DIGEST_MISMATCH,
                     AnalyticsFunctionErrorCodes.BUNDLE_UNSAFE_PATH,
-                    AnalyticsFunctionErrorCodes.BUNDLE_UNSUPPORTED_RESOURCE_PATH -> 422;
+                    AnalyticsFunctionErrorCodes.BUNDLE_UNSUPPORTED_RESOURCE_PATH,
+                    AnalyticsFunctionErrorCodes.SEMANTIC_QUERY_INVALID -> 422;
             case AnalyticsFunctionErrorCodes.BUNDLE_UNAVAILABLE,
                     AnalyticsFunctionErrorCodes.BUNDLE_RECOVERY_FAILED,
                     AnalyticsFunctionErrorCodes.RENDER_UNAVAILABLE,
+                    AnalyticsFunctionErrorCodes.SEMANTIC_QUERY_UNAVAILABLE,
                     AnalyticsFunctionErrorCodes.CLIENT_TRANSPORT_ERROR -> 503;
             case AnalyticsFunctionErrorCodes.CLIENT_PROTOCOL_ERROR -> 502;
             default -> 500;
