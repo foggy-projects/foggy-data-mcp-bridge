@@ -184,6 +184,7 @@ class AnalyticsConsoleAgentServiceTest {
         var conversation = service.startQuestion(subject, "orders", "本月订单量是多少？");
         var updated = service.continueConversation(
                 subject, conversation.conversationId(), "按销售团队拆分");
+        var summaries = service.questionConversations(subject);
 
         assertThat(conversation.mode()).isEqualTo(AnalyticsConsoleConversationMode.QUESTION);
         assertThat(conversation.assetId()).isNull();
@@ -194,6 +195,15 @@ class AnalyticsConsoleAgentServiceTest {
         assertThat(started.get().skillName()).isEqualTo("analytics-question-answering");
         assertThat(continued.get().runtimeExecutionId()).isEqualTo("execution-question");
         assertThat(updated.askBindings()).hasSize(2);
+        assertThat(service.conversation(subject, conversation.conversationId()))
+                .isEqualTo(updated);
+        assertThat(summaries).singleElement().satisfies(summary -> {
+            assertThat(summary.conversationId()).isEqualTo(conversation.conversationId());
+            assertThat(summary.title()).isEqualTo("订单分析");
+            assertThat(summary.questionProfileId()).isEqualTo("orders");
+            assertThat(summary.lastActivityAt()).isEqualTo(Instant.EPOCH);
+            assertThat(summary.modelRevision()).isEqualTo(revision);
+        });
         assertThat(service.requireCallbackConversation(
                 subject,
                 updated.externalConversationRef(),
@@ -201,6 +211,85 @@ class AnalyticsConsoleAgentServiceTest {
                 "ask-question-2")).isEqualTo(updated);
         assertThat(Files.readString(tempDir.resolve("question-catalog.json")))
                 .doesNotContain("本月订单量是多少", "按销售团队拆分");
+    }
+
+    @Test
+    void listsOnlyQuestionConversationsOwnedByTheCurrentSubject() {
+        var catalog = new FileAnalyticsConsoleCatalogRepository(
+                tempDir.resolve("conversation-list-catalog.json"), new ObjectMapper());
+        AnalyticsConsoleSubject analyst = new AnalyticsConsoleSubject(
+                "analyst", "Analyst", Set.of(AnalyticsConsoleRole.VIEWER),
+                "console", "authority-analyst");
+        AnalyticsConsoleSubject other = new AnalyticsConsoleSubject(
+                "other", "Other", Set.of(AnalyticsConsoleRole.VIEWER),
+                "console", "authority-other");
+        String revision = "sha256:" + "c".repeat(64);
+        catalog.update(state -> new AnalyticsConsoleCatalogState(
+                state.revision(),
+                state.folders(),
+                state.assets(),
+                List.of(
+                        questionConversation("question-old", analyst, revision, Instant.EPOCH),
+                        questionConversation(
+                                "question-new", analyst, revision, Instant.EPOCH.plusSeconds(60)),
+                        questionConversation("question-other", other, revision, Instant.EPOCH))));
+        AnalyticsConsoleAgentService service = new AnalyticsConsoleAgentService(
+                mock(AnalyticsConsoleService.class),
+                catalog,
+                emptyGateway(),
+                bindings(analyst),
+                new AnalyticsConsoleProperties().getFap(),
+                Clock.systemUTC());
+
+        assertThat(service.questionConversations(analyst))
+                .extracting(AnalyticsConsoleAgentService.ConversationSummary::conversationId)
+                .containsExactly("question-new", "question-old");
+        assertThat(service.questionConversations(other))
+                .extracting(AnalyticsConsoleAgentService.ConversationSummary::conversationId)
+                .containsExactly("question-other");
+    }
+
+    private static AnalyticsConsoleAgentGateway emptyGateway() {
+        return new AnalyticsConsoleAgentGateway() {
+            @Override
+            public Accepted start(
+                    AnalyticsConsoleFapBindingResolver.OutboundBinding binding,
+                    StartCommand command) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public List<Turn> turns(
+                    AnalyticsConsoleFapBindingResolver.OutboundBinding binding,
+                    String requestId,
+                    String externalConversationRef) {
+                return List.of();
+            }
+        };
+    }
+
+    private static com.foggyframework.analytics.console.model.AnalyticsConsoleConversation
+            questionConversation(
+                    String id,
+                    AnalyticsConsoleSubject owner,
+                    String revision,
+                    Instant createdAt) {
+        return new com.foggyframework.analytics.console.model.AnalyticsConsoleConversation(
+                id,
+                null,
+                owner.subjectRef(),
+                "analytics-console." + id,
+                "request-" + id,
+                "ask-" + id,
+                "execution-" + id,
+                "task-" + id,
+                createdAt,
+                AnalyticsConsoleConversationMode.QUESTION,
+                "orders",
+                "default",
+                "FactOrderQueryModel",
+                revision,
+                null);
     }
 
     private static AnalyticsConsoleFapBindingResolver bindings(

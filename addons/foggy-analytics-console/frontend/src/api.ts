@@ -29,6 +29,17 @@ export interface Conversation {
   askInvocationRef: string
 }
 
+export interface ConversationSummary {
+  conversationId: string
+  title: string
+  questionProfileId: string
+  createdAt: string
+  lastActivityAt: string
+  namespace: string
+  modelName: string
+  modelRevision: string
+}
+
 export interface QuestionProfile {
   profileId: string
   displayName: string
@@ -102,6 +113,9 @@ export const api = {
     call<Conversation>(`/assets/${encodeURIComponent(assetId)}/agent/asks`,
       json('POST', { prompt })),
   questionProfiles: () => call<QuestionProfile[]>('/agent/question-profiles'),
+  conversations: () => call<ConversationSummary[]>('/agent/conversations'),
+  conversation: (conversationId: string) =>
+    call<Conversation>(`/agent/conversations/${encodeURIComponent(conversationId)}`),
   askQuestion: (profileId: string, prompt: string) =>
     call<Conversation>('/agent/questions', json('POST', { profileId, prompt })),
   continueConversation: (conversationId: string, prompt: string) =>

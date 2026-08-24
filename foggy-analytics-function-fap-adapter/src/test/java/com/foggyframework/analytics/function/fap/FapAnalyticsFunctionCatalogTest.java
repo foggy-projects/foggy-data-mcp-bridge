@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionOperations;
+import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -113,6 +114,15 @@ class FapAnalyticsFunctionCatalogTest {
 
         assertThat(digest).isEqualTo(
                 "sha256:fdd62da6a189cb4a035c9a05c923a08e23901058ff556b9f43ee5db203cc7e84");
+    }
+
+    @Test
+    void canonicalDigestPreservesDecimalScaleWrittenOnTheCallbackWire() {
+        String digest = FapCanonicalDigests.json(
+                Map.of("amount", new BigDecimal("10998.0")));
+
+        assertThat(digest).isEqualTo(
+                "sha256:d840abfdd9309aff09389ff0d94fd2078c263d7d4c8ae4a00122b05005fa9e89");
     }
 
     @Test

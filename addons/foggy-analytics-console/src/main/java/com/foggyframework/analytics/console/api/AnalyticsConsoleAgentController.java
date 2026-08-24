@@ -45,6 +45,19 @@ public class AnalyticsConsoleAgentController {
         return ok(agents.questionProfiles(subjects.resolve(request)));
     }
 
+    @GetMapping("/agent/conversations")
+    public AnalyticsConsoleEnvelope<List<AnalyticsConsoleAgentService.ConversationSummary>>
+            conversations(HttpServletRequest request) {
+        return ok(agents.questionConversations(subjects.resolve(request)));
+    }
+
+    @GetMapping("/agent/conversations/{conversationId}")
+    public AnalyticsConsoleEnvelope<AnalyticsConsoleConversation> conversation(
+            @PathVariable String conversationId,
+            HttpServletRequest request) {
+        return ok(agents.conversation(subjects.resolve(request), conversationId));
+    }
+
     @PostMapping("/agent/questions")
     public AnalyticsConsoleEnvelope<AnalyticsConsoleConversation> startQuestion(
             @Valid @RequestBody StartQuestion body,

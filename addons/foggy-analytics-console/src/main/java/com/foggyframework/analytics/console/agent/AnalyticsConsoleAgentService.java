@@ -3,10 +3,10 @@ package com.foggyframework.analytics.console.agent;
 import com.foggyframework.analytics.console.catalog.AnalyticsConsoleCatalogException;
 import com.foggyframework.analytics.console.catalog.AnalyticsConsoleCatalogRepository;
 import com.foggyframework.analytics.console.config.AnalyticsConsoleProperties;
+import com.foggyframework.analytics.console.model.AnalyticsConsoleAskBinding;
 import com.foggyframework.analytics.console.model.AnalyticsConsoleAsset;
 import com.foggyframework.analytics.console.model.AnalyticsConsoleCatalogState;
 import com.foggyframework.analytics.console.model.AnalyticsConsoleConversation;
-import com.foggyframework.analytics.console.model.AnalyticsConsoleAskBinding;
 import com.foggyframework.analytics.console.model.AnalyticsConsoleConversationMode;
 import com.foggyframework.analytics.console.security.AnalyticsConsoleRole;
 import com.foggyframework.analytics.console.security.AnalyticsConsoleSubject;
@@ -18,7 +18,9 @@ import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyRe
 import com.foggyframework.analytics.function.sdk.AnalyticsFunctionClient;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -124,6 +126,23 @@ public final class AnalyticsConsoleAgentService {
                         value.getNamespace(),
                         value.getModelName()))
                 .toList();
+    }
+
+    public List<ConversationSummary> questionConversations(
+            AnalyticsConsoleSubject subject) {
+        Objects.requireNonNull(subject, "subject");
+        return catalog.read().conversations().stream()
+                .filter(value -> value.mode() == AnalyticsConsoleConversationMode.QUESTION)
+                .filter(value -> value.ownerSubjectRef().equals(subject.subjectRef()))
+                .map(this::summarize)
+                .sorted(Comparator.comparing(ConversationSummary::lastActivityAt).reversed())
+                .toList();
+    }
+
+    public AnalyticsConsoleConversation conversation(
+            AnalyticsConsoleSubject subject,
+            String conversationId) {
+        return requireConversation(subject, conversationId);
     }
 
     public AnalyticsConsoleConversation startQuestion(
@@ -299,6 +318,27 @@ public final class AnalyticsConsoleAgentService {
                         "Analytics Console conversation was not found"));
     }
 
+    private ConversationSummary summarize(AnalyticsConsoleConversation conversation) {
+        String displayName = questionProfiles.stream()
+                .filter(value -> value.getId().equals(conversation.questionProfileId()))
+                .map(AnalyticsConsoleProperties.QuestionProfile::getDisplayName)
+                .findFirst()
+                .orElse(conversation.questionProfileId());
+        Instant lastActivityAt = conversation.askBindings().stream()
+                .map(AnalyticsConsoleAskBinding::createdAt)
+                .max(Instant::compareTo)
+                .orElse(conversation.createdAt());
+        return new ConversationSummary(
+                conversation.conversationId(),
+                displayName,
+                conversation.questionProfileId(),
+                conversation.createdAt(),
+                lastActivityAt,
+                conversation.namespace(),
+                conversation.modelName(),
+                conversation.modelRevision());
+    }
+
     private static String instruction(AnalyticsConsoleAsset asset) {
         return "You are the Foggy Analytics Console design assistant. "
                 + "The server has fixed this task to asset " + asset.assetId()
@@ -394,6 +434,17 @@ public final class AnalyticsConsoleAgentService {
             String description,
             String namespace,
             String modelName) {
+    }
+
+    public record ConversationSummary(
+            String conversationId,
+            String title,
+            String questionProfileId,
+            Instant createdAt,
+            Instant lastActivityAt,
+            String namespace,
+            String modelName,
+            String modelRevision) {
     }
 
     private record QuestionScope(
