@@ -184,6 +184,23 @@
                 </dependency>
             </dependencies>
         </profile>
+        <profile>
+            <id>analytics-console</id>
+            <dependencies>
+                <!-- Independent Analytics Runtime API; it does not route through Runtime API v1. -->
+                <dependency>
+                    <groupId>com.foggysource</groupId>
+                    <artifactId>foggy-analytics-runtime-api</artifactId>
+                    <version>${project.version}</version>
+                </dependency>
+                <!-- Product Console owns catalog metadata and its own Web/API surface. -->
+                <dependency>
+                    <groupId>com.foggysource</groupId>
+                    <artifactId>foggy-analytics-console</artifactId>
+                    <version>${project.version}</version>
+                </dependency>
+            </dependencies>
+        </profile>
     </profiles>
 
     <build>

@@ -65,6 +65,7 @@ model-engine ──→ api/core/jdbc/starter/web + dataset/fsscript
 |---|---|
 | `foggy-dataset-mcp` | MCP 协议、角色 controller、工具注册/调度、审计、语义查询工具 |
 | `foggy-runtime-api` | 稳定运行时管理 API、DTO、数据源/Bundle/模型操作、access check 与 auth-code scope 保护 |
+| `foggy-analytics-*` | 产品无关的 Analytics Definition、Runtime、Function SDK、HTTP/FAP adapter 与独立 Analytics Runtime API |
 | `foggy-mcp-launcher` | 可执行 Spring Boot JAR 和产品装配 |
 | `foggy-dataset-memory-grid-bridge` | 语义查询与 memory-grid 的桥接边界 |
 | `foggy-dataset-memory-grid-duckdb` | DuckDB memory-grid 实现 |
@@ -87,6 +88,7 @@ model-engine ──→ api/core/jdbc/starter/web + dataset/fsscript
 | `addons/foggy-dataset-graphql` | GraphQL 接入 |
 | `addons/foggy-data-viewer` | 数据浏览 UI/资源 |
 | `addons/foggy-runtime-console` | 可选的同源 Runtime 管理 SPA、静态资源交付与安全启用检查 |
+| `addons/foggy-analytics-console` | 独立 Analytics 产品 SPA、owner/目录/展示 ACL、管理员设计发布与 FAP Ask BFF |
 | `addons/foggy-chart-storage-cloud` | 图表资源云存储 |
 | `addons/foggy-odoo-bridge-java` | launcher 网关模式使用的 Odoo Java TM/QM 模型 |
 
@@ -97,6 +99,12 @@ Runtime Console 只拥有 Vue 页面、浏览器 session、相对同源 API adap
 交付。`X-Foggy-Runtime-Code` 校验、`management-all` 路径策略、RuntimeEnvelope 和业务 Controller
 仍归 `foggy-runtime-api`；`foggy-mcp-launcher` 的 `runtime-console` profile 只装配
 `foggy-runtime-api + foggy-runtime-console`，默认 launcher 不包含该 Console。
+
+Analytics Console 与 Runtime Console 是两个产品。Analytics Console 使用 `/analytics-console/` 和
+`/analytics-console/api/v1/**`，自主管理 owner、目录和展示 ACL；Java Analytics Runtime 只管理定义、
+校验和执行。Console 的 FAP 接入经服务端 gateway 与 product-neutral Function SDK 边界完成，浏览器不持有
+FAP 或 Runtime 管理凭据。TMS 不依赖该 addon，也不读取 Console 的目录、owner 或 ACL；两者只独立消费
+相同的 Analytics Definition/Function 契约。
 
 Odoo Python 插件属于独立项目，本仓库只维护 Java 模型与网关侧集成。
 
