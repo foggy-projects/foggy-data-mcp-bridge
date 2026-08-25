@@ -13,7 +13,7 @@ public final class AnalyticsFunctionFailureMapper {
             return new AnalyticsFunctionError(
                     semanticErrorCode(semanticFailure.code()),
                     "semantic-query",
-                    semanticMessage(semanticFailure.code()),
+                    semanticMessage(semanticFailure),
                     false);
         }
         if (failure instanceof AnalyticsModelDependencyResolutionException dependencyFailure) {
@@ -70,8 +70,12 @@ public final class AnalyticsFunctionFailureMapper {
     }
 
     private static String semanticMessage(
-            AnalyticsSemanticFunctionException.Code code) {
-        return switch (code) {
+            AnalyticsSemanticFunctionException failure) {
+        if (failure.code() == AnalyticsSemanticFunctionException.Code.QUERY_INVALID
+                && failure.validationCode() != null) {
+            return failure.validationCode();
+        }
+        return switch (failure.code()) {
             case MODEL_NOT_FOUND -> "Analytics semantic model does not exist.";
             case MODEL_REVISION_CONFLICT ->
                     "Analytics semantic model revision does not match.";

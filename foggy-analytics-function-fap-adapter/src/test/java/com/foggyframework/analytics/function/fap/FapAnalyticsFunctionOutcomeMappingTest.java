@@ -156,6 +156,52 @@ class FapAnalyticsFunctionOutcomeMappingTest {
     }
 
     @Test
+    void stableSemanticValidatorKeyIsPreservedForModelRepair() {
+        class Client extends FapAnalyticsAdapterTestSupport.StubClient {
+            @Override
+            public AnalyticsFunctionEnvelope<AnalyticsQueryModelResult> runQueryModel(
+                    AnalyticsQueryModelFunctionRequest request) {
+                calls++;
+                return AnalyticsFunctionEnvelope.fail(
+                        "foggy-analytics-runtime-api/v1",
+                        "analytics-runtime/v1",
+                        new AnalyticsFunctionError(
+                                AnalyticsFunctionErrorCodes.SEMANTIC_QUERY_INVALID,
+                                "semantic-query",
+                                "DSL_CTE_STAGE_REFERENCE_INVALID",
+                                false),
+                        FapAnalyticsAdapterTestSupport.context(request.context()));
+            }
+        }
+        Client client = new Client();
+        FapAnalyticsFunctionInvocation invocation =
+                FapAnalyticsAdapterTestSupport.invocation(
+                        FapAnalyticsFunctionRefs.QUERY_MODEL_RUN,
+                        Map.of(
+                                "namespace", "default",
+                                "modelName", "FactOrderQueryModel",
+                                "expectedModelRevision",
+                                FapAnalyticsAdapterTestSupport.REVISION,
+                                "mode", "validate",
+                                "payload", Map.of(
+                                        "columns", List.of("amount"),
+                                        "route", "DSL_CTE")));
+
+        FapAnalyticsFunctionOutcome.Failure failure =
+                (FapAnalyticsFunctionOutcome.Failure)
+                        adapter(client).invoke(invocation);
+
+        assertThat(client.calls).isEqualTo(1);
+        assertThat(failure.code())
+                .isEqualTo(FapAnalyticsErrorCodes.FUNCTION_ARGUMENT_INVALID);
+        assertThat(failure.recommendedHttpStatus()).isEqualTo(422);
+        assertThat(failure.callbackBody().get("violations")).isEqualTo(List.of(Map.of(
+                "instancePath", "/payload",
+                "keyword", "semanticQuery",
+                "messageKey", "DSL_CTE_STAGE_REFERENCE_INVALID")));
+    }
+
+    @Test
     void invalidArgumentsFailBeforeAuthorityResolutionOrSdkCall() {
         FapAnalyticsAdapterTestSupport.StubClient client = successClient();
         AtomicInteger resolutions = new AtomicInteger();

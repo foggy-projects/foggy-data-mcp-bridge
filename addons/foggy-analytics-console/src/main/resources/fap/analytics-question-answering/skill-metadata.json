@@ -2,7 +2,7 @@
   "contractVersion": "fap.skill.metadata.v1",
   "skillId": "skill.analytics-console-question-answering-v1",
   "name": "analytics-question-answering",
-  "revision": 4,
+  "revision": 5,
   "title": "Analytics question answering",
   "description": "Read-only governed Analytics guidance for model discovery, full query-model DSL, and restricted Compose/CTE.",
   "entryDocumentPath": "SKILL.md"

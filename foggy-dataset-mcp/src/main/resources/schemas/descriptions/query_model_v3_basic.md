@@ -116,6 +116,8 @@ timeWindow 结果列可再接后置标量 `calculatedFields`：
 普通日期差过滤也不要自造 SQL 函数。对“最近 N 天”“超过 N 天未处理”“逾期超过 N 天”等条件，先算出绝对日期边界，再在 `slice` 中比较已暴露日期字段；只有在用户明确要求输出日期差数值、且工具文档明确支持对应 Foggy 表达式时，才使用 `calculatedFields`。
 
 ### DSL_CTE 受控 recipe (可选)
+总额、记录数或普通分组汇总使用 `columns` / `groupBy`，不要传 `route` 或 `executable_plan`。确实需要 DSL_CTE 时，第一个 stage 必须使用 `input: {"model": "<精确模型名>"}` 且不传 `inputs`；后续 `inputs` 只能引用 stages 数组中更早的 `stage.name`。不存在隐式 `source` stage；收到 `DSL_CTE_STAGE_REFERENCE_INVALID` 后应修正引用并重新 validate，不得执行失败计划。
+
 服务工单 SLA 这类“先做行级日期差/命中标记，再按团队聚合，再计算达成率”的问题，使用 `route: "DSL_CTE"` 和 `executable_plan.cte_plan`，不要用自由 `calculatedFields` 拼 `DATEDIFF`、`CASE WHEN` 或 `alias / NULLIF(...)`。
 
 当前签名模板只开放这些受控形状：`hours_between(createdAt, firstResponseAt|resolvedAt)`、`firstResponseAt is not null and firstResponseHours <= 48`、`priority_threshold(priority, P1=..., P2=..., P3=...)`、`firstResponseAt is null and createdAt < '<cutoff>'`、`firstResponseAt is null and hours_between(createdAt, '<referenceTime>') > 48`、`sum(slaHit)`、`sum(case when overdueUnresponded then 1 else 0 end)` / `sum(overdueUnresponded)`、`slaHitCount / ticketCount`。`ticketCount - slaHitCount` 只表示 `notHitCount` / `slaMissCount` 这类 SLA 未达成数，不要作为“超时未响应数”。

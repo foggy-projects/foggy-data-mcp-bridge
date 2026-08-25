@@ -16,15 +16,15 @@
           "enum": [
             "DSL_CTE"
           ],
-          "description": "仅用于受控单模型 DSL_CTE recipe/stage contract。普通查询不要传；需要服务工单 SLA、行级日期差标记后再聚合、聚合后 NULL-safe ratio 时，可传 DSL_CTE 并配套 executable_plan.cte_plan。"
+          "description": "仅用于受控单模型 DSL_CTE recipe/stage contract。总额、记录数和普通分组汇总必须使用 columns/groupBy，不能传 route；需要服务工单 SLA、行级日期差标记后再聚合、聚合后 NULL-safe ratio 时，才可传 DSL_CTE 并配套 executable_plan.cte_plan。"
         },
         "executable_plan": {
           "type": "object",
-          "description": "DSL_CTE 受控阶段计划。仅 route=DSL_CTE 时使用，必须包含 cte_plan.stages；不要放 raw SQL、数据库函数或自由公式。"
+          "description": "DSL_CTE 受控阶段计划。仅 route=DSL_CTE 时使用，形状为 {cte_plan:{stages:[...],output:[...]}}。第一个 stage 必须用 input:{model:<精确模型名>}；后续 inputs 只能引用数组中更早的 stage.name，不存在隐式 source stage。不要放 raw SQL、数据库函数或自由公式。"
         },
         "executablePlan": {
           "type": "object",
-          "description": "executable_plan 的 camelCase 兼容字段。仅 route=DSL_CTE 时使用。"
+          "description": "executable_plan 的 camelCase 兼容字段。仅 route=DSL_CTE 时使用；同样要求首 stage 使用 input.model，后续 inputs 只引用前序 stage.name。"
         },
         "calculatedFields": {
           "type": "array",

@@ -16,10 +16,12 @@ import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyLi
 import com.foggyframework.analytics.function.contract.AnalyticsRenderFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderResult;
 import com.foggyframework.analytics.function.sdk.AnalyticsFunctionClient;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 
 /**
  * Synchronous descriptor/request/result/error mapper between FAP and Analytics.
@@ -43,6 +45,19 @@ public final class FapAnalyticsFunctionAdapter {
             "parameters",
             "timezone",
             "locale");
+    private static final Pattern SEMANTIC_VALIDATION_KEY =
+            Pattern.compile("[A-Z][A-Z0-9_]{2,63}");
+    private static final Set<String> EXACT_SEMANTIC_VALIDATION_KEYS = Set.of(
+            "ILLEGAL_DOUBLE_AGGREGATION",
+            "SEMANTIC_QUERY_INVALID");
+    private static final List<String> SEMANTIC_VALIDATION_KEY_PREFIXES = List.of(
+            "CALCULATE_",
+            "DSL_CTE_",
+            "OUTPUT_FORMATTING_",
+            "QUERY_MODEL_",
+            "SEMANTIC_SQL_",
+            "TERMINAL_PLAN_",
+            "TIME_WINDOW_");
     private static final AnalyticsFunctionAuthority INPUT_VALIDATION_AUTHORITY =
             new AnalyticsFunctionAuthority("fap-adapter", "input-validation");
 
@@ -392,7 +407,7 @@ public final class FapAnalyticsFunctionAdapter {
                         invocation,
                         instancePath,
                         "semanticQuery",
-                        "SEMANTIC_QUERY_INVALID");
+                        semanticValidationMessageKey(envelope.error().message()));
             }
         }
         return failure(
@@ -432,6 +447,19 @@ public final class FapAnalyticsFunctionAdapter {
                         "FAP Analytics function descriptor is unavailable",
                         false,
                         502));
+    }
+
+    private static String semanticValidationMessageKey(String message) {
+        String candidate = message == null ? "" : message.strip();
+        if (!SEMANTIC_VALIDATION_KEY.matcher(candidate).matches()) {
+            return "SEMANTIC_QUERY_INVALID";
+        }
+        if (EXACT_SEMANTIC_VALIDATION_KEYS.contains(candidate)
+                || SEMANTIC_VALIDATION_KEY_PREFIXES.stream()
+                .anyMatch(candidate::startsWith)) {
+            return candidate;
+        }
+        return "SEMANTIC_QUERY_INVALID";
     }
 
     private static int analyticsStatus(String code) {

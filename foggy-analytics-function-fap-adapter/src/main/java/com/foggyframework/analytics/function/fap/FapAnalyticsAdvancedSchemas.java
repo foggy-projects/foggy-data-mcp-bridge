@@ -32,11 +32,11 @@ final class FapAnalyticsAdvancedSchemas {
         Map<String, Object> payload = new LinkedHashMap<>(object(
                 map(
                         "route", described(enumString("DSL_CTE"),
-                                "Only for the controlled single-model DSL_CTE stage contract."),
+                                "Only for a documented controlled single-model staged recipe; ordinary totals, counts and grouped summaries must omit route."),
                         "executable_plan", describedOpenObject(
-                                "Controlled DSL_CTE plan containing cte_plan.stages; no raw SQL or free-form database functions."),
+                                "Controlled shape {cte_plan:{stages:[...],output:[...]}}. The first stage uses input:{model:<exact described model>}; every later inputs entry names a prior stage. There is no implicit source stage. No raw SQL or free-form database functions."),
                         "executablePlan", describedOpenObject(
-                                "Camel-case compatibility form of executable_plan."),
+                                "Camel-case compatibility form of executable_plan with the same first-stage input and prior-stage inputs rules."),
                         "calculatedFields", calculatedFields(),
                         "columns", describedStringArray(
                                 "Model fields or simple aggregate expressions such as sum(amount) as total. Omit when pivot is present."),

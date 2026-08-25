@@ -8,13 +8,12 @@ DSL object under `payload`.
 
 - Use `columns`, not `fields`.
 - Use only fields and metrics returned by model describe.
-- A measure returned by model describe is already a canonical semantic expression. Select its
-  described name directly, for example `"amount"`; do not rewrite it as `sum(amount)` merely
-  because its metadata says the aggregation type is SUM.
 - Distinguish detail from aggregation before building the payload. For detail rows, rankings,
   highest/lowest records, or record lookup, select described dimensions and measures directly and
-  omit `groupBy`. Add an aggregate expression and `groupBy` only when the user asks for a grouped
-  or summarized result and that expression is supported by model metadata or engine validation.
+  omit `groupBy`. When the user asks for a total or grouped summary, apply the aggregation shown by
+  describe to the exact measure field, for example `sum(amount) as totalAmount`. Count a described
+  non-null identifier, for example `count(orderId) as orderCount`; do not invent `count(*)` for the
+  standard DSL. Never double-aggregate an already aggregated calculated expression.
 - Never put authority, permission, datasource, raw SQL, hints, tenant or caller identity in the
   payload. The Java Runtime resolves current authority server-side.
 - Every selected non-aggregate field in an aggregate query belongs in `groupBy`.
@@ -23,14 +22,20 @@ DSL object under `payload`.
 - Use the described business date field for date ranges; do not invent SQL date functions.
 - Keep exploratory detail queries bounded with an explicit `limit`.
 - Send the identical payload through `validate` before `execute`.
+- Treat a repairable validation result as an instruction to correct and revalidate the payload.
+  Use `violations[].messageKey`; do not execute the rejected payload or stop after the first
+  repairable parameter failure.
 
 Supported top-level payload fields are `columns`, `slice`, `having`, `groupBy`, `orderBy`,
 `start`, `limit`, `returnTotal`, `distinct`, `calculatedFields`, `withSubtotals`, `timeWindow`,
-`pivot`, `route`, `executable_plan`, and `executablePlan`. Nested shapes are governed by the
-published Function schema and engine validation.
+`pivot`, `route`, `executable_plan`, and `executablePlan`. Standard DSL nested shapes are governed
+by the published Function schema and engine validation. `executable_plan` is an open schema object:
+its allowed controlled recipes are documented below, while graph-order and expression-signature
+rules are enforced dynamically by Runtime validation.
 
 The published `foggy.analytics.query-model.run@v1` input schema is the machine-readable contract
-for every nested property. Do not infer a property that is absent from it. In particular:
+for the standard DSL properties. Do not infer a standard property that is absent from it. For
+controlled CTE, use only the documented recipe below. In particular:
 
 - `groupBy` accepts a field string or `{ "field": "...", "agg": "..." }`; strings are the
   preferred public shorthand.
@@ -90,6 +95,21 @@ is a detail ranking, not a grouped aggregation:
 }
 ```
 
+## Overall total and row count
+
+An overall total and record count does not require `DSL_CTE`, `route`, `executable_plan`, or
+`groupBy`:
+
+```json
+{
+  "columns": [
+    "sum(amount) as totalAmount",
+    "count(orderId) as orderCount"
+  ],
+  "limit": 1
+}
+```
+
 ## Date range
 
 Use a half-open range for a closed calendar period:
@@ -139,6 +159,16 @@ Use `route: "DSL_CTE"` plus `executable_plan.cte_plan.stages` only for a signed,
 single-model recipe such as row-level SLA duration/hit flags followed by aggregation and a
 NULL-safe result-stage rate. Do not place raw SQL, arbitrary database functions, identity, policy,
 datasource, or routing values in the plan.
+
+Stage references are strict:
+
+- the first stage must declare `input: {"model": "<the exact described model>"}` and must not use
+  `inputs`;
+- every later `inputs` entry must equal the `name` of a stage declared earlier in the array;
+- `source`, `input`, a table name, or a model name is not an implicit stage and must never appear
+  in `inputs` unless an earlier stage has exactly that name;
+- `DSL_CTE_STAGE_REFERENCE_INVALID` means the stage graph is invalid. Repair the references and
+  call `mode=validate` again; do not execute the rejected plan.
 
 The currently documented SLA signatures are:
 
@@ -226,7 +256,7 @@ SUM/COUNT metrics. `metricPlacement` is `columns` or `rows`; `outputFormat` is `
 `grid`.
 
 Common invalid repairs include replacing raw `where` or SQL functions with `slice`, correcting a
-field to the exact described name, selecting a canonical described measure directly instead of
-wrapping it in another aggregate, moving a true aggregate filter to `having`, adding missing
-grouping fields to a true aggregate query, or reducing `limit`. Never repair a denial by removing
-authority or switching models.
+field to the exact described name, selecting a described measure directly for detail/ranking,
+applying its advertised aggregation only for totals or grouped summaries, moving a true aggregate
+filter to `having`, adding missing grouping fields to a true aggregate query, or reducing `limit`.
+Never repair a denial by removing authority or switching models.

@@ -126,6 +126,8 @@ SUM(metric) / NULLIF(CALCULATE(SUM(metric), REMOVE(groupByDim)), 0)
 
 ### DSL_CTE 受控 recipe (可选)
 
+总额、记录数或普通分组汇总使用 `columns` / `groupBy`，不要传 `route` 或 `executable_plan`。确实需要 DSL_CTE 时，第一个 stage 必须使用 `input: {"model": "<精确模型名>"}` 且不传 `inputs`；后续 `inputs` 只能引用 stages 数组中更早的 `stage.name`。不存在隐式 `source` stage；收到 `DSL_CTE_STAGE_REFERENCE_INVALID` 后应修正引用并重新 validate，不得执行失败计划。
+
 单模型服务工单 SLA 这类“先做行级日期差/命中标记，再按团队聚合，再计算达成率”的问题，使用 `route: "DSL_CTE"` 和 `executable_plan.cte_plan`，不要用自由 `calculatedFields` 拼 `DATEDIFF`、`CASE WHEN` 或 `alias / NULLIF(...)`。当前签名模板只开放这些受控形状：
 
 - 行级 SLA 时长：`hours_between(createdAt, firstResponseAt|resolvedAt)`；`resolvedAt` 只表示自然小时 resolution SLA，不表示客户合约日历口径。

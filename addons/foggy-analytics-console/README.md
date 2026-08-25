@@ -101,7 +101,7 @@ Console catalog。
 revision，Compose 使用当前 Namespace catalog 并由引擎的 Compose authority/sandbox 再次约束。
 
 可发布的问数 Skill bundle 位于
-`src/main/resources/fap/analytics-question-answering/`。revision 4 包含主指令、完整 DSL/Compose 参考和
+`src/main/resources/fap/analytics-question-answering/`。revision 5 包含主指令、完整 DSL/Compose 参考和
 五项 Function 的 schema-delivery 声明；FAP 与 Worker 本地 Skill registry 必须以相同 digest 追加该修订，
 Capability 也必须追加包含同一五项 Function 的 revision。不要原地覆盖旧修订，已开始的会话仍使用冻结的
 旧 Skill/Capability/Function catalog，新能力只对新建会话生效。

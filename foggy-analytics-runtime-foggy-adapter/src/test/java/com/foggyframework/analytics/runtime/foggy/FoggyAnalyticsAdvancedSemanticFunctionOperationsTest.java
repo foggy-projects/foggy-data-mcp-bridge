@@ -6,9 +6,12 @@ import com.foggyframework.analytics.function.contract.AnalyticsFunctionAuthority
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionContext;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionRequestContext;
 import com.foggyframework.analytics.function.contract.AnalyticsQueryModelFunctionRequest;
+import com.foggyframework.analytics.runtime.core.function.AnalyticsSemanticFunctionException;
+import com.foggyframework.core.ex.RX;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogResolution;
 import com.foggyframework.dataset.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.model.semantic.domain.SemanticQueryResponse;
+import com.foggyframework.dataset.model.semantic.permission.ModelPermissionException;
 import com.foggyframework.dataset.model.semantic.permission.PermissionAction;
 import com.foggyframework.dataset.model.semantic.port.ComposeCaller;
 import com.foggyframework.dataset.model.semantic.port.ComposeExecutionPort;
@@ -126,6 +129,62 @@ class FoggyAnalyticsAdvancedSemanticFunctionOperationsTest {
     }
 
     @Test
+    void mapsStableDslCteValidationFailureToRepairableQueryInvalid() {
+        AnalyticsSemanticFunctionException failure = queryFailure(
+                "validate",
+                RX.throwB("DSL_CTE_STAGE_REFERENCE_INVALID: stage input 'source' "
+                        + "must reference a prior stage."));
+
+        assertThat(failure.code())
+                .isEqualTo(AnalyticsSemanticFunctionException.Code.QUERY_INVALID);
+        assertThat(failure.validationCode())
+                .isEqualTo("DSL_CTE_STAGE_REFERENCE_INVALID");
+    }
+
+    @Test
+    void mapsCommonValidateFailuresToValueFreeRepairKeys() {
+        AnalyticsSemanticFunctionException groupBy = queryFailure(
+                "validate",
+                RX.throwB("groupBy 字段 customer$ageGroup 必须出现在 columns 中"));
+        AnalyticsSemanticFunctionException orderBy = queryFailure(
+                "validate",
+                RX.throwA("GroupBy 模式下 orderBy 字段 payAmount 必须在 columns 存在"));
+        AnalyticsSemanticFunctionException field = queryFailure(
+                "validate",
+                RX.throwB("字段不存在: inventedField"));
+        AnalyticsSemanticFunctionException filter = queryFailure(
+                "validate",
+                RX.throwB("slice 中的 name 字段不能为空"));
+
+        assertThat(List.of(groupBy, orderBy, field, filter))
+                .allSatisfy(failure -> assertThat(failure.code())
+                        .isEqualTo(AnalyticsSemanticFunctionException.Code.QUERY_INVALID));
+        assertThat(groupBy.validationCode())
+                .isEqualTo("QUERY_MODEL_GROUP_BY_INVALID");
+        assertThat(orderBy.validationCode())
+                .isEqualTo("QUERY_MODEL_ORDER_BY_INVALID");
+        assertThat(field.validationCode())
+                .isEqualTo("QUERY_MODEL_FIELD_INVALID");
+        assertThat(filter.validationCode())
+                .isEqualTo("QUERY_MODEL_FILTER_INVALID");
+    }
+
+    @Test
+    void keepsAuthorityAndUnexpectedFailuresOutOfTheRepairChannel() {
+        AnalyticsSemanticFunctionException denied = queryFailure(
+                "validate", ModelPermissionException.denied());
+        AnalyticsSemanticFunctionException unavailable = queryFailure(
+                "validate", new IllegalStateException("database unavailable"));
+
+        assertThat(denied.code())
+                .isEqualTo(AnalyticsSemanticFunctionException.Code.QUERY_FAILED);
+        assertThat(denied.validationCode()).isNull();
+        assertThat(unavailable.code())
+                .isEqualTo(AnalyticsSemanticFunctionException.Code.QUERY_FAILED);
+        assertThat(unavailable.validationCode()).isNull();
+    }
+
+    @Test
     void mapsRestrictedComposeToTheEnginePortWithTrustedCaller() {
         FoggyQueryAuthorityResolver authorityResolver =
                 mock(FoggyQueryAuthorityResolver.class);
@@ -181,5 +240,46 @@ class FoggyAnalyticsAdvancedSemanticFunctionOperationsTest {
                 new ObjectMapper(),
                 100,
                 "sqlite");
+    }
+
+    private static AnalyticsSemanticFunctionException queryFailure(
+            String mode,
+            RuntimeException portFailure) {
+        FoggyQueryAuthorityResolver authorityResolver =
+                mock(FoggyQueryAuthorityResolver.class);
+        SemanticQueryExecutionPort queryPort = mock(SemanticQueryExecutionPort.class);
+        FoggyAnalyticsAuthority authority = mock(FoggyAnalyticsAuthority.class);
+        @SuppressWarnings("unchecked")
+        CatalogResolution<QueryModel> catalog = mock(CatalogResolution.class);
+        when(authorityResolver.resolve(any())).thenReturn(authority);
+        when(authority.catalogResolution()).thenReturn(catalog);
+        when(authority.semanticRequestContext()).thenReturn(
+                com.foggyframework.dataset.model.semantic.domain
+                        .SemanticRequestContext.empty());
+        when(catalog.canonicalName()).thenReturn("FactOrderQueryModel");
+        when(queryPort.queryModel(
+                eq("FactOrderQueryModel"), any(), eq(mode), any()))
+                .thenThrow(portFailure);
+        FoggyAnalyticsAdvancedSemanticFunctionOperations operations = operations(
+                authorityResolver,
+                request -> new ComposeCaller("user-1", null, List.of(), null, null, null),
+                queryPort,
+                mock(ComposeExecutionPort.class));
+        AnalyticsQueryModelFunctionRequest request =
+                new AnalyticsQueryModelFunctionRequest(
+                        "default",
+                        "FactOrderQueryModel",
+                        REVISION,
+                        mode,
+                        Map.of("columns", List.of("amount")),
+                        AUTHORITY,
+                        REQUEST_CONTEXT);
+        try {
+            operations.runQueryModel(
+                    request, AnalyticsFunctionContext.normalize(REQUEST_CONTEXT));
+        } catch (AnalyticsSemanticFunctionException failure) {
+            return failure;
+        }
+        throw new AssertionError("query-model failure was not propagated");
     }
 }

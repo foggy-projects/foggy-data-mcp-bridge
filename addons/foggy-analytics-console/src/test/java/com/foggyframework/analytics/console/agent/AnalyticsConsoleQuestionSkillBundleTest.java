@@ -18,7 +18,7 @@ class AnalyticsConsoleQuestionSkillBundleTest {
     private final ObjectMapper json = new ObjectMapper();
 
     @Test
-    void revisionFourDeliversEveryQuestionFunctionAndItsRequiredReferences()
+    void revisionFiveDeliversEveryQuestionFunctionAndItsRequiredReferences()
             throws Exception {
         JsonNode metadata = json.readTree(resource("skill-metadata.json"));
         JsonNode delivery = json.readTree(resource("function-schema-delivery.json"));
@@ -30,7 +30,7 @@ class AnalyticsConsoleQuestionSkillBundleTest {
                 .map(descriptor -> descriptor.projection().functionRef())
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
 
-        assertThat(metadata.path("revision").asInt()).isEqualTo(4);
+        assertThat(metadata.path("revision").asInt()).isEqualTo(5);
         assertThat(metadata.path("name").asText())
                 .isEqualTo("analytics-question-answering");
         assertThat(delivered).containsExactlyInAnyOrder(
@@ -57,6 +57,8 @@ class AnalyticsConsoleQuestionSkillBundleTest {
                         "$expr",
                         "maxDepth",
                         "DSL_CTE",
+                        "DSL_CTE_STAGE_REFERENCE_INVALID",
+                        "count(orderId) as orderCount",
                         "parentShare",
                         "baselineRatio")
                 .contains("top three orders by amount", "omit `groupBy`");

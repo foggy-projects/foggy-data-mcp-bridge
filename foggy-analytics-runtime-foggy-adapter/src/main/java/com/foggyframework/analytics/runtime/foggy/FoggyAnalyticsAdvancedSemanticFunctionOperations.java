@@ -14,8 +14,10 @@ import com.foggyframework.analytics.runtime.core.function.AnalyticsAdvancedSeman
 import com.foggyframework.analytics.runtime.core.function.AnalyticsSemanticFunctionException;
 import com.foggyframework.analytics.runtime.core.query.QueryAuthorityBinding;
 import com.foggyframework.analytics.runtime.core.query.QueryAuthorityRequest;
+import com.foggyframework.core.ex.ExRuntimeException;
 import com.foggyframework.dataset.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.model.semantic.domain.SemanticQueryResponse;
+import com.foggyframework.dataset.model.semantic.permission.ModelPermissionException;
 import com.foggyframework.dataset.model.semantic.permission.PermissionAction;
 import com.foggyframework.dataset.model.semantic.port.ComposeCaller;
 import com.foggyframework.dataset.model.semantic.port.ComposeExecutionException;
@@ -29,6 +31,9 @@ import com.foggyframework.dataset.model.semantic.support.SemanticQueryPayloadMap
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /** Foggy adapter for the complete single-model DSL and restricted Compose/CTE. */
 public final class FoggyAnalyticsAdvancedSemanticFunctionOperations
@@ -38,6 +43,18 @@ public final class FoggyAnalyticsAdvancedSemanticFunctionOperations
             new TypeReference<>() { };
     private static final TypeReference<java.util.List<Object>> JSON_LIST =
             new TypeReference<>() { };
+    private static final Pattern STABLE_VALIDATION_CODE =
+            Pattern.compile("^([A-Z][A-Z0-9_]{2,63})(?::|$)");
+    private static final Set<String> EXACT_VALIDATION_CODES = Set.of(
+            "ILLEGAL_DOUBLE_AGGREGATION");
+    private static final java.util.List<String> VALIDATION_CODE_PREFIXES = java.util.List.of(
+            "CALCULATE_",
+            "DSL_CTE_",
+            "OUTPUT_FORMATTING_",
+            "QUERY_MODEL_",
+            "SEMANTIC_SQL_",
+            "TERMINAL_PLAN_",
+            "TIME_WINDOW_");
 
     private final FoggyQueryAuthorityResolver queryAuthorityResolver;
     private final FoggyComposeCallerResolver composeCallerResolver;
@@ -108,10 +125,7 @@ public final class FoggyAnalyticsAdvancedSemanticFunctionOperations
                 semanticRequest.setLimit(maxRows);
             }
         } catch (IllegalArgumentException invalid) {
-            throw failure(
-                    AnalyticsSemanticFunctionException.Code.QUERY_INVALID,
-                    "Foggy query-model payload is invalid",
-                    invalid);
+            throw queryInvalid("Foggy query-model payload is invalid", invalid);
         }
         try {
             SemanticQueryResponse response = queryExecutionPort.queryModel(
@@ -136,11 +150,16 @@ public final class FoggyAnalyticsAdvancedSemanticFunctionOperations
         } catch (AnalyticsSemanticFunctionException known) {
             throw known;
         } catch (IllegalArgumentException invalid) {
-            throw failure(
-                    AnalyticsSemanticFunctionException.Code.QUERY_INVALID,
-                    "Foggy query-model DSL is invalid",
-                    invalid);
+            throw queryInvalid("Foggy query-model DSL is invalid", invalid);
         } catch (RuntimeException failed) {
+            String validationCode = queryValidationCode(request.mode(), failed);
+            if (validationCode != null) {
+                throw failure(
+                        AnalyticsSemanticFunctionException.Code.QUERY_INVALID,
+                        "Foggy query-model DSL is invalid",
+                        validationCode,
+                        failed);
+            }
             throw failure(
                     AnalyticsSemanticFunctionException.Code.QUERY_FAILED,
                     "Foggy query-model execution failed",
@@ -288,5 +307,119 @@ public final class FoggyAnalyticsAdvancedSemanticFunctionOperations
             String message,
             Throwable cause) {
         return new AnalyticsSemanticFunctionException(code, message, cause);
+    }
+
+    private static AnalyticsSemanticFunctionException failure(
+            AnalyticsSemanticFunctionException.Code code,
+            String message,
+            String validationCode,
+            Throwable cause) {
+        return new AnalyticsSemanticFunctionException(
+                code, message, validationCode, cause);
+    }
+
+    private static AnalyticsSemanticFunctionException queryInvalid(
+            String message,
+            Throwable cause) {
+        String validationCode = stableValidationCode(cause);
+        if (validationCode == null) {
+            return failure(
+                    AnalyticsSemanticFunctionException.Code.QUERY_INVALID,
+                    message,
+                    cause);
+        }
+        return failure(
+                AnalyticsSemanticFunctionException.Code.QUERY_INVALID,
+                message,
+                validationCode,
+                cause);
+    }
+
+    private static String queryValidationCode(String mode, RuntimeException failure) {
+        if (!"validate".equals(mode) || containsAuthorityFailure(failure)) {
+            return null;
+        }
+        String stableCode = stableValidationCode(failure);
+        if (stableCode != null) {
+            return stableCode;
+        }
+        for (Throwable current = failure; current != null; current = nextCause(current)) {
+            if (current instanceof ExRuntimeException && current.getCause() == null) {
+                return inferredValidationCode(failure);
+            }
+        }
+        return null;
+    }
+
+    private static String inferredValidationCode(Throwable failure) {
+        for (Throwable current = failure; current != null; current = nextCause(current)) {
+            String message = current.getMessage();
+            if (message == null) {
+                continue;
+            }
+            String normalized = message.toLowerCase(java.util.Locale.ROOT);
+            if (normalized.contains("orderby")) {
+                return "QUERY_MODEL_ORDER_BY_INVALID";
+            }
+            if (normalized.contains("groupby")) {
+                return "QUERY_MODEL_GROUP_BY_INVALID";
+            }
+            if (normalized.contains("slice")
+                    || normalized.contains("having")
+                    || normalized.contains("过滤")) {
+                return "QUERY_MODEL_FILTER_INVALID";
+            }
+            if (normalized.contains("查询字段")
+                    || normalized.contains("columns")) {
+                return "QUERY_MODEL_COLUMNS_INVALID";
+            }
+            if (normalized.contains("字段")
+                    || normalized.contains("field")) {
+                return "QUERY_MODEL_FIELD_INVALID";
+            }
+        }
+        return "SEMANTIC_QUERY_INVALID";
+    }
+
+    private static String stableValidationCode(Throwable failure) {
+        for (Throwable current = failure; current != null; current = nextCause(current)) {
+            String message = current.getMessage();
+            if (message == null) {
+                continue;
+            }
+            Matcher matcher = STABLE_VALIDATION_CODE.matcher(message.stripLeading());
+            if (matcher.find() && isValidationCode(matcher.group(1))) {
+                return matcher.group(1);
+            }
+        }
+        return null;
+    }
+
+    private static boolean isValidationCode(String code) {
+        if (EXACT_VALIDATION_CODES.contains(code)) {
+            return true;
+        }
+        return VALIDATION_CODE_PREFIXES.stream().anyMatch(code::startsWith);
+    }
+
+    private static boolean containsAuthorityFailure(Throwable failure) {
+        for (Throwable current = failure; current != null; current = nextCause(current)) {
+            if (current instanceof ModelPermissionException
+                    || current instanceof SecurityException) {
+                return true;
+            }
+            String message = current.getMessage();
+            if (message != null
+                    && (message.contains("访问被拒绝")
+                    || message.contains("权限错误"))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static Throwable nextCause(Throwable failure) {
+        Throwable cause = failure.getCause();
+        return cause == failure ? null : cause;
     }
 }
