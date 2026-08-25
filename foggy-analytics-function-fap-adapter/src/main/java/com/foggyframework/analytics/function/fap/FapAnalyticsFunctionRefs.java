@@ -22,6 +22,10 @@ public final class FapAnalyticsFunctionRefs {
             "foggy.analytics.semantic-models.describe@v1";
     public static final String SEMANTIC_QUERIES_EXECUTE =
             "foggy.analytics.semantic-queries.execute@v1";
+    public static final String QUERY_MODEL_RUN =
+            "foggy.analytics.query-model.run@v1";
+    public static final String COMPOSE_RUN =
+            "foggy.analytics.compose.run@v1";
     public static final String REPORTS_PREVIEW =
             "foggy.analytics.reports.preview@v1";
     public static final String DASHBOARDS_PREVIEW =
@@ -41,6 +45,8 @@ public final class FapAnalyticsFunctionRefs {
                     AnalyticsFunctionOperations.SEMANTIC_MODELS_DESCRIBE),
             Map.entry(SEMANTIC_QUERIES_EXECUTE,
                     AnalyticsFunctionOperations.SEMANTIC_QUERIES_EXECUTE),
+            Map.entry(QUERY_MODEL_RUN, AnalyticsFunctionOperations.QUERY_MODEL_RUN),
+            Map.entry(COMPOSE_RUN, AnalyticsFunctionOperations.COMPOSE_RUN),
             Map.entry(REPORTS_PREVIEW, AnalyticsFunctionOperations.REPORTS_PREVIEW),
             Map.entry(DASHBOARDS_PREVIEW, AnalyticsFunctionOperations.DASHBOARDS_PREVIEW),
             Map.entry(DASHBOARDS_RENDER, AnalyticsFunctionOperations.DASHBOARDS_RENDER));
@@ -57,6 +63,8 @@ public final class FapAnalyticsFunctionRefs {
                     SEMANTIC_MODELS_DESCRIBE),
             Map.entry(AnalyticsFunctionOperations.SEMANTIC_QUERIES_EXECUTE,
                     SEMANTIC_QUERIES_EXECUTE),
+            Map.entry(AnalyticsFunctionOperations.QUERY_MODEL_RUN, QUERY_MODEL_RUN),
+            Map.entry(AnalyticsFunctionOperations.COMPOSE_RUN, COMPOSE_RUN),
             Map.entry(AnalyticsFunctionOperations.REPORTS_PREVIEW, REPORTS_PREVIEW),
             Map.entry(AnalyticsFunctionOperations.DASHBOARDS_PREVIEW, DASHBOARDS_PREVIEW),
             Map.entry(AnalyticsFunctionOperations.DASHBOARDS_RENDER, DASHBOARDS_RENDER));

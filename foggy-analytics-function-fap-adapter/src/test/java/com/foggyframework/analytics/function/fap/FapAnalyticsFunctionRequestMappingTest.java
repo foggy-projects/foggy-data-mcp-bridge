@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.foggyframework.analytics.function.contract.AnalyticsArtifactDescription;
 import com.foggyframework.analytics.function.contract.AnalyticsArtifactFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleList;
+import com.foggyframework.analytics.function.contract.AnalyticsComposeFunctionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsComposeResult;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionAuthority;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionEnvelope;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionOperations;
@@ -13,6 +15,8 @@ import com.foggyframework.analytics.function.contract.AnalyticsFunctionRequestCo
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyDescription;
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyList;
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyListRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsQueryModelFunctionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsQueryModelResult;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderResult;
 import com.foggyframework.analytics.function.contract.AnalyticsSemanticQueryFunctionRequest;
@@ -320,6 +324,105 @@ class FapAnalyticsFunctionRequestMappingTest {
                 failure -> assertThat(failure.code()).isEqualTo(
                         FapAnalyticsErrorCodes.ARGUMENTS_INVALID));
         assertThat(client.calls).isZero();
+    }
+
+    @Test
+    void mapsFullQueryModelDslAndRejectsFieldsOutsideTheMcpContract() {
+        class Client extends FapAnalyticsAdapterTestSupport.StubClient {
+            AnalyticsQueryModelFunctionRequest request;
+
+            @Override
+            public AnalyticsFunctionEnvelope<AnalyticsQueryModelResult> runQueryModel(
+                    AnalyticsQueryModelFunctionRequest value) {
+                calls++;
+                request = value;
+                return AnalyticsFunctionEnvelope.ok(
+                        "foggy-analytics-runtime-api/v1",
+                        "analytics-runtime/v1",
+                        new AnalyticsQueryModelResult(
+                                value.namespace(), value.modelName(),
+                                value.expectedModelRevision(), value.mode(),
+                                Map.of("items", List.of(Map.of("orderCount", 12)))),
+                        FapAnalyticsAdapterTestSupport.context(value.context()));
+            }
+        }
+        Client client = new Client();
+        FapAnalyticsFunctionAdapter adapter = new FapAnalyticsFunctionAdapter(
+                client,
+                (caller, operation) -> new AnalyticsFunctionAuthority(
+                        "tms", "opaque-authority-42"));
+        Map<String, Object> base = Map.of(
+                "namespace", "default",
+                "modelName", "FactOrderQueryModel",
+                "expectedModelRevision", FapAnalyticsAdapterTestSupport.REVISION,
+                "mode", "validate",
+                "payload", Map.of(
+                        "columns", List.of("orderCount"),
+                        "timeWindow", Map.of("type", "YTD"),
+                        "limit", 100));
+
+        FapAnalyticsFunctionOutcome accepted = adapter.invoke(
+                FapAnalyticsAdapterTestSupport.invocation(
+                        FapAnalyticsFunctionRefs.QUERY_MODEL_RUN, base));
+        FapAnalyticsFunctionOutcome rejected = adapter.invoke(
+                FapAnalyticsAdapterTestSupport.invocation(
+                        FapAnalyticsFunctionRefs.QUERY_MODEL_RUN,
+                        Map.of(
+                                "namespace", "default",
+                                "modelName", "FactOrderQueryModel",
+                                "expectedModelRevision",
+                                FapAnalyticsAdapterTestSupport.REVISION,
+                                "mode", "execute",
+                                "payload", Map.of("rawSql", "select 1"))));
+
+        assertThat(accepted).isInstanceOf(FapAnalyticsFunctionOutcome.Success.class);
+        assertThat(client.request.payload()).containsKeys("columns", "timeWindow");
+        assertThat(client.request.authority().reference()).isEqualTo("opaque-authority-42");
+        assertThat(rejected).isInstanceOfSatisfying(
+                FapAnalyticsFunctionOutcome.Failure.class,
+                failure -> assertThat(failure.code()).isEqualTo(
+                        FapAnalyticsErrorCodes.ARGUMENTS_INVALID));
+        assertThat(client.calls).isEqualTo(1);
+    }
+
+    @Test
+    void mapsRestrictedComposeAndResolvesAuthorityServerSide() {
+        class Client extends FapAnalyticsAdapterTestSupport.StubClient {
+            AnalyticsComposeFunctionRequest request;
+
+            @Override
+            public AnalyticsFunctionEnvelope<AnalyticsComposeResult> runCompose(
+                    AnalyticsComposeFunctionRequest value) {
+                calls++;
+                request = value;
+                return AnalyticsFunctionEnvelope.ok(
+                        "foggy-analytics-runtime-api/v1",
+                        "analytics-runtime/v1",
+                        new AnalyticsComposeResult(
+                                value.namespace(), value.mode(), true, false,
+                                Map.of("plans", List.of()), null, List.of(), List.of()),
+                        FapAnalyticsAdapterTestSupport.context(value.context()));
+            }
+        }
+        Client client = new Client();
+        FapAnalyticsFunctionAdapter adapter = new FapAnalyticsFunctionAdapter(
+                client,
+                (caller, operation) -> new AnalyticsFunctionAuthority(
+                        "tms", "opaque-authority-42"));
+
+        FapAnalyticsFunctionOutcome outcome = adapter.invoke(
+                FapAnalyticsAdapterTestSupport.invocation(
+                        FapAnalyticsFunctionRefs.COMPOSE_RUN,
+                        Map.of(
+                                "namespace", "default",
+                                "mode", "validate",
+                                "script", "return { plans: dsl({ model: 'FactOrderQueryModel' }) };",
+                                "params", Map.of("status", "SHIPPED"))));
+
+        assertThat(outcome).isInstanceOf(FapAnalyticsFunctionOutcome.Success.class);
+        assertThat(client.request.namespace()).isEqualTo("default");
+        assertThat(client.request.mode()).isEqualTo("validate");
+        assertThat(client.request.authority().reference()).isEqualTo("opaque-authority-42");
     }
 
     @Test

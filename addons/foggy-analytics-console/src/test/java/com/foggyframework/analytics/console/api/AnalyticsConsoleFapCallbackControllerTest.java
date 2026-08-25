@@ -17,6 +17,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -94,14 +95,19 @@ class AnalyticsConsoleFapCallbackControllerTest {
                         conversation.askBindings().get(0));
         when(console.canInvokeFap(
                 subject, "asset-1", "sales", "sales-report")).thenReturn(true);
+        Map<String, Object> callbackResult = new LinkedHashMap<>();
+        callbackResult.put("accepted", true);
+        callbackResult.put("optional", null);
         when(adapter.invoke(any())).thenReturn(FapAnalyticsFunctionOutcome.Success.create(
-                "callback-request-1", "function-invocation-1", Map.of("accepted", true)));
+                "callback-request-1", "function-invocation-1", callbackResult));
 
         var response = controller.invoke("Bearer callback-secret", request);
 
         assertThat(response.getStatusCode().value()).isEqualTo(200);
-        assertThat(response.getBody())
-                .containsEntry("type", "PROVIDER_FUNCTION_CALLBACK_RESULT");
+        assertThat(response.getBody().path("type").asText())
+                .isEqualTo("PROVIDER_FUNCTION_CALLBACK_RESULT");
+        assertThat(response.getBody().path("result").has("optional")).isTrue();
+        assertThat(response.getBody().path("result").path("optional").isNull()).isTrue();
         var trace = forClass(
                 AnalyticsConsoleFunctionTraceRepository.FunctionTrace.class);
         verify(functionTraces).save(trace.capture());
@@ -171,6 +177,43 @@ class AnalyticsConsoleFapCallbackControllerTest {
         var response = controller.invoke("Bearer callback-secret", request);
 
         assertThat(response.getStatusCode().value()).isEqualTo(200);
+    }
+
+    @Test
+    void namespaceScopedQuestionAllowsFullDslAndRestrictedCompose() {
+        FapAnalyticsCallbackRequest query = advancedQuestionRequest(
+                FapAnalyticsFunctionRefs.QUERY_MODEL_RUN,
+                Map.of(
+                        "namespace", "default",
+                        "modelName", "FactOrderQueryModel",
+                        "expectedModelRevision", "sha256:" + "c".repeat(64),
+                        "mode", "validate",
+                        "payload", Map.of("columns", java.util.List.of("orderCount"))));
+        FapAnalyticsCallbackRequest compose = advancedQuestionRequest(
+                FapAnalyticsFunctionRefs.COMPOSE_RUN,
+                Map.of(
+                        "namespace", "default",
+                        "mode", "validate",
+                        "script", "return 1;",
+                        "params", Map.of()));
+        var conversation = namespaceConversation(query, "default");
+        when(bindings.resolveCaller(any())).thenReturn(subject);
+        when(agents.requireCallbackConversation(
+                subject,
+                query.externalConversationRef(),
+                query.askRequestId(),
+                query.askInvocationRef())).thenReturn(conversation);
+        when(agents.requireCallbackAskBinding(
+                conversation,
+                query.askRequestId(),
+                query.askInvocationRef())).thenReturn(conversation.askBindings().get(0));
+        when(adapter.invoke(any())).thenReturn(FapAnalyticsFunctionOutcome.Success.create(
+                "callback-request-1", "function-invocation-1", Map.of("accepted", true)));
+
+        assertThat(controller.invoke("Bearer callback-secret", query)
+                .getStatusCode().value()).isEqualTo(200);
+        assertThat(controller.invoke("Bearer callback-secret", compose)
+                .getStatusCode().value()).isEqualTo(200);
     }
 
     @Test
@@ -260,6 +303,30 @@ class AnalyticsConsoleFapCallbackControllerTest {
                         "modelName", "FactOrderQueryModel",
                         "expectedModelRevision", modelRevision,
                         "query", Map.of("columns", java.util.List.of("orderCount"))),
+                "sha256:" + "a".repeat(64));
+    }
+
+    private static FapAnalyticsCallbackRequest advancedQuestionRequest(
+            String functionRef,
+            Map<String, Object> arguments) {
+        return new FapAnalyticsCallbackRequest(
+                "PROVIDER_FUNCTION_CALLBACK",
+                new FapAnalyticsCallbackRequest.Meta(
+                        "fap.service-provider.v1alpha1", "callback-request-1"),
+                "provider-1",
+                "tenant-1",
+                "provider-subject-1",
+                "external-subject-1",
+                "ask-invocation-1",
+                "ask-request-1",
+                "analytics-console.conversation-1",
+                new FapAnalyticsCallbackRequest.Binding(
+                        "worker-1", "execution-1", "task-1"),
+                "function-invocation-1",
+                "analytics.question-read",
+                2,
+                functionRef,
+                arguments,
                 "sha256:" + "a".repeat(64));
     }
 

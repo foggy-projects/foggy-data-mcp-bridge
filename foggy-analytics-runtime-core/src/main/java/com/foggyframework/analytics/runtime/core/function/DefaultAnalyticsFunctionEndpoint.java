@@ -6,6 +6,8 @@ import com.foggyframework.analytics.definition.api.AnalyticsBundleRef;
 import com.foggyframework.analytics.definition.api.AnalyticsBundleRevision;
 import com.foggyframework.analytics.function.contract.AnalyticsArtifactDescription;
 import com.foggyframework.analytics.function.contract.AnalyticsArtifactFunctionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsComposeFunctionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsComposeResult;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleDescription;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleList;
@@ -21,6 +23,8 @@ import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyDe
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyList;
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyListRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyResolutionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsQueryModelFunctionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsQueryModelResult;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderResult;
 import com.foggyframework.analytics.function.contract.AnalyticsSemanticModelDescription;
@@ -54,6 +58,8 @@ public final class DefaultAnalyticsFunctionEndpoint
     private final Supplier<AnalyticsModelDependencyOperations> modelDependencyOperations;
     private final Supplier<AnalyticsFunctionRenderOperations> renderOperations;
     private final Supplier<AnalyticsSemanticFunctionOperations> semanticOperations;
+    private final Supplier<AnalyticsAdvancedSemanticFunctionOperations>
+            advancedSemanticOperations;
     private final AnalyticsFunctionResponseFactory responses;
     private final AnalyticsFunctionFailureMapper failures;
 
@@ -70,6 +76,7 @@ public final class DefaultAnalyticsFunctionEndpoint
                 securityMode,
                 maxRows,
                 bundleOperations,
+                () -> null,
                 () -> null,
                 () -> null,
                 renderOperations,
@@ -93,6 +100,7 @@ public final class DefaultAnalyticsFunctionEndpoint
                 bundleOperations,
                 modelDependencyOperations,
                 () -> null,
+                () -> null,
                 renderOperations,
                 responses,
                 failures);
@@ -108,6 +116,30 @@ public final class DefaultAnalyticsFunctionEndpoint
             Supplier<AnalyticsFunctionRenderOperations> renderOperations,
             AnalyticsFunctionResponseFactory responses,
             AnalyticsFunctionFailureMapper failures) {
+        this(
+                enabled,
+                securityMode,
+                maxRows,
+                bundleOperations,
+                modelDependencyOperations,
+                semanticOperations,
+                () -> null,
+                renderOperations,
+                responses,
+                failures);
+    }
+
+    public DefaultAnalyticsFunctionEndpoint(
+            boolean enabled,
+            String securityMode,
+            int maxRows,
+            AnalyticsBundleFunctionOperations bundleOperations,
+            Supplier<AnalyticsModelDependencyOperations> modelDependencyOperations,
+            Supplier<AnalyticsSemanticFunctionOperations> semanticOperations,
+            Supplier<AnalyticsAdvancedSemanticFunctionOperations> advancedSemanticOperations,
+            Supplier<AnalyticsFunctionRenderOperations> renderOperations,
+            AnalyticsFunctionResponseFactory responses,
+            AnalyticsFunctionFailureMapper failures) {
         this.enabled = enabled;
         this.securityMode = requireValue("securityMode", securityMode);
         if (maxRows <= 0) {
@@ -120,6 +152,8 @@ public final class DefaultAnalyticsFunctionEndpoint
                 modelDependencyOperations, "modelDependencyOperations");
         this.semanticOperations = Objects.requireNonNull(
                 semanticOperations, "semanticOperations");
+        this.advancedSemanticOperations = Objects.requireNonNull(
+                advancedSemanticOperations, "advancedSemanticOperations");
         this.renderOperations = Objects.requireNonNull(
                 renderOperations, "renderOperations");
         this.responses = Objects.requireNonNull(responses, "responses");
@@ -215,6 +249,22 @@ public final class DefaultAnalyticsFunctionEndpoint
     }
 
     @Override
+    public AnalyticsFunctionEnvelope<AnalyticsQueryModelResult> runQueryModel(
+            AnalyticsQueryModelFunctionRequest request) {
+        Objects.requireNonNull(request, "request");
+        return execute(request.context(), context -> requireAdvancedSemanticOperations()
+                .runQueryModel(request, context));
+    }
+
+    @Override
+    public AnalyticsFunctionEnvelope<AnalyticsComposeResult> runCompose(
+            AnalyticsComposeFunctionRequest request) {
+        Objects.requireNonNull(request, "request");
+        return execute(request.context(), context -> requireAdvancedSemanticOperations()
+                .runCompose(request, context));
+    }
+
+    @Override
     public AnalyticsFunctionEnvelope<AnalyticsRenderResult> previewReport(
             AnalyticsRenderFunctionRequest request) {
         Objects.requireNonNull(request, "request");
@@ -249,6 +299,7 @@ public final class DefaultAnalyticsFunctionEndpoint
         boolean modelDependencyResolutionAvailable =
                 modelDependencyOperations.get() != null;
         boolean semanticAvailable = semanticOperations.get() != null;
+        boolean advancedSemanticAvailable = advancedSemanticOperations.get() != null;
         Map<String, String> operations = new LinkedHashMap<>();
         operations.put(AnalyticsFunctionOperations.CAPABILITIES, "supported");
         operations.put(AnalyticsFunctionOperations.BUNDLES_LIST, "supported");
@@ -269,6 +320,12 @@ public final class DefaultAnalyticsFunctionEndpoint
         operations.put(
                 AnalyticsFunctionOperations.SEMANTIC_QUERIES_EXECUTE,
                 status(semanticAvailable));
+        operations.put(
+                AnalyticsFunctionOperations.QUERY_MODEL_RUN,
+                status(advancedSemanticAvailable));
+        operations.put(
+                AnalyticsFunctionOperations.COMPOSE_RUN,
+                status(advancedSemanticAvailable));
         operations.put(AnalyticsFunctionOperations.BUNDLES_PULL, "unsupported");
         operations.put(AnalyticsFunctionOperations.BUNDLES_SAVE, "unsupported");
         operations.put(
@@ -293,6 +350,10 @@ public final class DefaultAnalyticsFunctionEndpoint
         if (!semanticAvailable) {
             warnings.add(
                     "Direct semantic questions require a host authority resolver composition.");
+        }
+        if (!advancedSemanticAvailable) {
+            warnings.add(
+                    "Full semantic DSL and Compose require a host authority resolver composition.");
         }
         if (bundleOperations.configuredBundleCount() == 0) {
             warnings.add("No trusted Analytics Bundle registrations are configured.");
@@ -389,6 +450,15 @@ public final class DefaultAnalyticsFunctionEndpoint
 
     private AnalyticsSemanticFunctionOperations requireSemanticOperations() {
         AnalyticsSemanticFunctionOperations operations = semanticOperations.get();
+        if (operations == null) {
+            throw new SemanticCompositionUnavailableException();
+        }
+        return operations;
+    }
+
+    private AnalyticsAdvancedSemanticFunctionOperations requireAdvancedSemanticOperations() {
+        AnalyticsAdvancedSemanticFunctionOperations operations =
+                advancedSemanticOperations.get();
         if (operations == null) {
             throw new SemanticCompositionUnavailableException();
         }

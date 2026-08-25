@@ -60,6 +60,20 @@ public interface AnalyticsFunctionEndpoint {
                 "Analytics semantic query execution is not implemented");
     }
 
+    /** Runs the full MCP-compatible single-model query DSL in validate or execute mode. */
+    default AnalyticsFunctionEnvelope<AnalyticsQueryModelResult> runQueryModel(
+            AnalyticsQueryModelFunctionRequest request) {
+        throw new UnsupportedOperationException(
+                "Analytics query-model DSL is not implemented");
+    }
+
+    /** Runs restricted SemanticDSL Compose/CTE in validate, preview or execute mode. */
+    default AnalyticsFunctionEnvelope<AnalyticsComposeResult> runCompose(
+            AnalyticsComposeFunctionRequest request) {
+        throw new UnsupportedOperationException(
+                "Analytics Compose execution is not implemented");
+    }
+
     AnalyticsFunctionEnvelope<AnalyticsRenderResult> previewReport(
             AnalyticsRenderFunctionRequest request);
 

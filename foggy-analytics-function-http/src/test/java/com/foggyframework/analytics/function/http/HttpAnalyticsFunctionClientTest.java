@@ -7,6 +7,8 @@ import com.foggyframework.analytics.function.contract.AnalyticsArtifactFunctionR
 import com.foggyframework.analytics.function.contract.AnalyticsBundleDescription;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleList;
+import com.foggyframework.analytics.function.contract.AnalyticsComposeFunctionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsComposeResult;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionAuthority;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionCapabilities;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionContext;
@@ -18,6 +20,8 @@ import com.foggyframework.analytics.function.contract.AnalyticsFunctionOperation
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionRequestContext;
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyDescription;
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyResolutionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsQueryModelFunctionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsQueryModelResult;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderResult;
 import com.foggyframework.analytics.function.contract.AnalyticsSemanticModelDescription;
@@ -98,6 +102,8 @@ class HttpAnalyticsFunctionClientTest {
         assertTrue(client.resolveModelDependency(modelDependencyRequest()).success());
         assertTrue(client.describeSemanticModel(semanticModelRequest()).success());
         assertTrue(client.executeSemanticQuery(semanticQueryRequest()).success());
+        assertTrue(client.runQueryModel(queryModelRequest()).success());
+        assertTrue(client.runCompose(composeRequest()).success());
         assertTrue(client.previewReport(renderRequest()).success());
         assertTrue(client.previewDashboard(renderRequest()).success());
         assertTrue(client.renderDashboard(renderRequest()).success());
@@ -112,19 +118,21 @@ class HttpAnalyticsFunctionClientTest {
                         "/analytics/api/v1/model-dependencies/resolve",
                         "/analytics/api/v1/semantic-models/FactOrderQueryModel/describe",
                         "/analytics/api/v1/semantic-models/FactOrderQueryModel/query",
+                        "/analytics/api/v1/semantic-models/FactOrderQueryModel/query-model",
+                        "/analytics/api/v1/compose",
                         "/analytics/api/v1/bundles/sales/reports/sales-summary/preview",
                         "/analytics/api/v1/bundles/sales/dashboards/sales-summary/preview",
                         "/analytics/api/v1/bundles/sales/dashboards/sales-summary/render"),
                 requests.stream().map(CapturedRequest::path).toList());
         assertEquals(List.of(
                         "GET", "GET", "POST", "POST", "POST", "POST", "POST", "POST",
-                        "POST", "POST", "POST"),
+                        "POST", "POST", "POST", "POST", "POST"),
                 requests.stream().map(CapturedRequest::method).toList());
         requests.forEach(request -> assertEquals(
                 "management-secret", request.authCode()));
         requests.subList(0, 6).forEach(request ->
                 assertNull(request.authorization()));
-        requests.subList(6, 11).forEach(request -> assertEquals(
+        requests.subList(6, 13).forEach(request -> assertEquals(
                 "Bearer data-secret", request.authorization()));
         assertEquals(REVISION,
                 requests.get(2).body().get("expectedBundleRevision"));
@@ -136,7 +144,7 @@ class HttpAnalyticsFunctionClientTest {
         assertEquals("subject:42", authority.get("reference"));
         @SuppressWarnings("unchecked")
         Map<String, Object> parameters = (Map<String, Object>)
-                requests.get(8).body().get("parameters");
+                requests.get(10).body().get("parameters");
         assertEquals(2, parameters.get("limit"));
         assertTrue(parameters.containsKey("optional"));
         assertNull(parameters.get("optional"));
@@ -149,6 +157,11 @@ class HttpAnalyticsFunctionClientTest {
         Map<String, Object> query = (Map<String, Object>)
                 requests.get(7).body().get("query");
         assertFalse(query.containsKey("rawSql"));
+        assertEquals("execute", requests.get(8).body().get("mode"));
+        assertEquals(REVISION,
+                requests.get(8).body().get("expectedModelRevision"));
+        assertEquals("preview", requests.get(9).body().get("mode"));
+        assertEquals("default", requests.get(9).body().get("namespace"));
     }
 
     @Test
@@ -308,6 +321,11 @@ class HttpAnalyticsFunctionClientTest {
         } else if (request.path().contains("/semantic-models/")
                 && request.path().endsWith("/query")) {
             data = semanticQueryResult();
+        } else if (request.path().contains("/semantic-models/")
+                && request.path().endsWith("/query-model")) {
+            data = queryModelResult();
+        } else if (request.path().endsWith("/compose")) {
+            data = composeResult();
         } else if (request.path().endsWith("/validate")
                 || request.path().endsWith("/describe")) {
             data = description();
@@ -358,6 +376,30 @@ class HttpAnalyticsFunctionClientTest {
                         100,
                         true,
                         false),
+                new AnalyticsFunctionAuthority("tms", "subject:42"),
+                CONTEXT);
+    }
+
+    private static AnalyticsQueryModelFunctionRequest queryModelRequest() {
+        return new AnalyticsQueryModelFunctionRequest(
+                "default",
+                "FactOrderQueryModel",
+                REVISION,
+                "execute",
+                Map.of(
+                        "columns", List.of("province", "sum(orderAmount)"),
+                        "groupBy", List.of("province"),
+                        "limit", 10),
+                new AnalyticsFunctionAuthority("tms", "subject:42"),
+                CONTEXT);
+    }
+
+    private static AnalyticsComposeFunctionRequest composeRequest() {
+        return new AnalyticsComposeFunctionRequest(
+                "default",
+                "preview",
+                "return queryModel('FactOrderQueryModel', { columns: ['province'] });",
+                Map.of("province", "山东省"),
                 new AnalyticsFunctionAuthority("tms", "subject:42"),
                 CONTEXT);
     }
@@ -417,6 +459,27 @@ class HttpAnalyticsFunctionClientTest {
                 1L,
                 false,
                 false,
+                List.of());
+    }
+
+    private static AnalyticsQueryModelResult queryModelResult() {
+        return new AnalyticsQueryModelResult(
+                "default",
+                "FactOrderQueryModel",
+                REVISION,
+                "execute",
+                Map.of("rows", List.of(Map.of("province", "山东省"))));
+    }
+
+    private static AnalyticsComposeResult composeResult() {
+        return new AnalyticsComposeResult(
+                "default",
+                "preview",
+                true,
+                false,
+                null,
+                "SELECT province FROM orders",
+                List.of(),
                 List.of());
     }
 

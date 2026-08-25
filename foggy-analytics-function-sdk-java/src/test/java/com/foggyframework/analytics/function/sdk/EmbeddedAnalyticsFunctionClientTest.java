@@ -3,6 +3,8 @@ package com.foggyframework.analytics.function.sdk;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleDescription;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleList;
+import com.foggyframework.analytics.function.contract.AnalyticsComposeFunctionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsComposeResult;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionCapabilities;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionContext;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionContract;
@@ -13,6 +15,8 @@ import com.foggyframework.analytics.function.contract.AnalyticsFunctionAuthority
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionRequestContext;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderResult;
+import com.foggyframework.analytics.function.contract.AnalyticsQueryModelFunctionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsQueryModelResult;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -80,6 +84,59 @@ class EmbeddedAnalyticsFunctionClientTest {
 
         assertSame(expected, preserving.validateBundle(request));
         assertThrows(NullPointerException.class, () -> invalid.validateBundle(request));
+    }
+
+    @Test
+    void delegatesAdvancedDslAndComposeOutcomesWithoutReprojection() {
+        AnalyticsFunctionEnvelope<AnalyticsQueryModelResult> queryOutcome =
+                AnalyticsFunctionEnvelope.ok(
+                        AnalyticsFunctionContract.DEFAULT_RUNTIME_API_VERSION,
+                        AnalyticsFunctionContract.DEFAULT_SCHEMA_VERSION,
+                        new AnalyticsQueryModelResult(
+                                "default",
+                                "FactOrderQueryModel",
+                                REVISION,
+                                "execute",
+                                Map.of("rows", List.of())),
+                        new AnalyticsFunctionContext("request-1", "trace-1"));
+        AnalyticsFunctionEnvelope<AnalyticsComposeResult> composeOutcome =
+                AnalyticsFunctionEnvelope.ok(
+                        AnalyticsFunctionContract.DEFAULT_RUNTIME_API_VERSION,
+                        AnalyticsFunctionContract.DEFAULT_SCHEMA_VERSION,
+                        new AnalyticsComposeResult(
+                                "default", "preview", true, false,
+                                null, "SELECT 1", List.of(), List.of()),
+                        new AnalyticsFunctionContext("request-1", "trace-1"));
+        AnalyticsFunctionClient client = AnalyticsFunctionClients.embedded(
+                new EndpointStub() {
+                    @Override
+                    public AnalyticsFunctionEnvelope<AnalyticsQueryModelResult>
+                            runQueryModel(AnalyticsQueryModelFunctionRequest request) {
+                        return queryOutcome;
+                    }
+
+                    @Override
+                    public AnalyticsFunctionEnvelope<AnalyticsComposeResult> runCompose(
+                            AnalyticsComposeFunctionRequest request) {
+                        return composeOutcome;
+                    }
+                });
+
+        assertSame(queryOutcome, client.runQueryModel(new AnalyticsQueryModelFunctionRequest(
+                "default",
+                "FactOrderQueryModel",
+                REVISION,
+                "execute",
+                Map.of("columns", List.of("orderCount")),
+                new AnalyticsFunctionAuthority("tms", "subject:42"),
+                new AnalyticsFunctionRequestContext("request-1", "trace-1"))));
+        assertSame(composeOutcome, client.runCompose(new AnalyticsComposeFunctionRequest(
+                "default",
+                "preview",
+                "return 1;",
+                Map.of(),
+                new AnalyticsFunctionAuthority("tms", "subject:42"),
+                new AnalyticsFunctionRequestContext("request-1", "trace-1"))));
     }
 
     private static AnalyticsRenderFunctionRequest renderRequest() {

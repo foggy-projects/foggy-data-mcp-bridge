@@ -8,6 +8,8 @@ import com.foggyframework.analytics.function.contract.AnalyticsArtifactFunctionR
 import com.foggyframework.analytics.function.contract.AnalyticsBundleDescription;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleList;
+import com.foggyframework.analytics.function.contract.AnalyticsComposeFunctionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsComposeResult;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionCapabilities;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionContext;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionContract;
@@ -20,6 +22,8 @@ import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyDe
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyResolutionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyList;
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyListRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsQueryModelFunctionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsQueryModelResult;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderResult;
 import com.foggyframework.analytics.function.contract.AnalyticsSemanticModelDescription;
@@ -210,6 +214,47 @@ public final class HttpAnalyticsFunctionClient implements AnalyticsFunctionClien
                 request.context(),
                 true,
                 AnalyticsSemanticQueryResult.class);
+    }
+
+    @Override
+    public AnalyticsFunctionEnvelope<AnalyticsQueryModelResult> runQueryModel(
+            AnalyticsQueryModelFunctionRequest request) {
+        Objects.requireNonNull(request, "request");
+        return invoke(
+                "POST",
+                semanticPath(request.modelName(), "query-model"),
+                advancedSemanticBody(
+                        request.namespace(),
+                        request.expectedModelRevision(),
+                        request.mode(),
+                        request.payload(),
+                        request.authority(),
+                        request.context()),
+                request.context(),
+                true,
+                AnalyticsQueryModelResult.class);
+    }
+
+    @Override
+    public AnalyticsFunctionEnvelope<AnalyticsComposeResult> runCompose(
+            AnalyticsComposeFunctionRequest request) {
+        Objects.requireNonNull(request, "request");
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("namespace", request.namespace());
+        body.put("mode", request.mode());
+        body.put("script", request.script());
+        body.put("params", request.params());
+        body.put("authority", Map.of(
+                "provider", request.authority().provider(),
+                "reference", request.authority().reference()));
+        putContext(body, request.context());
+        return invoke(
+                "POST",
+                "/compose",
+                body,
+                request.context(),
+                true,
+                AnalyticsComposeResult.class);
     }
 
     @Override
@@ -413,6 +458,20 @@ public final class HttpAnalyticsFunctionClient implements AnalyticsFunctionClien
                 "provider", authority.provider(),
                 "reference", authority.reference()));
         putContext(body, context);
+        return body;
+    }
+
+    private static Map<String, Object> advancedSemanticBody(
+            String namespace,
+            String expectedModelRevision,
+            String mode,
+            Map<String, Object> payload,
+            AnalyticsFunctionAuthority authority,
+            AnalyticsFunctionRequestContext context) {
+        Map<String, Object> body = semanticBody(
+                namespace, expectedModelRevision, authority, null, context);
+        body.put("mode", mode);
+        body.put("payload", payload);
         return body;
     }
 

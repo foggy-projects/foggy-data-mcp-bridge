@@ -5,6 +5,8 @@ import com.foggyframework.analytics.function.contract.AnalyticsArtifactFunctionR
 import com.foggyframework.analytics.function.contract.AnalyticsBundleDescription;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleList;
+import com.foggyframework.analytics.function.contract.AnalyticsComposeFunctionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsComposeResult;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionCapabilities;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionEndpoint;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionErrorCodes;
@@ -12,6 +14,8 @@ import com.foggyframework.analytics.function.contract.AnalyticsFunctionOperation
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionRequestContext;
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyDescription;
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyResolutionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsQueryModelFunctionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsQueryModelResult;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderResult;
 import com.foggyframework.analytics.function.contract.AnalyticsSemanticQueryFunctionRequest;
@@ -19,6 +23,7 @@ import com.foggyframework.analytics.function.contract.AnalyticsSemanticQueryResu
 import com.foggyframework.analytics.runtime.api.config.FoggyAnalyticsRuntimeApiProperties;
 import com.foggyframework.analytics.runtime.api.controller.AnalyticsBundlesController;
 import com.foggyframework.analytics.runtime.api.controller.AnalyticsCapabilitiesController;
+import com.foggyframework.analytics.runtime.api.controller.AnalyticsComposeController;
 import com.foggyframework.analytics.runtime.api.controller.AnalyticsModelDependenciesController;
 import com.foggyframework.analytics.runtime.api.controller.AnalyticsRenderController;
 import com.foggyframework.analytics.runtime.api.controller.AnalyticsRuntimeApiExceptionHandler;
@@ -228,6 +233,102 @@ class AnalyticsRuntimeApiControllerContractTest {
         assertEquals(REVISION, captured.getValue().expectedModelRevision());
         assertEquals("subject:42", captured.getValue().authority().reference());
         assertEquals(List.of("orderCount"), captured.getValue().query().columns());
+    }
+
+    @Test
+    void runsTheFullQueryModelDslAgainstAnExactModelRevision() throws Exception {
+        when(endpoint.runQueryModel(any())).thenReturn(responses.ok(
+                new AnalyticsQueryModelResult(
+                        "default",
+                        "FactOrderQueryModel",
+                        REVISION,
+                        "execute",
+                        Map.of("rows", List.of(Map.of("province", "山东省")))),
+                "request-dsl",
+                "trace-dsl"));
+
+        mvc().perform(post(
+                        "/analytics/api/v1/semantic-models/FactOrderQueryModel/query-model")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "namespace": "default",
+                                  "expectedModelRevision": "%s",
+                                  "mode": "execute",
+                                  "payload": {
+                                    "columns": ["province", "sum(orderAmount)"],
+                                    "groupBy": ["province"],
+                                    "orderBy": [{"field": "sum(orderAmount)", "direction": "desc"}],
+                                    "limit": 10,
+                                    "returnTotal": true
+                                  },
+                                  "authority": {
+                                    "provider": "tms",
+                                    "reference": "subject:42"
+                                  },
+                                  "requestId": "request-dsl",
+                                  "traceId": "trace-dsl"
+                                }
+                                """.formatted(REVISION)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.mode").value("execute"))
+                .andExpect(jsonPath("$.data.response.rows[0].province")
+                        .value("山东省"));
+
+        ArgumentCaptor<AnalyticsQueryModelFunctionRequest> captured =
+                ArgumentCaptor.forClass(AnalyticsQueryModelFunctionRequest.class);
+        verify(endpoint).runQueryModel(captured.capture());
+        assertEquals("FactOrderQueryModel", captured.getValue().modelName());
+        assertEquals(REVISION, captured.getValue().expectedModelRevision());
+        assertEquals("execute", captured.getValue().mode());
+        assertEquals(BigInteger.TEN, captured.getValue().payload().get("limit"));
+        assertEquals("subject:42", captured.getValue().authority().reference());
+    }
+
+    @Test
+    void runsRestrictedComposeWithoutAcceptingAuthorityInsideTheScriptPayload()
+            throws Exception {
+        when(endpoint.runCompose(any())).thenReturn(responses.ok(
+                new AnalyticsComposeResult(
+                        "default",
+                        "execute",
+                        true,
+                        true,
+                        List.of(Map.of("province", "山东省")),
+                        "WITH regional AS (...) SELECT * FROM regional",
+                        List.of("山东省"),
+                        List.of()),
+                "request-compose",
+                "trace-compose"));
+
+        mvc().perform(post("/analytics/api/v1/compose")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "namespace": "default",
+                                  "mode": "execute",
+                                  "script": "let regional = queryModel('FactOrderQueryModel', { columns: ['province'] }); return regional;",
+                                  "params": {"province": "山东省"},
+                                  "authority": {
+                                    "provider": "tms",
+                                    "reference": "subject:42"
+                                  },
+                                  "requestId": "request-compose",
+                                  "traceId": "trace-compose"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.valid").value(true))
+                .andExpect(jsonPath("$.data.executed").value(true))
+                .andExpect(jsonPath("$.data.value[0].province").value("山东省"));
+
+        ArgumentCaptor<AnalyticsComposeFunctionRequest> captured =
+                ArgumentCaptor.forClass(AnalyticsComposeFunctionRequest.class);
+        verify(endpoint).runCompose(captured.capture());
+        assertEquals("default", captured.getValue().namespace());
+        assertEquals("execute", captured.getValue().mode());
+        assertEquals("山东省", captured.getValue().params().get("province"));
+        assertEquals("subject:42", captured.getValue().authority().reference());
     }
 
     @Test
@@ -505,6 +606,10 @@ class AnalyticsRuntimeApiControllerContractTest {
                 Map.entry(
                         AnalyticsFunctionErrorCodes.BUNDLE_UNSUPPORTED_RESOURCE_PATH,
                         HttpStatus.UNPROCESSABLE_ENTITY),
+                Map.entry(AnalyticsFunctionErrorCodes.COMPOSE_INVALID,
+                        HttpStatus.UNPROCESSABLE_ENTITY),
+                Map.entry(AnalyticsFunctionErrorCodes.COMPOSE_SANDBOX_VIOLATION,
+                        HttpStatus.UNPROCESSABLE_ENTITY),
                 Map.entry(AnalyticsFunctionErrorCodes.BUNDLE_UNAVAILABLE,
                         HttpStatus.SERVICE_UNAVAILABLE),
                 Map.entry(AnalyticsFunctionErrorCodes.BUNDLE_RECOVERY_FAILED,
@@ -531,7 +636,8 @@ class AnalyticsRuntimeApiControllerContractTest {
                         new AnalyticsBundlesController(endpoint, responses, http),
                         new AnalyticsModelDependenciesController(endpoint, responses, http),
                         new AnalyticsRenderController(endpoint, responses, http),
-                        new AnalyticsSemanticQueryController(endpoint, responses, http))
+                        new AnalyticsSemanticQueryController(endpoint, responses, http),
+                        new AnalyticsComposeController(endpoint, responses, http))
                 .setControllerAdvice(new AnalyticsRuntimeApiExceptionHandler(responses))
                 .build();
     }

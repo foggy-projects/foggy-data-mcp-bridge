@@ -111,6 +111,30 @@ public final class FapAnalyticsFunctionCatalog {
                                             AnalyticsFunctionOperations.SEMANTIC_QUERIES_EXECUTE),
                                     List.of(semanticQueryExample())),
                             descriptor(
+                                    AnalyticsFunctionOperations.QUERY_MODEL_RUN,
+                                    FapAnalyticsFunctionRefs.QUERY_MODEL_RUN,
+                                    "analytics.query-model.run",
+                                    "Run full query-model DSL",
+                                    "Validate or execute the complete read-only single-model DSL, including calculated fields, time windows, pivot and controlled DSL_CTE plans.",
+                                    "analytics query model dsl calculated fields time window pivot cte validate execute",
+                                    List.of("analytics", "query", "dsl", "read", "sync"),
+                                    FapAnalyticsAdvancedSchemas.queryModelArguments(),
+                                    FapAnalyticsAdvancedSchemas.queryModelResult(
+                                            AnalyticsFunctionOperations.QUERY_MODEL_RUN),
+                                    List.of(queryModelExample())),
+                            descriptor(
+                                    AnalyticsFunctionOperations.COMPOSE_RUN,
+                                    FapAnalyticsFunctionRefs.COMPOSE_RUN,
+                                    "analytics.compose.run",
+                                    "Run restricted Compose or CTE",
+                                    "Validate, preview or execute restricted SemanticDSL for cross-model join, union, derived queries and multiple plans.",
+                                    "analytics compose cte semantic dsl join union derived plans validate execute",
+                                    List.of("analytics", "compose", "cte", "read", "sync"),
+                                    FapAnalyticsAdvancedSchemas.composeArguments(),
+                                    FapAnalyticsAdvancedSchemas.composeResult(
+                                            AnalyticsFunctionOperations.COMPOSE_RUN),
+                                    List.of(composeExample())),
+                            descriptor(
                                     AnalyticsFunctionOperations.REPORTS_PREVIEW,
                                     FapAnalyticsFunctionRefs.REPORTS_PREVIEW,
                                     "analytics.reports.preview",
@@ -235,5 +259,26 @@ public final class FapAnalyticsFunctionCatalog {
                         "orderBy", List.of(Map.of(
                                 "field", "totalAmount", "direction", "desc")),
                         "limit", 20));
+    }
+
+    private static Map<String, Object> queryModelExample() {
+        return Map.of(
+                "namespace", "sales",
+                "modelName", "FactOrderQueryModel",
+                "expectedModelRevision", EXAMPLE_REVISION,
+                "mode", "execute",
+                "payload", Map.of(
+                        "columns", List.of(
+                                "customerName", "sum(totalAmount) as totalAmount"),
+                        "groupBy", List.of("customerName"),
+                        "orderBy", List.of("totalAmount desc"),
+                        "limit", 20));
+    }
+
+    private static Map<String, Object> composeExample() {
+        return Map.of(
+                "namespace", "sales",
+                "mode", "validate",
+                "script", "var orders = dsl({ model: 'FactOrderQueryModel', columns: ['orderId'] }); return { plans: orders };");
     }
 }

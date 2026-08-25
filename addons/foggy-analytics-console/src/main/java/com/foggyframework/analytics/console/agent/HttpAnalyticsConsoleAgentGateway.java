@@ -107,12 +107,33 @@ public final class HttpAnalyticsConsoleAgentGateway
             AnalyticsConsoleFapBindingResolver.OutboundBinding binding,
             String requestId,
             String externalConversationRef) {
+        return readTurns(binding, requestId, externalConversationRef, 50);
+    }
+
+    @Override
+    public String firstUserMessage(
+            AnalyticsConsoleFapBindingResolver.OutboundBinding binding,
+            String requestId,
+            String externalConversationRef) {
+        return readTurns(binding, requestId, externalConversationRef, 1).stream()
+                .filter(turn -> "START".equals(turn.operation()))
+                .map(Turn::userMessage)
+                .filter(message -> message != null && !message.isBlank())
+                .findFirst()
+                .orElse(null);
+    }
+
+    private List<Turn> readTurns(
+            AnalyticsConsoleFapBindingResolver.OutboundBinding binding,
+            String requestId,
+            String externalConversationRef,
+            int limit) {
         String path = ROOT + "/conversations/" + segment(externalConversationRef)
-                + "/turns?requestId=" + segment(requestId) + "&limit=50";
+                + "/turns?requestId=" + segment(requestId) + "&limit=" + limit;
         JsonNode response = exchange("GET", path, binding.authorization(), null, 200);
         requireType(response, "ASK_CONVERSATION_TURN_PAGE");
         JsonNode values = response.path("turns");
-        if (!values.isArray() || values.size() > 50) {
+        if (!values.isArray() || values.size() > limit) {
             throw protocol("FAP conversation turns are invalid", null);
         }
         List<Turn> turns = new ArrayList<>();

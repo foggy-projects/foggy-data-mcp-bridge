@@ -10,6 +10,9 @@ public final class AnalyticsSemanticFunctionException extends RuntimeException {
         MODEL_REVISION_CONFLICT,
         QUERY_INVALID,
         QUERY_FAILED,
+        COMPOSE_INVALID,
+        COMPOSE_SANDBOX,
+        COMPOSE_FAILED,
         RESPONSE_INVALID
     }
 

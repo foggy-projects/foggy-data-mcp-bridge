@@ -18,6 +18,8 @@ public final class AnalyticsFunctionOperations {
             "analytics.semantic-models.describe";
     public static final String SEMANTIC_QUERIES_EXECUTE =
             "analytics.semantic-queries.execute";
+    public static final String QUERY_MODEL_RUN = "analytics.query-model.run";
+    public static final String COMPOSE_RUN = "analytics.compose.run";
     public static final String BUNDLES_PULL = "analytics.bundles.pull";
     public static final String BUNDLES_SAVE = "analytics.bundles.save";
     public static final String REPORTS_PREVIEW = "analytics.reports.preview";
@@ -34,6 +36,8 @@ public final class AnalyticsFunctionOperations {
             MODEL_DEPENDENCIES_LIST,
             SEMANTIC_MODELS_DESCRIBE,
             SEMANTIC_QUERIES_EXECUTE,
+            QUERY_MODEL_RUN,
+            COMPOSE_RUN,
             REPORTS_PREVIEW,
             DASHBOARDS_PREVIEW,
             DASHBOARDS_RENDER);
@@ -48,6 +52,8 @@ public final class AnalyticsFunctionOperations {
             MODEL_DEPENDENCIES_LIST,
             SEMANTIC_MODELS_DESCRIBE,
             SEMANTIC_QUERIES_EXECUTE,
+            QUERY_MODEL_RUN,
+            COMPOSE_RUN,
             REPORTS_PREVIEW,
             DASHBOARDS_PREVIEW,
             DASHBOARDS_RENDER);

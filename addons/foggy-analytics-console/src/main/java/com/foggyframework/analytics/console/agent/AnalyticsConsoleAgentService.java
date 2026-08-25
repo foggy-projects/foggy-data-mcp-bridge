@@ -19,11 +19,17 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 
 /** Freezes product selections before submitting direct-question or design Asks to FAP. */
 public final class AnalyticsConsoleAgentService {
+
+    private static final int MAX_CONVERSATION_TITLE_CODE_POINTS = 80;
+    private static final Pattern TITLE_WHITESPACE = Pattern.compile("\\s+");
 
     private final AnalyticsConsoleService console;
     private final AnalyticsConsoleCatalogRepository catalog;
@@ -34,6 +40,8 @@ public final class AnalyticsConsoleAgentService {
     private final AnalyticsFunctionClient functions;
     private final AnalyticsConsoleFunctionTraceRepository functionTraces;
     private final Clock clock;
+    private final Map<String, String> questionConversationTitles =
+            new ConcurrentHashMap<>();
 
     public AnalyticsConsoleAgentService(
             AnalyticsConsoleService console,
@@ -154,10 +162,14 @@ public final class AnalyticsConsoleAgentService {
     public List<ConversationSummary> questionConversations(
             AnalyticsConsoleSubject subject) {
         Objects.requireNonNull(subject, "subject");
-        return catalog.read().conversations().stream()
+        List<AnalyticsConsoleConversation> conversations = catalog.read().conversations().stream()
                 .filter(value -> value.mode() == AnalyticsConsoleConversationMode.QUESTION)
                 .filter(value -> value.ownerSubjectRef().equals(subject.subjectRef()))
-                .map(this::summarize)
+                .toList();
+        if (conversations.isEmpty()) return List.of();
+        AnalyticsConsoleFapBindingResolver.OutboundBinding binding = bindings.resolve(subject);
+        return conversations.stream()
+                .map(value -> summarize(value, binding))
                 .sorted(Comparator.comparing(ConversationSummary::lastActivityAt).reversed())
                 .toList();
     }
@@ -236,6 +248,10 @@ public final class AnalyticsConsoleAgentService {
             return new AnalyticsConsoleCatalogState(
                     state.revision(), state.folders(), state.assets(), conversations);
         });
+        if (mode == AnalyticsConsoleConversationMode.QUESTION) {
+            questionConversationTitles.put(
+                    conversation.conversationId(), conversationTitle(safePrompt));
+        }
         return conversation;
     }
 
@@ -398,7 +414,9 @@ public final class AnalyticsConsoleAgentService {
                         "Analytics Console conversation was not found"));
     }
 
-    private ConversationSummary summarize(AnalyticsConsoleConversation conversation) {
+    private ConversationSummary summarize(
+            AnalyticsConsoleConversation conversation,
+            AnalyticsConsoleFapBindingResolver.OutboundBinding binding) {
         String displayName = questionProfiles.stream()
                 .filter(value -> value.getId().equals(conversation.questionProfileId()))
                 .map(AnalyticsConsoleProperties.QuestionProfile::getDisplayName)
@@ -410,13 +428,41 @@ public final class AnalyticsConsoleAgentService {
                 .orElse(conversation.createdAt());
         return new ConversationSummary(
                 conversation.conversationId(),
-                displayName,
+                questionConversationTitle(conversation, binding, displayName),
                 conversation.questionProfileId(),
                 conversation.createdAt(),
                 lastActivityAt,
                 conversation.namespace(),
                 conversation.modelName(),
                 conversation.modelRevision());
+    }
+
+    private String questionConversationTitle(
+            AnalyticsConsoleConversation conversation,
+            AnalyticsConsoleFapBindingResolver.OutboundBinding binding,
+            String fallback) {
+        String cached = questionConversationTitles.get(conversation.conversationId());
+        if (cached != null) return cached;
+        try {
+            String firstUserMessage = gateway.firstUserMessage(
+                    binding,
+                    "analytics-console.title." + UUID.randomUUID(),
+                    conversation.externalConversationRef());
+            if (firstUserMessage == null || firstUserMessage.isBlank()) return fallback;
+            String title = conversationTitle(firstUserMessage);
+            questionConversationTitles.putIfAbsent(conversation.conversationId(), title);
+            return title;
+        } catch (AnalyticsConsoleCatalogException unavailable) {
+            return fallback;
+        }
+    }
+
+    private static String conversationTitle(String message) {
+        String normalized = TITLE_WHITESPACE.matcher(message.strip()).replaceAll(" ");
+        int codePoints = normalized.codePointCount(0, normalized.length());
+        if (codePoints <= MAX_CONVERSATION_TITLE_CODE_POINTS) return normalized;
+        int end = normalized.offsetByCodePoints(0, MAX_CONVERSATION_TITLE_CODE_POINTS);
+        return normalized.substring(0, end) + "…";
     }
 
     private static String instruction(AnalyticsConsoleAsset asset) {
@@ -450,11 +496,20 @@ public final class AnalyticsConsoleAgentService {
                 + ". Do not use or request another namespace. "
                 + "First list the available QMs and exact revisions in this namespace. "
                 + "Select the QM that best matches the user's question, then describe that exact "
-                + "semantic model before querying it. Use only the governed semantic query "
-                + "function and keep every Function call inside the fixed namespace. Answer the user's "
+                + "semantic model before querying it. For a single-model question, use the full "
+                + "query-model DSL Function: validate the payload first, repair validation errors, "
+                + "then execute it. Treat every described measure name as the canonical semantic "
+                + "expression and select it directly. For detail rows or highest/lowest record "
+                + "rankings, do not invent sum or groupBy; aggregate only when the user explicitly "
+                + "asks for grouped or summarized data. The DSL supports filters, grouping, "
+                + "calculated fields, timeWindow, "
+                + "pivot and controlled single-model DSL_CTE. Use restricted Compose only when the "
+                + "question truly needs a cross-model join or union, a derived query, or multiple "
+                + "plans; validate or preview the script before execute. Keep every Function call "
+                + "inside the fixed namespace. Answer the user's "
                 + "question directly and cite the returned rows, totals, truncation and warnings. "
                 + "Ask a concise clarification when the requested metric or time scope is "
-                + "ambiguous. Never request or generate raw SQL, Compose, scripts, credentials, "
+                + "ambiguous. Never request or generate raw SQL, standalone fsscript, credentials, "
                 + "authority filters, owner metadata, ACL filters, filesystem paths, HTML, "
                 + "JavaScript, iframes, or network access. Do not claim data was returned unless "
                 + "the Function result proves it. Do not create or modify a Report or Dashboard.";

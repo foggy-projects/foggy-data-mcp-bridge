@@ -40,7 +40,9 @@ public final class AnalyticsRuntimeHttpResponseMapper {
                     AnalyticsFunctionErrorCodes.BUNDLE_IDENTITY_MISMATCH,
                     AnalyticsFunctionErrorCodes.BUNDLE_DIGEST_MISMATCH,
                     AnalyticsFunctionErrorCodes.BUNDLE_UNSAFE_PATH,
-                    AnalyticsFunctionErrorCodes.BUNDLE_UNSUPPORTED_RESOURCE_PATH ->
+                    AnalyticsFunctionErrorCodes.BUNDLE_UNSUPPORTED_RESOURCE_PATH,
+                    AnalyticsFunctionErrorCodes.COMPOSE_INVALID,
+                    AnalyticsFunctionErrorCodes.COMPOSE_SANDBOX_VIOLATION ->
                     HttpStatus.UNPROCESSABLE_ENTITY;
             case AnalyticsFunctionErrorCodes.BUNDLE_UNAVAILABLE,
                     AnalyticsFunctionErrorCodes.BUNDLE_RECOVERY_FAILED,

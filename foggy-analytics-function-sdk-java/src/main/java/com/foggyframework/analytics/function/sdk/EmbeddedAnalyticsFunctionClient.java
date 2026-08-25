@@ -5,6 +5,8 @@ import com.foggyframework.analytics.function.contract.AnalyticsArtifactFunctionR
 import com.foggyframework.analytics.function.contract.AnalyticsBundleDescription;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsBundleList;
+import com.foggyframework.analytics.function.contract.AnalyticsComposeFunctionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsComposeResult;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionCapabilities;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionEndpoint;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionEnvelope;
@@ -13,6 +15,8 @@ import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyDe
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyResolutionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyList;
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyListRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsQueryModelFunctionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsQueryModelResult;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderResult;
 import com.foggyframework.analytics.function.contract.AnalyticsSemanticModelDescription;
@@ -83,6 +87,18 @@ public final class EmbeddedAnalyticsFunctionClient implements AnalyticsFunctionC
     public AnalyticsFunctionEnvelope<AnalyticsSemanticQueryResult> executeSemanticQuery(
             AnalyticsSemanticQueryFunctionRequest request) {
         return requireOutcome(endpoint.executeSemanticQuery(request));
+    }
+
+    @Override
+    public AnalyticsFunctionEnvelope<AnalyticsQueryModelResult> runQueryModel(
+            AnalyticsQueryModelFunctionRequest request) {
+        return requireOutcome(endpoint.runQueryModel(request));
+    }
+
+    @Override
+    public AnalyticsFunctionEnvelope<AnalyticsComposeResult> runCompose(
+            AnalyticsComposeFunctionRequest request) {
+        return requireOutcome(endpoint.runCompose(request));
     }
 
     @Override

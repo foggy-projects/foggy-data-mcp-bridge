@@ -1,5 +1,6 @@
 package com.foggyframework.analytics.console.api;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.analytics.console.agent.AnalyticsConsoleAgentService;
@@ -49,7 +50,9 @@ public class AnalyticsConsoleFapCallbackController {
             AnalyticsFunctionOperations.CAPABILITIES,
             AnalyticsFunctionOperations.MODEL_DEPENDENCIES_LIST,
             AnalyticsFunctionOperations.SEMANTIC_MODELS_DESCRIBE,
-            AnalyticsFunctionOperations.SEMANTIC_QUERIES_EXECUTE);
+            AnalyticsFunctionOperations.SEMANTIC_QUERIES_EXECUTE,
+            AnalyticsFunctionOperations.QUERY_MODEL_RUN,
+            AnalyticsFunctionOperations.COMPOSE_RUN);
 
     private final AnalyticsConsoleProperties.Fap properties;
     private final AnalyticsConsoleFapBindingResolver bindings;
@@ -58,6 +61,7 @@ public class AnalyticsConsoleFapCallbackController {
     private final FapAnalyticsFunctionAdapter adapter;
     private final AnalyticsConsoleFunctionTraceRepository functionTraces;
     private final ObjectMapper json;
+    private final ObjectMapper callbackJson;
 
     public AnalyticsConsoleFapCallbackController(
             AnalyticsConsoleProperties properties,
@@ -74,10 +78,14 @@ public class AnalyticsConsoleFapCallbackController {
         this.adapter = adapter;
         this.functionTraces = functionTraces;
         this.json = json.copy().findAndRegisterModules();
+        this.callbackJson = this.json.copy().setDefaultPropertyInclusion(
+                JsonInclude.Value.construct(
+                        JsonInclude.Include.ALWAYS,
+                        JsonInclude.Include.ALWAYS));
     }
 
     @PostMapping("/analytics-console/internal/fap/functions:invoke")
-    public ResponseEntity<Map<String, Object>> invoke(
+    public ResponseEntity<JsonNode> invoke(
             @RequestHeader(name = "Authorization", required = false) String authorization,
             @Valid @RequestBody FapAnalyticsCallbackRequest request) {
         authenticate(authorization);
@@ -149,7 +157,7 @@ public class AnalyticsConsoleFapCallbackController {
                         caller));
         recordTrace(conversation, request, outcome);
         return ResponseEntity.status(outcome.recommendedHttpStatus())
-                .body(outcome.callbackBody());
+                .body(callbackJson.valueToTree(outcome.callbackBody()));
     }
 
     private void recordTrace(
@@ -157,8 +165,8 @@ public class AnalyticsConsoleFapCallbackController {
             FapAnalyticsCallbackRequest request,
             FapAnalyticsFunctionOutcome outcome) {
         JsonNode result = outcome instanceof FapAnalyticsFunctionOutcome.Success success
-                ? json.valueToTree(success.result())
-                : json.valueToTree(outcome.callbackBody());
+                ? callbackJson.valueToTree(success.result())
+                : callbackJson.valueToTree(outcome.callbackBody());
         try {
             functionTraces.save(new AnalyticsConsoleFunctionTraceRepository.FunctionTrace(
                     conversation.conversationId(),

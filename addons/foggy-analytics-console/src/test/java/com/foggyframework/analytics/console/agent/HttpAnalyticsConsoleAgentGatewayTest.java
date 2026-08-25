@@ -65,6 +65,27 @@ class HttpAnalyticsConsoleAgentGatewayTest {
                   }]
                 }
                 """);
+        HttpResponse titleResponse = response(200, """
+                {
+                  "type": "ASK_CONVERSATION_TURN_PAGE",
+                  "turns": [{
+                    "askInvocationRef": "ask-1",
+                    "operation": "START",
+                    "displayState": "COMPLETED",
+                    "definitiveTerminal": true,
+                    "createdAt": "2026-08-24T07:59:00Z",
+                    "updatedAt": "2026-08-24T07:59:06Z",
+                    "userMessage": {
+                      "contentState": "AVAILABLE",
+                      "text": "本月订单量是多少？"
+                    },
+                    "assistantMessage": {
+                      "contentState": "AVAILABLE",
+                      "text": "本月共有 19 单。"
+                    }
+                  }]
+                }
+                """);
         HttpResponse traceResponse = response(200, """
                 {
                   "type": "ASK_TRACE",
@@ -108,7 +129,12 @@ class HttpAnalyticsConsoleAgentGatewayTest {
                 }
                 """);
         when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
-                .thenReturn(startResponse, continueResponse, turnsResponse, traceResponse);
+                .thenReturn(
+                        startResponse,
+                        continueResponse,
+                        turnsResponse,
+                        titleResponse,
+                        traceResponse);
         HttpAnalyticsConsoleAgentGateway gateway =
                 new HttpAnalyticsConsoleAgentGateway(
                         URI.create("http://127.0.0.1:4882"),
@@ -144,6 +170,10 @@ class HttpAnalyticsConsoleAgentGatewayTest {
                 binding,
                 "request-turns",
                 "analytics-console.conversation-1");
+        var title = gateway.firstUserMessage(
+                binding,
+                "request-title",
+                "analytics-console.conversation-1");
         var detail = gateway.turnDetail(
                 binding,
                 "request-2",
@@ -157,6 +187,7 @@ class HttpAnalyticsConsoleAgentGatewayTest {
             assertThat(turn.assistantMessage()).isEqualTo("东区 12 单，西区 7 单。");
             assertThat(turn.durationMs()).isEqualTo(6_000L);
         });
+        assertThat(title).isEqualTo("本月订单量是多少？");
         assertThat(detail.historyState()).isEqualTo("COMPLETE");
         assertThat(detail.agentActivities())
                 .extracting(AnalyticsConsoleAgentGateway.AgentActivity::label)
@@ -168,7 +199,7 @@ class HttpAnalyticsConsoleAgentGatewayTest {
         });
 
         ArgumentCaptor<HttpRequest> requests = ArgumentCaptor.forClass(HttpRequest.class);
-        verify(http, times(4)).send(
+        verify(http, times(5)).send(
                 requests.capture(), any(HttpResponse.BodyHandler.class));
         JsonNode startBody = json.readTree(
                 requests.getAllValues().get(0).bodyPublisher().orElseThrow()
@@ -183,7 +214,8 @@ class HttpAnalyticsConsoleAgentGatewayTest {
         assertThat(continueBody.has("workspaceRef")).isFalse();
         assertThat(continueBody.has("modelConfigRef")).isFalse();
         assertThat(continueBody.has("initialSystemInstruction")).isFalse();
-        assertThat(requests.getAllValues().get(3).uri().getPath())
+        assertThat(requests.getAllValues().get(3).uri().getQuery()).contains("limit=1");
+        assertThat(requests.getAllValues().get(4).uri().getPath())
                 .endsWith("/asks/requests/request-2/trace");
     }
 

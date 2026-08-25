@@ -14,6 +14,7 @@ public final class AnalyticsRuntimeApiRoutes {
         public static final String BUNDLES = "/bundles";
         public static final String MODEL_DEPENDENCIES = "/model-dependencies";
         public static final String SEMANTIC_MODELS = "/semantic-models";
+        public static final String COMPOSE = "/compose";
 
         private V1() {
         }

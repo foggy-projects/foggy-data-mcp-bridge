@@ -60,6 +60,10 @@ public final class AnalyticsFunctionFailureMapper {
             case MODEL_REVISION_CONFLICT ->
                     AnalyticsFunctionErrorCodes.MODEL_REVISION_CONFLICT;
             case QUERY_INVALID -> AnalyticsFunctionErrorCodes.SEMANTIC_QUERY_INVALID;
+            case COMPOSE_INVALID -> AnalyticsFunctionErrorCodes.COMPOSE_INVALID;
+            case COMPOSE_SANDBOX ->
+                    AnalyticsFunctionErrorCodes.COMPOSE_SANDBOX_VIOLATION;
+            case COMPOSE_FAILED -> AnalyticsFunctionErrorCodes.COMPOSE_FAILED;
             case QUERY_FAILED, RESPONSE_INVALID ->
                     AnalyticsFunctionErrorCodes.SEMANTIC_QUERY_FAILED;
         };
@@ -72,6 +76,9 @@ public final class AnalyticsFunctionFailureMapper {
             case MODEL_REVISION_CONFLICT ->
                     "Analytics semantic model revision does not match.";
             case QUERY_INVALID -> "Analytics semantic query is invalid.";
+            case COMPOSE_INVALID -> "Analytics Compose script is invalid.";
+            case COMPOSE_SANDBOX -> "Analytics Compose script violates the sandbox.";
+            case COMPOSE_FAILED -> "Analytics Compose execution failed.";
             case QUERY_FAILED -> "Analytics semantic query failed.";
             case RESPONSE_INVALID -> "Analytics semantic query returned an invalid response.";
         };

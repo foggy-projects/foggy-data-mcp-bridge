@@ -3,7 +3,7 @@ doc_role: workitem
 doc_type: implementation-plan
 intended_for: implementation agent / reviewer
 purpose: 记录未绑定正式 9.3.x 发布版本的独立 Analytics Console MVP 实施与验证边界。
-status: FUNCTION_TRACE_IMPLEMENTED_FOCUSED_VERIFIED
+status: DSL_COMPOSE_DEMO_VERIFIED
 recorded_at: 2026-08-25
 ---
 
@@ -35,7 +35,8 @@ Console Agent 和大型产品扩张，本项先归档在 `docs/待定/`；确认
 
 - 不修改历史业务或运行数据；测试只使用新临时目录和 fake gateway。
 - Console 默认关闭；没有 host subject resolver、可写 metadata root 和 Analytics Runtime beans 时拒绝启用。
-- FAP 变更、Provider/Capability live publication 和生产凭据不在本项自动执行范围。
+- 生产 FAP 变更、Provider/Capability publication 和生产凭据不在本项自动执行范围；本轮仅在已授权的
+  8023 本地演示环境追加 Function catalog 与 Skill 修订并执行目标链路验证。
 
 ## 实施结果
 
@@ -51,24 +52,31 @@ Console Agent 和大型产品扩张，本项先归档在 `docs/待定/`；确认
 | 8 | Function SDK 新增 semantic model describe 与 strict semantic query；embedded、HTTP、FAP 三种 adapter 共用同一合同，Java engine 使用当前 subject authority 执行。 |
 | 9 | Console 首页改为 conversation-first 布局：左侧是当前用户的最近会话与新建入口，右侧是单一对话主窗口，分析工作室作为次级入口。 |
 | 10 | 每轮终态对话显示耗时并可展开 Agent activities / Function calls；Function 原始参数、结果和 HTTP 状态由 Console callback 独立持久化，按 invocation ID 与 SP 生命周期 trace 严格合并，前端支持 JSON 展开和复制。 |
+| 11 | Function/SDK/HTTP/Runtime/FAP 新增完整单模型 `query-model` 与受限 `Compose` 两项只读能力；保留 strict semantic query v1 兼容面。 |
+| 12 | 问数 Skill 升至 revision 3，向 Worker 冻结完整 DSL/Compose 说明及五项 Function schema；真实 FAP 链路已完成 DSL 和 Compose validate→execute。 |
+| 13 | 最近会话标题与 canonical START turn 首条用户消息对齐；只从 FAP 按需读取并做进程内缓存，不修改既有 Console catalog。 |
 
 请求边界另增加：浏览器 mutation 专用请求头、Viewer definition suppression、FAP exact Provider/Capability/
 Ask request+invocation/Conversation/Execution/Task/Subject correlation、FAP response 5 MiB 上限和启用配置 fail-fast。
 
-问数的 strict query v1 只包含 columns、flat filters、groupBy、orderBy、start/limit、returnTotal 和 distinct；
-raw SQL、Compose、脚本、calculated fields、hints、extData 与调用方权限过滤都不在合同中。Console callback
-还会二次校验会话冻结的 namespace、QM 与 revision，不能借 CONTINUE 或 Function 参数切换数据范围。
+兼容的 strict query v1 仍只包含 columns、flat filters、groupBy、orderBy、start/limit、returnTotal 和
+distinct；新增 `foggy.analytics.query-model.run@v1` 对齐 MCP `dataset.query_model` 的完整单模型 DSL，新增
+`foggy.analytics.compose.run@v1` 对齐 MCP `dataset.compose_script` 的受限 Compose/CTE。两者都不接受 raw
+SQL、standalone fsscript、文件/网络访问或调用方权限过滤。Console callback 仍会二次校验会话冻结的
+namespace；单模型 DSL 还要求 exact QM revision，Compose authority 与 sandbox 由 Java engine 再次执行。
 
 ## 验证证据
 
-- Function/Runtime focused lane：Contract 7 tests、FAP changed lane 13 tests、HTTP client 5 tests、Foggy semantic
-  adapter 2 tests、Runtime API controller 15 tests、endpoint qualification 1 test，均为 0 failures/errors。
+- Function/Runtime focused lane：Contract、FAP catalog/request/result、Embedded/HTTP client、Foggy semantic
+  adapter、Runtime API controller 与 endpoint qualification 的 named suites 均为 0 failures/errors。
 - Console direct-question focused lane：agent START/CONTINUE、turn gateway、callback exact correlation、activation
   guard、catalog/service 与 static-dev authority resolver 共 7 classes / 14 tests，均通过。
 - Launcher：profile configuration 1 test；`AnalyticsConsoleDirectQuestionSmokeTest` 1 test 在 `lite,analytics-console`
   组合上下文内完成 stable QM revision resolve、semantic describe 和真实 `amount` query。
 - Function trace focused lane：file repository、callback 精确记录、SP trace 合并与 HTTP gateway 共
   4 classes / 8 tests，均为 0 failures/errors。
+- DSL/Compose focused lane：advanced Foggy adapter、Function catalog/request mapping、Agent/Skill、FAP callback
+  和 canonical callback digest 均通过 named tests；Compose optional-null 输出和带小数嵌套结果有回归覆盖。
 - Frontend：`vue-tsc --noEmit`、5 个 presentation unit tests、Vite production build 通过；当前 JS 约
   101.33 kB、CSS 约 34.05 kB。
 - Maven affected package 使用 `maven.test.skip=true` 成功，生成 9.3.0-SNAPSHOT Console 与 launcher JAR；测试
@@ -82,6 +90,13 @@ raw SQL、Compose、脚本、calculated fields、hints、extData 与调用方权
   Function calls、arguments/result/HTTP 200 展开、JSON 复制，整页刷新后内容仍可重新加载；浏览器
   console 为 0 errors / 0 warnings。该问数轮因 FAP `LANGBIZ_MODEL_TURN_LIMIT_EXCEEDED` 终止，不影响
   trace 链路验证。
+- 8023 targeted FAP DSL E2E：Worker 依次完成模型列表、exact describe、query-model validate 与 execute，
+  返回按 `amount` 降序的前三个订单。
+- 8023 targeted FAP Compose E2E：Worker 依次完成模型列表、exact describe、Compose validate 与 execute；
+  派生 CTE 返回 `ORD-LITE-0001/10998`、`ORD-LITE-0002/4599`，4 次 Function 均为 HTTP 200，Ask 终态
+  `SUCCEEDED`，无 warnings。
+- 8023 targeted title smoke：既有会话 `conversation-5589b6d2-1084-43ec-82be-b1f4cc7e5973` 的侧栏标题、
+  页头与首条用户消息均为“目前有哪些数据模型”；浏览器 console 为 0 errors / 0 warnings。
 - 未运行：全仓、全 reactor、完整浏览器套件、完整 Console/TMS E2E（未获授权）。
 
 ## 已知后续门禁
@@ -92,6 +107,7 @@ raw SQL、Compose、脚本、calculated fields、hints、extData 与调用方权
 - FAP Ask 已接受但 catalog 落盘失败时，首版没有自动 reconcile orphan Ask；生产启用前应补 pending/outcome-unknown recovery。
 - FAP Provider/Skill/Function/Capability/callback binding 仍由部署流程显式发布；Console 不持有 Provider admin
   credential，也不在启动时隐式修改 FAP 资源。当前代码已具备 static-dev binding、START/CONTINUE/turn 和
-  callback 闭环，但本批没有执行 live FAP mutation。
+  callback 闭环；本地 8023 演示环境已经显式追加并激活 Function catalog revision 3、Skill revision 3，
+  不代表生产环境已发布。
 - 生产宿主必须实现 subject/FAP binding，完成真实认证、callback credential rotation 和 capability publication；本项不保存或生成生产凭据。
 - immutable publication copy、draft fork、历史 revision、审批/协作、浏览器 E2E 和 rollout signoff 仍属后续，不阻塞默认关闭 MVP。

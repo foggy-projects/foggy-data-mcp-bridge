@@ -81,14 +81,30 @@ foggy:
 
 `capability-name` 是提交 Ask 时由服务端冻结的选择；callback ID/revision 是入站回调的 exact contract
 guard。Resolver 返回的 FAP credential、workspace/model binding 和数据 authority 不能写入 catalog 或 API
-响应。Console 只保存不透明的 Ask/Execution/Task 关联，不保存 prompt。
+响应。Console 只保存不透明的 Ask/Execution/Task 关联，不保存 prompt。会话列表标题按需读取 FAP canonical
+START turn 的首条用户消息并只做进程内缓存；暂时不可读时回退到问数 profile 的 display name，不会回填
+Console catalog。
 
-直接问数使用三项只读 Function：
+直接分析使用五项只读 Function：
 
 - `foggy.analytics.model-dependencies.list@v1`：列出会话所选 Namespace 下可用的 QM 及 exact revision；
 - `foggy.analytics.semantic-models.describe@v1`：描述 AI 针对当前问题选定的 exact QM revision；
 - `foggy.analytics.semantic-queries.execute@v1`：只接受 columns、flat filters、groupBy、orderBy 和有界分页，
-  不接受 raw SQL、Compose、脚本、calculated fields、hints 或 extData。
+  保留给兼容调用方的严格 v1 子集；
+- `foggy.analytics.query-model.run@v1`：对应 MCP `dataset.query_model` 的完整单模型 DSL，支持
+  validate/execute、calculatedFields、timeWindow、pivot 和受控单模型 DSL_CTE；
+- `foggy.analytics.compose.run@v1`：对应 MCP `dataset.compose_script` 的受限 SemanticDSL，支持
+  validate/preview/execute，用于跨模型 Join/Union、派生查询和多 Plan。
+
+上述能力都不接受任意 SQL、standalone fsscript、文件/网络访问或调用方注入的 authority。Console
+服务端固定 Namespace 并将不透明 FAP Subject 映射为宿主管理的查询身份；单模型 DSL 仍绑定 exact QM
+revision，Compose 使用当前 Namespace catalog 并由引擎的 Compose authority/sandbox 再次约束。
+
+可发布的问数 Skill bundle 位于
+`src/main/resources/fap/analytics-question-answering/`。revision 3 包含主指令、完整 DSL/Compose 参考和
+五项 Function 的 schema-delivery 声明；FAP 与 Worker 本地 Skill registry 必须以相同 digest 追加该修订，
+Capability 也必须追加包含同一五项 Function 的 revision。不要原地覆盖旧修订，已开始的会话仍使用冻结的
+旧 Skill/Capability/Function catalog，新能力只对新建会话生效。
 
 Console 的问数 Skill/Capability 和 callback binding 由产品部署流程显式发布，callback endpoint 为
 `/analytics-console/internal/fap/functions:invoke`。本模块不会持有 Provider admin credential，也不会在
@@ -117,8 +133,8 @@ Console 首页仍可访问，Analytics Runtime 的受治理语义能力仍可独
   展示 ACL、状态和不透明 FAP 关联。
 - Viewer 详情不返回定义内容，只能使用受治理的 preview/render。
 - 数据权限继续由当前 subject 对应的 QM/TM authority 执行；Console ACL 不能作为数据过滤条件。
-- 问数 profile 是服务端 QM allowlist；会话冻结 exact model revision，FAP callback 不能切换 namespace、QM
-  或 revision。FAP 只负责理解与编排，Java engine 才执行受治理语义查询。
+- 问数 profile 是服务端 Namespace allowlist；会话冻结 Namespace，FAP callback 不能切换 namespace；
+  单模型查询每次显式提交 exact QM revision。FAP 只负责理解与编排，Java engine 才执行受治理语义查询。
 - TMS 使用自己的发布表和 Function SDK adapter；它不依赖本 Console，也不与 Console 同步元数据。
 - 当前 JSON catalog 是单进程 MVP store。多实例部署前必须替换 `AnalyticsConsoleCatalogRepository`，不能让
   多个进程共享写同一个 catalog 文件。

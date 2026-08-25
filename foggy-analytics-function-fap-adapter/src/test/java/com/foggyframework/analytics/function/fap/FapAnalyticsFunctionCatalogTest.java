@@ -31,7 +31,7 @@ class FapAnalyticsFunctionCatalogTest {
         List<FapAnalyticsFunctionDescriptor> descriptors =
                 FapAnalyticsFunctionCatalog.descriptors();
 
-        assertThat(descriptors).hasSize(11);
+        assertThat(descriptors).hasSize(13);
         assertThat(descriptors)
                 .extracting(FapAnalyticsFunctionDescriptor::operation)
                 .containsExactlyInAnyOrderElementsOf(AnalyticsFunctionOperations.FAP_V1);
@@ -97,6 +97,52 @@ class FapAnalyticsFunctionCatalogTest {
                 "rawSql", "compose", "script", "calculatedFields", "hints",
                 "extData", "authority", "securityContext");
         assertThat(query.get("additionalProperties")).isEqualTo(false);
+    }
+
+    @Test
+    void advancedSchemasExposeMcpDslAndComposeWithoutAuthorityInjection() {
+        FapAnalyticsFunctionDescriptor queryDescriptor = FapAnalyticsFunctionCatalog
+                .findByFunctionRef(FapAnalyticsFunctionRefs.QUERY_MODEL_RUN)
+                .orElseThrow();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> queryProperties = (Map<String, Object>)
+                queryDescriptor.projection().inputSchema().get("properties");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> payload = (Map<String, Object>) queryProperties.get("payload");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> payloadProperties = (Map<String, Object>)
+                payload.get("properties");
+
+        assertThat(queryProperties.keySet()).containsExactlyInAnyOrder(
+                "namespace", "modelName", "expectedModelRevision", "mode", "payload");
+        assertThat(payloadProperties.keySet()).contains(
+                "calculatedFields", "timeWindow", "pivot", "executable_plan");
+        assertThat(payloadProperties).doesNotContainKeys(
+                "rawSql", "script", "authority", "securityContext", "extData", "hints");
+        assertThat(payload.get("additionalProperties")).isEqualTo(false);
+
+        FapAnalyticsFunctionDescriptor composeDescriptor = FapAnalyticsFunctionCatalog
+                .findByFunctionRef(FapAnalyticsFunctionRefs.COMPOSE_RUN)
+                .orElseThrow();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> composeProperties = (Map<String, Object>)
+                composeDescriptor.projection().inputSchema().get("properties");
+        assertThat(composeProperties.keySet()).containsExactlyInAnyOrder(
+                "namespace", "mode", "script", "params");
+        assertThat(composeProperties).doesNotContainKeys(
+                "rawSql", "authority", "authorization", "headers", "filesystem");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> composeOutputProperties = (Map<String, Object>)
+                composeDescriptor.projection().outputSchema().get("properties");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> composeData = (Map<String, Object>)
+                composeOutputProperties.get("data");
+        @SuppressWarnings("unchecked")
+        List<String> composeDataRequired = (List<String>) composeData.get("required");
+        assertThat(composeDataRequired)
+                .contains("namespace", "mode", "valid", "executed", "value", "params", "warnings")
+                .doesNotContain("sql");
     }
 
     @Test
@@ -207,6 +253,11 @@ class FapAnalyticsFunctionCatalogTest {
                                 "sha256:cd52ceb005f2b9884c1d65f24b70eae2d00d397adcb4afe95012d76a1c8de2d6",
                                 "sha256:afd1253ef0f2b495e8bc13a56cac4b76226a0a93d06c72b4ee066019a0243cfe")),
                 Map.entry(
+                        FapAnalyticsFunctionRefs.COMPOSE_RUN,
+                        List.of(
+                                "sha256:5596a48f0b34471fe938805d36321de9fbe16de0dc554473f4e825d007283abc",
+                                "sha256:33a554bc4a775ad86c8e755d1f169ef0ce7fb8af4a5706f7d95a51be86dcf4a4")),
+                Map.entry(
                         FapAnalyticsFunctionRefs.DASHBOARDS_PREVIEW,
                         List.of(
                                 "sha256:1b20a58858caf3bd4a2fef2f6da2556c3f672478a521607a22246e5cf895322f",
@@ -221,6 +272,11 @@ class FapAnalyticsFunctionCatalogTest {
                         List.of(
                                 "sha256:ae88060bdf617dfcbdfbaa2e2df1290517b4de3b011ac34288a5941451645446",
                                 "sha256:6cc16ee96778ce1a1a3ecbd6e44bb2fbc1c2e9c09a879231eca577a9bce8c0cd")),
+                Map.entry(
+                        FapAnalyticsFunctionRefs.QUERY_MODEL_RUN,
+                        List.of(
+                                "sha256:bb3b5f89a9956cb0021d5d2ef2ab5ac5f2be0390dd6dec7fc9d4832ee9292f26",
+                                "sha256:9609388408e772d0004a805f8490fff87b48bce6586977ab6d3f7b84f0cc5317")),
                 Map.entry(
                         FapAnalyticsFunctionRefs.REPORTS_PREVIEW,
                         List.of(

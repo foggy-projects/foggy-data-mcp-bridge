@@ -1,13 +1,18 @@
 package com.foggyframework.analytics.runtime.api;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.analytics.definition.core.AnalyticsBundleStore;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionEndpoint;
 import com.foggyframework.analytics.runtime.api.controller.AnalyticsCapabilitiesController;
 import com.foggyframework.analytics.runtime.core.function.AnalyticsFunctionRenderOperations;
+import com.foggyframework.analytics.runtime.core.function.AnalyticsAdvancedSemanticFunctionOperations;
 import com.foggyframework.analytics.runtime.core.function.AnalyticsModelDependencyOperations;
 import com.foggyframework.analytics.runtime.foggy.FoggySemanticRequestContextResolver;
+import com.foggyframework.analytics.runtime.foggy.FoggyComposeCallerResolver;
 import com.foggyframework.analytics.runtime.foggy.FoggyStableModelRevisionReadPort;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogSnapshotStore;
+import com.foggyframework.dataset.model.engine.compose.security.AuthorityResolver;
+import com.foggyframework.dataset.model.semantic.port.ComposeExecutionPort;
 import com.foggyframework.dataset.model.semantic.port.SemanticModelCatalogReadPort;
 import com.foggyframework.dataset.model.semantic.port.SemanticQueryExecutionPort;
 import org.junit.jupiter.api.Test;
@@ -66,5 +71,27 @@ class AnalyticsRuntimeApiAutoConfigurationTest {
                         () -> (request, resolution) -> null)
                 .run(context -> assertThat(context)
                         .hasSingleBean(AnalyticsFunctionRenderOperations.class));
+    }
+
+    @Test
+    void enablesAdvancedLaneOnlyWithBothCallerAndModelAuthorityResolvers() {
+        WebApplicationContextRunner candidate = contextRunner
+                .withPropertyValues("foggy.analytics.runtime-api.enabled=true")
+                .withBean(ObjectMapper.class, ObjectMapper::new)
+                .withBean(ComposeExecutionPort.class, () -> mock(ComposeExecutionPort.class))
+                .withBean(
+                        FoggySemanticRequestContextResolver.class,
+                        () -> (request, resolution) -> null)
+                .withBean(
+                        FoggyComposeCallerResolver.class,
+                        () -> request -> null);
+
+        candidate.run(context -> assertThat(context)
+                .doesNotHaveBean(AnalyticsAdvancedSemanticFunctionOperations.class));
+        candidate.withBean(
+                        AuthorityResolver.class,
+                        () -> request -> null)
+                .run(context -> assertThat(context)
+                        .hasSingleBean(AnalyticsAdvancedSemanticFunctionOperations.class));
     }
 }

@@ -10,11 +10,23 @@ import com.foggyframework.analytics.function.contract.AnalyticsFunctionError;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionErrorCodes;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderResult;
+import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 class FapAnalyticsFunctionOutcomeMappingTest {
+
+    @Test
+    void canonicalDigestMatchesServiceProviderForNestedDecimalResults() {
+        Map<String, Object> composeResult = Map.of(
+                "rows",
+                List.of(Map.of("amount", new BigDecimal("10998.0"))));
+
+        assertThat(FapCanonicalDigests.json(composeResult)).isEqualTo(
+                "sha256:433caec709b3646d32eabb27c9fc57eba6600513567aa4d455515b729c1c2a8d");
+    }
 
     @Test
     void successProducesExactCallbackEnvelopeAndCanonicalResultDigest() {

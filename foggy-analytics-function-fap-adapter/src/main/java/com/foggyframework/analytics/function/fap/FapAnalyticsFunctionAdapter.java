@@ -49,6 +49,7 @@ public final class FapAnalyticsFunctionAdapter {
     private final AnalyticsFunctionClient client;
     private final FapAnalyticsAuthorityResolver authorityResolver;
     private final FapAnalyticsSemanticRequestMapper semanticRequests;
+    private final FapAnalyticsAdvancedRequestMapper advancedRequests;
 
     public FapAnalyticsFunctionAdapter(
             AnalyticsFunctionClient client,
@@ -57,6 +58,8 @@ public final class FapAnalyticsFunctionAdapter {
         this.authorityResolver = Objects.requireNonNull(
                 authorityResolver, "authorityResolver");
         this.semanticRequests = new FapAnalyticsSemanticRequestMapper(
+                authorityResolver);
+        this.advancedRequests = new FapAnalyticsAdvancedRequestMapper(
                 authorityResolver);
     }
 
@@ -134,6 +137,18 @@ public final class FapAnalyticsFunctionAdapter {
                         client.executeSemanticQuery(semanticRequests.query(
                                 invocation, operation)),
                         FapAnalyticsResults::semanticQuery);
+                case AnalyticsFunctionOperations.QUERY_MODEL_RUN -> complete(
+                        invocation,
+                        operation,
+                        client.runQueryModel(advancedRequests.queryModel(
+                                invocation, operation)),
+                        FapAnalyticsAdvancedResults::queryModel);
+                case AnalyticsFunctionOperations.COMPOSE_RUN -> complete(
+                        invocation,
+                        operation,
+                        client.runCompose(advancedRequests.compose(
+                                invocation, operation)),
+                        FapAnalyticsAdvancedResults::compose);
                 case AnalyticsFunctionOperations.REPORTS_PREVIEW -> complete(
                         invocation,
                         operation,
@@ -170,6 +185,13 @@ public final class FapAnalyticsFunctionAdapter {
                     "FAP Analytics function arguments are invalid",
                     false,
                     422);
+        } catch (FapAnalyticsAdvancedRequestMapper.ArgumentsInvalid invalid) {
+            return failure(
+                    invocation,
+                    FapAnalyticsErrorCodes.ARGUMENTS_INVALID,
+                    "FAP Analytics function arguments are invalid",
+                    false,
+                    422);
         } catch (AuthorityUnavailable unavailable) {
             return failure(
                     invocation,
@@ -178,6 +200,13 @@ public final class FapAnalyticsFunctionAdapter {
                     false,
                     403);
         } catch (FapAnalyticsSemanticRequestMapper.AuthorityUnavailable unavailable) {
+            return failure(
+                    invocation,
+                    FapAnalyticsErrorCodes.AUTHORITY_UNAVAILABLE,
+                    "Analytics data authority is unavailable for the FAP Subject",
+                    false,
+                    403);
+        } catch (FapAnalyticsAdvancedRequestMapper.AuthorityUnavailable unavailable) {
             return failure(
                     invocation,
                     FapAnalyticsErrorCodes.AUTHORITY_UNAVAILABLE,
@@ -377,7 +406,9 @@ public final class FapAnalyticsFunctionAdapter {
                     AnalyticsFunctionErrorCodes.BUNDLE_DIGEST_MISMATCH,
                     AnalyticsFunctionErrorCodes.BUNDLE_UNSAFE_PATH,
                     AnalyticsFunctionErrorCodes.BUNDLE_UNSUPPORTED_RESOURCE_PATH,
-                    AnalyticsFunctionErrorCodes.SEMANTIC_QUERY_INVALID -> 422;
+                    AnalyticsFunctionErrorCodes.SEMANTIC_QUERY_INVALID,
+                    AnalyticsFunctionErrorCodes.COMPOSE_INVALID,
+                    AnalyticsFunctionErrorCodes.COMPOSE_SANDBOX_VIOLATION -> 422;
             case AnalyticsFunctionErrorCodes.BUNDLE_UNAVAILABLE,
                     AnalyticsFunctionErrorCodes.BUNDLE_RECOVERY_FAILED,
                     AnalyticsFunctionErrorCodes.RENDER_UNAVAILABLE,

@@ -22,6 +22,18 @@ public interface AnalyticsConsoleAgentGateway {
             String requestId,
             String externalConversationRef);
 
+    default String firstUserMessage(
+            AnalyticsConsoleFapBindingResolver.OutboundBinding binding,
+            String requestId,
+            String externalConversationRef) {
+        return turns(binding, requestId, externalConversationRef).stream()
+                .filter(turn -> "START".equals(turn.operation()))
+                .map(Turn::userMessage)
+                .filter(message -> message != null && !message.isBlank())
+                .findFirst()
+                .orElse(null);
+    }
+
     default TurnDetail turnDetail(
             AnalyticsConsoleFapBindingResolver.OutboundBinding binding,
             String askRequestId,

@@ -12,6 +12,10 @@ public final class AnalyticsFunctionErrorCodes {
             "ANALYTICS_SEMANTIC_QUERY_INVALID";
     public static final String SEMANTIC_QUERY_FAILED =
             "ANALYTICS_SEMANTIC_QUERY_FAILED";
+    public static final String COMPOSE_INVALID = "ANALYTICS_COMPOSE_INVALID";
+    public static final String COMPOSE_SANDBOX_VIOLATION =
+            "ANALYTICS_COMPOSE_SANDBOX_VIOLATION";
+    public static final String COMPOSE_FAILED = "ANALYTICS_COMPOSE_FAILED";
     public static final String MODEL_REVISION_CONFLICT =
             "ANALYTICS_MODEL_REVISION_CONFLICT";
 

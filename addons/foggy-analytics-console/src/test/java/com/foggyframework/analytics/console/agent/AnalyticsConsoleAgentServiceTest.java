@@ -23,6 +23,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -215,6 +216,8 @@ class AnalyticsConsoleAgentServiceTest {
         assertThat(conversation.modelRevision()).isNull();
         assertThat(started.get().initialSystemInstruction())
                 .contains("namespace default", "list the available QMs")
+                .contains("full query-model DSL", "restricted Compose")
+                .contains("canonical semantic expression", "do not invent sum or groupBy")
                 .contains("Do not create or modify a Report or Dashboard");
         assertThat(started.get().skillName()).isEqualTo("analytics-question-answering");
         assertThat(continued.get().runtimeExecutionId()).isEqualTo("execution-question");
@@ -232,7 +235,7 @@ class AnalyticsConsoleAgentServiceTest {
                 .isEqualTo(updated);
         assertThat(summaries).singleElement().satisfies(summary -> {
             assertThat(summary.conversationId()).isEqualTo(conversation.conversationId());
-            assertThat(summary.title()).isEqualTo("订单分析");
+            assertThat(summary.title()).isEqualTo("本月订单量是多少？");
             assertThat(summary.questionProfileId()).isEqualTo("orders");
             assertThat(summary.lastActivityAt()).isEqualTo(Instant.EPOCH);
             assertThat(summary.namespace()).isEqualTo("default");
@@ -282,6 +285,66 @@ class AnalyticsConsoleAgentServiceTest {
         assertThat(service.questionConversations(other))
                 .extracting(AnalyticsConsoleAgentService.ConversationSummary::conversationId)
                 .containsExactly("question-other");
+    }
+
+    @Test
+    void derivesLegacyConversationTitleFromTheCanonicalFapStartTurnWithoutBackfill()
+            throws Exception {
+        Path catalogPath = tempDir.resolve("legacy-title-catalog.json");
+        var catalog = new FileAnalyticsConsoleCatalogRepository(
+                catalogPath, new ObjectMapper());
+        AnalyticsConsoleSubject analyst = new AnalyticsConsoleSubject(
+                "analyst", "Analyst", Set.of(AnalyticsConsoleRole.VIEWER),
+                "console", "authority-analyst");
+        String revision = "sha256:" + "d".repeat(64);
+        catalog.update(state -> new AnalyticsConsoleCatalogState(
+                state.revision(),
+                state.folders(),
+                state.assets(),
+                List.of(questionConversation(
+                        "question-legacy", analyst, revision, Instant.EPOCH))));
+        AtomicInteger titleReads = new AtomicInteger();
+        AnalyticsConsoleAgentGateway gateway = new AnalyticsConsoleAgentGateway() {
+            @Override
+            public Accepted start(
+                    AnalyticsConsoleFapBindingResolver.OutboundBinding binding,
+                    StartCommand command) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public List<Turn> turns(
+                    AnalyticsConsoleFapBindingResolver.OutboundBinding binding,
+                    String requestId,
+                    String externalConversationRef) {
+                return List.of();
+            }
+
+            @Override
+            public String firstUserMessage(
+                    AnalyticsConsoleFapBindingResolver.OutboundBinding binding,
+                    String requestId,
+                    String externalConversationRef) {
+                titleReads.incrementAndGet();
+                return "  本月有哪些\n数据模型  ";
+            }
+        };
+        AnalyticsConsoleAgentService service = new AnalyticsConsoleAgentService(
+                mock(AnalyticsConsoleService.class),
+                catalog,
+                gateway,
+                bindings(analyst),
+                new AnalyticsConsoleProperties().getFap(),
+                Clock.systemUTC());
+
+        assertThat(service.questionConversations(analyst))
+                .extracting(AnalyticsConsoleAgentService.ConversationSummary::title)
+                .containsExactly("本月有哪些 数据模型");
+        assertThat(service.questionConversations(analyst))
+                .extracting(AnalyticsConsoleAgentService.ConversationSummary::title)
+                .containsExactly("本月有哪些 数据模型");
+        assertThat(titleReads).hasValue(1);
+        assertThat(Files.readString(catalogPath)).doesNotContain("本月有哪些", "数据模型");
     }
 
     private static AnalyticsConsoleAgentGateway emptyGateway() {

@@ -7,11 +7,14 @@ import com.foggyframework.analytics.function.contract.AnalyticsSemanticModelDesc
 import com.foggyframework.analytics.function.contract.AnalyticsSemanticModelFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsSemanticQueryFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsSemanticQueryResult;
+import com.foggyframework.analytics.function.contract.AnalyticsQueryModelFunctionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsQueryModelResult;
 import com.foggyframework.analytics.runtime.api.AnalyticsRuntimeApiRoutes;
 import com.foggyframework.analytics.runtime.api.AnalyticsRuntimeEndpoint;
 import com.foggyframework.analytics.runtime.api.dto.AnalyticsAuthorityRequest;
 import com.foggyframework.analytics.runtime.api.dto.AnalyticsSemanticModelHttpRequest;
 import com.foggyframework.analytics.runtime.api.dto.AnalyticsSemanticQueryHttpRequest;
+import com.foggyframework.analytics.runtime.api.dto.AnalyticsQueryModelHttpRequest;
 import com.foggyframework.analytics.runtime.api.service.AnalyticsRuntimeApiResponseFactory;
 import com.foggyframework.analytics.runtime.api.service.AnalyticsRuntimeHttpResponseMapper;
 import jakarta.validation.Valid;
@@ -73,6 +76,20 @@ public class AnalyticsSemanticQueryController {
                         request.query(),
                         authority(request.authority()),
                         responses.requestContext(request.requestId(), request.traceId()))));
+    }
+
+    @PostMapping("/{modelName}/query-model")
+    public ResponseEntity<AnalyticsFunctionEnvelope<AnalyticsQueryModelResult>> runQueryModel(
+            @PathVariable String modelName,
+            @Valid @RequestBody AnalyticsQueryModelHttpRequest request) {
+        return http.map(endpoint.runQueryModel(new AnalyticsQueryModelFunctionRequest(
+                request.namespace(),
+                modelName,
+                request.expectedModelRevision(),
+                request.mode(),
+                request.payload(),
+                authority(request.authority()),
+                responses.requestContext(request.requestId(), request.traceId()))));
     }
 
     private static AnalyticsFunctionAuthority authority(AnalyticsAuthorityRequest request) {

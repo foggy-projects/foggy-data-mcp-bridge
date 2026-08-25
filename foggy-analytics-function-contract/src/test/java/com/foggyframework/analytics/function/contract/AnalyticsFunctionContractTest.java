@@ -35,6 +35,8 @@ class AnalyticsFunctionContractTest {
                         "analytics.model-dependencies.list",
                         "analytics.semantic-models.describe",
                         "analytics.semantic-queries.execute",
+                        "analytics.query-model.run",
+                        "analytics.compose.run",
                         "analytics.reports.preview",
                         "analytics.dashboards.preview",
                         "analytics.dashboards.render"),
@@ -159,6 +161,41 @@ class AnalyticsFunctionContractTest {
         assertFalse(queryFields.contains("script"));
         assertFalse(queryFields.contains("hints"));
         assertFalse(queryFields.contains("extdata"));
+    }
+
+    @Test
+    void advancedSemanticContractsExposeDslWithoutCallerControlledAuthority() {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("columns", List.of("orderId"));
+        payload.put("timeWindow", Map.of("type", "YTD"));
+        AnalyticsQueryModelFunctionRequest query =
+                new AnalyticsQueryModelFunctionRequest(
+                        "default",
+                        "FactOrderQueryModel",
+                        REVISION,
+                        "VALIDATE",
+                        payload,
+                        new AnalyticsFunctionAuthority("tms", "subject:42"),
+                        AnalyticsFunctionRequestContext.empty());
+        payload.put("rawSql", "select 1");
+
+        assertEquals("validate", query.mode());
+        assertFalse(query.payload().containsKey("rawSql"));
+        assertThrows(UnsupportedOperationException.class,
+                () -> query.payload().put("limit", 10));
+
+        AnalyticsComposeFunctionRequest compose = new AnalyticsComposeFunctionRequest(
+                "default",
+                "PREVIEW",
+                "return { plans: dsl({ model: 'FactOrderQueryModel' }) };",
+                Map.of("status", "SHIPPED"),
+                new AnalyticsFunctionAuthority("tms", "subject:42"),
+                AnalyticsFunctionRequestContext.empty());
+        assertEquals("preview", compose.mode());
+        assertThrows(IllegalArgumentException.class, () ->
+                new AnalyticsComposeFunctionRequest(
+                        "default", "sql", "select 1", Map.of(),
+                        compose.authority(), compose.context()));
     }
 
     @Test

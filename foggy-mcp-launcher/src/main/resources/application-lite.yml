@@ -36,6 +36,8 @@ spring:
       data-locations: classpath:/db/lite-demo-data.sql
 
 foggy:
+  compose:
+    dialect: sqlite
   # 关闭 Data Viewer（强依赖 MongoDB）
   data-viewer:
     enabled: false
