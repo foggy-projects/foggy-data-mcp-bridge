@@ -278,6 +278,12 @@ public class SemanticQueryPayloadMapper {
         item.setField(stringValue(map.get("field")));
         item.setOp(stringOr(map.get("op"), "="));
         item.setValue(map.get("value"));
+        if (map.containsKey("maxDepth") && map.get("maxDepth") instanceof Number maxDepth) {
+            item.setMaxDepth(maxDepth.intValue());
+        }
+        if (map.containsKey("$expr")) {
+            item.setExpr(stringValue(map.get("$expr")));
+        }
         if (map.containsKey("$or")) {
             item.setOr(convertLogicalSliceItems(map.get("$or"), path + ".$or"));
         }
@@ -319,6 +325,8 @@ public class SemanticQueryPayloadMapper {
                 SemanticQueryRequest.OrderItem item = new SemanticQueryRequest.OrderItem();
                 item.setField(stringOr(map.get("field"), stringValue(map.get("column"))));
                 item.setDir(stringOr(map.get("dir"), stringOr(map.get("direction"), "asc")));
+                item.setNullFirst(boolValue(map.get("nullFirst")));
+                item.setNullLast(boolValue(map.get("nullLast")));
                 result.add(item);
             }
         }

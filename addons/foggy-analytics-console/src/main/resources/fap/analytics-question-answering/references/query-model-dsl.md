@@ -29,6 +29,26 @@ Supported top-level payload fields are `columns`, `slice`, `having`, `groupBy`, 
 `pivot`, `route`, `executable_plan`, and `executablePlan`. Nested shapes are governed by the
 published Function schema and engine validation.
 
+The published `foggy.analytics.query-model.run@v1` input schema is the machine-readable contract
+for every nested property. Do not infer a property that is absent from it. In particular:
+
+- `groupBy` accepts a field string or `{ "field": "...", "agg": "..." }`; strings are the
+  preferred public shorthand.
+- `orderBy` accepts `"field"`, `"-field"`, `"field desc"`, or an object containing `field`,
+  `dir`, and optional `nullFirst` / `nullLast`.
+- A standard `slice` / `having` item is `{field, op, value}`. Use `$or` / `$and` arrays for
+  explicit Boolean groups, `{ "$expr": "a > b * 1.2" }` for governed field comparison, and
+  `maxDepth` only with a described parent/child hierarchy operator. The legacy `{fieldName:
+  value}` equality shorthand is accepted for compatibility but must not be generated.
+- Common filter operators are `=`, `!=`, `<>`, `===`, `>`, `>=`, `<`, `<=`, `like`, `not like`,
+  `left_like`, `right_like`, `in`, `not in`, `bit_in`, `is null`, `is not null`, `[]`, `[)`, `()`,
+  `(]`, and the described hierarchy/vector operators. The published schema deliberately accepts a
+  non-blank operator string because the Runtime formula registry is authoritative. A field
+  reference value is `{ "$field": "other" }`.
+- `calculatedFields` items require `name` and `expression`; optional fields are `agg`,
+  `partitionBy`, `windowOrderBy`, and `windowFrame`. Allowed `agg` values come from the Function
+  schema. Expressions are Foggy expression DSL, not database SQL.
+
 ## Detail query
 
 ```json
@@ -106,12 +126,104 @@ time axis and base metric as well as the derived metric.
 }
 ```
 
+`grain` is one of `day`, `week`, `month`, `quarter`, `year`. `comparison` is one of `yoy`,
+`mom`, `wow`, `ytd`, `mtd`, `rolling_7d`, `rolling_30d`, `rolling_90d`. Optional `value` must
+contain exactly two date/relative-bound strings; `range` is `[)` or `[]`; `rollingAggregator` is
+`sum`, `avg`, `count`, `min`, or `max`. Derived names are `{metric}__prior`, `__diff`, `__ratio`,
+`__ytd`, `__mtd`, or the selected `__rolling_*` suffix. `targetMetrics` cannot name a
+`calculatedFields` result.
+
+## Controlled DSL_CTE
+
+Use `route: "DSL_CTE"` plus `executable_plan.cte_plan.stages` only for a signed, controlled
+single-model recipe such as row-level SLA duration/hit flags followed by aggregation and a
+NULL-safe result-stage rate. Do not place raw SQL, arbitrary database functions, identity, policy,
+datasource, or routing values in the plan.
+
+The currently documented SLA signatures are:
+
+- `hours_between(createdAt, firstResponseAt|resolvedAt)` for natural-hour duration;
+- `firstResponseAt is not null and firstResponseHours <= N` or a documented
+  `priority_threshold(priority, P1=..., P2=..., P3=...)` hit rule;
+- `firstResponseAt is null and createdAt < '<cutoff>'` or a documented `hours_between` overdue
+  rule;
+- `sum(flag)`, `sum(case when flag then 1 else 0 end)`, `count(*)`, subtraction for an explicitly
+  named miss count, and `hitCount / ticketCount` for a NULL-safe rate.
+
+Business-hours, contract-calendar, paused-time, held-time, or customer-wait exclusions are not
+signed. Ask for the missing calendar/policy semantics and stop; never invent functions for them.
+
+```json
+{
+  "route": "DSL_CTE",
+  "executable_plan": {
+    "cte_plan": {
+      "stages": [
+        {
+          "name": "ticket_scope",
+          "type": "derive",
+          "input": {"model": "ServiceTicketQueryModel"},
+          "filters": [{"field": "createdAt", "op": "[)", "value": ["2026-05-01", "2026-06-01"]}],
+          "derived": [
+            {"name": "firstResponseHours", "expr": "hours_between(createdAt, firstResponseAt)"},
+            {"name": "slaHit", "expr": "firstResponseAt is not null and firstResponseHours <= 48"}
+          ]
+        },
+        {
+          "name": "team_sla",
+          "type": "aggregate",
+          "inputs": ["ticket_scope"],
+          "groupBy": ["team$caption"],
+          "metrics": [
+            {"name": "ticketCount", "expr": "count(*)"},
+            {"name": "slaHitCount", "expr": "sum(slaHit)"}
+          ]
+        },
+        {
+          "name": "team_sla_rate",
+          "type": "derive",
+          "inputs": ["team_sla"],
+          "derived": [{"name": "slaAchievementRate", "expr": "slaHitCount / ticketCount"}]
+        }
+      ],
+      "output": ["team$caption", "ticketCount", "slaHitCount", "slaAchievementRate"]
+    }
+  }
+}
+```
+
 ## Pivot
 
 - Do not mix `pivot` with top-level `columns`.
 - Do not mix `pivot` with `timeWindow` in one request.
 - Use only described axes and metrics.
 - Bound high-cardinality axes with filters or axis limits before execution.
+
+`pivot.rows` and `pivot.columns` accept a field string or an axis object with `field`, optional
+`orderBy`, `limit`, `having`, `hierarchyMode`, and `expandDepth`. Tree hierarchy belongs only on
+the rows axis and requires `outputFormat=tree`; it cannot be combined with crossjoin or totals.
+Axis `having` items are `{metric, op, value}` and apply after aggregation, before TopN.
+
+`pivot.metrics` accepts described native measure strings and two controlled derived objects:
+
+```json
+[
+  "salesAmount",
+  {"name": "categoryShare", "type": "parentShare", "of": "salesAmount", "axis": "rows"},
+  {"name": "salesIndex", "type": "baselineRatio", "of": "salesAmount", "axis": "columns", "baseline": "first"}
+]
+```
+
+`parentShare` is limited to adjacent rows levels and an additive native `of` measure.
+`baselineRatio` requires a non-empty columns axis and `baseline=first|last`. Neither derived
+metric may participate in axis having/orderBy/limit or tree/cascade combinations. Do not replace
+them with `ROLLUP_TO`, `CELL_AT`, `AXIS_MEMBER`, `AXIS_REF`, coordinate lookup, or an `expr`.
+
+`pivot.options` contains `crossjoin`, `rowSubtotals`, `columnSubtotals`, and `grandTotal`.
+`columnSubtotals` is currently unsupported and must be omitted. Ordinary pivot supports
+`grandTotal`; two-level rows cascade can support `rowSubtotals`/`grandTotal` for additive
+SUM/COUNT metrics. `metricPlacement` is `columns` or `rows`; `outputFormat` is `flat`, `tree`, or
+`grid`.
 
 Common invalid repairs include replacing raw `where` or SQL functions with `slice`, correcting a
 field to the exact described name, selecting a canonical described measure directly instead of

@@ -543,19 +543,15 @@ public class LocalDatasetAccessor implements DatasetAccessor {
             if (groupBy instanceof List) {
                 List<?> groupByList = (List<?>) groupBy;
                 if (!groupByList.isEmpty()) {
-                    if (groupByList.get(0) instanceof String) {
-                        // 简化格式：List<String>
-                        List<SemanticQueryRequest.GroupByItem> groupByItems = ((List<String>) groupBy).stream()
-                                .map(name -> new SemanticQueryRequest.GroupByItem(name, null))
-                                .toList();
-                        request.setGroupBy(groupByItems);
-                    } else if (groupByList.get(0) instanceof Map) {
-                        // 完整格式：List<Map>
-                        List<SemanticQueryRequest.GroupByItem> groupByItems = ((List<Map<String, Object>>) groupBy).stream()
-                                .map(this::convertToGroupByItem)
-                                .toList();
-                        request.setGroupBy(groupByItems);
+                    List<SemanticQueryRequest.GroupByItem> groupByItems = new ArrayList<>();
+                    for (Object item : groupByList) {
+                        if (item instanceof String field) {
+                            groupByItems.add(new SemanticQueryRequest.GroupByItem(field, null));
+                        } else if (item instanceof Map<?, ?> map) {
+                            groupByItems.add(convertToGroupByItem((Map<String, Object>) map));
+                        }
                     }
+                    request.setGroupBy(groupByItems);
                 }
             }
         }
@@ -728,6 +724,12 @@ public class LocalDatasetAccessor implements DatasetAccessor {
         item.setField(stringValue(map.get("field")));
         item.setOp(stringOr(map.get("op"), "="));
         item.setValue(map.get("value"));
+        if (map.containsKey("maxDepth") && map.get("maxDepth") instanceof Number maxDepth) {
+            item.setMaxDepth(maxDepth.intValue());
+        }
+        if (map.containsKey("$expr")) {
+            item.setExpr(stringValue(map.get("$expr")));
+        }
 
         // 处理 $or 条件组
         if (map.containsKey("$or")) {
@@ -850,6 +852,12 @@ public class LocalDatasetAccessor implements DatasetAccessor {
             dir = (String) map.getOrDefault("direction", "asc");
         }
         item.setDir(dir);
+        if (map.get("nullFirst") instanceof Boolean nullFirst) {
+            item.setNullFirst(nullFirst);
+        }
+        if (map.get("nullLast") instanceof Boolean nullLast) {
+            item.setNullLast(nullLast);
+        }
         return item;
     }
 

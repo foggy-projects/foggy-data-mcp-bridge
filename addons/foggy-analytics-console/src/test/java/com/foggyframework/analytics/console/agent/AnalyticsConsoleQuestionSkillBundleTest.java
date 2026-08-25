@@ -18,7 +18,7 @@ class AnalyticsConsoleQuestionSkillBundleTest {
     private final ObjectMapper json = new ObjectMapper();
 
     @Test
-    void revisionThreeDeliversEveryQuestionFunctionAndItsRequiredReferences()
+    void revisionFourDeliversEveryQuestionFunctionAndItsRequiredReferences()
             throws Exception {
         JsonNode metadata = json.readTree(resource("skill-metadata.json"));
         JsonNode delivery = json.readTree(resource("function-schema-delivery.json"));
@@ -30,7 +30,7 @@ class AnalyticsConsoleQuestionSkillBundleTest {
                 .map(descriptor -> descriptor.projection().functionRef())
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
 
-        assertThat(metadata.path("revision").asInt()).isEqualTo(3);
+        assertThat(metadata.path("revision").asInt()).isEqualTo(4);
         assertThat(metadata.path("name").asText())
                 .isEqualTo("analytics-question-answering");
         assertThat(delivered).containsExactlyInAnyOrder(
@@ -41,12 +41,32 @@ class AnalyticsConsoleQuestionSkillBundleTest {
                 "foggy.analytics.compose.run@v1");
         assertThat(published).containsAll(delivered);
         assertThat(resource("SKILL.md"))
-                .contains("validate", "query-model.run@v1", "compose.run@v1");
+                .contains(
+                        "validate",
+                        "query-model.run@v1",
+                        "compose.run@v1",
+                        "effectiveDelivery=ON_DEMAND",
+                        "describe_business_function",
+                        "INPUT");
         assertThat(resource("references/query-model-dsl.md"))
-                .contains("calculatedFields", "timeWindow", "pivot")
+                .contains(
+                        "calculatedFields",
+                        "timeWindow",
+                        "pivot",
+                        "nullFirst",
+                        "$expr",
+                        "maxDepth",
+                        "DSL_CTE",
+                        "parentShare",
+                        "baselineRatio")
                 .contains("top three orders by amount", "omit `groupBy`");
         assertThat(resource("references/compose-script.md"))
-                .contains("return { plans:", ".join(", ".union(");
+                .contains(
+                        "return { plans:",
+                        ".join(",
+                        ".union(",
+                        "Time-window composition",
+                        "snake_case");
     }
 
     private static String resource(String relativePath) throws Exception {

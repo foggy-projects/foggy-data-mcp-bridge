@@ -341,6 +341,30 @@ class PivotMetricItemTest {
             assertEquals("subCategory", share.getLevel());
             assertEquals("category", share.getParentLevel());
         }
+
+        @Test
+        @DisplayName("baselineRatio 保留 baseline 及受控 scope")
+        void testBaselineRatioFields() throws Exception {
+            String json = """
+                    {
+                      "rows": [{"field":"category"}],
+                      "columns": [{"field":"month"}],
+                      "metrics": [
+                        "salesAmount",
+                        {"name": "index", "type": "baselineRatio", "of": "salesAmount",
+                         "axis": "columns", "baseline": "first",
+                         "baselineScope": "prePageAxisDomain"}
+                      ]
+                    }
+                    """;
+
+            PivotRequest request = MAPPER.readValue(json, PivotRequest.class);
+            PivotMetricItem index = request.getMetricItems().get(1);
+
+            assertEquals("first", index.getBaseline());
+            assertEquals("prePageAxisDomain", index.getBaselineScope());
+            assertDoesNotThrow(request::validateMetrics);
+        }
     }
 
     // ===== PivotRequest Helper Methods =====

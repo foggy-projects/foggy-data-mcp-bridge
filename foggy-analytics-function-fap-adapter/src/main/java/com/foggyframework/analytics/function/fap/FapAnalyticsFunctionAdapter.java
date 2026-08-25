@@ -381,12 +381,57 @@ public final class FapAnalyticsFunctionAdapter {
                     false,
                     502);
         }
+        if (AnalyticsFunctionErrorCodes.SEMANTIC_QUERY_INVALID.equals(code)) {
+            String instancePath = switch (invocation.functionRef()) {
+                case FapAnalyticsFunctionRefs.QUERY_MODEL_RUN -> "/payload";
+                case FapAnalyticsFunctionRefs.SEMANTIC_QUERIES_EXECUTE -> "/query";
+                default -> null;
+            };
+            if (instancePath != null) {
+                return repairableFailure(
+                        invocation,
+                        instancePath,
+                        "semanticQuery",
+                        "SEMANTIC_QUERY_INVALID");
+            }
+        }
         return failure(
                 invocation,
                 code,
                 safeMessage(envelope.error().message()),
                 envelope.error().retryable(),
                 analyticsStatus(code));
+    }
+
+    private static FapAnalyticsFunctionOutcome repairableFailure(
+            FapAnalyticsFunctionInvocation invocation,
+            String instancePath,
+            String keyword,
+            String messageKey) {
+        return FapAnalyticsFunctionCatalog.findByFunctionRef(invocation.functionRef())
+                .<FapAnalyticsFunctionOutcome>map(descriptor ->
+                        new FapAnalyticsFunctionOutcome.Failure(
+                                invocation.requestId(),
+                                invocation.functionInvocationId(),
+                                FapAnalyticsErrorCodes.FUNCTION_ARGUMENT_INVALID,
+                                "Function arguments do not match the published schema",
+                                false,
+                                422,
+                                new FapAnalyticsFunctionOutcome.RepairDetails(
+                                        invocation.functionRef(),
+                                        descriptor.projection().schemaDigest(),
+                                        java.util.List.of(
+                                                new FapAnalyticsFunctionOutcome.Violation(
+                                                        instancePath,
+                                                        keyword,
+                                                        messageKey)),
+                                        false)))
+                .orElseGet(() -> failure(
+                        invocation,
+                        FapAnalyticsErrorCodes.PROTOCOL_ERROR,
+                        "FAP Analytics function descriptor is unavailable",
+                        false,
+                        502));
     }
 
     private static int analyticsStatus(String code) {

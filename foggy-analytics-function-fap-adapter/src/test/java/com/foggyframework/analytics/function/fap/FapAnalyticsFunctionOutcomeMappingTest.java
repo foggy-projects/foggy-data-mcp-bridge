@@ -8,6 +8,8 @@ import com.foggyframework.analytics.function.contract.AnalyticsFunctionContext;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionEnvelope;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionError;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionErrorCodes;
+import com.foggyframework.analytics.function.contract.AnalyticsQueryModelFunctionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsQueryModelResult;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderResult;
 import java.math.BigDecimal;
@@ -93,6 +95,64 @@ class FapAnalyticsFunctionOutcomeMappingTest {
                         "code", AnalyticsFunctionErrorCodes.BUNDLE_REVISION_CONFLICT),
                 org.assertj.core.data.MapEntry.entry(
                         "message", "Bundle revision does not match"));
+    }
+
+    @Test
+    void semanticQueryValidationFailureBecomesRepairablePreEffectToolData() {
+        class Client extends FapAnalyticsAdapterTestSupport.StubClient {
+            @Override
+            public AnalyticsFunctionEnvelope<AnalyticsQueryModelResult> runQueryModel(
+                    AnalyticsQueryModelFunctionRequest request) {
+                calls++;
+                return AnalyticsFunctionEnvelope.fail(
+                        "foggy-analytics-runtime-api/v1",
+                        "analytics-runtime/v1",
+                        new AnalyticsFunctionError(
+                                AnalyticsFunctionErrorCodes.SEMANTIC_QUERY_INVALID,
+                                "semantic-query",
+                                "unsafe original field value must not cross the boundary",
+                                false),
+                        FapAnalyticsAdapterTestSupport.context(request.context()));
+            }
+        }
+        Client client = new Client();
+        FapAnalyticsFunctionInvocation invocation =
+                FapAnalyticsAdapterTestSupport.invocation(
+                        FapAnalyticsFunctionRefs.QUERY_MODEL_RUN,
+                        Map.of(
+                                "namespace", "default",
+                                "modelName", "FactOrderQueryModel",
+                                "expectedModelRevision",
+                                FapAnalyticsAdapterTestSupport.REVISION,
+                                "mode", "validate",
+                                "payload", Map.of(
+                                        "columns", List.of("missingField"))));
+
+        FapAnalyticsFunctionOutcome.Failure failure =
+                (FapAnalyticsFunctionOutcome.Failure)
+                        adapter(client).invoke(invocation);
+
+        String expectedSchemaDigest = FapAnalyticsFunctionCatalog
+                .findByFunctionRef(FapAnalyticsFunctionRefs.QUERY_MODEL_RUN)
+                .orElseThrow()
+                .projection()
+                .schemaDigest();
+        assertThat(client.calls).isEqualTo(1);
+        assertThat(failure.code()).isEqualTo(
+                FapAnalyticsErrorCodes.FUNCTION_ARGUMENT_INVALID);
+        assertThat(failure.retryable()).isFalse();
+        assertThat(failure.recommendedHttpStatus()).isEqualTo(422);
+        assertThat(failure.callbackBody())
+                .containsEntry("modelRepairable", true)
+                .containsEntry("effectPhase", "PRE_EFFECT")
+                .containsEntry("functionRef", FapAnalyticsFunctionRefs.QUERY_MODEL_RUN)
+                .containsEntry("schemaDigest", expectedSchemaDigest);
+        assertThat(failure.callbackBody().get("violations")).isEqualTo(List.of(Map.of(
+                "instancePath", "/payload",
+                "keyword", "semanticQuery",
+                "messageKey", "SEMANTIC_QUERY_INVALID")));
+        assertThat(failure.callbackBody().toString())
+                .doesNotContain("unsafe original field value", "missingField");
     }
 
     @Test

@@ -11,6 +11,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -76,7 +77,14 @@ class SemanticQueryPayloadMapperTest {
                 "pivot", Map.of(
                         "rows", List.of("orderStatus"),
                         "columns", List.of("orderDate$month"),
-                        "metrics", List.of("payAmount"),
+                        "metrics", List.of(
+                                "payAmount",
+                                Map.of(
+                                        "name", "monthIndex",
+                                        "type", "baselineRatio",
+                                        "of", "payAmount",
+                                        "axis", "columns",
+                                        "baseline", "first")),
                         "outputFormat", "flat"
                 )
         );
@@ -86,8 +94,43 @@ class SemanticQueryPayloadMapperTest {
         assertNotNull(request.getPivot());
         assertEquals("orderStatus", request.getPivot().getRows().get(0).getField());
         assertEquals("orderDate$month", request.getPivot().getColumns().get(0).getField());
-        assertEquals(List.of("payAmount"), request.getPivot().getMetrics());
+        assertEquals("first", request.getPivot().getMetricItems().get(1).getBaseline());
         assertEquals("flat", request.getPivot().getOutputFormat());
+    }
+
+    @Test
+    @DisplayName("all public shorthand and nested filter metadata should be preserved")
+    void publicShorthandAndNestedFilterMetadataShouldBePreserved() {
+        Map<String, Object> payload = Map.of(
+                "groupBy", List.of("customer$id", Map.of("field", "customer$caption", "agg", "PK")),
+                "orderBy", List.of("-payAmount", Map.of(
+                        "field", "customer$caption",
+                        "dir", "asc",
+                        "nullLast", true)),
+                "slice", List.of(
+                        Map.of("status", "PAID"),
+                        Map.of(
+                                "field", "org$id",
+                                "op", "descendantsOf",
+                                "value", "root",
+                                "maxDepth", 3),
+                        Map.of("$expr", "payAmount > costAmount")));
+
+        SemanticQueryRequest request = mapper.toQueryRequest(payload);
+
+        assertEquals("customer$id", request.getGroupBy().get(0).getField());
+        assertNull(request.getGroupBy().get(0).getAgg());
+        assertEquals("PK", request.getGroupBy().get(1).getAgg());
+        assertEquals("desc", request.getOrderBy().get(0).getDir());
+        assertEquals(Boolean.TRUE, request.getOrderBy().get(1).getNullLast());
+        assertEquals("status", request.getSlice().get(0).getField());
+        assertEquals("=", request.getSlice().get(0).getOp());
+        assertEquals(3, request.getSlice().get(1).getMaxDepth());
+        assertEquals("payAmount > costAmount", request.getSlice().get(2).getExpr());
+        assertEquals(3, SemanticRequestNormalizer.toJdbcSlices(request.getSlice())
+                .get(1).getMaxDepth());
+        assertEquals("payAmount > costAmount",
+                SemanticRequestNormalizer.toJdbcSlices(request.getSlice()).get(2).getExpr());
     }
 
     private void assertInvalidSliceElement(Object element, String expectedMessagePart) {

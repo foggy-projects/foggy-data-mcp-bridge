@@ -47,6 +47,8 @@ public final class SemanticRequestNormalizer {
         slice.setField(item.getField());
         slice.setOp(item.getOp());
         slice.setValue(item.getValue());
+        slice.setMaxDepth(item.getMaxDepth());
+        slice.setExpr(item.getExpr());
         return slice;
     }
 }

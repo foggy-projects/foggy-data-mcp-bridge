@@ -63,6 +63,15 @@ public class PivotMetricsDeserializer extends JsonDeserializer<List<PivotMetricI
                 if (node.has("parentLevel")) {
                     item.setParentLevel(node.get("parentLevel").asText());
                 }
+                if (node.has("baseline")) {
+                    item.setBaseline(node.get("baseline").asText());
+                }
+                if (node.has("baselineScope")) {
+                    item.setBaselineScope(node.get("baselineScope").asText());
+                }
+                if (node.has("denominatorScope")) {
+                    item.setDenominatorScope(node.get("denominatorScope").asText());
+                }
 
                 items.add(item);
             } else {

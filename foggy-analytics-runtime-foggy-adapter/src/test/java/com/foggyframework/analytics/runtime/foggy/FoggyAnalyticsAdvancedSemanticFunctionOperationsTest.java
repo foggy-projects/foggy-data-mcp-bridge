@@ -70,6 +70,23 @@ class FoggyAnalyticsAdvancedSemanticFunctionOperationsTest {
                         "validate",
                         Map.of(
                                 "columns", List.of("orderCount"),
+                                "groupBy", List.of(
+                                        "customer$ageGroup",
+                                        Map.of("field", "customer$caption", "agg", "PK")),
+                                "slice", List.of(
+                                        Map.of("status", "PAID"),
+                                        Map.of(
+                                                "field", "org$id",
+                                                "op", "descendantsOf",
+                                                "value", "root",
+                                                "maxDepth", 2),
+                                        Map.of("$expr", "payAmount > costAmount")),
+                                "orderBy", List.of(
+                                        "-orderCount",
+                                        Map.of(
+                                                "field", "customer$caption",
+                                                "dir", "asc",
+                                                "nullLast", true)),
                                 "calculatedFields", List.of(Map.of(
                                         "name", "ranked",
                                         "expression", "RANK()")),
@@ -90,6 +107,17 @@ class FoggyAnalyticsAdvancedSemanticFunctionOperationsTest {
                 eq("FactOrderQueryModel"), query.capture(), eq("validate"),
                 context.capture());
         assertThat(query.getValue().getCalculatedFields()).hasSize(1);
+        assertThat(query.getValue().getGroupBy())
+                .extracting(SemanticQueryRequest.GroupByItem::getField)
+                .containsExactly("customer$ageGroup", "customer$caption");
+        assertThat(query.getValue().getGroupBy().get(1).getAgg()).isEqualTo("PK");
+        assertThat(query.getValue().getSlice().get(0).getField()).isEqualTo("status");
+        assertThat(query.getValue().getSlice().get(0).getOp()).isEqualTo("=");
+        assertThat(query.getValue().getSlice().get(1).getMaxDepth()).isEqualTo(2);
+        assertThat(query.getValue().getSlice().get(2).getExpr())
+                .isEqualTo("payAmount > costAmount");
+        assertThat(query.getValue().getOrderBy().get(0).getDir()).isEqualTo("desc");
+        assertThat(query.getValue().getOrderBy().get(1).getNullLast()).isTrue();
         assertThat(query.getValue().getTimeWindow()).containsEntry("type", "YTD");
         assertThat(query.getValue().getLimit()).isEqualTo(100);
         assertThat(context.getValue().getPermissionAction())

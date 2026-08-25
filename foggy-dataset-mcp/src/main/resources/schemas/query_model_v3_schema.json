@@ -119,6 +119,11 @@
                   },
                   "value": {
                     "description": "过滤值，is null/is not null 时不需要；字段引用用 {\"$field\": \"fieldName\"}"
+                  },
+                  "maxDepth": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "父子层级操作符的最大递归深度，仅 childrenOf/descendantsOf/selfAndDescendantsOf/ancestorsOf/selfAndAncestorsOf 等操作符使用"
                   }
                 },
                 "required": [
@@ -174,6 +179,13 @@
               {
                 "type": "object",
                 "description": "等值条件简写：{ \"fieldName\": value }，运行时自动转换为 { \"field\": \"fieldName\", \"op\": \"=\", \"value\": value }",
+                "minProperties": 1,
+                "maxProperties": 1,
+                "propertyNames": {
+                  "not": {
+                    "enum": ["$or", "$and", "$expr", "field", "op", "value", "maxDepth"]
+                  }
+                },
                 "additionalProperties": true
               }
             ]

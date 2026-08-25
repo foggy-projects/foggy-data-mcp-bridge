@@ -3,6 +3,10 @@ package com.foggyframework.analytics.function.fap;
 /** Adapter-owned codes accepted by FAP's safe provider callback error projection. */
 public final class FapAnalyticsErrorCodes {
 
+    /** FAP-owned pre-effect rejection code consumed by the model repair loop. */
+    public static final String FUNCTION_ARGUMENT_INVALID =
+            "FUNCTION_ARGUMENT_INVALID";
+
     public static final String CONTRACT_UNSUPPORTED =
             "ANALYTICS_FAP_CONTRACT_UNSUPPORTED";
     public static final String FUNCTION_UNKNOWN =

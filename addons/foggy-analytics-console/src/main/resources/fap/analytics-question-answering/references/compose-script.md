@@ -75,6 +75,21 @@ const all_orders = online.union(offline, { all: true });
 return { plans: all_orders };
 ```
 
+## Time-window composition
+
+Keep a single-model comparison in `query-model.run.payload.timeWindow`. Put `timeWindow` in a
+Compose base `dsl({...})` only when its output must feed a derived query, join/union, or a
+multi-plan result. Use the described business-date field and the same `grain`, `comparison`,
+`value`, `targetMetrics`, and `rollingAggregator` contract as query-model DSL. `targetMetrics`
+must refer to measures produced by that base stage, not calculated-field aliases.
+
+Base `dsl({...})` accepts the query-model fields `model`, `columns`, `slice`, `having`, `groupBy`,
+`orderBy`, `start`, `limit`, `distinct`, `calculatedFields`, and `timeWindow`. A derived
+`plan.query({...})` may reference only columns exposed by the previous plan. Use lower-case
+snake_case aliases for join keys, aggregate aliases, and later sort fields to avoid dialect case
+folding. If a derived or joined plan returns an empty row set, preserve it as valid evidence; do
+not relax filters unless the user asks for diagnostics or a changed business scope.
+
 Always call `mode=validate` first. Use `preview` for generated SQL and plan evidence. Call
 `execute` only after validation succeeds and row evidence is required. A valid empty result is not
 an error.

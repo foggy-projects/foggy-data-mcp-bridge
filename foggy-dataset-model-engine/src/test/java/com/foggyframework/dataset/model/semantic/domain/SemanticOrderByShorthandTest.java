@@ -107,7 +107,7 @@ class SemanticOrderByShorthandTest {
         String json = """
             {
                 "columns": ["amount"],
-                "orderBy": [{"field": "amount", "dir": "desc"}]
+                "orderBy": [{"field": "amount", "dir": "desc", "nullLast": true}]
             }
             """;
         SemanticQueryRequest request = objectMapper.readValue(json, SemanticQueryRequest.class);
@@ -117,6 +117,7 @@ class SemanticOrderByShorthandTest {
         assertEquals(1, orderBy.size());
         assertEquals("amount", orderBy.get(0).getField());
         assertEquals("desc", orderBy.get(0).getDir());
+        assertEquals(Boolean.TRUE, orderBy.get(0).getNullLast());
     }
 
     @Test

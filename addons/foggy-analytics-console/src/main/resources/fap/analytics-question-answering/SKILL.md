@@ -20,6 +20,11 @@ Namespace, inject identity or policy fields, or bypass a model.
    `groupBy`; use aggregation only when the user explicitly asks for grouped or summarized data.
 3. Prefer `foggy.analytics.query-model.run@v1` for one-model detail, filters, grouping,
    aggregation, calculated fields, time windows, pivot, subtotal or controlled DSL_CTE plans.
+   Its complete input schema can exceed the Function INLINE prompt budget. When its delivered
+   contract says `effectiveDelivery=ON_DEMAND` (or `delivery=ON_DEMAND`), call
+   `describe_business_function` with the `INPUT` or `FULL` view before invoking it. Do not guess
+   nested `slice`, `having`, `groupBy`, `orderBy`, `timeWindow`, `pivot` or `executable_plan`
+   shapes from a summary.
    Call it with `mode=validate` first and then `mode=execute` with the same payload when
    validation succeeds.
 4. Use `foggy.analytics.compose.run@v1` only when one query-model request is insufficient:

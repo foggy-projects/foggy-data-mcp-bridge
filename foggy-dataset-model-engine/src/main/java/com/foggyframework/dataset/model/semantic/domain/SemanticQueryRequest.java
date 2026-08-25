@@ -155,6 +155,13 @@ public class SemanticQueryRequest {
         @ApiModelProperty(value = "条件值", required = true, example = "[\"企业\", \"个人\"]")
         private Object value;
 
+        @ApiModelProperty(value = "父子层级操作符的最大递归深度")
+        private Integer maxDepth;
+
+        @ApiModelProperty(value = "字段间比较或算术条件表达式")
+        @JsonProperty("$expr")
+        private String expr;
+
         @ApiModelProperty(value = "OR 条件组：子条件用 OR 连接")
         @JsonProperty("$or")
         private List<SliceItem> or;
@@ -239,6 +246,12 @@ public class SemanticQueryRequest {
 
         @ApiModelProperty(value = "排序方向", required = true, example = "asc")
         private String dir;
+
+        @ApiModelProperty(value = "NULL 值是否排在最前")
+        private Boolean nullFirst;
+
+        @ApiModelProperty(value = "NULL 值是否排在最后")
+        private Boolean nullLast;
     }
 
     /**

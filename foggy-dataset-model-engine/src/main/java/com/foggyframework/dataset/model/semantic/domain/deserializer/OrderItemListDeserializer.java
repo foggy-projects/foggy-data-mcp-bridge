@@ -54,6 +54,12 @@ public class OrderItemListDeserializer extends JsonDeserializer<List<SemanticQue
                 } else {
                     item.setDir("asc");
                 }
+                if (node.has("nullFirst")) {
+                    item.setNullFirst(node.get("nullFirst").asBoolean());
+                }
+                if (node.has("nullLast")) {
+                    item.setNullLast(node.get("nullLast").asBoolean());
+                }
                 result.add(item);
             }
         }

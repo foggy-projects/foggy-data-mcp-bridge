@@ -24,6 +24,7 @@ import com.foggyframework.dataset.model.semantic.port.ComposeExecutionRequest;
 import com.foggyframework.dataset.model.semantic.port.ComposeExecutionResult;
 import com.foggyframework.dataset.model.semantic.port.ComposeOperation;
 import com.foggyframework.dataset.model.semantic.port.SemanticQueryExecutionPort;
+import com.foggyframework.dataset.model.semantic.support.SemanticQueryPayloadMapper;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -43,6 +44,7 @@ public final class FoggyAnalyticsAdvancedSemanticFunctionOperations
     private final SemanticQueryExecutionPort queryExecutionPort;
     private final ComposeExecutionPort composeExecutionPort;
     private final ObjectMapper json;
+    private final SemanticQueryPayloadMapper queryPayloadMapper;
     private final int maxRows;
     private final String composeDialect;
     private final FoggyAnalyticsNamespaceMapper namespaceMapper;
@@ -84,6 +86,7 @@ public final class FoggyAnalyticsAdvancedSemanticFunctionOperations
         this.composeExecutionPort = Objects.requireNonNull(
                 composeExecutionPort, "composeExecutionPort");
         this.json = Objects.requireNonNull(json, "json").copy();
+        this.queryPayloadMapper = new SemanticQueryPayloadMapper(this.json);
         if (maxRows < 1) {
             throw new IllegalArgumentException("maxRows must be positive");
         }
@@ -99,7 +102,7 @@ public final class FoggyAnalyticsAdvancedSemanticFunctionOperations
         FoggyAnalyticsAuthority authority = resolveModel(request, context);
         SemanticQueryRequest semanticRequest;
         try {
-            semanticRequest = json.convertValue(request.payload(), SemanticQueryRequest.class);
+            semanticRequest = queryPayloadMapper.toQueryRequest(request.payload());
             Integer requestedLimit = semanticRequest.getLimit();
             if (requestedLimit == null || requestedLimit > maxRows) {
                 semanticRequest.setLimit(maxRows);

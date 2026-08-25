@@ -217,6 +217,55 @@ class AnalyticsConsoleFapCallbackControllerTest {
     }
 
     @Test
+    void semanticQueryRejectionReturnsRepairablePreEffectDetailsToFap() {
+        FapAnalyticsCallbackRequest request = advancedQuestionRequest(
+                FapAnalyticsFunctionRefs.QUERY_MODEL_RUN,
+                Map.of(
+                        "namespace", "default",
+                        "modelName", "FactOrderQueryModel",
+                        "expectedModelRevision", "sha256:" + "c".repeat(64),
+                        "mode", "validate",
+                        "payload", Map.of("columns", java.util.List.of("missingField"))));
+        var conversation = namespaceConversation(request, "default");
+        when(bindings.resolveCaller(any())).thenReturn(subject);
+        when(agents.requireCallbackConversation(
+                subject,
+                request.externalConversationRef(),
+                request.askRequestId(),
+                request.askInvocationRef())).thenReturn(conversation);
+        when(agents.requireCallbackAskBinding(
+                conversation,
+                request.askRequestId(),
+                request.askInvocationRef())).thenReturn(conversation.askBindings().get(0));
+        when(adapter.invoke(any())).thenReturn(new FapAnalyticsFunctionOutcome.Failure(
+                "callback-request-1",
+                "function-invocation-1",
+                "FUNCTION_ARGUMENT_INVALID",
+                "Function arguments do not match the published schema",
+                false,
+                422,
+                new FapAnalyticsFunctionOutcome.RepairDetails(
+                        FapAnalyticsFunctionRefs.QUERY_MODEL_RUN,
+                        "sha256:" + "d".repeat(64),
+                        java.util.List.of(new FapAnalyticsFunctionOutcome.Violation(
+                                "/payload",
+                                "semanticQuery",
+                                "SEMANTIC_QUERY_INVALID")),
+                        false)));
+
+        var response = controller.invoke("Bearer callback-secret", request);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(422);
+        assertThat(response.getBody().path("code").asText())
+                .isEqualTo("FUNCTION_ARGUMENT_INVALID");
+        assertThat(response.getBody().path("modelRepairable").asBoolean()).isTrue();
+        assertThat(response.getBody().path("effectPhase").asText())
+                .isEqualTo("PRE_EFFECT");
+        assertThat(response.getBody().path("violations").get(0)
+                .path("instancePath").asText()).isEqualTo("/payload");
+    }
+
+    @Test
     void namespaceScopedQuestionRejectsCrossNamespaceQm() {
         FapAnalyticsCallbackRequest request = questionRequest(
                 "analytics.question-read", 2, "sha256:" + "c".repeat(64), "other");

@@ -115,11 +115,72 @@ class FapAnalyticsFunctionCatalogTest {
 
         assertThat(queryProperties.keySet()).containsExactlyInAnyOrder(
                 "namespace", "modelName", "expectedModelRevision", "mode", "payload");
-        assertThat(payloadProperties.keySet()).contains(
-                "calculatedFields", "timeWindow", "pivot", "executable_plan");
+        assertThat(payloadProperties.keySet()).containsExactlyInAnyOrder(
+                "route",
+                "executable_plan",
+                "executablePlan",
+                "calculatedFields",
+                "columns",
+                "slice",
+                "having",
+                "groupBy",
+                "orderBy",
+                "start",
+                "limit",
+                "returnTotal",
+                "distinct",
+                "withSubtotals",
+                "timeWindow",
+                "pivot");
         assertThat(payloadProperties).doesNotContainKeys(
                 "rawSql", "script", "authority", "securityContext", "extData", "hints");
         assertThat(payload.get("additionalProperties")).isEqualTo(false);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> calculatedFields = (Map<String, Object>)
+                payloadProperties.get("calculatedFields");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> calculatedItem = (Map<String, Object>)
+                calculatedFields.get("items");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> calculatedProperties = (Map<String, Object>)
+                calculatedItem.get("properties");
+        assertThat(calculatedProperties.keySet()).containsExactlyInAnyOrder(
+                "name", "expression", "agg", "partitionBy", "windowOrderBy", "windowFrame");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> slice = (Map<String, Object>) payloadProperties.get("slice");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> sliceItems = (Map<String, Object>) slice.get("items");
+        assertThat((List<?>) sliceItems.get("oneOf")).hasSize(5);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> groupBy = (Map<String, Object>) payloadProperties.get("groupBy");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> groupByItems = (Map<String, Object>) groupBy.get("items");
+        assertThat((List<?>) groupByItems.get("oneOf")).hasSize(2);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> orderBy = (Map<String, Object>) payloadProperties.get("orderBy");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> orderByItems = (Map<String, Object>) orderBy.get("items");
+        assertThat(orderByItems).containsKey("oneOf");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> timeWindow = (Map<String, Object>) payloadProperties.get("timeWindow");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> timeWindowProperties = (Map<String, Object>) timeWindow.get("properties");
+        assertThat(timeWindowProperties.keySet()).containsExactlyInAnyOrder(
+                "field", "grain", "comparison", "range", "value",
+                "targetMetrics", "rollingAggregator");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> pivot = (Map<String, Object>) payloadProperties.get("pivot");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> pivotProperties = (Map<String, Object>) pivot.get("properties");
+        assertThat(pivotProperties.keySet()).containsExactlyInAnyOrder(
+                "rows", "columns", "metrics", "properties", "options",
+                "layout", "outputFormat");
+        assertThat((List<?>) payload.get("allOf")).hasSize(2);
 
         FapAnalyticsFunctionDescriptor composeDescriptor = FapAnalyticsFunctionCatalog
                 .findByFunctionRef(FapAnalyticsFunctionRefs.COMPOSE_RUN)
@@ -275,8 +336,8 @@ class FapAnalyticsFunctionCatalogTest {
                 Map.entry(
                         FapAnalyticsFunctionRefs.QUERY_MODEL_RUN,
                         List.of(
-                                "sha256:bb3b5f89a9956cb0021d5d2ef2ab5ac5f2be0390dd6dec7fc9d4832ee9292f26",
-                                "sha256:9609388408e772d0004a805f8490fff87b48bce6586977ab6d3f7b84f0cc5317")),
+                                "sha256:13926e847938f8049bec8e4485f465128075de8a32a110db491ac589fb3f6be8",
+                                "sha256:4698ea28af2b6d0f38ff1c870f4baebfcb8883cf5f0d74d35176595ac89c035a")),
                 Map.entry(
                         FapAnalyticsFunctionRefs.REPORTS_PREVIEW,
                         List.of(

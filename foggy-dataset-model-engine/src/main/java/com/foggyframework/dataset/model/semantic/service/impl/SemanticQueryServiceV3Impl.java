@@ -1588,6 +1588,8 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                         String field = normalizeOrderByField(item.getField(), queryModel, context);
                         order.setField(field);
                         order.setDir(item.getDir());
+                        order.setNullFirst(Boolean.TRUE.equals(item.getNullFirst()));
+                        order.setNullLast(Boolean.TRUE.equals(item.getNullLast()));
                         return order;
                     })
                     .collect(Collectors.toList());
@@ -2077,6 +2079,8 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             SemanticQueryRequest.OrderItem orderItem = new SemanticQueryRequest.OrderItem();
             orderItem.setField(item.getField());
             orderItem.setDir(item.getDir());
+            orderItem.setNullFirst(item.isNullFirst());
+            orderItem.setNullLast(item.isNullLast());
             return orderItem;
         }).collect(Collectors.toList());
     }

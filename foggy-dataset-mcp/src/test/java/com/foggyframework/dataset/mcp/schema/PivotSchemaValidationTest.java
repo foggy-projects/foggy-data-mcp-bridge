@@ -89,6 +89,35 @@ class PivotSchemaValidationTest {
     }
 
     @Test
+    @DisplayName("合规：公开 DSL 简写、表达式、层级深度和 NULL 排序")
+    void testValidPublicDslShorthandsAndNestedFields() throws Exception {
+        String json = """
+        {
+          "model": "FactSales",
+          "payload": {
+            "columns": ["customer$id", "customer$caption", "salesAmount"],
+            "slice": [
+              {"status": "PAID"},
+              {"$expr": "salesAmount > costAmount * 1.2"},
+              {"$or": [
+                {"field": "region", "op": "=", "value": "east"},
+                {"field": "region", "op": "=", "value": "west"}
+              ]},
+              {"field": "org$id", "op": "descendantsOf", "value": "root", "maxDepth": 2}
+            ],
+            "groupBy": ["customer$id", {"field": "customer$caption", "agg": "PK"}],
+            "orderBy": ["-salesAmount", {"field": "customer$caption", "dir": "asc", "nullLast": true}],
+            "limit": 20
+          }
+        }
+        """;
+
+        Set<ValidationMessage> errors = validate(json);
+
+        assertTrue(errors.isEmpty(), "公开 DSL 合同应通过验证: " + errors);
+    }
+
+    @Test
     @DisplayName("合规：对象形态 rows 且包含 having")
     void testValidPivotHaving() throws Exception {
         String json = """
