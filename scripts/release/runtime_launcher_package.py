@@ -15,6 +15,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import zipfile
@@ -326,6 +327,24 @@ def _tracked_worktree_dirty() -> bool:
     return bool(_git_output("status", "--porcelain", "--untracked-files=no"))
 
 
+def _snapshot_tracked_root_target_files() -> dict[Path, tuple[bytes, int]]:
+    """Preserve committed release evidence that Maven's root clean removes."""
+    relative_paths = _git_output("ls-files", "--", "target").splitlines()
+    snapshot: dict[Path, tuple[bytes, int]] = {}
+    for relative_path in relative_paths:
+        path = REPOSITORY_ROOT / relative_path
+        snapshot[path] = (path.read_bytes(), stat.S_IMODE(path.stat().st_mode))
+    return snapshot
+
+
+def _restore_tracked_root_target_files(
+        snapshot: dict[Path, tuple[bytes, int]]) -> None:
+    for path, (content, mode) in snapshot.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+        os.chmod(path, mode)
+
+
 def _render_template(source: Path, destination: Path, replacements: dict[str, str]) -> None:
     content = source.read_text(encoding="utf-8")
     for placeholder, value in replacements.items():
@@ -356,8 +375,12 @@ def package_release(args: argparse.Namespace) -> Path:
         raise ReleaseValidationError(f"output directory must be empty: {output_dir}")
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    for command in maven_build_commands(args.maven_executable, args.skip_java_tests):
-        subprocess.run(command, cwd=REPOSITORY_ROOT, check=True)
+    tracked_root_target_files = _snapshot_tracked_root_target_files()
+    try:
+        for command in maven_build_commands(args.maven_executable, args.skip_java_tests):
+            subprocess.run(command, cwd=REPOSITORY_ROOT, check=True)
+    finally:
+        _restore_tracked_root_target_files(tracked_root_target_files)
     if not dirty and _tracked_worktree_dirty():
         raise ReleaseValidationError(
             "release build changed tracked source/evidence files; refusing to package"

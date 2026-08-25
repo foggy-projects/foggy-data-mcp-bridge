@@ -6,6 +6,7 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from unittest import mock
 
 
 RELEASE_SCRIPT_DIR = Path(__file__).resolve().parents[1]
@@ -44,6 +45,36 @@ class RuntimeLauncherPackageTest(unittest.TestCase):
             ],
         )
         self.assertNotIn("-Dfoggy.analytics-console.frontend.skip=true", package)
+
+    def test_preserves_committed_root_target_evidence_across_maven_clean(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            repository_root = Path(directory)
+            candidate = repository_root / "target" / "release" / "candidate.json"
+            report = repository_root / "target" / "release" / "final" / "report.json"
+            candidate.parent.mkdir(parents=True)
+            report.parent.mkdir(parents=True)
+            candidate.write_bytes(b"candidate\n")
+            report.write_bytes(b"report\n")
+            candidate.chmod(0o640)
+
+            with (
+                mock.patch.object(release, "REPOSITORY_ROOT", repository_root),
+                mock.patch.object(
+                    release,
+                    "_git_output",
+                    return_value="target/release/candidate.json\n"
+                    "target/release/final/report.json",
+                ),
+            ):
+                snapshot = release._snapshot_tracked_root_target_files()
+                candidate.unlink()
+                report.write_bytes(b"changed\n")
+
+                release._restore_tracked_root_target_files(snapshot)
+
+            self.assertEqual(candidate.read_bytes(), b"candidate\n")
+            self.assertEqual(report.read_bytes(), b"report\n")
+            self.assertEqual(candidate.stat().st_mode & 0o777, 0o640)
 
     def test_verifies_nested_console_static_assets_and_fap_delivery(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
