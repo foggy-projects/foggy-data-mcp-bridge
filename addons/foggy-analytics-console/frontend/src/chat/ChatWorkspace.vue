@@ -49,8 +49,10 @@ onBeforeUnmount(() => {
       :session="props.session"
       :designer="canDesign(props.session)"
       :open="sidebarOpen"
+      :archiving-id="chat.archivingId.value"
       @new-conversation="newConversation"
       @select="selectConversation"
+      @archive="chat.archiveConversation"
       @open-studio="emit('openStudio')"
       @close="sidebarOpen = false"
     />

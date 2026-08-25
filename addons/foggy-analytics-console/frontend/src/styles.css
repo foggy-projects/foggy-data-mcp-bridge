@@ -250,6 +250,10 @@ html[data-theme="simple"] .conversation-history button.active { background: #e6f
 html[data-theme="simple"] .history-mark { border-color: #d2d2d7; border-radius: 7px; color: var(--cobalt); }
 html[data-theme="simple"] .history-copy small, html[data-theme="simple"] .history-empty { color: #86868b; }
 html[data-theme="simple"] .conversation-history button.active > i { background: var(--cobalt); }
+html[data-theme="simple"] .conversation-context-menu { border-color: #d2d2d7; border-radius: 10px; background: rgba(255, 255, 255, .98); box-shadow: 0 10px 30px rgba(0, 0, 0, .14); }
+html[data-theme="simple"] .conversation-context-menu button { border-radius: 7px; }
+html[data-theme="simple"] .conversation-context-menu button:hover,
+html[data-theme="simple"] .conversation-context-menu button:focus-visible { background: #f0f0f2; }
 html[data-theme="simple"] .sidebar-footer { border-top-color: #dedee3; }
 html[data-theme="simple"] .studio-link { border-color: transparent; border-radius: 9px; }
 html[data-theme="simple"] .studio-link > span { color: var(--cobalt); }

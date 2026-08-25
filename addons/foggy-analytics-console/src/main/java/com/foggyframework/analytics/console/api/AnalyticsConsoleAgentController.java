@@ -58,6 +58,13 @@ public class AnalyticsConsoleAgentController {
         return ok(agents.conversation(subjects.resolve(request), conversationId));
     }
 
+    @PostMapping("/agent/conversations/{conversationId}:archive")
+    public AnalyticsConsoleEnvelope<AnalyticsConsoleConversation> archiveConversation(
+            @PathVariable String conversationId,
+            HttpServletRequest request) {
+        return ok(agents.archiveConversation(subjects.resolve(request), conversationId));
+    }
+
     @PostMapping("/agent/questions")
     public AnalyticsConsoleEnvelope<AnalyticsConsoleConversation> startQuestion(
             @Valid @RequestBody StartQuestion body,

@@ -288,6 +288,57 @@ class AnalyticsConsoleAgentServiceTest {
     }
 
     @Test
+    void archivesAnOwnedQuestionConversationWithoutDeletingItsFapBinding() throws Exception {
+        Path catalogPath = tempDir.resolve("conversation-archive-catalog.json");
+        var catalog = new FileAnalyticsConsoleCatalogRepository(
+                catalogPath, new ObjectMapper());
+        AnalyticsConsoleSubject analyst = new AnalyticsConsoleSubject(
+                "analyst", "Analyst", Set.of(AnalyticsConsoleRole.VIEWER),
+                "console", "authority-analyst");
+        AnalyticsConsoleSubject administrator = new AnalyticsConsoleSubject(
+                "administrator", "Administrator", Set.of(AnalyticsConsoleRole.ADMIN),
+                "console", "authority-administrator");
+        String revision = "sha256:" + "e".repeat(64);
+        var conversation = questionConversation(
+                "question-archive", analyst, revision, Instant.EPOCH);
+        catalog.update(state -> new AnalyticsConsoleCatalogState(
+                state.revision(),
+                state.folders(),
+                state.assets(),
+                List.of(conversation)));
+        Instant archivedAt = Instant.EPOCH.plusSeconds(120);
+        AnalyticsConsoleAgentService service = new AnalyticsConsoleAgentService(
+                mock(AnalyticsConsoleService.class),
+                catalog,
+                emptyGateway(),
+                bindings(analyst),
+                new AnalyticsConsoleProperties().getFap(),
+                Clock.fixed(archivedAt, ZoneOffset.UTC));
+
+        assertThatThrownBy(() -> service.archiveConversation(
+                administrator, conversation.conversationId()))
+                .hasMessageContaining("Only the conversation owner");
+
+        var archived = service.archiveConversation(analyst, conversation.conversationId());
+        long catalogRevision = catalog.read().revision();
+
+        assertThat(archived.archivedAt()).isEqualTo(archivedAt);
+        assertThat(archived.askBindings()).isEqualTo(conversation.askBindings());
+        assertThat(service.questionConversations(analyst)).isEmpty();
+        assertThat(service.conversation(analyst, conversation.conversationId()))
+                .isEqualTo(archived);
+        assertThat(new FileAnalyticsConsoleCatalogRepository(
+                catalogPath, new ObjectMapper()).read().conversations())
+                .containsExactly(archived);
+        assertThat(service.archiveConversation(analyst, conversation.conversationId()))
+                .isEqualTo(archived);
+        assertThat(catalog.read().revision()).isEqualTo(catalogRevision);
+        assertThat(Files.readString(catalogPath))
+                .contains("\"archivedAt\"")
+                .doesNotContain("Bearer secret");
+    }
+
+    @Test
     void derivesLegacyConversationTitleFromTheCanonicalFapStartTurnWithoutBackfill()
             throws Exception {
         Path catalogPath = tempDir.resolve("legacy-title-catalog.json");

@@ -22,7 +22,8 @@ public record AnalyticsConsoleConversation(
         String namespace,
         String modelName,
         String modelRevision,
-        List<AnalyticsConsoleAskBinding> askBindings) {
+        List<AnalyticsConsoleAskBinding> askBindings,
+        Instant archivedAt) {
 
     public AnalyticsConsoleConversation {
         conversationId = required(conversationId, "conversationId");
@@ -33,6 +34,9 @@ public record AnalyticsConsoleConversation(
         runtimeExecutionId = required(runtimeExecutionId, "runtimeExecutionId");
         runtimeTaskId = required(runtimeTaskId, "runtimeTaskId");
         createdAt = Objects.requireNonNull(createdAt, "createdAt");
+        if (archivedAt != null && archivedAt.isBefore(createdAt)) {
+            throw new IllegalArgumentException("archivedAt must not precede createdAt");
+        }
         mode = mode == null ? AnalyticsConsoleConversationMode.DESIGN : mode;
         if (mode == AnalyticsConsoleConversationMode.DESIGN) {
             assetId = required(assetId, "assetId");
@@ -74,6 +78,42 @@ public record AnalyticsConsoleConversation(
         }
     }
 
+    /** Source-compatible constructor for catalog clients created before archiving support. */
+    public AnalyticsConsoleConversation(
+            String conversationId,
+            String assetId,
+            String ownerSubjectRef,
+            String externalConversationRef,
+            String askRequestId,
+            String askInvocationRef,
+            String runtimeExecutionId,
+            String runtimeTaskId,
+            Instant createdAt,
+            AnalyticsConsoleConversationMode mode,
+            String questionProfileId,
+            String namespace,
+            String modelName,
+            String modelRevision,
+            List<AnalyticsConsoleAskBinding> askBindings) {
+        this(
+                conversationId,
+                assetId,
+                ownerSubjectRef,
+                externalConversationRef,
+                askRequestId,
+                askInvocationRef,
+                runtimeExecutionId,
+                runtimeTaskId,
+                createdAt,
+                mode,
+                questionProfileId,
+                namespace,
+                modelName,
+                modelRevision,
+                askBindings,
+                null);
+    }
+
     /** Legacy-compatible constructor retained for existing catalog fixtures and callers. */
     public AnalyticsConsoleConversation(
             String conversationId,
@@ -96,6 +136,7 @@ public record AnalyticsConsoleConversation(
                 runtimeTaskId,
                 createdAt,
                 AnalyticsConsoleConversationMode.DESIGN,
+                null,
                 null,
                 null,
                 null,
@@ -136,7 +177,33 @@ public record AnalyticsConsoleConversation(
                 namespace,
                 modelName,
                 modelRevision,
-                next);
+                next,
+                archivedAt);
+    }
+
+    public boolean archived() {
+        return archivedAt != null;
+    }
+
+    public AnalyticsConsoleConversation archiveAt(Instant value) {
+        if (archived()) return this;
+        return new AnalyticsConsoleConversation(
+                conversationId,
+                assetId,
+                ownerSubjectRef,
+                externalConversationRef,
+                askRequestId,
+                askInvocationRef,
+                runtimeExecutionId,
+                runtimeTaskId,
+                createdAt,
+                mode,
+                questionProfileId,
+                namespace,
+                modelName,
+                modelRevision,
+                askBindings,
+                Objects.requireNonNull(value, "archivedAt"));
     }
 
     private static String required(String value, String field) {

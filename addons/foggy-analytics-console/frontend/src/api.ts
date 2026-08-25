@@ -27,6 +27,7 @@ export interface Conversation {
   modelName: string | null
   modelRevision: string | null
   askInvocationRef: string
+  archivedAt: string | null
 }
 
 export interface ConversationSummary {
@@ -148,6 +149,9 @@ export const api = {
   conversations: () => call<ConversationSummary[]>('/agent/conversations'),
   conversation: (conversationId: string) =>
     call<Conversation>(`/agent/conversations/${encodeURIComponent(conversationId)}`),
+  archiveConversation: (conversationId: string) =>
+    call<Conversation>(`/agent/conversations/${encodeURIComponent(conversationId)}:archive`,
+      json('POST', {})),
   askQuestion: (profileId: string, prompt: string) =>
     call<Conversation>('/agent/questions', json('POST', { profileId, prompt })),
   continueConversation: (conversationId: string, prompt: string) =>

@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
 /** Freezes product selections before submitting direct-question or design Asks to FAP. */
@@ -165,6 +166,7 @@ public final class AnalyticsConsoleAgentService {
         List<AnalyticsConsoleConversation> conversations = catalog.read().conversations().stream()
                 .filter(value -> value.mode() == AnalyticsConsoleConversationMode.QUESTION)
                 .filter(value -> value.ownerSubjectRef().equals(subject.subjectRef()))
+                .filter(value -> !value.archived())
                 .toList();
         if (conversations.isEmpty()) return List.of();
         AnalyticsConsoleFapBindingResolver.OutboundBinding binding = bindings.resolve(subject);
@@ -178,6 +180,46 @@ public final class AnalyticsConsoleAgentService {
             AnalyticsConsoleSubject subject,
             String conversationId) {
         return requireConversation(subject, conversationId);
+    }
+
+    public AnalyticsConsoleConversation archiveConversation(
+            AnalyticsConsoleSubject subject,
+            String conversationId) {
+        AnalyticsConsoleConversation conversation = requireConversation(subject, conversationId);
+        if (!conversation.ownerSubjectRef().equals(subject.subjectRef())) {
+            throw new AnalyticsConsoleCatalogException(
+                    "ANALYTICS_CONSOLE_FORBIDDEN",
+                    "Only the conversation owner can archive an Analytics conversation");
+        }
+        if (conversation.mode() != AnalyticsConsoleConversationMode.QUESTION) {
+            throw new AnalyticsConsoleCatalogException(
+                    "ANALYTICS_CONSOLE_ARCHIVE_UNSUPPORTED",
+                    "Only question conversations can be archived");
+        }
+        if (conversation.archived()) return conversation;
+
+        Instant archivedAt = clock.instant();
+        AtomicReference<AnalyticsConsoleConversation> archived = new AtomicReference<>();
+        catalog.update(state -> new AnalyticsConsoleCatalogState(
+                state.revision(),
+                state.folders(),
+                state.assets(),
+                state.conversations().stream()
+                        .map(value -> {
+                            if (!value.conversationId().equals(conversation.conversationId())) {
+                                return value;
+                            }
+                            AnalyticsConsoleConversation next = value.archiveAt(archivedAt);
+                            archived.set(next);
+                            return next;
+                        })
+                        .toList()));
+        if (archived.get() == null) {
+            throw new AnalyticsConsoleCatalogException(
+                    "ANALYTICS_CONSOLE_CONVERSATION_NOT_FOUND",
+                    "Analytics Console conversation was not found");
+        }
+        return archived.get();
     }
 
     public AnalyticsConsoleConversation startQuestion(

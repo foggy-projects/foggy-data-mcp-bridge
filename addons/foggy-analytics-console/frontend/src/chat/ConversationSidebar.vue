@@ -1,23 +1,80 @@
 <script setup lang="ts">
+import { nextTick, ref } from 'vue'
 import type { ConversationSummary } from '../api'
 import AppearanceMenu from '../components/AppearanceMenu.vue'
 import type { Session } from '../domain'
 import { formatConversationTime } from './presentation'
 
-defineProps<{
+const props = defineProps<{
   conversations: ConversationSummary[]
   activeId: string | null
   session: Session | null
   designer: boolean
   open: boolean
+  archivingId: string
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   newConversation: []
   select: [conversationId: string]
+  archive: [conversationId: string]
   openStudio: []
   close: []
 }>()
+
+const contextMenu = ref<{ conversationId: string; left: number; top: number } | null>(null)
+const contextAction = ref<HTMLButtonElement | null>(null)
+
+const closeContextMenu = () => {
+  contextMenu.value = null
+}
+
+const showContextMenu = async (
+  conversationId: string,
+  requestedLeft: number,
+  requestedTop: number
+) => {
+  const menuWidth = 176
+  const menuHeight = 52
+  const edge = 8
+  contextMenu.value = {
+    conversationId,
+    left: Math.max(edge, Math.min(requestedLeft, window.innerWidth - menuWidth - edge)),
+    top: Math.max(edge, Math.min(requestedTop, window.innerHeight - menuHeight - edge))
+  }
+  await nextTick()
+  contextAction.value?.focus()
+}
+
+const openContextMenu = (event: MouseEvent, conversationId: string) => {
+  event.preventDefault()
+  void showContextMenu(conversationId, event.clientX, event.clientY)
+}
+
+const handleConversationKeydown = (event: KeyboardEvent, conversationId: string) => {
+  if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return
+  event.preventDefault()
+  const target = event.currentTarget as HTMLElement
+  const bounds = target.getBoundingClientRect()
+  void showContextMenu(conversationId, bounds.left + 42, bounds.top + bounds.height / 2)
+}
+
+const archiveSelectedConversation = () => {
+  const conversationId = contextMenu.value?.conversationId
+  if (!conversationId || props.archivingId) return
+  closeContextMenu()
+  emit('archive', conversationId)
+}
+
+const startConversation = () => {
+  closeContextMenu()
+  emit('newConversation')
+}
+
+const selectConversation = (conversationId: string) => {
+  closeContextMenu()
+  emit('select', conversationId)
+}
 </script>
 
 <template>
@@ -29,7 +86,7 @@ defineEmits<{
       <small><i></i> JAVA RUNTIME CONNECTED</small>
     </div>
 
-    <button class="new-conversation" type="button" @click="$emit('newConversation')">
+    <button class="new-conversation" type="button" @click="startConversation">
       <span>＋</span>
       <strong>新建会话</strong>
       <kbd>⌘ N</kbd>
@@ -45,7 +102,11 @@ defineEmits<{
         :key="conversation.conversationId"
         type="button"
         :class="{ active: activeId === conversation.conversationId }"
-        @click="$emit('select', conversation.conversationId)"
+        aria-haspopup="menu"
+        :aria-expanded="contextMenu?.conversationId === conversation.conversationId"
+        @click="selectConversation(conversation.conversationId)"
+        @contextmenu="openContextMenu($event, conversation.conversationId)"
+        @keydown="handleConversationKeydown($event, conversation.conversationId)"
       >
         <span class="history-mark">{{ conversation.title.slice(0, 1) }}</span>
         <span class="history-copy">
@@ -70,6 +131,36 @@ defineEmits<{
       </div>
     </div>
   </aside>
+
+  <Teleport to="body">
+    <div
+      v-if="contextMenu"
+      class="conversation-context-layer"
+      @pointerdown.self="closeContextMenu"
+      @contextmenu.prevent="closeContextMenu"
+    >
+      <div
+        class="conversation-context-menu"
+        role="menu"
+        aria-label="会话操作"
+        :style="{ left: `${contextMenu.left}px`, top: `${contextMenu.top}px` }"
+        @keydown.esc.stop.prevent="closeContextMenu"
+      >
+        <button
+          ref="contextAction"
+          type="button"
+          role="menuitem"
+          :disabled="archivingId === contextMenu.conversationId"
+          @click="archiveSelectedConversation"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 7.5h16M6 7.5v11h12v-11M9.5 11.5h5M5 4h14l1 3.5H4L5 4Z" />
+          </svg>
+          <span>{{ archivingId === contextMenu.conversationId ? '归档中…' : '归档会话' }}</span>
+        </button>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -121,6 +212,13 @@ defineEmits<{
 .sidebar-identity strong, .sidebar-identity small { display: block; }
 .sidebar-identity strong { font-size: 11px; }
 .sidebar-identity small { margin-top: 4px; color: #8e9a95; font: 8px var(--mono); }
+.conversation-context-layer { position: fixed; inset: 0; z-index: 120; }
+.conversation-context-menu { position: fixed; width: 176px; padding: 5px; border: 1px solid var(--ink); background: var(--paper-light); color: var(--ink); box-shadow: 4px 4px 0 rgba(23, 33, 31, .28); }
+.conversation-context-menu button { display: grid; grid-template-columns: 22px 1fr; align-items: center; gap: 9px; width: 100%; min-height: 40px; padding: 8px 10px; border: 0; background: transparent; color: inherit; cursor: pointer; text-align: left; }
+.conversation-context-menu button:hover, .conversation-context-menu button:focus-visible { outline: 0; background: #e9e9e2; }
+.conversation-context-menu button:disabled { cursor: wait; opacity: .55; }
+.conversation-context-menu svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-linecap: square; stroke-linejoin: miter; stroke-width: 1.6; }
+.conversation-context-menu span { font: 700 12px var(--sans); }
 
 @media (max-width: 760px) {
   .conversation-sidebar { position: fixed; inset: 0 auto 0 0; width: min(286px, 88vw); transform: translateX(-104%); box-shadow: 12px 0 30px rgba(0, 0, 0, .26); transition: transform .2s ease; }

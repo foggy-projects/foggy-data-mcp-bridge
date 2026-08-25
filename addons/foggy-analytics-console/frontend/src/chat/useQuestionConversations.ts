@@ -25,6 +25,7 @@ export const useQuestionConversations = () => {
   const pendingPrompt = ref('')
   const loading = ref(true)
   const submitting = ref(false)
+  const archivingId = ref('')
   const refreshing = ref(false)
   const turnDetails = ref<Record<string, AgentTurnDetail>>({})
   const detailLoading = ref<Record<string, boolean>>({})
@@ -123,6 +124,26 @@ export const useQuestionConversations = () => {
     if (updateRoute) replaceRoute()
   }
 
+  const archiveConversation = async (conversationId: string) => {
+    if (archivingId.value) return
+    archivingId.value = conversationId
+    error.value = ''
+    notice.value = ''
+    try {
+      await api.archiveConversation(conversationId)
+      conversations.value = conversations.value.filter(
+        value => value.conversationId !== conversationId)
+      if (activeConversation.value?.conversationId === conversationId) {
+        newConversation()
+      }
+      notice.value = '会话已归档'
+    } catch (reason) {
+      error.value = reason instanceof Error ? reason.message : '会话归档失败'
+    } finally {
+      archivingId.value = ''
+    }
+  }
+
   const send = async () => {
     const message = prompt.value.trim()
     if (!message || !selectedProfileId.value || submitting.value || waiting.value) return
@@ -212,6 +233,7 @@ export const useQuestionConversations = () => {
     pendingPrompt,
     loading,
     submitting,
+    archivingId,
     refreshing,
     turnDetails,
     detailLoading,
@@ -222,6 +244,7 @@ export const useQuestionConversations = () => {
     initialize,
     openConversation,
     newConversation,
+    archiveConversation,
     send,
     refreshTurns,
     loadTurnDetail,
