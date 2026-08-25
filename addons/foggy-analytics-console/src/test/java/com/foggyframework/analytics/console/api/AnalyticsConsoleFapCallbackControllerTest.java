@@ -120,10 +120,14 @@ class AnalyticsConsoleFapCallbackControllerTest {
     }
 
     @Test
-    void questionCallbackCannotChangeTheFrozenModelRevision() {
+    void legacyQuestionCallbackStillPinsTheModelName() {
         String revision = "sha256:" + "b".repeat(64);
-        FapAnalyticsCallbackRequest request = questionRequest(
-                "analytics.question-read", 2, "sha256:" + "c".repeat(64));
+        FapAnalyticsCallbackRequest request = advancedQuestionRequest(
+                FapAnalyticsFunctionRefs.SEMANTIC_QUERIES_EXECUTE,
+                Map.of(
+                        "namespace", "default",
+                        "modelName", "AnotherQueryModel",
+                        "query", Map.of("columns", java.util.List.of("orderCount"))));
         var conversation = new AnalyticsConsoleConversation(
                 "conversation-1",
                 null,
@@ -159,7 +163,7 @@ class AnalyticsConsoleFapCallbackControllerTest {
     @Test
     void namespaceScopedQuestionAllowsAnyQmInTheBoundNamespace() {
         FapAnalyticsCallbackRequest request = questionRequest(
-                "analytics.question-read", 2, "sha256:" + "c".repeat(64));
+                "analytics.question-read", 2);
         var conversation = namespaceConversation(request, "default");
         when(bindings.resolveCaller(any())).thenReturn(subject);
         when(agents.requireCallbackConversation(
@@ -186,7 +190,6 @@ class AnalyticsConsoleFapCallbackControllerTest {
                 Map.of(
                         "namespace", "default",
                         "modelName", "FactOrderQueryModel",
-                        "expectedModelRevision", "sha256:" + "c".repeat(64),
                         "mode", "validate",
                         "payload", Map.of("columns", java.util.List.of("orderCount"))));
         FapAnalyticsCallbackRequest compose = advancedQuestionRequest(
@@ -223,7 +226,6 @@ class AnalyticsConsoleFapCallbackControllerTest {
                 Map.of(
                         "namespace", "default",
                         "modelName", "FactOrderQueryModel",
-                        "expectedModelRevision", "sha256:" + "c".repeat(64),
                         "mode", "validate",
                         "payload", Map.of("columns", java.util.List.of("missingField"))));
         var conversation = namespaceConversation(request, "default");
@@ -268,7 +270,7 @@ class AnalyticsConsoleFapCallbackControllerTest {
     @Test
     void namespaceScopedQuestionRejectsCrossNamespaceQm() {
         FapAnalyticsCallbackRequest request = questionRequest(
-                "analytics.question-read", 2, "sha256:" + "c".repeat(64), "other");
+                "analytics.question-read", 2, "other");
         var conversation = namespaceConversation(request, "default");
         when(bindings.resolveCaller(any())).thenReturn(subject);
         when(agents.requireCallbackConversation(
@@ -320,15 +322,13 @@ class AnalyticsConsoleFapCallbackControllerTest {
 
     private static FapAnalyticsCallbackRequest questionRequest(
             String capabilityId,
-            long capabilityRevision,
-            String modelRevision) {
-        return questionRequest(capabilityId, capabilityRevision, modelRevision, "default");
+            long capabilityRevision) {
+        return questionRequest(capabilityId, capabilityRevision, "default");
     }
 
     private static FapAnalyticsCallbackRequest questionRequest(
             String capabilityId,
             long capabilityRevision,
-            String modelRevision,
             String namespace) {
         return new FapAnalyticsCallbackRequest(
                 "PROVIDER_FUNCTION_CALLBACK",
@@ -350,7 +350,6 @@ class AnalyticsConsoleFapCallbackControllerTest {
                 Map.of(
                         "namespace", namespace,
                         "modelName", "FactOrderQueryModel",
-                        "expectedModelRevision", modelRevision,
                         "query", Map.of("columns", java.util.List.of("orderCount"))),
                 "sha256:" + "a".repeat(64));
     }

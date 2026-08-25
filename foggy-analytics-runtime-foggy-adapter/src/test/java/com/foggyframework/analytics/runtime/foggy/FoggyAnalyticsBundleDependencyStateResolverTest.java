@@ -2,7 +2,7 @@ package com.foggyframework.analytics.runtime.foggy;
 
 import com.foggyframework.analytics.definition.api.AnalyticsBundleDependencyState;
 import com.foggyframework.analytics.definition.api.AnalyticsModelDependency;
-import com.foggyframework.analytics.definition.api.AnalyticsModelRevision;
+import com.foggyframework.analytics.definition.api.AnalyticsModelDigest;
 import com.foggyframework.dataset.model.semantic.port.SemanticModelCatalogReadPort;
 import com.foggyframework.dataset.model.semantic.service.SemanticModelCatalogService.NamespaceCatalogView;
 import org.junit.jupiter.api.Test;
@@ -12,20 +12,20 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.foggyframework.analytics.runtime.foggy.FoggyAdapterTestFixtures.MODEL;
-import static com.foggyframework.analytics.runtime.foggy.FoggyAdapterTestFixtures.MODEL_REVISION;
+import static com.foggyframework.analytics.runtime.foggy.FoggyAdapterTestFixtures.MODEL_DIGEST;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class FoggyAnalyticsBundleDependencyStateResolverTest {
 
     @Test
     void marksQmAndTmDependenciesCurrentAgainstOneExactCatalogView() {
-        AnalyticsModelRevision tableRevision =
-                AnalyticsModelRevision.fromSha256Hex("c".repeat(64));
+        AnalyticsModelDigest tableDigest =
+                AnalyticsModelDigest.fromSha256Hex("c".repeat(64));
         AnalyticsModelDependency queryDependency = FoggyAdapterTestFixtures.queryDependency();
         AnalyticsModelDependency tableDependency = FoggyAdapterTestFixtures.dependency(
                 "tm",
                 "SalesOrderTable",
-                tableRevision);
+                tableDigest);
         AtomicInteger catalogReads = new AtomicInteger();
         NamespaceCatalogView view = FoggyAdapterTestFixtures.trackedView();
         FoggyAnalyticsBundleDependencyStateResolver resolver =
@@ -37,8 +37,8 @@ class FoggyAnalyticsBundleDependencyStateResolverTest {
                         lookup -> {
                             assertEquals(view.identity(), lookup.catalogIdentity());
                             return switch (lookup.modelKind()) {
-                                case "qm" -> Optional.of(MODEL_REVISION);
-                                case "tm" -> Optional.of(tableRevision);
+                                case "qm" -> Optional.of(MODEL_DIGEST);
+                                case "tm" -> Optional.of(tableDigest);
                                 default -> Optional.empty();
                             };
                         });
@@ -53,12 +53,12 @@ class FoggyAnalyticsBundleDependencyStateResolverTest {
     }
 
     @Test
-    void marksMissingOrChangedStableRevisionStale() {
+    void marksMissingOrChangedStableDigestStale() {
         FoggyAnalyticsBundleDependencyStateResolver missing = resolver(
                 lookup -> Optional.empty());
         FoggyAnalyticsBundleDependencyStateResolver changed = resolver(
                 lookup -> Optional.of(
-                        AnalyticsModelRevision.fromSha256Hex("d".repeat(64))));
+                        AnalyticsModelDigest.fromSha256Hex("d".repeat(64))));
 
         assertEquals(
                 AnalyticsBundleDependencyState.STALE,
@@ -71,7 +71,7 @@ class FoggyAnalyticsBundleDependencyStateResolverTest {
     }
 
     @Test
-    void failsClosedForUntrackedCatalogOrRevisionProviderFailure() {
+    void failsClosedForUntrackedCatalogOrDigestProviderFailure() {
         NamespaceCatalogView untracked = new NamespaceCatalogView(
                 null,
                 List.of(MODEL),
@@ -81,10 +81,10 @@ class FoggyAnalyticsBundleDependencyStateResolverTest {
         FoggyAnalyticsBundleDependencyStateResolver legacyResolver =
                 new FoggyAnalyticsBundleDependencyStateResolver(
                         namespace -> untracked,
-                        lookup -> Optional.of(MODEL_REVISION));
+                        lookup -> Optional.of(MODEL_DIGEST));
         FoggyAnalyticsBundleDependencyStateResolver failingResolver = resolver(
                 lookup -> {
-                    throw new IllegalStateException("revision registry unavailable");
+                    throw new IllegalStateException("digest registry unavailable");
                 });
 
         assertEquals(
@@ -98,9 +98,9 @@ class FoggyAnalyticsBundleDependencyStateResolverTest {
     }
 
     private static FoggyAnalyticsBundleDependencyStateResolver resolver(
-            FoggyStableModelRevisionReadPort revisionReadPort) {
+            FoggyStableModelDigestReadPort digestReadPort) {
         SemanticModelCatalogReadPort catalog = namespace ->
                 FoggyAdapterTestFixtures.trackedView();
-        return new FoggyAnalyticsBundleDependencyStateResolver(catalog, revisionReadPort);
+        return new FoggyAnalyticsBundleDependencyStateResolver(catalog, digestReadPort);
     }
 }

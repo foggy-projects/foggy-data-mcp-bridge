@@ -208,7 +208,7 @@ public final class DefaultAnalyticsFunctionEndpoint
                     modelDependencyOperations.get();
             if (operations == null) {
                 throw new AnalyticsModelDependencyResolutionException(
-                        AnalyticsModelDependencyResolutionException.Code.REVISION_UNAVAILABLE,
+                        AnalyticsModelDependencyResolutionException.Code.DIGEST_UNAVAILABLE,
                         "Model dependency resolution is unavailable");
             }
             return operations.resolve(
@@ -225,7 +225,7 @@ public final class DefaultAnalyticsFunctionEndpoint
                     modelDependencyOperations.get();
             if (operations == null) {
                 throw new AnalyticsModelDependencyResolutionException(
-                        AnalyticsModelDependencyResolutionException.Code.REVISION_UNAVAILABLE,
+                        AnalyticsModelDependencyResolutionException.Code.DIGEST_UNAVAILABLE,
                         "Model dependency listing is unavailable");
             }
             return operations.list(request.namespace(), request.modelKind());

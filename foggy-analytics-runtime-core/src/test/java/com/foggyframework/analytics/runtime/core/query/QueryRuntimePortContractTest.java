@@ -2,7 +2,7 @@ package com.foggyframework.analytics.runtime.core.query;
 
 import com.foggyframework.analytics.definition.api.AnalyticsColumnSchema;
 import com.foggyframework.analytics.definition.api.AnalyticsModelDependency;
-import com.foggyframework.analytics.definition.api.AnalyticsModelRevision;
+import com.foggyframework.analytics.definition.api.AnalyticsModelDigest;
 import com.foggyframework.analytics.definition.api.AnalyticsNamespaceRef;
 import com.foggyframework.analytics.definition.api.AnalyticsQueryRef;
 import com.foggyframework.analytics.definition.api.AnalyticsQuerySpec;
@@ -28,7 +28,7 @@ class QueryRuntimePortContractTest {
                 new AnalyticsNamespaceRef("default"),
                 "qm",
                 "SalesOrder",
-                AnalyticsModelRevision.fromSha256Hex("a".repeat(64)));
+                AnalyticsModelDigest.fromSha256Hex("a".repeat(64)));
         QueryAuthorityRequest authorityRequest = new QueryAuthorityRequest(
                 dependency,
                 new QueryAuthorityBinding("host", "authority-42"),
@@ -68,15 +68,15 @@ class QueryRuntimePortContractTest {
         assertEquals(100, context.rowLimit());
         assertNull(result.rows().get(0).get("amount"));
         assertEquals(
-                dependency.modelRevision(),
-                context.modelDependency().modelRevision());
+                dependency.modelDigest(),
+                context.modelDependency().modelDigest());
         assertThrows(UnsupportedOperationException.class,
                 () -> context.parameters().put("rawSql", "select 1"));
         AnalyticsModelDependency otherModel = new AnalyticsModelDependency(
                 dependency.namespace(),
                 "qm",
                 "OtherModel",
-                dependency.modelRevision());
+                dependency.modelDigest());
         assertThrows(IllegalArgumentException.class, () -> new QueryExecutionContext<>(
                 query,
                 otherModel,

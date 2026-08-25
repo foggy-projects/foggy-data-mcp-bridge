@@ -215,7 +215,7 @@ class AnalyticsConsoleAgentServiceTest {
         assertThat(conversation.modelName()).isNull();
         assertThat(conversation.modelRevision()).isNull();
         assertThat(started.get().initialSystemInstruction())
-                .contains("namespace default", "list the available QMs")
+                .contains("namespace default", "list the current available QMs")
                 .contains("full query-model DSL", "restricted Compose")
                 .contains("canonical semantic expression", "do not invent sum or groupBy")
                 .contains("Do not create or modify a Report or Dashboard");

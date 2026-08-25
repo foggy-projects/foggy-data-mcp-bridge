@@ -35,7 +35,6 @@ import static org.mockito.Mockito.when;
 
 class FoggyAnalyticsAdvancedSemanticFunctionOperationsTest {
 
-    private static final String REVISION = "sha256:" + "a".repeat(64);
     private static final AnalyticsFunctionAuthority AUTHORITY =
             new AnalyticsFunctionAuthority("tms", "subject:42");
     private static final AnalyticsFunctionRequestContext REQUEST_CONTEXT =
@@ -51,7 +50,7 @@ class FoggyAnalyticsAdvancedSemanticFunctionOperationsTest {
         CatalogResolution<QueryModel> catalog = mock(CatalogResolution.class);
         var semanticContext = com.foggyframework.dataset.model.semantic.domain
                 .SemanticRequestContext.empty();
-        when(authorityResolver.resolve(any())).thenReturn(authority);
+        when(authorityResolver.resolveCurrent(any())).thenReturn(authority);
         when(authority.catalogResolution()).thenReturn(catalog);
         when(authority.semanticRequestContext()).thenReturn(semanticContext);
         when(catalog.canonicalName()).thenReturn("FactOrderQueryModel");
@@ -69,7 +68,6 @@ class FoggyAnalyticsAdvancedSemanticFunctionOperationsTest {
                 new AnalyticsQueryModelFunctionRequest(
                         "default",
                         "FactOrderQueryModel",
-                        REVISION,
                         "validate",
                         Map.of(
                                 "columns", List.of("orderCount"),
@@ -251,7 +249,7 @@ class FoggyAnalyticsAdvancedSemanticFunctionOperationsTest {
         FoggyAnalyticsAuthority authority = mock(FoggyAnalyticsAuthority.class);
         @SuppressWarnings("unchecked")
         CatalogResolution<QueryModel> catalog = mock(CatalogResolution.class);
-        when(authorityResolver.resolve(any())).thenReturn(authority);
+        when(authorityResolver.resolveCurrent(any())).thenReturn(authority);
         when(authority.catalogResolution()).thenReturn(catalog);
         when(authority.semanticRequestContext()).thenReturn(
                 com.foggyframework.dataset.model.semantic.domain
@@ -269,7 +267,6 @@ class FoggyAnalyticsAdvancedSemanticFunctionOperationsTest {
                 new AnalyticsQueryModelFunctionRequest(
                         "default",
                         "FactOrderQueryModel",
-                        REVISION,
                         mode,
                         Map.of("columns", List.of("amount")),
                         AUTHORITY,

@@ -34,8 +34,13 @@ public final class FoggyAnalyticsQueryExecutor
     public QueryExecutionResult execute(QueryExecutionContext<FoggyAnalyticsAuthority> context) {
         Objects.requireNonNull(context, "context");
         FoggyAnalyticsAuthority authority = context.authority();
-        if (!context.modelDependency().equals(authority.modelDependency())
-                || !context.querySpec().modelName().equals(
+        boolean pinnedDependencyMismatch = authority.pinnedModelDependency()
+                .map(dependency -> !dependency.equals(context.modelDependency()))
+                .orElse(false);
+        if (pinnedDependencyMismatch
+                || !context.querySpec().namespaceRef().equals(authority.namespace())
+                || !context.querySpec().modelName().equals(authority.modelName())
+                || !authority.modelName().equals(
                 authority.catalogResolution().canonicalName())) {
             throw failure(
                     AUTHORITY_MISMATCH,

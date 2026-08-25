@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class FoggyAnalyticsModelDependencyOperationsTest {
 
     @Test
-    void resolvesExactCanonicalQueryModelToStableRevision() {
+    void resolvesExactCanonicalQueryModelToInternalDependencyDigest() {
         FoggyAnalyticsModelDependencyOperations operations = operations(
                 FoggyAdapterTestFixtures.trackedView(),
                 true);
@@ -23,16 +23,16 @@ class FoggyAnalyticsModelDependencyOperationsTest {
                 "qm",
                 FoggyAdapterTestFixtures.MODEL);
 
-        assertEquals(FoggyAdapterTestFixtures.MODEL_REVISION.value(),
-                resolved.modelRevision());
+        assertEquals(FoggyAdapterTestFixtures.MODEL_DIGEST.value(),
+                resolved.dependencyDigest());
         assertEquals(FoggyAdapterTestFixtures.NAMESPACE, resolved.namespace());
     }
 
     @Test
-    void listsCanonicalQueryModelsWithCurrentExactRevisions() {
+    void listsCurrentCanonicalQueryModelsWithoutReadingDigests() {
         FoggyAnalyticsModelDependencyOperations operations = operations(
                 FoggyAdapterTestFixtures.trackedView(),
-                true);
+                false);
 
         var listed = operations.list(FoggyAdapterTestFixtures.NAMESPACE, "qm");
 
@@ -40,12 +40,10 @@ class FoggyAnalyticsModelDependencyOperationsTest {
         assertEquals("qm", listed.modelKind());
         assertEquals(1, listed.models().size());
         assertEquals(FoggyAdapterTestFixtures.MODEL, listed.models().get(0).modelName());
-        assertEquals(FoggyAdapterTestFixtures.MODEL_REVISION.value(),
-                listed.models().get(0).modelRevision());
     }
 
     @Test
-    void delegatesExactTableModelResolutionToTheStableRevisionPort() {
+    void delegatesTableModelDigestResolutionToTheInternalReadPort() {
         FoggyAnalyticsModelDependencyOperations operations = operations(
                 FoggyAdapterTestFixtures.trackedView(),
                 true);
@@ -57,8 +55,8 @@ class FoggyAnalyticsModelDependencyOperationsTest {
 
         assertEquals("tm", resolved.modelKind());
         assertEquals("SalesOrderModel", resolved.modelName());
-        assertEquals(FoggyAdapterTestFixtures.MODEL_REVISION.value(),
-                resolved.modelRevision());
+        assertEquals(FoggyAdapterTestFixtures.MODEL_DIGEST.value(),
+                resolved.dependencyDigest());
     }
 
     @Test
@@ -80,7 +78,7 @@ class FoggyAnalyticsModelDependencyOperationsTest {
     }
 
     @Test
-    void failsClosedWhenStableRevisionIsUnavailable() {
+    void failsClosedWhenDependencyDigestIsUnavailable() {
         FoggyAnalyticsModelDependencyOperations operations = operations(
                 FoggyAdapterTestFixtures.trackedView(),
                 false);
@@ -93,12 +91,12 @@ class FoggyAnalyticsModelDependencyOperationsTest {
                         FoggyAdapterTestFixtures.MODEL));
 
         assertEquals(
-                AnalyticsModelDependencyResolutionException.Code.REVISION_UNAVAILABLE,
+                AnalyticsModelDependencyResolutionException.Code.DIGEST_UNAVAILABLE,
                 failure.code());
     }
 
     @Test
-    void failsClosedForAMissingTableModelReportedByTheRevisionPort() {
+    void failsClosedForAMissingTableModelReportedByTheDigestPort() {
         FoggyAnalyticsModelDependencyOperations operations = operations(
                 FoggyAdapterTestFixtures.trackedView(),
                 false);
@@ -111,17 +109,17 @@ class FoggyAnalyticsModelDependencyOperationsTest {
                         "MissingTableModel"));
 
         assertEquals(
-                AnalyticsModelDependencyResolutionException.Code.REVISION_UNAVAILABLE,
+                AnalyticsModelDependencyResolutionException.Code.DIGEST_UNAVAILABLE,
                 failure.code());
     }
 
     private static FoggyAnalyticsModelDependencyOperations operations(
             NamespaceCatalogView view,
-            boolean revisionAvailable) {
+            boolean digestAvailable) {
         SemanticModelCatalogReadPort catalog = namespace -> view;
-        FoggyStableModelRevisionReadPort revisions = lookup -> revisionAvailable
-                ? Optional.of(FoggyAdapterTestFixtures.MODEL_REVISION)
+        FoggyStableModelDigestReadPort digests = lookup -> digestAvailable
+                ? Optional.of(FoggyAdapterTestFixtures.MODEL_DIGEST)
                 : Optional.empty();
-        return new FoggyAnalyticsModelDependencyOperations(catalog, revisions);
+        return new FoggyAnalyticsModelDependencyOperations(catalog, digests);
     }
 }

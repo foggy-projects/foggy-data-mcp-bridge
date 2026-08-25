@@ -31,10 +31,10 @@ import com.foggyframework.analytics.runtime.foggy.FoggyComposeCallerResolver;
 import com.foggyframework.analytics.runtime.foggy.FoggyAnalyticsBundleDependencyStateResolver;
 import com.foggyframework.analytics.runtime.foggy.FoggyAnalyticsModelDependencyOperations;
 import com.foggyframework.analytics.runtime.foggy.FoggyAnalyticsQueryExecutor;
-import com.foggyframework.analytics.runtime.foggy.FoggyCatalogStableModelRevisionReadPort;
+import com.foggyframework.analytics.runtime.foggy.FoggyCatalogStableModelDigestReadPort;
 import com.foggyframework.analytics.runtime.foggy.FoggyQueryAuthorityResolver;
 import com.foggyframework.analytics.runtime.foggy.FoggySemanticRequestContextResolver;
-import com.foggyframework.analytics.runtime.foggy.FoggyStableModelRevisionReadPort;
+import com.foggyframework.analytics.runtime.foggy.FoggyStableModelDigestReadPort;
 import com.foggyframework.analytics.runtime.foggy.FoggyAnalyticsSemanticFunctionOperations;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogSnapshotStore;
 import com.foggyframework.dataset.model.semantic.port.SemanticModelCatalogReadPort;
@@ -76,10 +76,10 @@ public class AnalyticsRuntimeApiAutoConfiguration {
     @ConditionalOnMissingBean(AnalyticsModelDependencyOperations.class)
     AnalyticsModelDependencyOperations analyticsModelDependencyOperations(
             SemanticModelCatalogReadPort catalogReadPort,
-            FoggyStableModelRevisionReadPort revisionReadPort) {
+            FoggyStableModelDigestReadPort digestReadPort) {
         return new FoggyAnalyticsModelDependencyOperations(
                 catalogReadPort,
-                revisionReadPort);
+                digestReadPort);
     }
 
     @Bean
@@ -102,10 +102,10 @@ public class AnalyticsRuntimeApiAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnMissingBean(FoggyStableModelRevisionReadPort.class)
-    FoggyStableModelRevisionReadPort foggyStableModelRevisionReadPort(
+    @ConditionalOnMissingBean(FoggyStableModelDigestReadPort.class)
+    FoggyStableModelDigestReadPort foggyStableModelDigestReadPort(
             CatalogSnapshotStore catalogSnapshotStore) {
-        return new FoggyCatalogStableModelRevisionReadPort(
+        return new FoggyCatalogStableModelDigestReadPort(
                 catalogSnapshotStore);
     }
 
@@ -113,10 +113,10 @@ public class AnalyticsRuntimeApiAutoConfiguration {
     @ConditionalOnMissingBean(AnalyticsBundleDependencyStateResolver.class)
     AnalyticsBundleDependencyStateResolver analyticsBundleDependencyStateResolver(
             SemanticModelCatalogReadPort catalogReadPort,
-            FoggyStableModelRevisionReadPort revisionReadPort) {
+            FoggyStableModelDigestReadPort digestReadPort) {
         return new FoggyAnalyticsBundleDependencyStateResolver(
                 catalogReadPort,
-                revisionReadPort);
+                digestReadPort);
     }
 
     @Bean
@@ -159,7 +159,7 @@ public class AnalyticsRuntimeApiAutoConfiguration {
             FoggyAnalyticsRuntimeApiProperties properties,
             AnalyticsDefinitionResolver definitionResolver,
             SemanticModelCatalogReadPort catalogReadPort,
-            FoggyStableModelRevisionReadPort revisionReadPort,
+            FoggyStableModelDigestReadPort digestReadPort,
             SemanticQueryExecutionPort queryExecutionPort,
             FoggySemanticRequestContextResolver semanticContextResolver) {
         AnalyticsRenderService<FoggyAnalyticsAuthority> renderService =
@@ -167,7 +167,7 @@ public class AnalyticsRuntimeApiAutoConfiguration {
                         definitionResolver,
                         new FoggyQueryAuthorityResolver(
                                 catalogReadPort,
-                                revisionReadPort,
+                                digestReadPort,
                                 semanticContextResolver),
                         new FoggyAnalyticsQueryExecutor(queryExecutionPort),
                         properties.getMaxRows());
@@ -185,14 +185,12 @@ public class AnalyticsRuntimeApiAutoConfiguration {
     AnalyticsSemanticFunctionOperations analyticsSemanticFunctionOperations(
             FoggyAnalyticsRuntimeApiProperties properties,
             SemanticModelCatalogReadPort catalogReadPort,
-            FoggyStableModelRevisionReadPort revisionReadPort,
             SemanticQueryExecutionPort queryExecutionPort,
             SemanticServiceV3 metadataService,
             FoggySemanticRequestContextResolver semanticContextResolver) {
         return new FoggyAnalyticsSemanticFunctionOperations(
                 new FoggyQueryAuthorityResolver(
                         catalogReadPort,
-                        revisionReadPort,
                         semanticContextResolver),
                 metadataService,
                 queryExecutionPort,
@@ -212,7 +210,6 @@ public class AnalyticsRuntimeApiAutoConfiguration {
     AnalyticsAdvancedSemanticFunctionOperations analyticsAdvancedSemanticFunctionOperations(
             FoggyAnalyticsRuntimeApiProperties properties,
             SemanticModelCatalogReadPort catalogReadPort,
-            FoggyStableModelRevisionReadPort revisionReadPort,
             SemanticQueryExecutionPort queryExecutionPort,
             ComposeExecutionPort composeExecutionPort,
             FoggySemanticRequestContextResolver semanticContextResolver,
@@ -222,7 +219,6 @@ public class AnalyticsRuntimeApiAutoConfiguration {
         return new FoggyAnalyticsAdvancedSemanticFunctionOperations(
                 new FoggyQueryAuthorityResolver(
                         catalogReadPort,
-                        revisionReadPort,
                         semanticContextResolver),
                 composeCallerResolver,
                 queryExecutionPort,

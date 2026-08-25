@@ -7,7 +7,7 @@ public final class AnalyticsModelDependencyResolutionException extends RuntimeEx
 
     public enum Code {
         MODEL_NOT_FOUND,
-        REVISION_UNAVAILABLE
+        DIGEST_UNAVAILABLE
     }
 
     private final Code code;

@@ -95,7 +95,6 @@ class EmbeddedAnalyticsFunctionClientTest {
                         new AnalyticsQueryModelResult(
                                 "default",
                                 "FactOrderQueryModel",
-                                REVISION,
                                 "execute",
                                 Map.of("rows", List.of())),
                         new AnalyticsFunctionContext("request-1", "trace-1"));
@@ -125,7 +124,6 @@ class EmbeddedAnalyticsFunctionClientTest {
         assertSame(queryOutcome, client.runQueryModel(new AnalyticsQueryModelFunctionRequest(
                 "default",
                 "FactOrderQueryModel",
-                REVISION,
                 "execute",
                 Map.of("columns", List.of("orderCount")),
                 new AnalyticsFunctionAuthority("tms", "subject:42"),

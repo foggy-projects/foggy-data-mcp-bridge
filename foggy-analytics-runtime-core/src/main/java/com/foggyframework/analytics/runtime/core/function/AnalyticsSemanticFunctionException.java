@@ -11,7 +11,6 @@ public final class AnalyticsSemanticFunctionException extends RuntimeException {
 
     public enum Code {
         MODEL_NOT_FOUND,
-        MODEL_REVISION_CONFLICT,
         QUERY_INVALID,
         QUERY_FAILED,
         COMPOSE_INVALID,

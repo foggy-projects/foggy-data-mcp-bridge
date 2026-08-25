@@ -3,7 +3,7 @@ package com.foggyframework.analytics.runtime.foggy;
 import com.foggyframework.analytics.definition.api.AnalyticsBundleDependencyState;
 import com.foggyframework.analytics.definition.api.AnalyticsBundleManifest;
 import com.foggyframework.analytics.definition.api.AnalyticsModelDependency;
-import com.foggyframework.analytics.definition.api.AnalyticsModelRevision;
+import com.foggyframework.analytics.definition.api.AnalyticsModelDigest;
 import com.foggyframework.analytics.definition.core.AnalyticsBundleDependencyStateResolver;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogResolution;
 import com.foggyframework.dataset.model.lifecycle.identity.CatalogIdentity;
@@ -21,26 +21,26 @@ public final class FoggyAnalyticsBundleDependencyStateResolver
         implements AnalyticsBundleDependencyStateResolver {
 
     private final SemanticModelCatalogReadPort catalogReadPort;
-    private final FoggyStableModelRevisionReadPort modelRevisionReadPort;
+    private final FoggyStableModelDigestReadPort modelDigestReadPort;
     private final FoggyAnalyticsNamespaceMapper namespaceMapper;
 
     public FoggyAnalyticsBundleDependencyStateResolver(
             SemanticModelCatalogReadPort catalogReadPort,
-            FoggyStableModelRevisionReadPort modelRevisionReadPort) {
+            FoggyStableModelDigestReadPort modelDigestReadPort) {
         this(
                 catalogReadPort,
-                modelRevisionReadPort,
+                modelDigestReadPort,
                 FoggyAnalyticsNamespaceMapper.defaultConvention());
     }
 
     public FoggyAnalyticsBundleDependencyStateResolver(
             SemanticModelCatalogReadPort catalogReadPort,
-            FoggyStableModelRevisionReadPort modelRevisionReadPort,
+            FoggyStableModelDigestReadPort modelDigestReadPort,
             FoggyAnalyticsNamespaceMapper namespaceMapper) {
         this.catalogReadPort = Objects.requireNonNull(catalogReadPort, "catalogReadPort");
-        this.modelRevisionReadPort = Objects.requireNonNull(
-                modelRevisionReadPort,
-                "modelRevisionReadPort");
+        this.modelDigestReadPort = Objects.requireNonNull(
+                modelDigestReadPort,
+                "modelDigestReadPort");
         this.namespaceMapper = Objects.requireNonNull(namespaceMapper, "namespaceMapper");
     }
 
@@ -82,12 +82,12 @@ public final class FoggyAnalyticsBundleDependencyStateResolver
                 && !containsExactQueryModel(view, dependency.modelName())) {
             return false;
         }
-        Optional<AnalyticsModelRevision> currentRevision = modelRevisionReadPort.findRevision(
-                new FoggyModelRevisionLookup(
+        Optional<AnalyticsModelDigest> currentDigest = modelDigestReadPort.findDigest(
+                new FoggyModelDigestLookup(
                         catalogIdentity,
                         dependency.modelKind(),
                         dependency.modelName()));
-        return currentRevision.filter(dependency.modelRevision()::equals).isPresent();
+        return currentDigest.filter(dependency.modelDigest()::equals).isPresent();
     }
 
     private static boolean containsExactQueryModel(

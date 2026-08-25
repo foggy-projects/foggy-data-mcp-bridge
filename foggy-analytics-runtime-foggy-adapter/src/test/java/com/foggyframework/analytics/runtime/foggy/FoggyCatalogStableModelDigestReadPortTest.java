@@ -1,6 +1,6 @@
 package com.foggyframework.analytics.runtime.foggy;
 
-import com.foggyframework.analytics.definition.api.AnalyticsModelRevision;
+import com.foggyframework.analytics.definition.api.AnalyticsModelDigest;
 import com.foggyframework.bundle.Bundle;
 import com.foggyframework.bundle.BundleResource;
 import com.foggyframework.bundle.SystemBundlesContext;
@@ -33,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class FoggyCatalogStableModelRevisionReadPortTest {
+class FoggyCatalogStableModelDigestReadPortTest {
 
     private static final String QUERY = "SalesQuery";
     private static final String TABLE = "SalesTable";
@@ -43,41 +43,41 @@ class FoggyCatalogStableModelRevisionReadPortTest {
     private static final String IMPORT_PATH = "memory:/shared.fsscript";
 
     @Test
-    void derivesDeterministicRevisionFromModelAndImportContentClosure() {
-        RevisionFixture first = fixture("export const scale = 1;");
-        RevisionFixture same = fixture("export const scale = 1;");
-        RevisionFixture changedImport = fixture("export const scale = 2;");
+    void derivesDeterministicDigestFromModelAndImportContentClosure() {
+        DigestFixture first = fixture("export const scale = 1;");
+        DigestFixture same = fixture("export const scale = 1;");
+        DigestFixture changedImport = fixture("export const scale = 2;");
 
-        AnalyticsModelRevision firstRevision = first.queryRevision().orElseThrow();
+        AnalyticsModelDigest firstDigest = first.queryDigest().orElseThrow();
 
-        assertEquals(firstRevision, same.queryRevision().orElseThrow());
-        assertNotEquals(firstRevision, changedImport.queryRevision().orElseThrow());
-        assertNotEquals(firstRevision, first.tableRevision().orElseThrow());
+        assertEquals(firstDigest, same.queryDigest().orElseThrow());
+        assertNotEquals(firstDigest, changedImport.queryDigest().orElseThrow());
+        assertNotEquals(firstDigest, first.tableDigest().orElseThrow());
     }
 
     @Test
     void failsClosedWhenRequestedCatalogIdentityIsNotCurrent() {
-        RevisionFixture fixture = fixture("export const scale = 1;");
-        FoggyModelRevisionLookup wrongCatalog = new FoggyModelRevisionLookup(
+        DigestFixture fixture = fixture("export const scale = 1;");
+        FoggyModelDigestLookup wrongCatalog = new FoggyModelDigestLookup(
                 FoggyAdapterTestFixtures.CATALOG_IDENTITY,
                 "qm",
                 QUERY);
 
-        assertTrue(fixture.port().findRevision(wrongCatalog).isEmpty());
+        assertTrue(fixture.port().findDigest(wrongCatalog).isEmpty());
     }
 
     @Test
     void failsClosedWhenCatalogSourceClosureRevisionIsUnavailable() {
-        RevisionFixture fixture = fixture("export const scale = 1;", false);
+        DigestFixture fixture = fixture("export const scale = 1;", false);
 
-        assertTrue(fixture.queryRevision().isEmpty());
+        assertTrue(fixture.queryDigest().isEmpty());
     }
 
-    private static RevisionFixture fixture(String importedContent) {
+    private static DigestFixture fixture(String importedContent) {
         return fixture(importedContent, true);
     }
 
-    private static RevisionFixture fixture(
+    private static DigestFixture fixture(
             String importedContent,
             boolean includeSourceClosureRevision) {
         Bundle bundle = bundle(BUNDLE);
@@ -143,8 +143,8 @@ class FoggyCatalogStableModelRevisionReadPortTest {
                     queryProvenance);
             snapshot = scope.commit();
         }
-        return new RevisionFixture(
-                new FoggyCatalogStableModelRevisionReadPort(store),
+        return new DigestFixture(
+                new FoggyCatalogStableModelDigestReadPort(store),
                 snapshot);
     }
 
@@ -190,19 +190,19 @@ class FoggyCatalogStableModelRevisionReadPortTest {
                 });
     }
 
-    private record RevisionFixture(
-            FoggyCatalogStableModelRevisionReadPort port,
+    private record DigestFixture(
+            FoggyCatalogStableModelDigestReadPort port,
             CatalogSnapshot snapshot) {
 
-        Optional<AnalyticsModelRevision> queryRevision() {
-            return port.findRevision(new FoggyModelRevisionLookup(
+        Optional<AnalyticsModelDigest> queryDigest() {
+            return port.findDigest(new FoggyModelDigestLookup(
                     snapshot.identity(),
                     "qm",
                     QUERY));
         }
 
-        Optional<AnalyticsModelRevision> tableRevision() {
-            return port.findRevision(new FoggyModelRevisionLookup(
+        Optional<AnalyticsModelDigest> tableDigest() {
+            return port.findDigest(new FoggyModelDigestLookup(
                     snapshot.identity(),
                     "tm",
                     TABLE));

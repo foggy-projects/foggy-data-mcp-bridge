@@ -70,7 +70,7 @@ class DefaultAnalyticsFunctionEndpointTest {
     }
 
     @Test
-    void resolvesStableModelDependencyWithoutProductOrAuthorityContext() {
+    void resolvesInternalModelDependencyDigestWithoutProductOrAuthorityContext() {
         AnalyticsModelDependencyOperations models = (namespace, modelKind, modelName) ->
                 new AnalyticsModelDependencyDescription(
                         namespace, modelKind, modelName, REVISION.value());
@@ -87,17 +87,17 @@ class DefaultAnalyticsFunctionEndpointTest {
                         new AnalyticsFunctionRequestContext("request-model", "trace-model")));
 
         assertTrue(outcome.success());
-        assertEquals(REVISION.value(), outcome.data().modelRevision());
+        assertEquals(REVISION.value(), outcome.data().dependencyDigest());
         assertEquals("supported", endpoint.capabilities(
                 AnalyticsFunctionRequestContext.empty()).data().operations().get(
                         AnalyticsFunctionOperations.MODEL_DEPENDENCIES_RESOLVE));
     }
 
     @Test
-    void sanitizesUnavailableStableRevision() {
+    void sanitizesUnavailableDependencyDigest() {
         AnalyticsModelDependencyOperations models = (namespace, modelKind, modelName) -> {
             throw new AnalyticsModelDependencyResolutionException(
-                    AnalyticsModelDependencyResolutionException.Code.REVISION_UNAVAILABLE,
+                    AnalyticsModelDependencyResolutionException.Code.DIGEST_UNAVAILABLE,
                     "private catalog provenance");
         };
         DefaultAnalyticsFunctionEndpoint endpoint = endpoint(
@@ -114,7 +114,7 @@ class DefaultAnalyticsFunctionEndpointTest {
 
         assertFalse(outcome.success());
         assertEquals(
-                "ANALYTICS_MODEL_DEPENDENCY_REVISION_UNAVAILABLE",
+                "ANALYTICS_MODEL_DEPENDENCY_DIGEST_UNAVAILABLE",
                 outcome.error().code());
         assertTrue(outcome.error().retryable());
         assertFalse(outcome.error().message().contains("private"));

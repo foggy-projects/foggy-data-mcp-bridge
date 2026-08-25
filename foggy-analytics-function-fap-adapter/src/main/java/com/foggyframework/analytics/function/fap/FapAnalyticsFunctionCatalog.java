@@ -79,8 +79,8 @@ public final class FapAnalyticsFunctionCatalog {
                                     FapAnalyticsFunctionRefs.MODEL_DEPENDENCIES_LIST,
                                     "analytics.model-dependencies.list",
                                     "List governed query models",
-                                    "List selectable QMs and exact revisions inside one server-bound Namespace.",
-                                    "analytics semantic query models namespace list exact revision",
+                                    "List the current selectable QMs inside one server-bound Namespace.",
+                                    "analytics semantic query models namespace current list",
                                     List.of("analytics", "model", "question", "read", "sync"),
                                     FapAnalyticsSchemas.modelDependencyListArguments(),
                                     FapAnalyticsSchemas.modelDependencyListResult(
@@ -91,7 +91,7 @@ public final class FapAnalyticsFunctionCatalog {
                                     FapAnalyticsFunctionRefs.SEMANTIC_MODELS_DESCRIBE,
                                     "analytics.semantic-models.describe",
                                     "Describe a governed semantic model",
-                                    "Read LLM-oriented metadata for one server-selected QM at an exact revision.",
+                                    "Read LLM-oriented metadata for the current server-selected QM.",
                                     "analytics semantic model fields measures dimensions describe governed",
                                     List.of("analytics", "model", "question", "read", "sync"),
                                     FapAnalyticsSchemas.semanticModelArguments(),
@@ -103,7 +103,7 @@ public final class FapAnalyticsFunctionCatalog {
                                     FapAnalyticsFunctionRefs.SEMANTIC_QUERIES_EXECUTE,
                                     "analytics.semantic-queries.execute",
                                     "Execute a governed semantic query",
-                                    "Execute the strict read-only query subset against one exact QM using current user authority.",
+                                    "Execute the strict read-only query subset against the current QM using current user authority.",
                                     "analytics semantic query rows evidence governed question",
                                     List.of("analytics", "query", "question", "read", "sync"),
                                     FapAnalyticsSchemas.semanticQueryArguments(),
@@ -243,15 +243,13 @@ public final class FapAnalyticsFunctionCatalog {
     private static Map<String, Object> semanticModelExample() {
         return Map.of(
                 "namespace", "sales",
-                "modelName", "FactOrderQueryModel",
-                "expectedModelRevision", EXAMPLE_REVISION);
+                "modelName", "FactOrderQueryModel");
     }
 
     private static Map<String, Object> semanticQueryExample() {
         return Map.of(
                 "namespace", "sales",
                 "modelName", "FactOrderQueryModel",
-                "expectedModelRevision", EXAMPLE_REVISION,
                 "query", Map.of(
                         "columns", List.of(
                                 "customerName", "sum(totalAmount) as totalAmount"),
@@ -265,7 +263,6 @@ public final class FapAnalyticsFunctionCatalog {
         return Map.of(
                 "namespace", "sales",
                 "modelName", "FactOrderQueryModel",
-                "expectedModelRevision", EXAMPLE_REVISION,
                 "mode", "execute",
                 "payload", Map.of(
                         "columns", List.of(

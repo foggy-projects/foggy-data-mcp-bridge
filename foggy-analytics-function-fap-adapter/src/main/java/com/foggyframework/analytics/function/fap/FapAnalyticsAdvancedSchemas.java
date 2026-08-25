@@ -9,8 +9,6 @@ import java.util.Map;
 /** JSON schemas for full query-model DSL and restricted SemanticDSL Compose. */
 final class FapAnalyticsAdvancedSchemas {
 
-    private static final String REVISION = "^sha256:[0-9a-f]{64}$";
-
     private FapAnalyticsAdvancedSchemas() {
     }
 
@@ -20,11 +18,10 @@ final class FapAnalyticsAdvancedSchemas {
                 map(
                         "namespace", nonBlankString(),
                         "modelName", nonBlankString(),
-                        "expectedModelRevision", string(REVISION),
                         "mode", enumString("validate", "execute"),
                         "payload", payload),
                 List.of(
-                        "namespace", "modelName", "expectedModelRevision", "mode", "payload"),
+                        "namespace", "modelName", "mode", "payload"),
                 false);
     }
 
@@ -283,10 +280,9 @@ final class FapAnalyticsAdvancedSchemas {
                 map(
                         "namespace", nonBlankString(),
                         "modelName", nonBlankString(),
-                        "modelRevision", string(REVISION),
                         "mode", enumString("validate", "execute"),
                         "response", object(Map.of(), List.of(), true)),
-                List.of("namespace", "modelName", "modelRevision", "mode", "response"),
+                List.of("namespace", "modelName", "mode", "response"),
                 false));
     }
 

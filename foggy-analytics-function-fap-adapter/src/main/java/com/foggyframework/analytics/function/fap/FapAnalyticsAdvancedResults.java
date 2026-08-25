@@ -16,7 +16,6 @@ final class FapAnalyticsAdvancedResults {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("namespace", value.namespace());
         result.put("modelName", value.modelName());
-        result.put("modelRevision", value.modelRevision());
         result.put("mode", value.mode());
         result.put("response", value.response());
         return FapAnalyticsValues.object("queryModel", result);

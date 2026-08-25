@@ -101,7 +101,6 @@ final class FapAnalyticsResults {
         return FapAnalyticsValues.object("semanticModel", Map.of(
                 "namespace", value.namespace(),
                 "modelName", value.modelName(),
-                "modelRevision", value.modelRevision(),
                 "format", value.format(),
                 "content", value.content()));
     }
@@ -113,7 +112,6 @@ final class FapAnalyticsResults {
                     item.put("namespace", model.namespace());
                     item.put("modelKind", model.modelKind());
                     item.put("modelName", model.modelName());
-                    item.put("modelRevision", model.modelRevision());
                     return item;
                 })
                 .toList();
@@ -136,7 +134,6 @@ final class FapAnalyticsResults {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("namespace", value.namespace());
         result.put("modelName", value.modelName());
-        result.put("modelRevision", value.modelRevision());
         result.put("columns", columns);
         result.put("rows", value.rows());
         result.put("total", value.total());

@@ -17,7 +17,7 @@
     },
     "payload": {
       "type": "object",
-      "description": "可选的原始语义查询 payload。提供后会在当前模型 revision 与调用者上下文中重新编译。"
+      "description": "可选的原始语义查询 payload。提供后会在当前模型解析结果与调用者上下文中重新编译。"
     },
     "depth": {
       "type": "string",

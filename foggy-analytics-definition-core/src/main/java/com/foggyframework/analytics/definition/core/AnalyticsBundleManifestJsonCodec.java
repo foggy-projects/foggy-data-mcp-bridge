@@ -9,7 +9,7 @@ import com.foggyframework.analytics.definition.api.AnalyticsBundleManifest;
 import com.foggyframework.analytics.definition.api.AnalyticsBundleRef;
 import com.foggyframework.analytics.definition.api.AnalyticsBundleRevision;
 import com.foggyframework.analytics.definition.api.AnalyticsModelDependency;
-import com.foggyframework.analytics.definition.api.AnalyticsModelRevision;
+import com.foggyframework.analytics.definition.api.AnalyticsModelDigest;
 import com.foggyframework.analytics.definition.api.AnalyticsNamespaceRef;
 import com.foggyframework.analytics.definition.api.AnalyticsSchemaVersion;
 
@@ -42,6 +42,7 @@ public final class AnalyticsBundleManifestJsonCodec {
             "namespace",
             "modelKind",
             "modelName",
+            "modelDigest",
             "modelRevision");
 
     private final ObjectMapper objectMapper;
@@ -72,7 +73,7 @@ public final class AnalyticsBundleManifestJsonCodec {
                         new AnalyticsNamespaceRef(text(dependency, "namespace")),
                         text(dependency, "modelKind"),
                         text(dependency, "modelName"),
-                        new AnalyticsModelRevision(text(dependency, "modelRevision"))));
+                        new AnalyticsModelDigest(modelDigest(dependency))));
             }
             AnalyticsSchemaVersion schemaVersion = new AnalyticsSchemaVersion(
                     text(root, "schemaVersion"));
@@ -107,14 +108,14 @@ public final class AnalyticsBundleManifestJsonCodec {
                                         dependency.namespace().value())
                                 .thenComparing(AnalyticsModelDependency::modelKind)
                                 .thenComparing(AnalyticsModelDependency::modelName)
-                                .thenComparing(dependency -> dependency.modelRevision().value()))
+                                .thenComparing(dependency -> dependency.modelDigest().value()))
                         .toList();
                 output.writeInt(dependencies.size());
                 for (AnalyticsModelDependency dependency : dependencies) {
                     write(output, dependency.namespace().value());
                     write(output, dependency.modelKind());
                     write(output, dependency.modelName());
-                    write(output, dependency.modelRevision().value());
+                    write(output, dependency.modelDigest().value());
                 }
             }
             return bytes.toByteArray();
@@ -157,6 +158,16 @@ public final class AnalyticsBundleManifestJsonCodec {
             throw invalid(field + " must be a string");
         }
         return value.textValue();
+    }
+
+    private static String modelDigest(JsonNode dependency) {
+        boolean hasDigest = dependency.hasNonNull("modelDigest");
+        boolean hasLegacyRevision = dependency.hasNonNull("modelRevision");
+        if (hasDigest == hasLegacyRevision) {
+            throw invalid(
+                    "modelDependency must contain exactly one of modelDigest or legacy modelRevision");
+        }
+        return text(dependency, hasDigest ? "modelDigest" : "modelRevision");
     }
 
     private static void requireObject(String field, JsonNode node) {

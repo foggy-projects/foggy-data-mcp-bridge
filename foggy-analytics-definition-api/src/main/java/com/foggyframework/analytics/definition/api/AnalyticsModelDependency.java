@@ -6,14 +6,15 @@ import java.util.Set;
 /**
  * Immutable persisted identity of a TM/QM model dependency used by an Analytics Bundle.
  *
- * <p>The revision identifies stable model content. Adapter-owned runtime catalog
- * identities must never be persisted here.</p>
+ * <p>The digest identifies stable model content for internal audit and stale
+ * detection only. Adapter-owned runtime catalog identities must never be persisted
+ * here.</p>
  */
 public record AnalyticsModelDependency(
         AnalyticsNamespaceRef namespace,
         String modelKind,
         String modelName,
-        AnalyticsModelRevision modelRevision) {
+        AnalyticsModelDigest modelDigest) {
 
     private static final Set<String> SUPPORTED_MODEL_KINDS = Set.of("tm", "qm");
 
@@ -24,7 +25,7 @@ public record AnalyticsModelDependency(
             throw new IllegalArgumentException("modelKind must be 'tm' or 'qm'");
         }
         modelName = requireValue("modelName", modelName);
-        modelRevision = Objects.requireNonNull(modelRevision, "modelRevision");
+        modelDigest = Objects.requireNonNull(modelDigest, "modelDigest");
     }
 
     private static String requireValue(String field, String value) {

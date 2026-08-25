@@ -124,6 +124,58 @@ class AnalyticsBundleRevisionCalculatorTest {
     }
 
     @Test
+    void manifestCodecReadsCurrentDigestAndLegacyRevisionWithoutMigration() {
+        String template = """
+                {
+                  "kind":"analytics",
+                  "schemaVersion":"1.0",
+                  "bundleRef":"sales",
+                  "bundleRevision":"sha256:%s",
+                  "namespaceRef":"default",
+                  "modelDependencies":[{
+                    "namespace":"default",
+                    "modelKind":"qm",
+                    "modelName":"SalesOrder",
+                    "%s":"sha256:%s"
+                  }]
+                }
+                """;
+        byte[] current = template.formatted(
+                        "0".repeat(64), "modelDigest", "1".repeat(64))
+                .getBytes(StandardCharsets.UTF_8);
+        byte[] legacy = template.formatted(
+                        "0".repeat(64), "modelRevision", "1".repeat(64))
+                .getBytes(StandardCharsets.UTF_8);
+
+        assertEquals(
+                codec.read(current).modelDependencies().get(0).modelDigest(),
+                codec.read(legacy).modelDependencies().get(0).modelDigest());
+    }
+
+    @Test
+    void manifestCodecRejectsAmbiguousDigestFields() {
+        byte[] invalid = ("""
+                {
+                  "kind":"analytics",
+                  "schemaVersion":"1.0",
+                  "bundleRef":"sales",
+                  "bundleRevision":"sha256:%s",
+                  "namespaceRef":"default",
+                  "modelDependencies":[{
+                    "namespace":"default",
+                    "modelKind":"qm",
+                    "modelName":"SalesOrder",
+                    "modelDigest":"sha256:%s",
+                    "modelRevision":"sha256:%s"
+                  }]
+                }
+                """).formatted("0".repeat(64), "1".repeat(64), "1".repeat(64))
+                .getBytes(StandardCharsets.UTF_8);
+
+        assertThrows(IllegalArgumentException.class, () -> codec.read(invalid));
+    }
+
+    @Test
     void symlinkInsideBundleFailsClosed() throws Exception {
         Path bundle = copyFixture(tempDir.resolve("bundle"));
         Path outside = tempDir.resolve("outside.txt");

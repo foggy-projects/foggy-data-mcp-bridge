@@ -1,6 +1,6 @@
 package com.foggyframework.analytics.runtime.foggy;
 
-import com.foggyframework.analytics.definition.api.AnalyticsModelRevision;
+import com.foggyframework.analytics.definition.api.AnalyticsModelDigest;
 import com.foggyframework.dataset.model.candidate.CandidateContentRevision;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogModelKey;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogSnapshot;
@@ -18,7 +18,7 @@ import java.util.Set;
 import java.util.TreeMap;
 
 /**
- * Stable model revision derived from one exact catalog provenance graph and its
+ * Internal model digest derived from one exact catalog provenance graph and its
  * compile-time-captured FSScript content closure.
  *
  * <p>The calculation deliberately excludes process-local catalog generation and
@@ -26,14 +26,14 @@ import java.util.TreeMap;
  * longer current, provenance is incomplete, or a model lacks the exact source
  * closure digest captured while that catalog was built.</p>
  */
-public final class FoggyCatalogStableModelRevisionReadPort
-        implements FoggyStableModelRevisionReadPort {
+public final class FoggyCatalogStableModelDigestReadPort
+        implements FoggyStableModelDigestReadPort {
 
     static final int MAX_SOURCE_COUNT = 1_024;
 
     private final CatalogSnapshotStore catalogSnapshotStore;
 
-    public FoggyCatalogStableModelRevisionReadPort(
+    public FoggyCatalogStableModelDigestReadPort(
             CatalogSnapshotStore catalogSnapshotStore) {
         this.catalogSnapshotStore = Objects.requireNonNull(
                 catalogSnapshotStore,
@@ -41,7 +41,7 @@ public final class FoggyCatalogStableModelRevisionReadPort
     }
 
     @Override
-    public Optional<AnalyticsModelRevision> findRevision(FoggyModelRevisionLookup lookup) {
+    public Optional<AnalyticsModelDigest> findDigest(FoggyModelDigestLookup lookup) {
         Objects.requireNonNull(lookup, "lookup");
         try {
             CatalogSnapshot snapshot = exactCurrentSnapshot(lookup).orElse(null);
@@ -54,7 +54,7 @@ public final class FoggyCatalogStableModelRevisionReadPort
             }
 
             List<ModelProvenance> modelClosure = modelClosure(snapshot, root);
-            Map<String, byte[]> revisionEntries = revisionEntries(
+            Map<String, byte[]> digestEntries = digestEntries(
                     modelClosure,
                     snapshot.identity().namespace());
 
@@ -62,15 +62,15 @@ public final class FoggyCatalogStableModelRevisionReadPort
             if (after != snapshot) {
                 return Optional.empty();
             }
-            return Optional.of(new AnalyticsModelRevision(
-                    CandidateContentRevision.calculate(revisionEntries)));
+            return Optional.of(new AnalyticsModelDigest(
+                    CandidateContentRevision.calculate(digestEntries)));
         } catch (RuntimeException unavailable) {
             return Optional.empty();
         }
     }
 
     private Optional<CatalogSnapshot> exactCurrentSnapshot(
-            FoggyModelRevisionLookup lookup) {
+            FoggyModelDigestLookup lookup) {
         return catalogSnapshotStore.readCurrent(
                         lookup.catalogIdentity().namespace())
                 .filter(snapshot -> lookup.catalogIdentity().equals(snapshot.identity()));
@@ -78,7 +78,7 @@ public final class FoggyCatalogStableModelRevisionReadPort
 
     private static Optional<ModelProvenance> rootProvenance(
             CatalogSnapshot snapshot,
-            FoggyModelRevisionLookup lookup) {
+            FoggyModelDigestLookup lookup) {
         if ("tm".equals(lookup.modelKind())) {
             return snapshot.modelProvenance(
                     CatalogModelKey.table(lookup.canonicalModelName()));
@@ -115,7 +115,7 @@ public final class FoggyCatalogStableModelRevisionReadPort
                 .toList();
     }
 
-    private static Map<String, byte[]> revisionEntries(
+    private static Map<String, byte[]> digestEntries(
             List<ModelProvenance> modelClosure,
             String expectedNamespace) {
         Map<String, byte[]> entries = new TreeMap<>();
@@ -126,10 +126,10 @@ public final class FoggyCatalogStableModelRevisionReadPort
             if (source == null || !expectedNamespace.equals(source.namespace())) {
                 throw new IllegalStateException("model source provenance is unavailable");
             }
-            String sourceClosureRevision = source.sourceClosureRevision();
-            if (!FsscriptSourceContentRevision.isCanonical(sourceClosureRevision)) {
+            String sourceClosureDigest = source.sourceClosureRevision();
+            if (!FsscriptSourceContentRevision.isCanonical(sourceClosureDigest)) {
                 throw new IllegalStateException(
-                        "compiled FSScript source closure revision is unavailable");
+                        "compiled FSScript source closure digest is unavailable");
             }
 
             String modelPrefix = "model/" + modelIndex;
@@ -137,7 +137,7 @@ public final class FoggyCatalogStableModelRevisionReadPort
             entries.put(modelPrefix + "/dependencies", modelDependencies(provenance));
             entries.put(
                     modelPrefix + "/source-closure",
-                    sourceClosureRevision.getBytes(StandardCharsets.UTF_8));
+                    sourceClosureDigest.getBytes(StandardCharsets.UTF_8));
         }
         return entries;
     }

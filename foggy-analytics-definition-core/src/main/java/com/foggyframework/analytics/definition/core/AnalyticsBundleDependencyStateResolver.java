@@ -4,7 +4,7 @@ import com.foggyframework.analytics.definition.api.AnalyticsBundleDependencyStat
 import com.foggyframework.analytics.definition.api.AnalyticsBundleManifest;
 
 /**
- * Product/engine adapter port used to compare persisted stable model revisions
+ * Product/engine adapter port used to compare persisted model digests
  * with the currently available governed model content.
  */
 @FunctionalInterface

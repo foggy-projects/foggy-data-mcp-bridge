@@ -17,9 +17,9 @@ import java.util.Set;
 final class FapAnalyticsSemanticRequestMapper {
 
     private static final Set<String> MODEL_ARGUMENTS = Set.of(
-            "namespace", "modelName", "expectedModelRevision");
+            "namespace", "modelName");
     private static final Set<String> QUERY_ARGUMENTS = Set.of(
-            "namespace", "modelName", "expectedModelRevision", "query");
+            "namespace", "modelName", "query");
     private static final Set<String> QUERY_FIELDS = Set.of(
             "columns", "filters", "groupBy", "orderBy", "start", "limit",
             "returnTotal", "distinct");
@@ -47,18 +47,14 @@ final class FapAnalyticsSemanticRequestMapper {
             requireKeys(invocation.arguments(), MODEL_ARGUMENTS);
             String namespace = requiredString(invocation.arguments(), "namespace");
             String modelName = requiredString(invocation.arguments(), "modelName");
-            String revision = requiredString(
-                    invocation.arguments(), "expectedModelRevision");
             new AnalyticsSemanticModelFunctionRequest(
                     namespace,
                     modelName,
-                    revision,
                     VALIDATION_AUTHORITY,
                     context(invocation));
             return new AnalyticsSemanticModelFunctionRequest(
                     namespace,
                     modelName,
-                    revision,
                     authority(invocation, operation),
                     context(invocation));
         } catch (ArgumentsInvalid invalid) {
@@ -75,20 +71,16 @@ final class FapAnalyticsSemanticRequestMapper {
             requireKeys(invocation.arguments(), QUERY_ARGUMENTS);
             String namespace = requiredString(invocation.arguments(), "namespace");
             String modelName = requiredString(invocation.arguments(), "modelName");
-            String revision = requiredString(
-                    invocation.arguments(), "expectedModelRevision");
             AnalyticsSemanticQuery query = query(invocation.arguments().get("query"));
             new AnalyticsSemanticQueryFunctionRequest(
                     namespace,
                     modelName,
-                    revision,
                     query,
                     VALIDATION_AUTHORITY,
                     context(invocation));
             return new AnalyticsSemanticQueryFunctionRequest(
                     namespace,
                     modelName,
-                    revision,
                     query,
                     authority(invocation, operation),
                     context(invocation));

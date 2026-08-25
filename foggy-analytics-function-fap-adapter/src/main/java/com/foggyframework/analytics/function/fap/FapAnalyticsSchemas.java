@@ -66,9 +66,8 @@ final class FapAnalyticsSchemas {
         return object(
                 map(
                         "namespace", nonBlankString(),
-                        "modelName", nonBlankString(),
-                        "expectedModelRevision", string(REVISION)),
-                List.of("namespace", "modelName", "expectedModelRevision"),
+                        "modelName", nonBlankString()),
+                List.of("namespace", "modelName"),
                 false);
     }
 
@@ -136,9 +135,8 @@ final class FapAnalyticsSchemas {
                 map(
                         "namespace", nonBlankString(),
                         "modelName", nonBlankString(),
-                        "expectedModelRevision", string(REVISION),
                         "query", query),
-                List.of("namespace", "modelName", "expectedModelRevision", "query"),
+                List.of("namespace", "modelName", "query"),
                 false);
     }
 
@@ -269,15 +267,13 @@ final class FapAnalyticsSchemas {
                         map(
                                 "namespace", nonBlankString(),
                                 "modelName", nonBlankString(),
-                                "modelRevision", string(REVISION),
                                 "format", map("const", "markdown"),
                                 "content", map(
                                         "type", "string",
                                         "minLength", 1,
                                         "maxLength", 1_048_576)),
                         List.of(
-                                "namespace", "modelName", "modelRevision",
-                                "format", "content"),
+                                "namespace", "modelName", "format", "content"),
                         false));
     }
 
@@ -286,9 +282,8 @@ final class FapAnalyticsSchemas {
                 map(
                         "namespace", nonBlankString(),
                         "modelKind", map("const", "qm"),
-                        "modelName", nonBlankString(),
-                        "modelRevision", string(REVISION)),
-                List.of("namespace", "modelKind", "modelName", "modelRevision"),
+                        "modelName", nonBlankString()),
+                List.of("namespace", "modelKind", "modelName"),
                 false);
         return result(
                 operation,
@@ -315,7 +310,6 @@ final class FapAnalyticsSchemas {
                         map(
                                 "namespace", nonBlankString(),
                                 "modelName", nonBlankString(),
-                                "modelRevision", string(REVISION),
                                 "columns", array(column),
                                 "rows", array(object(Map.of(), List.of(), true)),
                                 "total", map(
@@ -325,7 +319,7 @@ final class FapAnalyticsSchemas {
                                 "truncated", map("type", "boolean"),
                                 "warnings", array(nonBlankString())),
                         List.of(
-                                "namespace", "modelName", "modelRevision", "columns",
+                                "namespace", "modelName", "columns",
                                 "rows", "total", "hasMore", "truncated", "warnings"),
                         false));
     }

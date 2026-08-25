@@ -18,7 +18,7 @@ class AnalyticsConsoleQuestionSkillBundleTest {
     private final ObjectMapper json = new ObjectMapper();
 
     @Test
-    void revisionFiveDeliversEveryQuestionFunctionAndItsRequiredReferences()
+    void revisionSixDeliversCurrentModelFunctionsAndRequiredReferences()
             throws Exception {
         JsonNode metadata = json.readTree(resource("skill-metadata.json"));
         JsonNode delivery = json.readTree(resource("function-schema-delivery.json"));
@@ -30,24 +30,38 @@ class AnalyticsConsoleQuestionSkillBundleTest {
                 .map(descriptor -> descriptor.projection().functionRef())
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
 
-        assertThat(metadata.path("revision").asInt()).isEqualTo(5);
+        assertThat(metadata.path("revision").asInt()).isEqualTo(6);
         assertThat(metadata.path("name").asText())
                 .isEqualTo("analytics-question-answering");
         assertThat(delivered).containsExactlyInAnyOrder(
-                "foggy.analytics.model-dependencies.list@v1",
-                "foggy.analytics.semantic-models.describe@v1",
-                "foggy.analytics.semantic-queries.execute@v1",
-                "foggy.analytics.query-model.run@v1",
+                "foggy.analytics.model-dependencies.list@v2",
+                "foggy.analytics.semantic-models.describe@v2",
+                "foggy.analytics.semantic-queries.execute@v2",
+                "foggy.analytics.query-model.run@v2",
                 "foggy.analytics.compose.run@v1");
         assertThat(published).containsAll(delivered);
         assertThat(resource("SKILL.md"))
                 .contains(
                         "validate",
-                        "query-model.run@v1",
+                        "query-model.run@v2",
                         "compose.run@v1",
                         "effectiveDelivery=ON_DEMAND",
                         "describe_business_function",
-                        "INPUT");
+                        "INPUT",
+                        "complete machine-readable contract",
+                        "CatalogResolution",
+                        "count(orderId) as orderCount",
+                        "nullFirst",
+                        "$expr",
+                        "maxDepth",
+                        "DSL_CTE_STAGE_REFERENCE_INVALID",
+                        "parentShare",
+                        "baselineRatio",
+                        ".join(",
+                        ".union(")
+                .doesNotContain(
+                        "expectedModel" + "Revision",
+                        "model" + "Revision");
         assertThat(resource("references/query-model-dsl.md"))
                 .contains(
                         "calculatedFields",

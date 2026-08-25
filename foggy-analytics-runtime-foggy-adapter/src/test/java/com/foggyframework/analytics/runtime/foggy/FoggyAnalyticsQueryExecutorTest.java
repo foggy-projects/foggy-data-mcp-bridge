@@ -1,7 +1,7 @@
 package com.foggyframework.analytics.runtime.foggy;
 
 import com.foggyframework.analytics.definition.api.AnalyticsModelDependency;
-import com.foggyframework.analytics.definition.api.AnalyticsModelRevision;
+import com.foggyframework.analytics.definition.api.AnalyticsModelDigest;
 import com.foggyframework.analytics.definition.api.AnalyticsQueryRef;
 import com.foggyframework.analytics.definition.api.AnalyticsQuerySpec;
 import com.foggyframework.analytics.runtime.core.query.QueryExecutionContext;
@@ -104,14 +104,14 @@ class FoggyAnalyticsQueryExecutorTest {
     }
 
     @Test
-    void rejectsAuthorityResolvedForAnotherStableRevision() {
+    void rejectsAuthorityResolvedForAnotherInternalDigest() {
         AnalyticsModelDependency authorityDependency =
                 FoggyAdapterTestFixtures.queryDependency();
         FoggyAnalyticsAuthority authority = authority(authorityDependency);
         AnalyticsModelDependency changedDependency = FoggyAdapterTestFixtures.dependency(
                 "qm",
                 MODEL,
-                AnalyticsModelRevision.fromSha256Hex("f".repeat(64)));
+                AnalyticsModelDigest.fromSha256Hex("f".repeat(64)));
         FoggyAnalyticsQueryExecutor executor = new FoggyAnalyticsQueryExecutor(
                 (model, request, mode, semanticContext) -> response());
 
@@ -124,6 +124,37 @@ class FoggyAnalyticsQueryExecutorTest {
                         100)));
 
         assertEquals(FoggyAnalyticsAdapterException.Code.AUTHORITY_MISMATCH, failure.code());
+    }
+
+    @Test
+    void acceptsCurrentModelAuthorityWithoutCallerDigestPin() {
+        AnalyticsModelDependency contextDependency =
+                FoggyAdapterTestFixtures.queryDependency();
+        CatalogResolution<QueryModel> resolution = FoggyAdapterTestFixtures.resolution();
+        SemanticRequestContext semanticContext =
+                SemanticRequestContext.ofNamespace(ENGINE_NAMESPACE)
+                        .withCatalogResolution(resolution);
+        FoggyAnalyticsAuthority currentAuthority = FoggyAnalyticsAuthority.current(
+                contextDependency.namespace(),
+                MODEL,
+                ENGINE_NAMESPACE,
+                resolution,
+                semanticContext);
+        FoggyAnalyticsQueryExecutor executor = new FoggyAnalyticsQueryExecutor(
+                (model, request, mode, context) -> response());
+
+        QueryExecutionResult result = executor.execute(context(
+                contextDependency,
+                currentAuthority,
+                Map.of(),
+                2));
+
+        assertEquals(2, result.rows().size());
+        assertSame(resolution, currentAuthority.catalogResolution());
+        assertSame(
+                resolution,
+                currentAuthority.semanticRequestContext().getCatalogResolution());
+        assertTrue(currentAuthority.pinnedModelDependency().isEmpty());
     }
 
     @Test

@@ -1,15 +1,11 @@
 package com.foggyframework.analytics.runtime.foggy;
 
-import com.foggyframework.analytics.definition.api.AnalyticsModelDependency;
-import com.foggyframework.analytics.definition.api.AnalyticsModelRevision;
-import com.foggyframework.analytics.definition.api.AnalyticsNamespaceRef;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionAuthority;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionContext;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionRequestContext;
 import com.foggyframework.analytics.function.contract.AnalyticsSemanticModelFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsSemanticQuery;
 import com.foggyframework.analytics.function.contract.AnalyticsSemanticQueryFunctionRequest;
-import com.foggyframework.analytics.runtime.core.query.QueryAuthorityRequest;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogResolution;
 import com.foggyframework.dataset.model.semantic.domain.SemanticMetadataRequest;
 import com.foggyframework.dataset.model.semantic.domain.SemanticMetadataResponse;
@@ -33,8 +29,6 @@ import static org.mockito.Mockito.when;
 
 class FoggyAnalyticsSemanticFunctionOperationsTest {
 
-    private static final String REVISION = "sha256:" + "a".repeat(64);
-
     @Test
     void trimsEngineMetadataAtTheFunctionBoundary() {
         FoggyQueryAuthorityResolver authorityResolver =
@@ -43,12 +37,8 @@ class FoggyAnalyticsSemanticFunctionOperationsTest {
         FoggyAnalyticsAuthority authority = mock(FoggyAnalyticsAuthority.class);
         var semanticContext = com.foggyframework.dataset.model.semantic.domain
                 .SemanticRequestContext.empty();
-        when(authorityResolver.resolve(any())).thenReturn(authority);
-        when(authority.modelDependency()).thenReturn(new AnalyticsModelDependency(
-                new AnalyticsNamespaceRef("default"),
-                "qm",
-                "FactOrderQueryModel",
-                new AnalyticsModelRevision(REVISION)));
+        when(authorityResolver.resolveCurrent(any())).thenReturn(authority);
+        when(authority.modelName()).thenReturn("FactOrderQueryModel");
         when(authority.semanticRequestContext()).thenReturn(semanticContext);
 
         SemanticMetadataResponse response = new SemanticMetadataResponse();
@@ -67,7 +57,6 @@ class FoggyAnalyticsSemanticFunctionOperationsTest {
                 new AnalyticsSemanticModelFunctionRequest(
                         "default",
                         "FactOrderQueryModel",
-                        REVISION,
                         new AnalyticsFunctionAuthority("tms", "subject:42"),
                         new AnalyticsFunctionRequestContext("request-1", "trace-1"));
 
@@ -101,7 +90,7 @@ class FoggyAnalyticsSemanticFunctionOperationsTest {
                 mock(CatalogResolution.class);
         var semanticContext = com.foggyframework.dataset.model.semantic.domain
                 .SemanticRequestContext.empty();
-        when(authorityResolver.resolve(any())).thenReturn(authority);
+        when(authorityResolver.resolveCurrent(any())).thenReturn(authority);
         when(authority.catalogResolution()).thenReturn(catalog);
         when(authority.semanticRequestContext()).thenReturn(semanticContext);
         when(catalog.canonicalName()).thenReturn("FactOrderQueryModel");
@@ -130,7 +119,6 @@ class FoggyAnalyticsSemanticFunctionOperationsTest {
                 new AnalyticsSemanticQueryFunctionRequest(
                         "default",
                         "FactOrderQueryModel",
-                        REVISION,
                         new AnalyticsSemanticQuery(
                                 List.of("orderCount"),
                                 List.of(new AnalyticsSemanticQuery.Filter(
@@ -149,14 +137,15 @@ class FoggyAnalyticsSemanticFunctionOperationsTest {
                 request,
                 AnalyticsFunctionContext.normalize(request.context()));
 
-        ArgumentCaptor<QueryAuthorityRequest> authorityRequest =
-                ArgumentCaptor.forClass(QueryAuthorityRequest.class);
-        verify(authorityResolver).resolve(authorityRequest.capture());
+        ArgumentCaptor<FoggyCurrentQueryAuthorityRequest> authorityRequest =
+                ArgumentCaptor.forClass(FoggyCurrentQueryAuthorityRequest.class);
+        verify(authorityResolver).resolveCurrent(authorityRequest.capture());
         assertThat(authorityRequest.getValue().binding().provider()).isEqualTo("tms");
         assertThat(authorityRequest.getValue().binding().reference())
                 .isEqualTo("subject:42");
-        assertThat(authorityRequest.getValue().modelDependency().modelRevision().value())
-                .isEqualTo(REVISION);
+        assertThat(authorityRequest.getValue().namespace().value()).isEqualTo("default");
+        assertThat(authorityRequest.getValue().modelName())
+                .isEqualTo("FactOrderQueryModel");
 
         ArgumentCaptor<SemanticQueryRequest> semanticRequest =
                 ArgumentCaptor.forClass(SemanticQueryRequest.class);

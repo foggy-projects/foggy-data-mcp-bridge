@@ -122,8 +122,6 @@ class FapAnalyticsFunctionOutcomeMappingTest {
                         Map.of(
                                 "namespace", "default",
                                 "modelName", "FactOrderQueryModel",
-                                "expectedModelRevision",
-                                FapAnalyticsAdapterTestSupport.REVISION,
                                 "mode", "validate",
                                 "payload", Map.of(
                                         "columns", List.of("missingField"))));
@@ -180,8 +178,6 @@ class FapAnalyticsFunctionOutcomeMappingTest {
                         Map.of(
                                 "namespace", "default",
                                 "modelName", "FactOrderQueryModel",
-                                "expectedModelRevision",
-                                FapAnalyticsAdapterTestSupport.REVISION,
                                 "mode", "validate",
                                 "payload", Map.of(
                                         "columns", List.of("amount"),

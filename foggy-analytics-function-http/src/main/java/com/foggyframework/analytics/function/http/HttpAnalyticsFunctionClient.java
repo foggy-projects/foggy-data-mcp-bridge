@@ -189,7 +189,6 @@ public final class HttpAnalyticsFunctionClient implements AnalyticsFunctionClien
                 semanticPath(request.modelName(), "describe"),
                 semanticBody(
                         request.namespace(),
-                        request.expectedModelRevision(),
                         request.authority(),
                         null,
                         request.context()),
@@ -207,7 +206,6 @@ public final class HttpAnalyticsFunctionClient implements AnalyticsFunctionClien
                 semanticPath(request.modelName(), "query"),
                 semanticBody(
                         request.namespace(),
-                        request.expectedModelRevision(),
                         request.authority(),
                         request.query(),
                         request.context()),
@@ -225,7 +223,6 @@ public final class HttpAnalyticsFunctionClient implements AnalyticsFunctionClien
                 semanticPath(request.modelName(), "query-model"),
                 advancedSemanticBody(
                         request.namespace(),
-                        request.expectedModelRevision(),
                         request.mode(),
                         request.payload(),
                         request.authority(),
@@ -444,13 +441,11 @@ public final class HttpAnalyticsFunctionClient implements AnalyticsFunctionClien
 
     private static Map<String, Object> semanticBody(
             String namespace,
-            String expectedModelRevision,
             AnalyticsFunctionAuthority authority,
             Object query,
             AnalyticsFunctionRequestContext context) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("namespace", namespace);
-        body.put("expectedModelRevision", expectedModelRevision);
         if (query != null) {
             body.put("query", query);
         }
@@ -463,13 +458,12 @@ public final class HttpAnalyticsFunctionClient implements AnalyticsFunctionClien
 
     private static Map<String, Object> advancedSemanticBody(
             String namespace,
-            String expectedModelRevision,
             String mode,
             Map<String, Object> payload,
             AnalyticsFunctionAuthority authority,
             AnalyticsFunctionRequestContext context) {
         Map<String, Object> body = semanticBody(
-                namespace, expectedModelRevision, authority, null, context);
+                namespace, authority, null, context);
         body.put("mode", mode);
         body.put("payload", payload);
         return body;

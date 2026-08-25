@@ -1,9 +1,10 @@
 package com.foggyframework.analytics.runtime.foggy;
 
-import com.foggyframework.analytics.definition.api.AnalyticsModelRevision;
+import com.foggyframework.analytics.definition.api.AnalyticsModelDigest;
 import com.foggyframework.analytics.definition.api.AnalyticsNamespaceRef;
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyDescription;
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyList;
+import com.foggyframework.analytics.function.contract.AnalyticsModelSummary;
 import com.foggyframework.analytics.runtime.core.function.AnalyticsModelDependencyOperations;
 import com.foggyframework.analytics.runtime.core.function.AnalyticsModelDependencyResolutionException;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogResolution;
@@ -17,29 +18,29 @@ import java.util.Objects;
 import java.util.Comparator;
 import java.util.Optional;
 
-/** Resolves a stable Analytics model dependency from the current Foggy catalog view. */
+/** Resolves an internal dependency digest or lists current models from the Foggy catalog. */
 public final class FoggyAnalyticsModelDependencyOperations
         implements AnalyticsModelDependencyOperations {
 
     private final SemanticModelCatalogReadPort catalogReadPort;
-    private final FoggyStableModelRevisionReadPort revisionReadPort;
+    private final FoggyStableModelDigestReadPort digestReadPort;
     private final FoggyAnalyticsNamespaceMapper namespaceMapper;
 
     public FoggyAnalyticsModelDependencyOperations(
             SemanticModelCatalogReadPort catalogReadPort,
-            FoggyStableModelRevisionReadPort revisionReadPort) {
+            FoggyStableModelDigestReadPort digestReadPort) {
         this(
                 catalogReadPort,
-                revisionReadPort,
+                digestReadPort,
                 FoggyAnalyticsNamespaceMapper.defaultConvention());
     }
 
     public FoggyAnalyticsModelDependencyOperations(
             SemanticModelCatalogReadPort catalogReadPort,
-            FoggyStableModelRevisionReadPort revisionReadPort,
+            FoggyStableModelDigestReadPort digestReadPort,
             FoggyAnalyticsNamespaceMapper namespaceMapper) {
         this.catalogReadPort = Objects.requireNonNull(catalogReadPort, "catalogReadPort");
-        this.revisionReadPort = Objects.requireNonNull(revisionReadPort, "revisionReadPort");
+        this.digestReadPort = Objects.requireNonNull(digestReadPort, "digestReadPort");
         this.namespaceMapper = Objects.requireNonNull(namespaceMapper, "namespaceMapper");
     }
 
@@ -57,15 +58,15 @@ public final class FoggyAnalyticsModelDependencyOperations
         if ("qm".equals(modelKind)) {
             requireExactQueryModel(view, modelName, catalogIdentity);
         }
-        AnalyticsModelRevision revision = revisionReadPort.findRevision(
-                        new FoggyModelRevisionLookup(
+        AnalyticsModelDigest digest = digestReadPort.findDigest(
+                        new FoggyModelDigestLookup(
                                 catalogIdentity, modelKind, modelName))
-                .orElseThrow(FoggyAnalyticsModelDependencyOperations::revisionUnavailable);
+                .orElseThrow(FoggyAnalyticsModelDependencyOperations::digestUnavailable);
         return new AnalyticsModelDependencyDescription(
                 namespace,
                 modelKind,
                 modelName,
-                revision.value());
+                digest.value());
     }
 
     @Override
@@ -75,18 +76,18 @@ public final class FoggyAnalyticsModelDependencyOperations
         }
         AnalyticsNamespaceRef namespaceRef = new AnalyticsNamespaceRef(namespace);
         String engineNamespace = canonicalEngineNamespace(namespaceRef);
-        List<AnalyticsModelDependencyDescription> models = catalogReadPort
+        List<AnalyticsModelSummary> models = catalogReadPort
                 .discoverAvailableQueryModelNames(engineNamespace)
                 .stream()
                 .map(modelName -> describeAvailableQueryModel(
                         namespace, engineNamespace, modelName))
                 .flatMap(Optional::stream)
-                .sorted(Comparator.comparing(AnalyticsModelDependencyDescription::modelName))
+                .sorted(Comparator.comparing(AnalyticsModelSummary::modelName))
                 .toList();
         return new AnalyticsModelDependencyList(namespace, modelKind, models);
     }
 
-    private Optional<AnalyticsModelDependencyDescription> describeAvailableQueryModel(
+    private Optional<AnalyticsModelSummary> describeAvailableQueryModel(
             String namespace,
             String engineNamespace,
             String modelName) {
@@ -95,10 +96,7 @@ public final class FoggyAnalyticsModelDependencyOperations
                     engineNamespace, List.of(modelName));
             CatalogIdentity identity = requireCatalog(view, engineNamespace);
             requireExactQueryModel(view, modelName, identity);
-            return revisionReadPort.findRevision(new FoggyModelRevisionLookup(
-                            identity, "qm", modelName))
-                    .map(revision -> new AnalyticsModelDependencyDescription(
-                            namespace, "qm", modelName, revision.value()));
+            return Optional.of(new AnalyticsModelSummary(namespace, "qm", modelName));
         } catch (RuntimeException unavailable) {
             return Optional.empty();
         }
@@ -110,7 +108,7 @@ public final class FoggyAnalyticsModelDependencyOperations
         if (view == null
                 || view.identity() == null
                 || !engineNamespace.equals(view.identity().namespace())) {
-            throw revisionUnavailable();
+            throw digestUnavailable();
         }
         return view.identity();
     }
@@ -140,9 +138,9 @@ public final class FoggyAnalyticsModelDependencyOperations
         return canonical;
     }
 
-    private static AnalyticsModelDependencyResolutionException revisionUnavailable() {
+    private static AnalyticsModelDependencyResolutionException digestUnavailable() {
         return new AnalyticsModelDependencyResolutionException(
-                AnalyticsModelDependencyResolutionException.Code.REVISION_UNAVAILABLE,
-                "Stable model revision is unavailable");
+                AnalyticsModelDependencyResolutionException.Code.DIGEST_UNAVAILABLE,
+                "Stable model dependency digest is unavailable");
     }
 }

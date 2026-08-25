@@ -12,9 +12,9 @@ import com.foggyframework.analytics.function.contract.AnalyticsFunctionAuthority
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionEnvelope;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionOperations;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionRequestContext;
-import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyDescription;
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyList;
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyListRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsModelSummary;
 import com.foggyframework.analytics.function.contract.AnalyticsQueryModelFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsQueryModelResult;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderFunctionRequest;
@@ -144,11 +144,10 @@ class FapAnalyticsFunctionRequestMappingTest {
                         new AnalyticsModelDependencyList(
                                 value.namespace(),
                                 value.modelKind(),
-                                List.of(new AnalyticsModelDependencyDescription(
+                                List.of(new AnalyticsModelSummary(
                                         value.namespace(),
                                         value.modelKind(),
-                                        "FactOrderQueryModel",
-                                        FapAnalyticsAdapterTestSupport.REVISION))),
+                                        "FactOrderQueryModel"))),
                         FapAnalyticsAdapterTestSupport.context(value.context()));
             }
         }
@@ -235,7 +234,6 @@ class FapAnalyticsFunctionRequestMappingTest {
                         new AnalyticsSemanticQueryResult(
                                 value.namespace(),
                                 value.modelName(),
-                                value.expectedModelRevision(),
                                 List.of(new AnalyticsSemanticQueryResult.Column(
                                         "orderCount", "LONG", "订单数")),
                                 List.of(Map.of("orderCount", 12)),
@@ -261,8 +259,6 @@ class FapAnalyticsFunctionRequestMappingTest {
                         Map.of(
                                 "namespace", "default",
                                 "modelName", "FactOrderQueryModel",
-                                "expectedModelRevision",
-                                FapAnalyticsAdapterTestSupport.REVISION,
                                 "query", Map.of(
                                         "columns", List.of("orderCount"),
                                         "filters", List.of(Map.of(
@@ -291,7 +287,6 @@ class FapAnalyticsFunctionRequestMappingTest {
         Map<String, Object> base = Map.of(
                 "namespace", "default",
                 "modelName", "FactOrderQueryModel",
-                "expectedModelRevision", FapAnalyticsAdapterTestSupport.REVISION,
                 "query", Map.of(
                         "columns", List.of("orderCount"),
                         "rawSql", "select * from private_orders"));
@@ -305,8 +300,6 @@ class FapAnalyticsFunctionRequestMappingTest {
                         Map.of(
                                 "namespace", "default",
                                 "modelName", "FactOrderQueryModel",
-                                "expectedModelRevision",
-                                FapAnalyticsAdapterTestSupport.REVISION,
                                 "query", Map.of(
                                         "columns", List.of("orderCount"),
                                         "filters", List.of(Map.of(
@@ -341,7 +334,7 @@ class FapAnalyticsFunctionRequestMappingTest {
                         "analytics-runtime/v1",
                         new AnalyticsQueryModelResult(
                                 value.namespace(), value.modelName(),
-                                value.expectedModelRevision(), value.mode(),
+                                value.mode(),
                                 Map.of("items", List.of(Map.of("orderCount", 12)))),
                         FapAnalyticsAdapterTestSupport.context(value.context()));
             }
@@ -354,7 +347,6 @@ class FapAnalyticsFunctionRequestMappingTest {
         Map<String, Object> base = Map.of(
                 "namespace", "default",
                 "modelName", "FactOrderQueryModel",
-                "expectedModelRevision", FapAnalyticsAdapterTestSupport.REVISION,
                 "mode", "validate",
                 "payload", Map.of(
                         "columns", List.of("orderCount"),
@@ -370,8 +362,6 @@ class FapAnalyticsFunctionRequestMappingTest {
                         Map.of(
                                 "namespace", "default",
                                 "modelName", "FactOrderQueryModel",
-                                "expectedModelRevision",
-                                FapAnalyticsAdapterTestSupport.REVISION,
                                 "mode", "execute",
                                 "payload", Map.of("rawSql", "select 1"))));
 

@@ -14,7 +14,7 @@ import java.util.Set;
 final class FapAnalyticsAdvancedRequestMapper {
 
     private static final Set<String> QUERY_ARGUMENTS = Set.of(
-            "namespace", "modelName", "expectedModelRevision", "mode", "payload");
+            "namespace", "modelName", "mode", "payload");
     private static final Set<String> QUERY_PAYLOAD_FIELDS = Set.of(
             "route", "executable_plan", "executablePlan", "calculatedFields",
             "columns", "slice", "having", "orderBy", "groupBy", "start",
@@ -43,7 +43,6 @@ final class FapAnalyticsAdvancedRequestMapper {
                     new AnalyticsQueryModelFunctionRequest(
                             requiredString(invocation.arguments(), "namespace"),
                             requiredString(invocation.arguments(), "modelName"),
-                            requiredString(invocation.arguments(), "expectedModelRevision"),
                             requiredString(invocation.arguments(), "mode"),
                             payload,
                             VALIDATION_AUTHORITY,
@@ -51,7 +50,6 @@ final class FapAnalyticsAdvancedRequestMapper {
             return new AnalyticsQueryModelFunctionRequest(
                     validated.namespace(),
                     validated.modelName(),
-                    validated.expectedModelRevision(),
                     validated.mode(),
                     validated.payload(),
                     authority(invocation, operation),

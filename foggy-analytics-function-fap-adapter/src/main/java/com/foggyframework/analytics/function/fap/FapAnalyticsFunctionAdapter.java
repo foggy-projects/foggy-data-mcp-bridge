@@ -471,8 +471,7 @@ public final class FapAnalyticsFunctionAdapter {
                     AnalyticsFunctionErrorCodes.QUERY_NOT_FOUND,
                     AnalyticsFunctionErrorCodes.MODEL_DEPENDENCY_NOT_FOUND -> 404;
             case AnalyticsFunctionErrorCodes.BUNDLE_REVISION_CONFLICT,
-                    AnalyticsFunctionErrorCodes.BUNDLE_DEPENDENCY_STALE,
-                    AnalyticsFunctionErrorCodes.MODEL_REVISION_CONFLICT -> 409;
+                    AnalyticsFunctionErrorCodes.BUNDLE_DEPENDENCY_STALE -> 409;
             case AnalyticsFunctionErrorCodes.BUNDLE_IMMUTABLE -> 403;
             case AnalyticsFunctionErrorCodes.BUNDLE_INVALID,
                     AnalyticsFunctionErrorCodes.BUNDLE_IDENTITY_MISMATCH,
@@ -484,6 +483,7 @@ public final class FapAnalyticsFunctionAdapter {
                     AnalyticsFunctionErrorCodes.COMPOSE_SANDBOX_VIOLATION -> 422;
             case AnalyticsFunctionErrorCodes.BUNDLE_UNAVAILABLE,
                     AnalyticsFunctionErrorCodes.BUNDLE_RECOVERY_FAILED,
+                    AnalyticsFunctionErrorCodes.MODEL_DEPENDENCY_DIGEST_UNAVAILABLE,
                     AnalyticsFunctionErrorCodes.RENDER_UNAVAILABLE,
                     AnalyticsFunctionErrorCodes.SEMANTIC_QUERY_UNAVAILABLE,
                     AnalyticsFunctionErrorCodes.CLIENT_TRANSPORT_ERROR -> 503;

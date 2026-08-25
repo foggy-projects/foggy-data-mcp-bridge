@@ -17,13 +17,13 @@ public final class FapAnalyticsFunctionRefs {
     public static final String ARTIFACTS_DESCRIBE =
             "foggy.analytics.artifacts.describe@v1";
     public static final String MODEL_DEPENDENCIES_LIST =
-            "foggy.analytics.model-dependencies.list@v1";
+            "foggy.analytics.model-dependencies.list@v2";
     public static final String SEMANTIC_MODELS_DESCRIBE =
-            "foggy.analytics.semantic-models.describe@v1";
+            "foggy.analytics.semantic-models.describe@v2";
     public static final String SEMANTIC_QUERIES_EXECUTE =
-            "foggy.analytics.semantic-queries.execute@v1";
+            "foggy.analytics.semantic-queries.execute@v2";
     public static final String QUERY_MODEL_RUN =
-            "foggy.analytics.query-model.run@v1";
+            "foggy.analytics.query-model.run@v2";
     public static final String COMPOSE_RUN =
             "foggy.analytics.compose.run@v1";
     public static final String REPORTS_PREVIEW =

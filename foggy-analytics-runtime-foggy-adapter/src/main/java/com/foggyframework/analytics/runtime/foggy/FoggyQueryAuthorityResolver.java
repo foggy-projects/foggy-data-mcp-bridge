@@ -1,7 +1,7 @@
 package com.foggyframework.analytics.runtime.foggy;
 
 import com.foggyframework.analytics.definition.api.AnalyticsModelDependency;
-import com.foggyframework.analytics.definition.api.AnalyticsModelRevision;
+import com.foggyframework.analytics.definition.api.AnalyticsModelDigest;
 import com.foggyframework.analytics.runtime.core.query.QueryAuthorityRequest;
 import com.foggyframework.analytics.runtime.core.query.QueryAuthorityResolver;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogResolution;
@@ -20,40 +20,50 @@ import static com.foggyframework.analytics.runtime.foggy.FoggyAnalyticsAdapterEx
 import static com.foggyframework.analytics.runtime.foggy.FoggyAnalyticsAdapterException.Code.AUTHORITY_RESOLUTION_FAILED;
 import static com.foggyframework.analytics.runtime.foggy.FoggyAnalyticsAdapterException.Code.MODEL_NAME_NOT_CANONICAL;
 import static com.foggyframework.analytics.runtime.foggy.FoggyAnalyticsAdapterException.Code.MODEL_NOT_FOUND;
-import static com.foggyframework.analytics.runtime.foggy.FoggyAnalyticsAdapterException.Code.MODEL_REVISION_MISMATCH;
-import static com.foggyframework.analytics.runtime.foggy.FoggyAnalyticsAdapterException.Code.MODEL_REVISION_UNAVAILABLE;
+import static com.foggyframework.analytics.runtime.foggy.FoggyAnalyticsAdapterException.Code.MODEL_DIGEST_MISMATCH;
+import static com.foggyframework.analytics.runtime.foggy.FoggyAnalyticsAdapterException.Code.MODEL_DIGEST_UNAVAILABLE;
 import static com.foggyframework.analytics.runtime.foggy.FoggyAnalyticsAdapterException.Code.UNSUPPORTED_MODEL_KIND;
 import static com.foggyframework.analytics.runtime.foggy.FoggyAnalyticsAdapterException.Code.UNTRACKED_CATALOG;
 
-/** Resolves an opaque caller authority against one stable-revision-checked Foggy QM. */
+/** Resolves an opaque caller authority against one request-local Foggy catalog resolution. */
 public final class FoggyQueryAuthorityResolver
         implements QueryAuthorityResolver<FoggyAnalyticsAuthority> {
 
     private final SemanticModelCatalogReadPort catalogReadPort;
-    private final FoggyStableModelRevisionReadPort modelRevisionReadPort;
+    private final FoggyStableModelDigestReadPort modelDigestReadPort;
     private final FoggySemanticRequestContextResolver semanticContextResolver;
     private final FoggyAnalyticsNamespaceMapper namespaceMapper;
 
+    /** Creates a resolver for live Functions, which never consult Bundle digests. */
     public FoggyQueryAuthorityResolver(
             SemanticModelCatalogReadPort catalogReadPort,
-            FoggyStableModelRevisionReadPort modelRevisionReadPort,
             FoggySemanticRequestContextResolver semanticContextResolver) {
         this(
                 catalogReadPort,
-                modelRevisionReadPort,
+                null,
+                semanticContextResolver,
+                FoggyAnalyticsNamespaceMapper.defaultConvention());
+    }
+
+    /** Creates a resolver that also supports persisted Bundle query dependencies. */
+    public FoggyQueryAuthorityResolver(
+            SemanticModelCatalogReadPort catalogReadPort,
+            FoggyStableModelDigestReadPort modelDigestReadPort,
+            FoggySemanticRequestContextResolver semanticContextResolver) {
+        this(
+                catalogReadPort,
+                modelDigestReadPort,
                 semanticContextResolver,
                 FoggyAnalyticsNamespaceMapper.defaultConvention());
     }
 
     public FoggyQueryAuthorityResolver(
             SemanticModelCatalogReadPort catalogReadPort,
-            FoggyStableModelRevisionReadPort modelRevisionReadPort,
+            FoggyStableModelDigestReadPort modelDigestReadPort,
             FoggySemanticRequestContextResolver semanticContextResolver,
             FoggyAnalyticsNamespaceMapper namespaceMapper) {
         this.catalogReadPort = Objects.requireNonNull(catalogReadPort, "catalogReadPort");
-        this.modelRevisionReadPort = Objects.requireNonNull(
-                modelRevisionReadPort,
-                "modelRevisionReadPort");
+        this.modelDigestReadPort = modelDigestReadPort;
         this.semanticContextResolver = Objects.requireNonNull(
                 semanticContextResolver,
                 "semanticContextResolver");
@@ -76,10 +86,55 @@ public final class FoggyQueryAuthorityResolver
                 List.of(dependency.modelName()));
         CatalogResolution<QueryModel> resolution = requireExactResolution(
                 view,
-                dependency,
+                dependency.modelName(),
                 engineNamespace);
-        requireCurrentStableRevision(dependency, resolution.catalogIdentity());
+        requireCurrentStableDigest(dependency, resolution.catalogIdentity());
+        SemanticRequestContext pinnedContext = resolveContext(
+                new FoggySemanticAuthorityRequest(
+                        dependency.namespace(),
+                        dependency.modelName(),
+                        request.binding(),
+                        request.requestId(),
+                        request.traceId()),
+                resolution);
+        return new FoggyAnalyticsAuthority(
+                dependency,
+                engineNamespace,
+                resolution,
+                pinnedContext);
+    }
 
+    /** Resolves the current valid model once and carries that exact resolution through the call. */
+    public FoggyAnalyticsAuthority resolveCurrent(
+            FoggyCurrentQueryAuthorityRequest request) {
+        Objects.requireNonNull(request, "request");
+        String engineNamespace = engineNamespace(request.namespace());
+        NamespaceCatalogView view = catalogReadPort.modelCatalogView(
+                engineNamespace,
+                List.of(request.modelName()));
+        CatalogResolution<QueryModel> resolution = requireExactResolution(
+                view,
+                request.modelName(),
+                engineNamespace);
+        SemanticRequestContext pinnedContext = resolveContext(
+                new FoggySemanticAuthorityRequest(
+                        request.namespace(),
+                        request.modelName(),
+                        request.binding(),
+                        request.requestId(),
+                        request.traceId()),
+                resolution);
+        return FoggyAnalyticsAuthority.current(
+                request.namespace(),
+                request.modelName(),
+                engineNamespace,
+                resolution,
+                pinnedContext);
+    }
+
+    private SemanticRequestContext resolveContext(
+            FoggySemanticAuthorityRequest request,
+            CatalogResolution<QueryModel> resolution) {
         SemanticRequestContext baseContext;
         try {
             baseContext = semanticContextResolver.resolve(request, resolution);
@@ -100,26 +155,19 @@ public final class FoggyQueryAuthorityResolver
                     AUTHORITY_NAMESPACE_MISMATCH,
                     "Host authority context belongs to another namespace");
         }
-
-        SemanticRequestContext pinnedContext;
         try {
-            pinnedContext = baseContext.withCatalogResolution(resolution);
+            return baseContext.withCatalogResolution(resolution);
         } catch (IllegalArgumentException | IllegalStateException conflict) {
             throw new FoggyAnalyticsAdapterException(
                     AUTHORITY_CATALOG_CONFLICT,
                     "Host authority context conflicts with the selected catalog",
                     conflict);
         }
-        return new FoggyAnalyticsAuthority(
-                dependency,
-                engineNamespace,
-                resolution,
-                pinnedContext);
     }
 
     private CatalogResolution<QueryModel> requireExactResolution(
             NamespaceCatalogView view,
-            AnalyticsModelDependency dependency,
+            String modelName,
             String engineNamespace) {
         if (view == null || view.identity() == null) {
             throw failure(UNTRACKED_CATALOG, "Foggy catalog does not expose a runtime identity");
@@ -128,43 +176,53 @@ public final class FoggyQueryAuthorityResolver
             throw failure(UNTRACKED_CATALOG, "Foggy catalog namespace identity is inconsistent");
         }
         CatalogResolution<QueryModel> resolution = view.resolutionsByModel()
-                .get(dependency.modelName());
+                .get(modelName);
         if (resolution == null) {
-            if (view.aliasesByModel().containsValue(dependency.modelName())) {
+            if (view.aliasesByModel().containsValue(modelName)) {
                 throw failure(
                         MODEL_NAME_NOT_CANONICAL,
-                        "Analytics model dependency must use the canonical QM name");
+                        "Analytics query model must use the canonical QM name");
             }
-            throw failure(MODEL_NOT_FOUND, "Pinned Analytics query model is unavailable");
+            throw failure(MODEL_NOT_FOUND, "Requested Analytics query model is unavailable");
         }
-        if (!dependency.modelName().equals(resolution.canonicalName())
+        if (!modelName.equals(resolution.canonicalName())
                 || !view.identity().equals(resolution.catalogIdentity())) {
             throw failure(UNTRACKED_CATALOG, "Foggy catalog resolution is inconsistent");
         }
         return resolution;
     }
 
-    private void requireCurrentStableRevision(
+    private void requireCurrentStableDigest(
             AnalyticsModelDependency dependency,
             CatalogIdentity catalogIdentity) {
-        AnalyticsModelRevision currentRevision = modelRevisionReadPort.findRevision(
-                        new FoggyModelRevisionLookup(
+        if (modelDigestReadPort == null) {
+            throw failure(
+                    MODEL_DIGEST_UNAVAILABLE,
+                    "Internal model digest is unavailable for Bundle execution");
+        }
+        AnalyticsModelDigest currentDigest = modelDigestReadPort.findDigest(
+                        new FoggyModelDigestLookup(
                                 catalogIdentity,
                                 dependency.modelKind(),
                                 dependency.modelName()))
                 .orElseThrow(() -> failure(
-                        MODEL_REVISION_UNAVAILABLE,
-                        "Stable model revision is unavailable for the selected catalog"));
-        if (!dependency.modelRevision().equals(currentRevision)) {
+                        MODEL_DIGEST_UNAVAILABLE,
+                        "Internal model digest is unavailable for the selected catalog"));
+        if (!dependency.modelDigest().equals(currentDigest)) {
             throw failure(
-                    MODEL_REVISION_MISMATCH,
-                    "Pinned Analytics model revision is stale");
+                    MODEL_DIGEST_MISMATCH,
+                    "Persisted Analytics model digest is stale");
         }
     }
 
     private String engineNamespace(AnalyticsModelDependency dependency) {
+        return engineNamespace(dependency.namespace());
+    }
+
+    private String engineNamespace(
+            com.foggyframework.analytics.definition.api.AnalyticsNamespaceRef namespace) {
         String mapped = Objects.requireNonNull(
-                namespaceMapper.toEngineNamespace(dependency.namespace()),
+                namespaceMapper.toEngineNamespace(namespace),
                 "mapped engine namespace");
         String canonical = CatalogIdentity.canonicalNamespace(mapped);
         if (!mapped.equals(canonical)) {

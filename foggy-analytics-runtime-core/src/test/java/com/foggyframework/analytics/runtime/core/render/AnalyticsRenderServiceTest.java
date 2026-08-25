@@ -12,7 +12,7 @@ import com.foggyframework.analytics.definition.api.AnalyticsColumnSchema;
 import com.foggyframework.analytics.definition.api.AnalyticsDashboardDefinition;
 import com.foggyframework.analytics.definition.api.AnalyticsDashboardWidget;
 import com.foggyframework.analytics.definition.api.AnalyticsModelDependency;
-import com.foggyframework.analytics.definition.api.AnalyticsModelRevision;
+import com.foggyframework.analytics.definition.api.AnalyticsModelDigest;
 import com.foggyframework.analytics.definition.api.AnalyticsNamespaceRef;
 import com.foggyframework.analytics.definition.api.AnalyticsQueryRef;
 import com.foggyframework.analytics.definition.api.AnalyticsQuerySpec;
@@ -84,8 +84,8 @@ class AnalyticsRenderServiceTest {
         assertTrue(preview.widgets().get(0).truncated());
         assertEquals(2, execution.get().rowLimit());
         assertEquals(
-                index.manifest().modelDependencies().get(0).modelRevision(),
-                execution.get().modelDependency().modelRevision());
+                index.manifest().modelDependencies().get(0).modelDigest(),
+                execution.get().modelDependency().modelDigest());
     }
 
     @Test
@@ -192,7 +192,7 @@ class AnalyticsRenderServiceTest {
                         new AnalyticsNamespaceRef("default"),
                         "qm",
                         "SalesOrder",
-                        AnalyticsModelRevision.fromSha256Hex("b".repeat(64)))));
+                        AnalyticsModelDigest.fromSha256Hex("b".repeat(64)))));
         return new AnalyticsBundleIndex(
                 new ResolvedAnalyticsBundle(
                         manifest,

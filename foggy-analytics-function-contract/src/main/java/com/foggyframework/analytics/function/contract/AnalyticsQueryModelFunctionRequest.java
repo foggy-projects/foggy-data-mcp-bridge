@@ -8,7 +8,6 @@ import java.util.Objects;
 public record AnalyticsQueryModelFunctionRequest(
         String namespace,
         String modelName,
-        String expectedModelRevision,
         String mode,
         Map<String, Object> payload,
         AnalyticsFunctionAuthority authority,
@@ -17,8 +16,6 @@ public record AnalyticsQueryModelFunctionRequest(
     public AnalyticsQueryModelFunctionRequest {
         namespace = AnalyticsFunctionValues.requireText("namespace", namespace);
         modelName = AnalyticsFunctionValues.requireText("modelName", modelName);
-        expectedModelRevision = AnalyticsFunctionValues.requireRevision(
-                "expectedModelRevision", expectedModelRevision);
         mode = normalizeMode(mode);
         payload = AnalyticsFunctionJsonValues.normalizeObject(
                 "payload", Objects.requireNonNull(payload, "payload"));

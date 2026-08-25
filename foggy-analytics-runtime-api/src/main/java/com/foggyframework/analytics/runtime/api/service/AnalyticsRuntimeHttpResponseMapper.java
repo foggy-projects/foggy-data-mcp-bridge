@@ -31,8 +31,7 @@ public final class AnalyticsRuntimeHttpResponseMapper {
                     AnalyticsFunctionErrorCodes.MODEL_DEPENDENCY_NOT_FOUND ->
                     HttpStatus.NOT_FOUND;
             case AnalyticsFunctionErrorCodes.BUNDLE_REVISION_CONFLICT,
-                    AnalyticsFunctionErrorCodes.BUNDLE_DEPENDENCY_STALE,
-                    AnalyticsFunctionErrorCodes.MODEL_REVISION_CONFLICT ->
+                    AnalyticsFunctionErrorCodes.BUNDLE_DEPENDENCY_STALE ->
                     HttpStatus.CONFLICT;
             case AnalyticsFunctionErrorCodes.BUNDLE_IMMUTABLE ->
                     HttpStatus.FORBIDDEN;
@@ -46,7 +45,7 @@ public final class AnalyticsRuntimeHttpResponseMapper {
                     HttpStatus.UNPROCESSABLE_ENTITY;
             case AnalyticsFunctionErrorCodes.BUNDLE_UNAVAILABLE,
                     AnalyticsFunctionErrorCodes.BUNDLE_RECOVERY_FAILED,
-                    AnalyticsFunctionErrorCodes.MODEL_DEPENDENCY_REVISION_UNAVAILABLE,
+                    AnalyticsFunctionErrorCodes.MODEL_DEPENDENCY_DIGEST_UNAVAILABLE,
                     AnalyticsFunctionErrorCodes.RENDER_UNAVAILABLE,
                     AnalyticsFunctionErrorCodes.SEMANTIC_QUERY_UNAVAILABLE ->
                     HttpStatus.SERVICE_UNAVAILABLE;

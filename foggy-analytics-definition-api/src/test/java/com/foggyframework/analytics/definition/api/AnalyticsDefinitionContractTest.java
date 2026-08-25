@@ -18,13 +18,13 @@ class AnalyticsDefinitionContractTest {
         AnalyticsBundleRef bundleRef = new AnalyticsBundleRef("sales");
         AnalyticsBundleRevision bundleRevision =
                 AnalyticsBundleRevision.fromSha256Hex(SHA256_HEX);
-        AnalyticsModelRevision modelRevision =
-                AnalyticsModelRevision.fromSha256Hex(SHA256_HEX);
+        AnalyticsModelDigest modelDigest =
+                AnalyticsModelDigest.fromSha256Hex(SHA256_HEX);
         AnalyticsModelDependency dependency = new AnalyticsModelDependency(
                 new AnalyticsNamespaceRef("tenant-default"),
                 "qm",
                 "sales-order",
-                modelRevision);
+                modelDigest);
 
         AnalyticsBundleManifest manifest = new AnalyticsBundleManifest(
                 AnalyticsBundleManifest.ANALYTICS_KIND,
@@ -50,17 +50,17 @@ class AnalyticsDefinitionContractTest {
                 new AnalyticsNamespaceRef("tenant-default"),
                 "fsscript",
                 "unsafe-script",
-                modelRevision));
+                modelDigest));
     }
 
     @Test
-    void revisionAndSchemaVersionFailClosed() {
+    void digestRevisionAndSchemaVersionFailClosed() {
         assertThrows(IllegalArgumentException.class,
                 () -> new AnalyticsBundleRevision("sha256:abc"));
         assertThrows(IllegalArgumentException.class,
                 () -> new AnalyticsBundleRevision("sha256:" + "g".repeat(64)));
         assertThrows(IllegalArgumentException.class,
-                () -> new AnalyticsModelRevision("catalog:boot-identity"));
+                () -> new AnalyticsModelDigest("catalog:boot-identity"));
         assertThrows(IllegalArgumentException.class,
                 () -> new AnalyticsSchemaVersion("v1"));
         assertThrows(IllegalArgumentException.class,

@@ -151,15 +151,14 @@ class HttpAnalyticsFunctionClientTest {
         assertEquals("tms-ai", requests.get(5).body().get("namespace"));
         assertEquals("TenantOrgManagementQuery",
                 requests.get(5).body().get("modelName"));
-        assertEquals(REVISION,
-                requests.get(7).body().get("expectedModelRevision"));
+        requests.subList(6, 9).forEach(request -> assertFalse(
+                request.body().keySet().stream()
+                        .anyMatch(key -> key.toLowerCase().contains("revision"))));
         @SuppressWarnings("unchecked")
         Map<String, Object> query = (Map<String, Object>)
                 requests.get(7).body().get("query");
         assertFalse(query.containsKey("rawSql"));
         assertEquals("execute", requests.get(8).body().get("mode"));
-        assertEquals(REVISION,
-                requests.get(8).body().get("expectedModelRevision"));
         assertEquals("preview", requests.get(9).body().get("mode"));
         assertEquals("default", requests.get(9).body().get("namespace"));
     }
@@ -357,7 +356,6 @@ class HttpAnalyticsFunctionClientTest {
         return new AnalyticsSemanticModelFunctionRequest(
                 "default",
                 "FactOrderQueryModel",
-                REVISION,
                 new AnalyticsFunctionAuthority("tms", "subject:42"),
                 CONTEXT);
     }
@@ -366,7 +364,6 @@ class HttpAnalyticsFunctionClientTest {
         return new AnalyticsSemanticQueryFunctionRequest(
                 "default",
                 "FactOrderQueryModel",
-                REVISION,
                 new AnalyticsSemanticQuery(
                         List.of("orderCount"),
                         List.of(),
@@ -384,7 +381,6 @@ class HttpAnalyticsFunctionClientTest {
         return new AnalyticsQueryModelFunctionRequest(
                 "default",
                 "FactOrderQueryModel",
-                REVISION,
                 "execute",
                 Map.of(
                         "columns", List.of("province", "sum(orderAmount)"),
@@ -445,14 +441,13 @@ class HttpAnalyticsFunctionClientTest {
 
     private static AnalyticsSemanticModelDescription semanticModelDescription() {
         return new AnalyticsSemanticModelDescription(
-                "default", "FactOrderQueryModel", REVISION, "markdown", "# Orders");
+                "default", "FactOrderQueryModel", "markdown", "# Orders");
     }
 
     private static AnalyticsSemanticQueryResult semanticQueryResult() {
         return new AnalyticsSemanticQueryResult(
                 "default",
                 "FactOrderQueryModel",
-                REVISION,
                 List.of(new AnalyticsSemanticQueryResult.Column(
                         "orderCount", "LONG", "订单数")),
                 List.of(Map.of("orderCount", 12)),
@@ -466,7 +461,6 @@ class HttpAnalyticsFunctionClientTest {
         return new AnalyticsQueryModelResult(
                 "default",
                 "FactOrderQueryModel",
-                REVISION,
                 "execute",
                 Map.of("rows", List.of(Map.of("province", "山东省"))));
     }

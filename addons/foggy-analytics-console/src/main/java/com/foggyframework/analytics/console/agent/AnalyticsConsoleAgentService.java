@@ -494,8 +494,8 @@ public final class AnalyticsConsoleAgentService {
                 + "The server has fixed this conversation to business scope "
                 + scope.displayName() + ", namespace " + scope.namespace()
                 + ". Do not use or request another namespace. "
-                + "First list the available QMs and exact revisions in this namespace. "
-                + "Select the QM that best matches the user's question, then describe that exact "
+                + "First list the current available QMs in this namespace. "
+                + "Select the QM that best matches the user's question, then describe that "
                 + "semantic model before querying it. For a single-model question, use the full "
                 + "query-model DSL Function: validate the payload first, repair validation errors, "
                 + "then execute it. Treat every described measure name as the canonical semantic "

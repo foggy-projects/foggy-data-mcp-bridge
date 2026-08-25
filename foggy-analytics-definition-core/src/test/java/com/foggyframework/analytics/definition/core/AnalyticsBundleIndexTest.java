@@ -11,7 +11,7 @@ import com.foggyframework.analytics.definition.api.AnalyticsBundleSourceState;
 import com.foggyframework.analytics.definition.api.AnalyticsDashboardDefinition;
 import com.foggyframework.analytics.definition.api.AnalyticsDashboardWidget;
 import com.foggyframework.analytics.definition.api.AnalyticsModelDependency;
-import com.foggyframework.analytics.definition.api.AnalyticsModelRevision;
+import com.foggyframework.analytics.definition.api.AnalyticsModelDigest;
 import com.foggyframework.analytics.definition.api.AnalyticsNamespaceRef;
 import com.foggyframework.analytics.definition.api.AnalyticsQueryRef;
 import com.foggyframework.analytics.definition.api.AnalyticsQuerySpec;
@@ -98,7 +98,7 @@ class AnalyticsBundleIndexTest {
     }
 
     @Test
-    void typedDiffIsDeterministicAcrossDefinitionsAndModelRevision() {
+    void typedDiffIsDeterministicAcrossDefinitionsAndModelDigest() {
         AnalyticsQueryRef queryRef = new AnalyticsQueryRef("sales-query");
         AnalyticsArtifactRef reportRef = new AnalyticsArtifactRef(
                 AnalyticsArtifactKind.REPORT,
@@ -170,7 +170,7 @@ class AnalyticsBundleIndexTest {
                         new AnalyticsNamespaceRef("default"),
                         "qm",
                         "SalesOrder",
-                        AnalyticsModelRevision.fromSha256Hex(modelHex.repeat(64)))));
+                        AnalyticsModelDigest.fromSha256Hex(modelHex.repeat(64)))));
         return new AnalyticsBundleIndex(
                 new ResolvedAnalyticsBundle(
                         manifest,

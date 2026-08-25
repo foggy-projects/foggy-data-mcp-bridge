@@ -1,7 +1,7 @@
 package com.foggyframework.analytics.runtime.foggy;
 
 import com.foggyframework.analytics.definition.api.AnalyticsModelDependency;
-import com.foggyframework.analytics.definition.api.AnalyticsModelRevision;
+import com.foggyframework.analytics.definition.api.AnalyticsModelDigest;
 import com.foggyframework.analytics.definition.api.AnalyticsNamespaceRef;
 import com.foggyframework.analytics.definition.api.AnalyticsQueryRef;
 import com.foggyframework.analytics.definition.api.AnalyticsQuerySpec;
@@ -52,11 +52,11 @@ class FoggyAnalyticsRealQueryTest {
     @Test
     void executesMinimalRealTmQmAgainstSqliteThroughExactCatalogPin() {
         var catalogView = catalogReadPort.namespaceCatalogView("");
-        FoggyStableModelRevisionReadPort revisionReadPort =
-                new FoggyCatalogStableModelRevisionReadPort(
+        FoggyStableModelDigestReadPort digestReadPort =
+                new FoggyCatalogStableModelDigestReadPort(
                         catalogSnapshotStore);
-        AnalyticsModelRevision modelRevision = revisionReadPort.findRevision(
-                        new FoggyModelRevisionLookup(
+        AnalyticsModelDigest modelDigest = digestReadPort.findDigest(
+                        new FoggyModelDigestLookup(
                                 catalogView.identity(),
                                 "qm",
                                 MODEL))
@@ -65,10 +65,10 @@ class FoggyAnalyticsRealQueryTest {
                 new AnalyticsNamespaceRef("default"),
                 "qm",
                 MODEL,
-                modelRevision);
+                modelDigest);
         FoggyQueryAuthorityResolver authorityResolver = new FoggyQueryAuthorityResolver(
                 catalogReadPort,
-                revisionReadPort,
+                digestReadPort,
                 (request, resolution) -> SemanticRequestContext.ofNamespace(""));
         FoggyAnalyticsAuthority authority = authorityResolver.resolve(
                 new QueryAuthorityRequest(

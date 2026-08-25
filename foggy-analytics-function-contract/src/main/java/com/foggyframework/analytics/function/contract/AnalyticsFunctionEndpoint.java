@@ -16,7 +16,7 @@ public interface AnalyticsFunctionEndpoint {
             AnalyticsBundleFunctionRequest request);
 
     /**
-     * Resolves a current model into the stable identity stored by Analytics manifests.
+     * Resolves a current model into the internal digest stored by Analytics manifests.
      *
      * <p>This design-time read does not resolve product ownership, ACL, or query authority.
      * The default keeps older custom endpoint implementations binary compatible.</p>
@@ -27,7 +27,7 @@ public interface AnalyticsFunctionEndpoint {
                 "Analytics model dependency resolution is not implemented");
     }
 
-    /** Lists current exact model identities within one namespace. */
+    /** Lists current selectable model identities within one namespace. */
     default AnalyticsFunctionEnvelope<AnalyticsModelDependencyList>
             listModelDependencies(AnalyticsModelDependencyListRequest request) {
         throw new UnsupportedOperationException(
@@ -46,7 +46,7 @@ public interface AnalyticsFunctionEndpoint {
                 "Analytics artifact inspection is not implemented");
     }
 
-    /** Describes one exact QM through the current caller's governed authority. */
+    /** Describes the current QM through the current caller's governed authority. */
     default AnalyticsFunctionEnvelope<AnalyticsSemanticModelDescription> describeSemanticModel(
             AnalyticsSemanticModelFunctionRequest request) {
         throw new UnsupportedOperationException(

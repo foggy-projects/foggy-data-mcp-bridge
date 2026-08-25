@@ -1,12 +1,10 @@
 package com.foggyframework.analytics.console.security;
 
 import com.foggyframework.analytics.console.config.AnalyticsConsoleProperties;
-import com.foggyframework.analytics.definition.api.AnalyticsModelDependency;
-import com.foggyframework.analytics.definition.api.AnalyticsModelRevision;
 import com.foggyframework.analytics.definition.api.AnalyticsNamespaceRef;
 import com.foggyframework.analytics.runtime.core.query.QueryAuthorityBinding;
-import com.foggyframework.analytics.runtime.core.query.QueryAuthorityRequest;
 import com.foggyframework.analytics.runtime.foggy.FoggyAnalyticsAdapterException;
+import com.foggyframework.analytics.runtime.foggy.FoggySemanticAuthorityRequest;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogResolution;
 import com.foggyframework.dataset.model.lifecycle.identity.CatalogIdentity;
 import com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext;
@@ -43,13 +41,10 @@ class StaticDevFoggySemanticRequestContextResolverTest {
                                 FoggyAnalyticsAdapterException.Code.AUTHORITY_MISMATCH));
     }
 
-    private static QueryAuthorityRequest request(String provider, String reference) {
-        return new QueryAuthorityRequest(
-                new AnalyticsModelDependency(
-                        new AnalyticsNamespaceRef("tenant-a"),
-                        "qm",
-                        "Orders",
-                        AnalyticsModelRevision.fromSha256Hex("a".repeat(64))),
+    private static FoggySemanticAuthorityRequest request(String provider, String reference) {
+        return new FoggySemanticAuthorityRequest(
+                new AnalyticsNamespaceRef("tenant-a"),
+                "Orders",
                 new QueryAuthorityBinding(provider, reference),
                 "request-1",
                 "trace-1");

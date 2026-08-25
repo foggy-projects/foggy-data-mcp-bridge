@@ -4,7 +4,7 @@ import com.foggyframework.analytics.definition.api.AnalyticsBundleManifest;
 import com.foggyframework.analytics.definition.api.AnalyticsBundleRef;
 import com.foggyframework.analytics.definition.api.AnalyticsBundleRevision;
 import com.foggyframework.analytics.definition.api.AnalyticsModelDependency;
-import com.foggyframework.analytics.definition.api.AnalyticsModelRevision;
+import com.foggyframework.analytics.definition.api.AnalyticsModelDigest;
 import com.foggyframework.analytics.definition.api.AnalyticsNamespaceRef;
 import com.foggyframework.analytics.definition.api.AnalyticsSchemaVersion;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogResolution;
@@ -24,8 +24,8 @@ final class FoggyAdapterTestFixtures {
     static final String NAMESPACE = "default";
     static final String ENGINE_NAMESPACE = "";
     static final String MODEL = "SalesOrder";
-    static final AnalyticsModelRevision MODEL_REVISION =
-            AnalyticsModelRevision.fromSha256Hex("a".repeat(64));
+    static final AnalyticsModelDigest MODEL_DIGEST =
+            AnalyticsModelDigest.fromSha256Hex("a".repeat(64));
     static final CatalogIdentity CATALOG_IDENTITY = new CatalogIdentity(
             ENGINE_NAMESPACE,
             new CatalogGeneration("catalog:test:1"),
@@ -35,18 +35,18 @@ final class FoggyAdapterTestFixtures {
     }
 
     static AnalyticsModelDependency queryDependency() {
-        return dependency("qm", MODEL, MODEL_REVISION);
+        return dependency("qm", MODEL, MODEL_DIGEST);
     }
 
     static AnalyticsModelDependency dependency(
             String modelKind,
             String modelName,
-            AnalyticsModelRevision revision) {
+            AnalyticsModelDigest digest) {
         return new AnalyticsModelDependency(
                 new AnalyticsNamespaceRef(NAMESPACE),
                 modelKind,
                 modelName,
-                revision);
+                digest);
     }
 
     static CatalogResolution<QueryModel> resolution() {

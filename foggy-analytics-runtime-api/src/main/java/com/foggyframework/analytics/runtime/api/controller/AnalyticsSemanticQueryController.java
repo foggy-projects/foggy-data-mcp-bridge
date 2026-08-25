@@ -59,7 +59,6 @@ public class AnalyticsSemanticQueryController {
                 new AnalyticsSemanticModelFunctionRequest(
                         request.namespace(),
                         modelName,
-                        request.expectedModelRevision(),
                         authority(request.authority()),
                         responses.requestContext(request.requestId(), request.traceId()))));
     }
@@ -72,7 +71,6 @@ public class AnalyticsSemanticQueryController {
                 new AnalyticsSemanticQueryFunctionRequest(
                         request.namespace(),
                         modelName,
-                        request.expectedModelRevision(),
                         request.query(),
                         authority(request.authority()),
                         responses.requestContext(request.requestId(), request.traceId()))));
@@ -85,7 +83,6 @@ public class AnalyticsSemanticQueryController {
         return http.map(endpoint.runQueryModel(new AnalyticsQueryModelFunctionRequest(
                 request.namespace(),
                 modelName,
-                request.expectedModelRevision(),
                 request.mode(),
                 request.payload(),
                 authority(request.authority()),

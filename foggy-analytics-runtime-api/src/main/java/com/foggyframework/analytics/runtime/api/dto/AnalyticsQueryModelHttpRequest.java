@@ -9,7 +9,6 @@ import java.util.Map;
 /** HTTP projection of the full query-model DSL Function request. */
 public record AnalyticsQueryModelHttpRequest(
         @NotBlank String namespace,
-        @NotBlank String expectedModelRevision,
         @NotBlank String mode,
         @NotNull Map<String, Object> payload,
         @Valid @NotNull AnalyticsAuthorityRequest authority,

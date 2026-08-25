@@ -1,7 +1,5 @@
 package com.foggyframework.analytics.runtime.foggy;
 
-import com.foggyframework.analytics.definition.api.AnalyticsModelDependency;
-import com.foggyframework.analytics.definition.api.AnalyticsModelRevision;
 import com.foggyframework.analytics.definition.api.AnalyticsNamespaceRef;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionContext;
 import com.foggyframework.analytics.function.contract.AnalyticsSemanticModelDescription;
@@ -12,7 +10,6 @@ import com.foggyframework.analytics.function.contract.AnalyticsSemanticQueryResu
 import com.foggyframework.analytics.runtime.core.function.AnalyticsSemanticFunctionException;
 import com.foggyframework.analytics.runtime.core.function.AnalyticsSemanticFunctionOperations;
 import com.foggyframework.analytics.runtime.core.query.QueryAuthorityBinding;
-import com.foggyframework.analytics.runtime.core.query.QueryAuthorityRequest;
 import com.foggyframework.dataset.model.semantic.domain.SemanticMetadataRequest;
 import com.foggyframework.dataset.model.semantic.domain.SemanticMetadataResponse;
 import com.foggyframework.dataset.model.semantic.domain.SemanticQueryRequest;
@@ -66,12 +63,11 @@ public final class FoggyAnalyticsSemanticFunctionOperations
         FoggyAnalyticsAuthority authority = resolve(
                 request.namespace(),
                 request.modelName(),
-                request.expectedModelRevision(),
                 request.authority().provider(),
                 request.authority().reference(),
                 context);
         SemanticMetadataRequest metadataRequest = new SemanticMetadataRequest();
-        metadataRequest.setQmModels(List.of(authority.modelDependency().modelName()));
+        metadataRequest.setQmModels(List.of(authority.modelName()));
         metadataRequest.setIncludeExamples(false);
         metadataRequest.setTolerateModelLoadErrors(false);
         try {
@@ -89,7 +85,6 @@ public final class FoggyAnalyticsSemanticFunctionOperations
             return new AnalyticsSemanticModelDescription(
                     request.namespace(),
                     request.modelName(),
-                    request.expectedModelRevision(),
                     response.getFormat() == null ? METADATA_FORMAT : response.getFormat(),
                     response.getContent().trim());
         } catch (AnalyticsSemanticFunctionException known) {
@@ -109,7 +104,6 @@ public final class FoggyAnalyticsSemanticFunctionOperations
         FoggyAnalyticsAuthority authority = resolve(
                 request.namespace(),
                 request.modelName(),
-                request.expectedModelRevision(),
                 request.authority().provider(),
                 request.authority().reference(),
                 context);
@@ -145,18 +139,13 @@ public final class FoggyAnalyticsSemanticFunctionOperations
     private FoggyAnalyticsAuthority resolve(
             String namespace,
             String modelName,
-            String modelRevision,
             String authorityProvider,
             String authorityReference,
             AnalyticsFunctionContext context) {
-        AnalyticsModelDependency dependency = new AnalyticsModelDependency(
-                new AnalyticsNamespaceRef(namespace),
-                "qm",
-                modelName,
-                new AnalyticsModelRevision(modelRevision));
         try {
-            return authorityResolver.resolve(new QueryAuthorityRequest(
-                    dependency,
+            return authorityResolver.resolveCurrent(new FoggyCurrentQueryAuthorityRequest(
+                    new AnalyticsNamespaceRef(namespace),
+                    modelName,
                     new QueryAuthorityBinding(authorityProvider, authorityReference),
                     context.requestId(),
                     context.traceId()));
@@ -164,8 +153,6 @@ public final class FoggyAnalyticsSemanticFunctionOperations
             AnalyticsSemanticFunctionException.Code code = switch (failed.code()) {
                 case MODEL_NOT_FOUND, MODEL_NAME_NOT_CANONICAL ->
                         AnalyticsSemanticFunctionException.Code.MODEL_NOT_FOUND;
-                case MODEL_REVISION_MISMATCH, MODEL_REVISION_UNAVAILABLE ->
-                        AnalyticsSemanticFunctionException.Code.MODEL_REVISION_CONFLICT;
                 default -> AnalyticsSemanticFunctionException.Code.QUERY_FAILED;
             };
             throw failure(code, "Foggy semantic authority resolution failed", failed);
@@ -226,7 +213,6 @@ public final class FoggyAnalyticsSemanticFunctionOperations
         return new AnalyticsSemanticQueryResult(
                 request.namespace(),
                 request.modelName(),
-                request.expectedModelRevision(),
                 columns(response, rows, requestedColumns),
                 rows,
                 response.getTotal(),

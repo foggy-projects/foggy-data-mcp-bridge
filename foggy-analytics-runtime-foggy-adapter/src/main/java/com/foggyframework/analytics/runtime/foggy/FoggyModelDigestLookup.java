@@ -5,15 +5,15 @@ import com.foggyframework.dataset.model.lifecycle.identity.CatalogIdentity;
 import java.util.Objects;
 import java.util.Set;
 
-/** Exact runtime catalog/model key used to look up a stable content revision. */
-public record FoggyModelRevisionLookup(
+/** Exact runtime catalog/model key used to calculate an internal content digest. */
+public record FoggyModelDigestLookup(
         CatalogIdentity catalogIdentity,
         String modelKind,
         String canonicalModelName) {
 
     private static final Set<String> SUPPORTED_MODEL_KINDS = Set.of("tm", "qm");
 
-    public FoggyModelRevisionLookup {
+    public FoggyModelDigestLookup {
         catalogIdentity = Objects.requireNonNull(catalogIdentity, "catalogIdentity");
         modelKind = requireValue("modelKind", modelKind);
         if (!SUPPORTED_MODEL_KINDS.contains(modelKind)) {

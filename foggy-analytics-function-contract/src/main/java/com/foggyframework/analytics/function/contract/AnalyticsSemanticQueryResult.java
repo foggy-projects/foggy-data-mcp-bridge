@@ -8,7 +8,6 @@ import java.util.Map;
 public record AnalyticsSemanticQueryResult(
         String namespace,
         String modelName,
-        String modelRevision,
         List<Column> columns,
         List<Map<String, Object>> rows,
         Long total,
@@ -19,8 +18,6 @@ public record AnalyticsSemanticQueryResult(
     public AnalyticsSemanticQueryResult {
         namespace = AnalyticsFunctionValues.requireText("namespace", namespace);
         modelName = AnalyticsFunctionValues.requireText("modelName", modelName);
-        modelRevision = AnalyticsFunctionValues.requireRevision(
-                "modelRevision", modelRevision);
         columns = columns == null ? List.of() : List.copyOf(columns);
         List<Map<String, Object>> safeRows = new ArrayList<>();
         if (rows != null) {

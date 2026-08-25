@@ -89,7 +89,7 @@ class FapAnalyticsFunctionCatalogTest {
                 query.get("properties");
 
         assertThat(properties.keySet()).containsExactlyInAnyOrder(
-                "namespace", "modelName", "expectedModelRevision", "query");
+                "namespace", "modelName", "query");
         assertThat(queryProperties.keySet()).containsExactlyInAnyOrder(
                 "columns", "filters", "groupBy", "orderBy", "start", "limit",
                 "returnTotal", "distinct");
@@ -114,7 +114,7 @@ class FapAnalyticsFunctionCatalogTest {
                 payload.get("properties");
 
         assertThat(queryProperties.keySet()).containsExactlyInAnyOrder(
-                "namespace", "modelName", "expectedModelRevision", "mode", "payload");
+                "namespace", "modelName", "mode", "payload");
         assertThat(payloadProperties.keySet()).containsExactlyInAnyOrder(
                 "route",
                 "executable_plan",
@@ -224,12 +224,12 @@ class FapAnalyticsFunctionCatalogTest {
     }
 
     @Test
-    void canonicalDigestPreservesDecimalScaleWrittenOnTheCallbackWire() {
+    void canonicalDigestNormalizesDecimalLikeTheServiceProvider() {
         String digest = FapCanonicalDigests.json(
                 Map.of("amount", new BigDecimal("10998.0")));
 
         assertThat(digest).isEqualTo(
-                "sha256:d840abfdd9309aff09389ff0d94fd2078c263d7d4c8ae4a00122b05005fa9e89");
+                "sha256:828856f85ca550b0d81fb8cee29e3276cfff1deb5d9215e81829264d1c7a0bdb");
     }
 
     @Test
@@ -331,13 +331,13 @@ class FapAnalyticsFunctionCatalogTest {
                 Map.entry(
                         FapAnalyticsFunctionRefs.MODEL_DEPENDENCIES_LIST,
                         List.of(
-                                "sha256:ae88060bdf617dfcbdfbaa2e2df1290517b4de3b011ac34288a5941451645446",
-                                "sha256:6cc16ee96778ce1a1a3ecbd6e44bb2fbc1c2e9c09a879231eca577a9bce8c0cd")),
+                                "sha256:76cf2b289152f2d4f9d3e78d6e2c2d49cde48df948a6a93b38f9be25b901cb0f",
+                                "sha256:f242bd61c622bcb906802016dee745ea29c39d6139813c97290398edf445a321")),
                 Map.entry(
                         FapAnalyticsFunctionRefs.QUERY_MODEL_RUN,
                         List.of(
-                                "sha256:13926e847938f8049bec8e4485f465128075de8a32a110db491ac589fb3f6be8",
-                                "sha256:4698ea28af2b6d0f38ff1c870f4baebfcb8883cf5f0d74d35176595ac89c035a")),
+                                "sha256:c38308571dd06457c1494224ee05807a9727b537dda6ffda5cd2fe163ac9372b",
+                                "sha256:561199380d0c7dae7d1b85dcda5c7b54a3cd400e8c661644a41d22783d03d090")),
                 Map.entry(
                         FapAnalyticsFunctionRefs.REPORTS_PREVIEW,
                         List.of(
@@ -346,13 +346,13 @@ class FapAnalyticsFunctionCatalogTest {
                 Map.entry(
                         FapAnalyticsFunctionRefs.SEMANTIC_MODELS_DESCRIBE,
                         List.of(
-                                "sha256:cc4271d6b131642a89ab95f5b49db8092f40fc51cbcca3ec879019f2dc733e1d",
-                                "sha256:055082cb704b273bf88a3af0891857cb5bf26d67275fc47a7430b1e9f7973d87")),
+                                "sha256:00eb1587238a3c47bab587744ceb2d7f02ee12269d2021f9edfde8bc199a2edb",
+                                "sha256:df604deb8375f7287ea714e39718acfc14cec7dc74af98b57276a36ee97e6a83")),
                 Map.entry(
                         FapAnalyticsFunctionRefs.SEMANTIC_QUERIES_EXECUTE,
                         List.of(
-                                "sha256:70ee5f284208b3efaafd10077d4ea5fdc9b8c257fdc9971b375b3bfed4fc32be",
-                                "sha256:3b53bded6e0a2ed689dcbd479d6776449aaa0dfc7de9301c952889e7f0d5d98c")));
+                                "sha256:1cdb14041e9d1c61ea537e7217d5b47342b9b56e766ac502e89f46b957450599",
+                                "sha256:42b9bb399338090ab0dbb1e13b691acaecff7608eb2b8d53375b21648f0a47a8")));
 
         Map<String, List<String>> actual = FapAnalyticsFunctionCatalog.descriptors()
                 .stream()

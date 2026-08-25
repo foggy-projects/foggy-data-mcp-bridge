@@ -2,8 +2,6 @@ package com.foggyframework.analytics.runtime.foggy;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.foggyframework.analytics.definition.api.AnalyticsModelDependency;
-import com.foggyframework.analytics.definition.api.AnalyticsModelRevision;
 import com.foggyframework.analytics.definition.api.AnalyticsNamespaceRef;
 import com.foggyframework.analytics.function.contract.AnalyticsComposeFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsComposeResult;
@@ -13,7 +11,6 @@ import com.foggyframework.analytics.function.contract.AnalyticsQueryModelResult;
 import com.foggyframework.analytics.runtime.core.function.AnalyticsAdvancedSemanticFunctionOperations;
 import com.foggyframework.analytics.runtime.core.function.AnalyticsSemanticFunctionException;
 import com.foggyframework.analytics.runtime.core.query.QueryAuthorityBinding;
-import com.foggyframework.analytics.runtime.core.query.QueryAuthorityRequest;
 import com.foggyframework.core.ex.ExRuntimeException;
 import com.foggyframework.dataset.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.model.semantic.domain.SemanticQueryResponse;
@@ -144,7 +141,6 @@ public final class FoggyAnalyticsAdvancedSemanticFunctionOperations
             return new AnalyticsQueryModelResult(
                     request.namespace(),
                     request.modelName(),
-                    request.expectedModelRevision(),
                     request.mode(),
                     json.convertValue(response, JSON_OBJECT));
         } catch (AnalyticsSemanticFunctionException known) {
@@ -249,25 +245,20 @@ public final class FoggyAnalyticsAdvancedSemanticFunctionOperations
     private FoggyAnalyticsAuthority resolveModel(
             AnalyticsQueryModelFunctionRequest request,
             AnalyticsFunctionContext context) {
-        AnalyticsModelDependency dependency = new AnalyticsModelDependency(
-                new AnalyticsNamespaceRef(request.namespace()),
-                "qm",
-                request.modelName(),
-                new AnalyticsModelRevision(request.expectedModelRevision()));
         try {
-            return queryAuthorityResolver.resolve(new QueryAuthorityRequest(
-                    dependency,
-                    new QueryAuthorityBinding(
-                            request.authority().provider(),
-                            request.authority().reference()),
-                    context.requestId(),
-                    context.traceId()));
+            return queryAuthorityResolver.resolveCurrent(
+                    new FoggyCurrentQueryAuthorityRequest(
+                            new AnalyticsNamespaceRef(request.namespace()),
+                            request.modelName(),
+                            new QueryAuthorityBinding(
+                                    request.authority().provider(),
+                                    request.authority().reference()),
+                            context.requestId(),
+                            context.traceId()));
         } catch (FoggyAnalyticsAdapterException failed) {
             AnalyticsSemanticFunctionException.Code code = switch (failed.code()) {
                 case MODEL_NOT_FOUND, MODEL_NAME_NOT_CANONICAL ->
                         AnalyticsSemanticFunctionException.Code.MODEL_NOT_FOUND;
-                case MODEL_REVISION_MISMATCH, MODEL_REVISION_UNAVAILABLE ->
-                        AnalyticsSemanticFunctionException.Code.MODEL_REVISION_CONFLICT;
                 default -> AnalyticsSemanticFunctionException.Code.QUERY_FAILED;
             };
             throw failure(code, "Foggy query-model authority resolution failed", failed);

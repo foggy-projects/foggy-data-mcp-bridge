@@ -179,13 +179,12 @@ class AnalyticsRuntimeApiControllerContractTest {
     }
 
     @Test
-    void executesOnlyTheTypedSemanticQueryAgainstAnExactModelRevision()
+    void executesOnlyTheTypedSemanticQueryAgainstTheCurrentModel()
             throws Exception {
         when(endpoint.executeSemanticQuery(any())).thenReturn(responses.ok(
                 new AnalyticsSemanticQueryResult(
                         "default",
                         "FactOrderQueryModel",
-                        REVISION,
                         List.of(new AnalyticsSemanticQueryResult.Column(
                                 "orderCount", "LONG", "订单数")),
                         List.of(Map.of("orderCount", 12)),
@@ -202,7 +201,6 @@ class AnalyticsRuntimeApiControllerContractTest {
                         .content("""
                                 {
                                   "namespace": "default",
-                                  "expectedModelRevision": "%s",
                                   "query": {
                                     "columns": ["orderCount"],
                                     "filters": [],
@@ -220,28 +218,26 @@ class AnalyticsRuntimeApiControllerContractTest {
                                   "requestId": "request-question",
                                   "traceId": "trace-question"
                                 }
-                                """.formatted(REVISION)))
+                                """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.rows[0].orderCount").value(12))
-                .andExpect(jsonPath("$.data.modelRevision").value(REVISION))
+                .andExpect(jsonPath("$.data.modelRevision").doesNotExist())
                 .andExpect(jsonPath("$.data.debug").doesNotExist());
 
         ArgumentCaptor<AnalyticsSemanticQueryFunctionRequest> captured =
                 ArgumentCaptor.forClass(AnalyticsSemanticQueryFunctionRequest.class);
         verify(endpoint).executeSemanticQuery(captured.capture());
         assertEquals("FactOrderQueryModel", captured.getValue().modelName());
-        assertEquals(REVISION, captured.getValue().expectedModelRevision());
         assertEquals("subject:42", captured.getValue().authority().reference());
         assertEquals(List.of("orderCount"), captured.getValue().query().columns());
     }
 
     @Test
-    void runsTheFullQueryModelDslAgainstAnExactModelRevision() throws Exception {
+    void runsTheFullQueryModelDslAgainstTheCurrentModel() throws Exception {
         when(endpoint.runQueryModel(any())).thenReturn(responses.ok(
                 new AnalyticsQueryModelResult(
                         "default",
                         "FactOrderQueryModel",
-                        REVISION,
                         "execute",
                         Map.of("rows", List.of(Map.of("province", "山东省")))),
                 "request-dsl",
@@ -253,7 +249,6 @@ class AnalyticsRuntimeApiControllerContractTest {
                         .content("""
                                 {
                                   "namespace": "default",
-                                  "expectedModelRevision": "%s",
                                   "mode": "execute",
                                   "payload": {
                                     "columns": ["province", "sum(orderAmount)"],
@@ -269,7 +264,7 @@ class AnalyticsRuntimeApiControllerContractTest {
                                   "requestId": "request-dsl",
                                   "traceId": "trace-dsl"
                                 }
-                                """.formatted(REVISION)))
+                                """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.mode").value("execute"))
                 .andExpect(jsonPath("$.data.response.rows[0].province")
@@ -279,7 +274,6 @@ class AnalyticsRuntimeApiControllerContractTest {
                 ArgumentCaptor.forClass(AnalyticsQueryModelFunctionRequest.class);
         verify(endpoint).runQueryModel(captured.capture());
         assertEquals("FactOrderQueryModel", captured.getValue().modelName());
-        assertEquals(REVISION, captured.getValue().expectedModelRevision());
         assertEquals("execute", captured.getValue().mode());
         assertEquals(BigInteger.TEN, captured.getValue().payload().get("limit"));
         assertEquals("subject:42", captured.getValue().authority().reference());
@@ -358,7 +352,7 @@ class AnalyticsRuntimeApiControllerContractTest {
     }
 
     @Test
-    void resolvesStableModelRevisionWithoutProductOrDataAuthority() throws Exception {
+    void resolvesInternalDependencyDigestWithoutProductOrDataAuthority() throws Exception {
         when(endpoint.resolveModelDependency(any())).thenReturn(responses.ok(
                 new AnalyticsModelDependencyDescription(
                         "tms-ai",
@@ -381,7 +375,7 @@ class AnalyticsRuntimeApiControllerContractTest {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.modelRevision").value(REVISION))
+                .andExpect(jsonPath("$.data.dependencyDigest").value(REVISION))
                 .andExpect(jsonPath("$.data.namespace").value("tms-ai"))
                 .andReturn().getResponse().getContentAsString();
 
@@ -587,7 +581,7 @@ class AnalyticsRuntimeApiControllerContractTest {
                 Map.entry(AnalyticsFunctionErrorCodes.MODEL_DEPENDENCY_NOT_FOUND,
                         HttpStatus.NOT_FOUND),
                 Map.entry(
-                        AnalyticsFunctionErrorCodes.MODEL_DEPENDENCY_REVISION_UNAVAILABLE,
+                        AnalyticsFunctionErrorCodes.MODEL_DEPENDENCY_DIGEST_UNAVAILABLE,
                         HttpStatus.SERVICE_UNAVAILABLE),
                 Map.entry(AnalyticsFunctionErrorCodes.BUNDLE_REVISION_CONFLICT,
                         HttpStatus.CONFLICT),

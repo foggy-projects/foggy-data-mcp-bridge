@@ -1,8 +1,9 @@
 # Query-model DSL
 
-Use `foggy.analytics.query-model.run@v1` for one exact model. Its arguments contain the
-server-bound `namespace`, described `modelName`, exact `expectedModelRevision`, `mode`, and the
-DSL object under `payload`.
+Use `foggy.analytics.query-model.run@v2` for one model. Its arguments contain the server-bound
+`namespace`, described `modelName`, `mode`, and the DSL object under `payload`. The provider
+resolves the current valid model once per invocation and keeps that catalog resolution fixed
+through validation or execution.
 
 ## Construction rules
 
@@ -33,7 +34,7 @@ by the published Function schema and engine validation. `executable_plan` is an 
 its allowed controlled recipes are documented below, while graph-order and expression-signature
 rules are enforced dynamically by Runtime validation.
 
-The published `foggy.analytics.query-model.run@v1` input schema is the machine-readable contract
+The published `foggy.analytics.query-model.run@v2` input schema is the machine-readable contract
 for the standard DSL properties. Do not infer a standard property that is absent from it. For
 controlled CTE, use only the documented recipe below. In particular:
 

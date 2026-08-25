@@ -2,8 +2,8 @@ package com.foggyframework.analytics.console.security;
 
 import com.foggyframework.analytics.console.config.AnalyticsConsoleProperties;
 import com.foggyframework.analytics.runtime.core.query.QueryAuthorityBinding;
-import com.foggyframework.analytics.runtime.core.query.QueryAuthorityRequest;
 import com.foggyframework.analytics.runtime.foggy.FoggyAnalyticsAdapterException;
+import com.foggyframework.analytics.runtime.foggy.FoggySemanticAuthorityRequest;
 import com.foggyframework.analytics.runtime.foggy.FoggySemanticRequestContextResolver;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogResolution;
 import com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext;
@@ -29,7 +29,7 @@ public final class StaticDevFoggySemanticRequestContextResolver
 
     @Override
     public SemanticRequestContext resolve(
-            QueryAuthorityRequest request,
+            FoggySemanticAuthorityRequest request,
             CatalogResolution<QueryModel> catalogResolution) {
         Objects.requireNonNull(request, "request");
         Objects.requireNonNull(catalogResolution, "catalogResolution");

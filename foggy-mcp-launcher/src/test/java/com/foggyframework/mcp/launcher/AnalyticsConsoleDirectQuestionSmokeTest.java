@@ -3,12 +3,10 @@ package com.foggyframework.mcp.launcher;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionAuthority;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionContext;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionRequestContext;
-import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyDescription;
 import com.foggyframework.analytics.function.contract.AnalyticsSemanticModelDescription;
 import com.foggyframework.analytics.function.contract.AnalyticsSemanticModelFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsSemanticQuery;
 import com.foggyframework.analytics.function.contract.AnalyticsSemanticQueryFunctionRequest;
-import com.foggyframework.analytics.runtime.core.function.AnalyticsModelDependencyOperations;
 import com.foggyframework.analytics.runtime.core.function.AnalyticsSemanticFunctionOperations;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,20 +34,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AnalyticsConsoleDirectQuestionSmokeTest {
 
     @Autowired
-    private AnalyticsModelDependencyOperations dependencies;
-
-    @Autowired
     private AnalyticsSemanticFunctionOperations semantic;
 
     @Test
-    void resolvesAndDescribesTheConfiguredQuestionModelThroughTheAnalyticsLane() {
-        AnalyticsModelDependencyDescription model = dependencies.resolve(
-                "default", "qm", "FactOrderQueryModel");
+    void describesTheCurrentConfiguredQuestionModelThroughTheAnalyticsLane() {
         AnalyticsSemanticModelDescription description = semantic.describeModel(
                 new AnalyticsSemanticModelFunctionRequest(
-                        model.namespace(),
-                        model.modelName(),
-                        model.modelRevision(),
+                        "default",
+                        "FactOrderQueryModel",
                         new AnalyticsFunctionAuthority("console", "local-dev-only"),
                         new AnalyticsFunctionRequestContext(
                                 "question-smoke", "question-smoke")),
@@ -61,9 +53,8 @@ class AnalyticsConsoleDirectQuestionSmokeTest {
 
         var result = semantic.executeQuery(
                 new AnalyticsSemanticQueryFunctionRequest(
-                        model.namespace(),
-                        model.modelName(),
-                        model.modelRevision(),
+                        "default",
+                        "FactOrderQueryModel",
                         new AnalyticsSemanticQuery(
                                 List.of("amount"),
                                 List.of(),
@@ -79,7 +70,6 @@ class AnalyticsConsoleDirectQuestionSmokeTest {
                 new AnalyticsFunctionContext(
                         "question-query-smoke", "question-query-smoke"));
 
-        assertThat(result.modelRevision()).isEqualTo(model.modelRevision());
         assertThat(result.columns())
                 .extracting(column -> column.name())
                 .contains("amount");

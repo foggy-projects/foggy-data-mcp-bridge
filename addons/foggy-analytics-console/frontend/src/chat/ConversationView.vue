@@ -165,9 +165,7 @@ const copyPayload = async (
             <dl v-if="activeConversation">
               <dt>Namespace</dt><dd>{{ activeConversation.namespace }}</dd>
               <dt>QM</dt><dd>{{ activeConversation.modelName ?? '由 AI 按问题选择' }}</dd>
-              <dt>Revision</dt><dd>{{ activeConversation.modelRevision
-                ? `${activeConversation.modelRevision.slice(0, 20)}…`
-                : '每次调用使用 exact revision' }}</dd>
+              <dt>模型策略</dt><dd>每次调用使用当前有效模型</dd>
             </dl>
           </div>
         </details>

@@ -3,7 +3,7 @@ package com.foggyframework.analytics.runtime.core.function;
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyDescription;
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyList;
 
-/** Host operation that resolves current model content into a stable manifest dependency. */
+/** Host operation that resolves current model content into an internal manifest digest. */
 @FunctionalInterface
 public interface AnalyticsModelDependencyOperations {
 
@@ -14,7 +14,7 @@ public interface AnalyticsModelDependencyOperations {
 
     default AnalyticsModelDependencyList list(String namespace, String modelKind) {
         throw new AnalyticsModelDependencyResolutionException(
-                AnalyticsModelDependencyResolutionException.Code.REVISION_UNAVAILABLE,
+                AnalyticsModelDependencyResolutionException.Code.DIGEST_UNAVAILABLE,
                 "Model dependency listing is unavailable");
     }
 }

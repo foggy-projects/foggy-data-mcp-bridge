@@ -2,19 +2,19 @@
   "contractVersion": "fap.langbiz.function-schema-delivery.v1",
   "functions": [
     {
-      "functionRef": "foggy.analytics.model-dependencies.list@v1",
+      "functionRef": "foggy.analytics.model-dependencies.list@v2",
       "mode": "INLINE"
     },
     {
-      "functionRef": "foggy.analytics.semantic-models.describe@v1",
+      "functionRef": "foggy.analytics.semantic-models.describe@v2",
       "mode": "INLINE"
     },
     {
-      "functionRef": "foggy.analytics.semantic-queries.execute@v1",
+      "functionRef": "foggy.analytics.semantic-queries.execute@v2",
       "mode": "INLINE"
     },
     {
-      "functionRef": "foggy.analytics.query-model.run@v1",
+      "functionRef": "foggy.analytics.query-model.run@v2",
       "mode": "INLINE"
     },
     {

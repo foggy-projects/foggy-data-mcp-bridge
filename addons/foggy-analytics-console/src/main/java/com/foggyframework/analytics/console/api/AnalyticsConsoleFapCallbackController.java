@@ -133,10 +133,8 @@ public class AnalyticsConsoleFapCallbackController {
                 throw forbidden("FAP callback cannot change the question namespace");
             }
             if (conversation.modelName() != null
-                    && (!conversation.modelName().equals(
-                            string(request.arguments().get("modelName")))
-                        || !conversation.modelRevision().equals(
-                            string(request.arguments().get("expectedModelRevision"))))) {
+                    && !conversation.modelName().equals(
+                            string(request.arguments().get("modelName")))) {
                 throw forbidden("FAP callback cannot change the legacy question model scope");
             }
         }

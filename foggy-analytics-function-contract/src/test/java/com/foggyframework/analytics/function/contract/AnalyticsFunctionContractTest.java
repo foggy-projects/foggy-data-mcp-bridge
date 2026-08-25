@@ -102,12 +102,12 @@ class AnalyticsFunctionContractTest {
                 "tms-ai",
                 "qm",
                 "TenantOrgManagementQuery",
-                REVISION).modelRevision());
+                REVISION).dependencyDigest());
         AnalyticsModelDependencyList list = new AnalyticsModelDependencyList(
                 "tms-ai",
                 "qm",
-                List.of(new AnalyticsModelDependencyDescription(
-                        "tms-ai", "qm", "TenantOrgManagementQuery", REVISION)));
+                List.of(new AnalyticsModelSummary(
+                        "tms-ai", "qm", "TenantOrgManagementQuery")));
         assertEquals("TenantOrgManagementQuery", list.models().get(0).modelName());
         assertThrows(
                 IllegalArgumentException.class,
@@ -134,7 +134,6 @@ class AnalyticsFunctionContractTest {
                 new AnalyticsSemanticQueryFunctionRequest(
                         "default",
                         "FactOrderQueryModel",
-                        REVISION,
                         query,
                         new AnalyticsFunctionAuthority("tms", "subject:42"),
                         AnalyticsFunctionRequestContext.empty());
@@ -161,6 +160,11 @@ class AnalyticsFunctionContractTest {
         assertFalse(queryFields.contains("script"));
         assertFalse(queryFields.contains("hints"));
         assertFalse(queryFields.contains("extdata"));
+        Set<String> requestFields = Arrays.stream(
+                        AnalyticsSemanticQueryFunctionRequest.class.getRecordComponents())
+                .map(component -> component.getName().toLowerCase())
+                .collect(Collectors.toSet());
+        assertFalse(requestFields.stream().anyMatch(name -> name.contains("revision")));
     }
 
     @Test
@@ -172,7 +176,6 @@ class AnalyticsFunctionContractTest {
                 new AnalyticsQueryModelFunctionRequest(
                         "default",
                         "FactOrderQueryModel",
-                        REVISION,
                         "VALIDATE",
                         payload,
                         new AnalyticsFunctionAuthority("tms", "subject:42"),

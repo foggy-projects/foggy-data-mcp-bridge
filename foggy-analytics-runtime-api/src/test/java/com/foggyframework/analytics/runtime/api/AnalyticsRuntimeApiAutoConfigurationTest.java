@@ -9,7 +9,7 @@ import com.foggyframework.analytics.runtime.core.function.AnalyticsAdvancedSeman
 import com.foggyframework.analytics.runtime.core.function.AnalyticsModelDependencyOperations;
 import com.foggyframework.analytics.runtime.foggy.FoggySemanticRequestContextResolver;
 import com.foggyframework.analytics.runtime.foggy.FoggyComposeCallerResolver;
-import com.foggyframework.analytics.runtime.foggy.FoggyStableModelRevisionReadPort;
+import com.foggyframework.analytics.runtime.foggy.FoggyStableModelDigestReadPort;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogSnapshotStore;
 import com.foggyframework.dataset.model.engine.compose.security.AuthorityResolver;
 import com.foggyframework.dataset.model.semantic.port.ComposeExecutionPort;
@@ -51,7 +51,7 @@ class AnalyticsRuntimeApiAutoConfigurationTest {
                 .run(context -> {
                     assertThat(context).hasSingleBean(AnalyticsCapabilitiesController.class);
                     assertThat(context).hasSingleBean(AnalyticsBundleStore.class);
-                    assertThat(context).hasSingleBean(FoggyStableModelRevisionReadPort.class);
+                    assertThat(context).hasSingleBean(FoggyStableModelDigestReadPort.class);
                     assertThat(context).hasSingleBean(
                             AnalyticsModelDependencyOperations.class);
                     assertThat(context).hasSingleBean(AnalyticsFunctionEndpoint.class);

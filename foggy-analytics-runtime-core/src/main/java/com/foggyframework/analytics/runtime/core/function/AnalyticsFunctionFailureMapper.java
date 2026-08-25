@@ -22,7 +22,7 @@ public final class AnalyticsFunctionFailureMapper {
                     "model-dependency",
                     dependencyMessage(dependencyFailure.code()),
                     dependencyFailure.code()
-                            == AnalyticsModelDependencyResolutionException.Code.REVISION_UNAVAILABLE);
+                            == AnalyticsModelDependencyResolutionException.Code.DIGEST_UNAVAILABLE);
         }
         if (failure instanceof AnalyticsBundleStoreException bundleFailure) {
             return new AnalyticsFunctionError(
@@ -57,8 +57,6 @@ public final class AnalyticsFunctionFailureMapper {
             AnalyticsSemanticFunctionException.Code code) {
         return switch (code) {
             case MODEL_NOT_FOUND -> AnalyticsFunctionErrorCodes.MODEL_DEPENDENCY_NOT_FOUND;
-            case MODEL_REVISION_CONFLICT ->
-                    AnalyticsFunctionErrorCodes.MODEL_REVISION_CONFLICT;
             case QUERY_INVALID -> AnalyticsFunctionErrorCodes.SEMANTIC_QUERY_INVALID;
             case COMPOSE_INVALID -> AnalyticsFunctionErrorCodes.COMPOSE_INVALID;
             case COMPOSE_SANDBOX ->
@@ -77,8 +75,6 @@ public final class AnalyticsFunctionFailureMapper {
         }
         return switch (failure.code()) {
             case MODEL_NOT_FOUND -> "Analytics semantic model does not exist.";
-            case MODEL_REVISION_CONFLICT ->
-                    "Analytics semantic model revision does not match.";
             case QUERY_INVALID -> "Analytics semantic query is invalid.";
             case COMPOSE_INVALID -> "Analytics Compose script is invalid.";
             case COMPOSE_SANDBOX -> "Analytics Compose script violates the sandbox.";
@@ -92,8 +88,8 @@ public final class AnalyticsFunctionFailureMapper {
             AnalyticsModelDependencyResolutionException.Code code) {
         return switch (code) {
             case MODEL_NOT_FOUND -> AnalyticsFunctionErrorCodes.MODEL_DEPENDENCY_NOT_FOUND;
-            case REVISION_UNAVAILABLE ->
-                    AnalyticsFunctionErrorCodes.MODEL_DEPENDENCY_REVISION_UNAVAILABLE;
+            case DIGEST_UNAVAILABLE ->
+                    AnalyticsFunctionErrorCodes.MODEL_DEPENDENCY_DIGEST_UNAVAILABLE;
         };
     }
 
@@ -101,8 +97,8 @@ public final class AnalyticsFunctionFailureMapper {
             AnalyticsModelDependencyResolutionException.Code code) {
         return switch (code) {
             case MODEL_NOT_FOUND -> "Analytics model dependency does not exist.";
-            case REVISION_UNAVAILABLE ->
-                    "Analytics model dependency revision is temporarily unavailable.";
+            case DIGEST_UNAVAILABLE ->
+                    "Analytics model dependency digest is temporarily unavailable.";
         };
     }
 
