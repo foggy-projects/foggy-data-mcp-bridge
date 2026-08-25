@@ -16,6 +16,7 @@ import {
   type RenderResult,
   type Session
 } from '../domain'
+import AppearanceMenu from '../components/AppearanceMenu.vue'
 
 const props = defineProps<{ session: Session | null }>()
 defineEmits<{ openChat: [] }>()
@@ -166,8 +167,11 @@ onMounted(() => run('载入工作室', refreshCatalog))
       <div class="masthead-center">
         <span class="signal-dot"></span><span>JAVA RUNTIME</span><b>CONNECTED</b>
       </div>
-      <div v-if="session" class="identity-block">
-        <span>{{ session.roles.join(' · ') }}</span><strong>{{ session.displayName }}</strong>
+      <div class="masthead-controls">
+        <AppearanceMenu />
+        <div v-if="session" class="identity-block">
+          <span>{{ session.roles.join(' · ') }}</span><strong>{{ session.displayName }}</strong>
+        </div>
       </div>
     </header>
 

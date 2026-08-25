@@ -32,6 +32,7 @@ class AnalyticsFunctionContractTest {
                         "analytics.bundles.describe",
                         "analytics.artifacts.describe",
                         "analytics.model-dependencies.resolve",
+                        "analytics.model-dependencies.list",
                         "analytics.semantic-models.describe",
                         "analytics.semantic-queries.execute",
                         "analytics.reports.preview",
@@ -40,6 +41,8 @@ class AnalyticsFunctionContractTest {
                 AnalyticsFunctionOperations.SDK_V1);
         assertFalse(AnalyticsFunctionOperations.FAP_V1.contains(
                 AnalyticsFunctionOperations.MODEL_DEPENDENCIES_RESOLVE));
+        assertTrue(AnalyticsFunctionOperations.FAP_V1.contains(
+                AnalyticsFunctionOperations.MODEL_DEPENDENCIES_LIST));
         assertFalse(AnalyticsFunctionOperations.SDK_V1.contains(
                 AnalyticsFunctionOperations.BUNDLES_PULL));
         assertFalse(AnalyticsFunctionOperations.SDK_V1.contains(
@@ -98,6 +101,12 @@ class AnalyticsFunctionContractTest {
                 "qm",
                 "TenantOrgManagementQuery",
                 REVISION).modelRevision());
+        AnalyticsModelDependencyList list = new AnalyticsModelDependencyList(
+                "tms-ai",
+                "qm",
+                List.of(new AnalyticsModelDependencyDescription(
+                        "tms-ai", "qm", "TenantOrgManagementQuery", REVISION)));
+        assertEquals("TenantOrgManagementQuery", list.models().get(0).modelName());
         assertThrows(
                 IllegalArgumentException.class,
                 () -> new AnalyticsModelDependencyResolutionRequest(

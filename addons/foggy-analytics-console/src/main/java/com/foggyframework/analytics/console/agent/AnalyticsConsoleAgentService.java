@@ -11,10 +11,6 @@ import com.foggyframework.analytics.console.model.AnalyticsConsoleConversationMo
 import com.foggyframework.analytics.console.security.AnalyticsConsoleRole;
 import com.foggyframework.analytics.console.security.AnalyticsConsoleSubject;
 import com.foggyframework.analytics.console.service.AnalyticsConsoleService;
-import com.foggyframework.analytics.function.contract.AnalyticsFunctionEnvelope;
-import com.foggyframework.analytics.function.contract.AnalyticsFunctionRequestContext;
-import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyDescription;
-import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyResolutionRequest;
 import com.foggyframework.analytics.function.sdk.AnalyticsFunctionClient;
 
 import java.time.Clock;
@@ -151,8 +147,7 @@ public final class AnalyticsConsoleAgentService {
                         value.getId(),
                         value.getDisplayName(),
                         value.getDescription(),
-                        value.getNamespace(),
-                        value.getModelName()))
+                        value.getNamespace()))
                 .toList();
     }
 
@@ -178,13 +173,10 @@ public final class AnalyticsConsoleAgentService {
             String profileId,
             String prompt) {
         AnalyticsConsoleProperties.QuestionProfile profile = requireProfile(profileId);
-        AnalyticsModelDependencyDescription dependency = resolveDependency(profile);
         QuestionScope scope = new QuestionScope(
                 profile.getId(),
                 profile.getDisplayName(),
-                dependency.namespace(),
-                dependency.modelName(),
-                dependency.modelRevision());
+                profile.getNamespace());
         return start(
                 subject,
                 safePrompt(prompt),
@@ -234,8 +226,8 @@ public final class AnalyticsConsoleAgentService {
                 mode,
                 question == null ? null : question.profileId(),
                 question == null ? null : question.namespace(),
-                question == null ? null : question.modelName(),
-                question == null ? null : question.modelRevision(),
+                null,
+                null,
                 null);
         catalog.update(state -> {
             List<AnalyticsConsoleConversation> conversations =
@@ -451,50 +443,15 @@ public final class AnalyticsConsoleAgentService {
                         "Analytics question profile was not found"));
     }
 
-    private AnalyticsModelDependencyDescription resolveDependency(
-            AnalyticsConsoleProperties.QuestionProfile profile) {
-        if (functions == null) {
-            throw new AnalyticsConsoleCatalogException(
-                    "ANALYTICS_CONSOLE_RUNTIME_UNAVAILABLE",
-                    "Analytics Function client is unavailable");
-        }
-        AnalyticsFunctionEnvelope<AnalyticsModelDependencyDescription> outcome =
-                functions.resolveModelDependency(
-                        new AnalyticsModelDependencyResolutionRequest(
-                                profile.getNamespace(),
-                                "qm",
-                                profile.getModelName(),
-                                new AnalyticsFunctionRequestContext(
-                                        "console-question-" + UUID.randomUUID(),
-                                        "console-question-" + UUID.randomUUID())));
-        if (outcome == null || !outcome.success()) {
-            throw new AnalyticsConsoleCatalogException(
-                    outcome == null
-                            ? "ANALYTICS_CONSOLE_RUNTIME_UNAVAILABLE"
-                            : outcome.error().code(),
-                    outcome == null
-                            ? "Analytics Runtime did not return a model revision"
-                            : outcome.error().message());
-        }
-        AnalyticsModelDependencyDescription value = outcome.data();
-        if (!profile.getNamespace().equals(value.namespace())
-                || !profile.getModelName().equals(value.modelName())
-                || !"qm".equals(value.modelKind())) {
-            throw new AnalyticsConsoleCatalogException(
-                    "ANALYTICS_CONSOLE_RUNTIME_PROTOCOL_ERROR",
-                    "Analytics Runtime resolved a different question model");
-        }
-        return value;
-    }
-
     private static String questionInstruction(QuestionScope scope) {
         return "You are the Foggy Analytics Console data analyst. "
                 + "The server has fixed this conversation to business scope "
                 + scope.displayName() + ", namespace " + scope.namespace()
-                + ", QM " + scope.modelName() + ", exact revision "
-                + scope.modelRevision() + ". "
-                + "First describe that exact semantic model when field meaning is not already "
-                + "known, then use only the governed semantic query function. Answer the user's "
+                + ". Do not use or request another namespace. "
+                + "First list the available QMs and exact revisions in this namespace. "
+                + "Select the QM that best matches the user's question, then describe that exact "
+                + "semantic model before querying it. Use only the governed semantic query "
+                + "function and keep every Function call inside the fixed namespace. Answer the user's "
                 + "question directly and cite the returned rows, totals, truncation and warnings. "
                 + "Ask a concise clarification when the requested metric or time scope is "
                 + "ambiguous. Never request or generate raw SQL, Compose, scripts, credentials, "
@@ -520,8 +477,7 @@ public final class AnalyticsConsoleAgentService {
             String profileId,
             String displayName,
             String description,
-            String namespace,
-            String modelName) {
+            String namespace) {
     }
 
     public record ConversationSummary(
@@ -538,8 +494,6 @@ public final class AnalyticsConsoleAgentService {
     private record QuestionScope(
             String profileId,
             String displayName,
-            String namespace,
-            String modelName,
-            String modelRevision) {
+            String namespace) {
     }
 }

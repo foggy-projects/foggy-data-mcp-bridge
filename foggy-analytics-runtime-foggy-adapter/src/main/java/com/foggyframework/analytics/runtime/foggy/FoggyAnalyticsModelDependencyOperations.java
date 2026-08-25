@@ -3,6 +3,7 @@ package com.foggyframework.analytics.runtime.foggy;
 import com.foggyframework.analytics.definition.api.AnalyticsModelRevision;
 import com.foggyframework.analytics.definition.api.AnalyticsNamespaceRef;
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyDescription;
+import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyList;
 import com.foggyframework.analytics.runtime.core.function.AnalyticsModelDependencyOperations;
 import com.foggyframework.analytics.runtime.core.function.AnalyticsModelDependencyResolutionException;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogResolution;
@@ -13,6 +14,8 @@ import com.foggyframework.dataset.model.spi.QueryModel;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Comparator;
+import java.util.Optional;
 
 /** Resolves a stable Analytics model dependency from the current Foggy catalog view. */
 public final class FoggyAnalyticsModelDependencyOperations
@@ -63,6 +66,42 @@ public final class FoggyAnalyticsModelDependencyOperations
                 modelKind,
                 modelName,
                 revision.value());
+    }
+
+    @Override
+    public AnalyticsModelDependencyList list(String namespace, String modelKind) {
+        if (!"qm".equals(modelKind)) {
+            throw new IllegalArgumentException("Only QM dependency listing is supported");
+        }
+        AnalyticsNamespaceRef namespaceRef = new AnalyticsNamespaceRef(namespace);
+        String engineNamespace = canonicalEngineNamespace(namespaceRef);
+        List<AnalyticsModelDependencyDescription> models = catalogReadPort
+                .discoverAvailableQueryModelNames(engineNamespace)
+                .stream()
+                .map(modelName -> describeAvailableQueryModel(
+                        namespace, engineNamespace, modelName))
+                .flatMap(Optional::stream)
+                .sorted(Comparator.comparing(AnalyticsModelDependencyDescription::modelName))
+                .toList();
+        return new AnalyticsModelDependencyList(namespace, modelKind, models);
+    }
+
+    private Optional<AnalyticsModelDependencyDescription> describeAvailableQueryModel(
+            String namespace,
+            String engineNamespace,
+            String modelName) {
+        try {
+            NamespaceCatalogView view = catalogReadPort.modelCatalogView(
+                    engineNamespace, List.of(modelName));
+            CatalogIdentity identity = requireCatalog(view, engineNamespace);
+            requireExactQueryModel(view, modelName, identity);
+            return revisionReadPort.findRevision(new FoggyModelRevisionLookup(
+                            identity, "qm", modelName))
+                    .map(revision -> new AnalyticsModelDependencyDescription(
+                            namespace, "qm", modelName, revision.value()));
+        } catch (RuntimeException unavailable) {
+            return Optional.empty();
+        }
     }
 
     private CatalogIdentity requireCatalog(

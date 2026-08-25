@@ -6,6 +6,7 @@ import com.foggyframework.analytics.function.contract.AnalyticsBundleList;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionCapabilities;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionContext;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionEnvelope;
+import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyList;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderResult;
 import com.foggyframework.analytics.function.contract.AnalyticsSemanticModelDescription;
 import com.foggyframework.analytics.function.contract.AnalyticsSemanticQueryResult;
@@ -103,6 +104,23 @@ final class FapAnalyticsResults {
                 "modelRevision", value.modelRevision(),
                 "format", value.format(),
                 "content", value.content()));
+    }
+
+    static Map<String, Object> modelDependencyList(AnalyticsModelDependencyList value) {
+        List<Map<String, Object>> models = value.models().stream()
+                .map(model -> {
+                    Map<String, Object> item = new LinkedHashMap<>();
+                    item.put("namespace", model.namespace());
+                    item.put("modelKind", model.modelKind());
+                    item.put("modelName", model.modelName());
+                    item.put("modelRevision", model.modelRevision());
+                    return item;
+                })
+                .toList();
+        return FapAnalyticsValues.object("modelDependencyList", Map.of(
+                "namespace", value.namespace(),
+                "modelKind", value.modelKind(),
+                "models", models));
     }
 
     static Map<String, Object> semanticQuery(AnalyticsSemanticQueryResult value) {

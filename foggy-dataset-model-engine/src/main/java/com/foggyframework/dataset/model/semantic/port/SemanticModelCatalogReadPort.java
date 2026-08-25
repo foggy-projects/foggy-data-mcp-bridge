@@ -23,6 +23,15 @@ public interface SemanticModelCatalogReadPort {
     NamespaceCatalogView namespaceCatalogView(String namespace);
 
     /**
+     * Discovers query models that can be loaded independently in a namespace.
+     * Implementations may isolate an invalid model instead of failing the whole
+     * namespace catalog.
+     */
+    default List<String> discoverAvailableQueryModelNames(String namespace) {
+        return namespaceCatalogView(namespace).modelNames();
+    }
+
+    /**
      * Returns a view containing only the requested models.
      *
      * <p>Lifecycle-aware implementations can override this method to

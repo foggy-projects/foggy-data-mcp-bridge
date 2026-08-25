@@ -75,6 +75,18 @@ public final class FapAnalyticsFunctionCatalog {
                                             AnalyticsFunctionOperations.ARTIFACTS_DESCRIBE),
                                     List.of(artifactExample())),
                             descriptor(
+                                    AnalyticsFunctionOperations.MODEL_DEPENDENCIES_LIST,
+                                    FapAnalyticsFunctionRefs.MODEL_DEPENDENCIES_LIST,
+                                    "analytics.model-dependencies.list",
+                                    "List governed query models",
+                                    "List selectable QMs and exact revisions inside one server-bound Namespace.",
+                                    "analytics semantic query models namespace list exact revision",
+                                    List.of("analytics", "model", "question", "read", "sync"),
+                                    FapAnalyticsSchemas.modelDependencyListArguments(),
+                                    FapAnalyticsSchemas.modelDependencyListResult(
+                                            AnalyticsFunctionOperations.MODEL_DEPENDENCIES_LIST),
+                                    List.of(Map.of("namespace", "sales"))),
+                            descriptor(
                                     AnalyticsFunctionOperations.SEMANTIC_MODELS_DESCRIBE,
                                     FapAnalyticsFunctionRefs.SEMANTIC_MODELS_DESCRIBE,
                                     "analytics.semantic-models.describe",

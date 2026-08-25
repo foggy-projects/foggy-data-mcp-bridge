@@ -48,8 +48,14 @@ public record AnalyticsConsoleConversation(
             }
             questionProfileId = required(questionProfileId, "questionProfileId");
             namespace = required(namespace, "namespace");
-            modelName = required(modelName, "modelName");
-            modelRevision = required(modelRevision, "modelRevision");
+            if ((modelName == null) != (modelRevision == null)) {
+                throw new IllegalArgumentException(
+                        "legacy question modelName and modelRevision must both be set or both be null");
+            }
+            if (modelName != null) {
+                modelName = required(modelName, "modelName");
+                modelRevision = required(modelRevision, "modelRevision");
+            }
         }
         AnalyticsConsoleAskBinding initial = new AnalyticsConsoleAskBinding(
                 askRequestId,

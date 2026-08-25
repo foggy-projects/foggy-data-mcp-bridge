@@ -36,8 +36,8 @@ export interface ConversationSummary {
   createdAt: string
   lastActivityAt: string
   namespace: string
-  modelName: string
-  modelRevision: string
+  modelName: string | null
+  modelRevision: string | null
 }
 
 export interface QuestionProfile {
@@ -45,7 +45,6 @@ export interface QuestionProfile {
   displayName: string
   description: string | null
   namespace: string
-  modelName: string
 }
 
 export interface AgentTurn {

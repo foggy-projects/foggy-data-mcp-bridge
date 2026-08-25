@@ -31,7 +31,7 @@ class FapAnalyticsFunctionCatalogTest {
         List<FapAnalyticsFunctionDescriptor> descriptors =
                 FapAnalyticsFunctionCatalog.descriptors();
 
-        assertThat(descriptors).hasSize(10);
+        assertThat(descriptors).hasSize(11);
         assertThat(descriptors)
                 .extracting(FapAnalyticsFunctionDescriptor::operation)
                 .containsExactlyInAnyOrderElementsOf(AnalyticsFunctionOperations.FAP_V1);
@@ -216,6 +216,11 @@ class FapAnalyticsFunctionCatalogTest {
                         List.of(
                                 "sha256:d96f65b27da251358d004daf60b57caf602943af74d98b83ffcfec51d2debcf1",
                                 "sha256:2e64a966f9258aff27382276a77044443158a6576d9cc96a4c7f3bbe86dc9248")),
+                Map.entry(
+                        FapAnalyticsFunctionRefs.MODEL_DEPENDENCIES_LIST,
+                        List.of(
+                                "sha256:ae88060bdf617dfcbdfbaa2e2df1290517b4de3b011ac34288a5941451645446",
+                                "sha256:6cc16ee96778ce1a1a3ecbd6e44bb2fbc1c2e9c09a879231eca577a9bce8c0cd")),
                 Map.entry(
                         FapAnalyticsFunctionRefs.REPORTS_PREVIEW,
                         List.of(

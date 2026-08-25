@@ -47,6 +47,7 @@ public class AnalyticsConsoleFapCallbackController {
             AnalyticsFunctionOperations.DASHBOARDS_RENDER);
     private static final Set<String> QUESTION_OPERATIONS = Set.of(
             AnalyticsFunctionOperations.CAPABILITIES,
+            AnalyticsFunctionOperations.MODEL_DEPENDENCIES_LIST,
             AnalyticsFunctionOperations.SEMANTIC_MODELS_DESCRIBE,
             AnalyticsFunctionOperations.SEMANTIC_QUERIES_EXECUTE);
 
@@ -120,12 +121,15 @@ public class AnalyticsConsoleFapCallbackController {
             }
         } else if (!AnalyticsFunctionOperations.CAPABILITIES.equals(operation)) {
             if (!conversation.namespace().equals(
-                        string(request.arguments().get("namespace")))
-                    || !conversation.modelName().equals(
-                        string(request.arguments().get("modelName")))
-                    || !conversation.modelRevision().equals(
-                        string(request.arguments().get("expectedModelRevision")))) {
-                throw forbidden("FAP callback cannot change the question model scope");
+                    string(request.arguments().get("namespace")))) {
+                throw forbidden("FAP callback cannot change the question namespace");
+            }
+            if (conversation.modelName() != null
+                    && (!conversation.modelName().equals(
+                            string(request.arguments().get("modelName")))
+                        || !conversation.modelRevision().equals(
+                            string(request.arguments().get("expectedModelRevision"))))) {
+                throw forbidden("FAP callback cannot change the legacy question model scope");
             }
         }
         if (!request.binding().runtimeExecutionId().equals(

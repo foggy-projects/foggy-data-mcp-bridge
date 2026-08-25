@@ -158,14 +158,16 @@ const copyPayload = async (
         <button v-if="activeConversation" type="button" class="refresh-button"
                 :disabled="refreshing" aria-label="刷新回答" @click="$emit('refresh')">↻</button>
         <details class="scope-details">
-          <summary>数据与权限 <span>⌄</span></summary>
+          <summary>Namespace 与权限 <span>⌄</span></summary>
           <div>
             <b>{{ activeProfile?.displayName ?? '未选择数据范围' }}</b>
-            <p>语义模型由 Java Analytics 执行，数据权限沿用当前用户的 QM/TM 上下文。</p>
+            <p>会话锁定 Namespace；AI 在其中选择合适的 QM。数据权限仍沿用当前用户的 QM/TM 上下文。</p>
             <dl v-if="activeConversation">
               <dt>Namespace</dt><dd>{{ activeConversation.namespace }}</dd>
-              <dt>QM</dt><dd>{{ activeConversation.modelName }}</dd>
-              <dt>Revision</dt><dd>{{ activeConversation.modelRevision?.slice(0, 20) }}…</dd>
+              <dt>QM</dt><dd>{{ activeConversation.modelName ?? '由 AI 按问题选择' }}</dd>
+              <dt>Revision</dt><dd>{{ activeConversation.modelRevision
+                ? `${activeConversation.modelRevision.slice(0, 20)}…`
+                : '每次调用使用 exact revision' }}</dd>
             </dl>
           </div>
         </details>
@@ -184,7 +186,7 @@ const copyPayload = async (
       <div v-else-if="!profiles.length" class="chat-empty unavailable">
         <span>SETUP REQUIRED / 01</span>
         <h2>还没有可用的数据范围</h2>
-        <p>管理员需要在服务端配置 question profile、FAP Skill/Capability 与 Subject binding。</p>
+        <p>管理员需要在服务端配置 Namespace profile、FAP Skill/Capability 与 Subject binding。</p>
       </div>
 
       <div v-else-if="!turns.length && !pendingPrompt" class="chat-empty">
@@ -220,7 +222,10 @@ const copyPayload = async (
                 @click="toggleTurnDetail(turn.askInvocationRef)"
               >
                 <span>{{ turn.definitiveTerminal ? '耗时' : '已耗时' }} {{ formatDuration(turn.durationMs) }}</span>
-                <i :class="{ expanded: expandedTurns[turn.askInvocationRef] }">⌄</i>
+                <i
+                  aria-hidden="true"
+                  :class="{ expanded: expandedTurns[turn.askInvocationRef] }"
+                ></i>
               </button>
               <div
                 v-if="expandedTurns[turn.askInvocationRef]"
@@ -318,14 +323,14 @@ const copyPayload = async (
     <footer class="composer-dock">
       <form class="chat-composer" @submit.prevent="$emit('send')">
         <div class="composer-scope">
-          <label for="chat-profile">数据范围</label>
+          <label for="chat-profile">Namespace</label>
           <select id="chat-profile" :value="selectedProfileId"
                   :disabled="Boolean(activeConversation)" @change="updateProfile">
             <option v-for="profile in profiles" :key="profile.profileId" :value="profile.profileId">
-              {{ profile.displayName }}
+              {{ profile.displayName }} · {{ profile.namespace }}
             </option>
           </select>
-          <span v-if="activeConversation"><i></i> EXACT REVISION 已锁定</span>
+          <span v-if="activeConversation"><i></i> NAMESPACE 已锁定</span>
         </div>
         <div class="composer-input">
           <textarea
@@ -399,8 +404,8 @@ const copyPayload = async (
 .analyst-chat-message p { font-size: 14px; line-height: 1.85; }
 .turn-disclosure { display: inline-flex; align-items: center; gap: 7px; min-height: 29px; margin: -2px 0 12px; padding: 0 9px; border: 1px solid transparent; background: transparent; color: var(--ink-soft); cursor: pointer; font: 700 10px var(--mono); }
 .turn-disclosure:hover, .turn-disclosure[aria-expanded="true"] { border-color: var(--line); background: var(--paper); color: var(--ink); }
-.turn-disclosure i { display: inline-block; font: normal 14px/1 var(--sans); transition: transform .16s ease; }
-.turn-disclosure i.expanded { transform: rotate(180deg); }
+.turn-disclosure i { display: inline-block; width: 6px; height: 6px; margin-top: -2px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(-45deg); transform-origin: center; transition: transform .16s ease; }
+.turn-disclosure i.expanded { transform: rotate(45deg); }
 .turn-detail { position: relative; margin: 0 0 17px; padding: 2px 0 2px 17px; border-left: 1px solid var(--ink); animation: detail-reveal .18s ease-out; }
 @keyframes detail-reveal { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
 .detail-loading { display: flex; align-items: center; gap: 8px; min-height: 44px; color: var(--ink-soft); font: 9px var(--mono); }

@@ -117,7 +117,6 @@ final class AnalyticsConsoleActivationGuard implements InitializingBean {
             }
             required(profile.getDisplayName(), "question-profiles[].display-name");
             required(profile.getNamespace(), "question-profiles[].namespace");
-            required(profile.getModelName(), "question-profiles[].model-name");
         }
     }
 

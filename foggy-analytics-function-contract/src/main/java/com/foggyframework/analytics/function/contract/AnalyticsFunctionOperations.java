@@ -12,6 +12,8 @@ public final class AnalyticsFunctionOperations {
     public static final String ARTIFACTS_DESCRIBE = "analytics.artifacts.describe";
     public static final String MODEL_DEPENDENCIES_RESOLVE =
             "analytics.model-dependencies.resolve";
+    public static final String MODEL_DEPENDENCIES_LIST =
+            "analytics.model-dependencies.list";
     public static final String SEMANTIC_MODELS_DESCRIBE =
             "analytics.semantic-models.describe";
     public static final String SEMANTIC_QUERIES_EXECUTE =
@@ -29,6 +31,7 @@ public final class AnalyticsFunctionOperations {
             BUNDLES_DESCRIBE,
             ARTIFACTS_DESCRIBE,
             MODEL_DEPENDENCIES_RESOLVE,
+            MODEL_DEPENDENCIES_LIST,
             SEMANTIC_MODELS_DESCRIBE,
             SEMANTIC_QUERIES_EXECUTE,
             REPORTS_PREVIEW,
@@ -42,6 +45,7 @@ public final class AnalyticsFunctionOperations {
             BUNDLES_VALIDATE,
             BUNDLES_DESCRIBE,
             ARTIFACTS_DESCRIBE,
+            MODEL_DEPENDENCIES_LIST,
             SEMANTIC_MODELS_DESCRIBE,
             SEMANTIC_QUERIES_EXECUTE,
             REPORTS_PREVIEW,

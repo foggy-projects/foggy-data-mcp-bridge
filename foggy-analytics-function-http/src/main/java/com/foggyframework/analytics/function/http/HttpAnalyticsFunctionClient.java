@@ -18,6 +18,8 @@ import com.foggyframework.analytics.function.contract.AnalyticsFunctionAuthority
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionRequestContext;
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyDescription;
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyResolutionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyList;
+import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyListRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderResult;
 import com.foggyframework.analytics.function.contract.AnalyticsSemanticModelDescription;
@@ -154,6 +156,24 @@ public final class HttpAnalyticsFunctionClient implements AnalyticsFunctionClien
                 request.context(),
                 false,
                 AnalyticsModelDependencyDescription.class);
+    }
+
+    @Override
+    public AnalyticsFunctionEnvelope<AnalyticsModelDependencyList> listModelDependencies(
+            AnalyticsModelDependencyListRequest request) {
+        Objects.requireNonNull(request, "request");
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("namespace", request.namespace());
+        body.put("modelKind", request.modelKind());
+        body.put("requestId", request.context().requestId());
+        body.put("traceId", request.context().traceId());
+        return invoke(
+                "POST",
+                "/model-dependencies/list",
+                body,
+                request.context(),
+                false,
+                AnalyticsModelDependencyList.class);
     }
 
     @Override

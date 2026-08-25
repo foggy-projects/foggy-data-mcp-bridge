@@ -86,13 +86,12 @@ public class AnalyticsConsoleProperties {
                 : new ArrayList<>(questionProfiles);
     }
 
-    /** Server-owned allowlist entry shown as a business data scope in direct questions. */
+    /** Server-owned Namespace allowlist entry shown in direct questions. */
     public static final class QuestionProfile {
         private String id;
         private String displayName;
         private String description;
         private String namespace;
-        private String modelName;
 
         public String getId() { return id; }
         public void setId(String id) { this.id = id; }
@@ -102,8 +101,6 @@ public class AnalyticsConsoleProperties {
         public void setDescription(String description) { this.description = description; }
         public String getNamespace() { return namespace; }
         public void setNamespace(String namespace) { this.namespace = namespace; }
-        public String getModelName() { return modelName; }
-        public void setModelName(String modelName) { this.modelName = modelName; }
     }
 
     public static final class DevSubject {

@@ -16,6 +16,8 @@ public final class FapAnalyticsFunctionRefs {
             "foggy.analytics.bundles.describe@v1";
     public static final String ARTIFACTS_DESCRIBE =
             "foggy.analytics.artifacts.describe@v1";
+    public static final String MODEL_DEPENDENCIES_LIST =
+            "foggy.analytics.model-dependencies.list@v1";
     public static final String SEMANTIC_MODELS_DESCRIBE =
             "foggy.analytics.semantic-models.describe@v1";
     public static final String SEMANTIC_QUERIES_EXECUTE =
@@ -33,6 +35,8 @@ public final class FapAnalyticsFunctionRefs {
             Map.entry(BUNDLES_VALIDATE, AnalyticsFunctionOperations.BUNDLES_VALIDATE),
             Map.entry(BUNDLES_DESCRIBE, AnalyticsFunctionOperations.BUNDLES_DESCRIBE),
             Map.entry(ARTIFACTS_DESCRIBE, AnalyticsFunctionOperations.ARTIFACTS_DESCRIBE),
+            Map.entry(MODEL_DEPENDENCIES_LIST,
+                    AnalyticsFunctionOperations.MODEL_DEPENDENCIES_LIST),
             Map.entry(SEMANTIC_MODELS_DESCRIBE,
                     AnalyticsFunctionOperations.SEMANTIC_MODELS_DESCRIBE),
             Map.entry(SEMANTIC_QUERIES_EXECUTE,
@@ -47,6 +51,8 @@ public final class FapAnalyticsFunctionRefs {
             Map.entry(AnalyticsFunctionOperations.BUNDLES_VALIDATE, BUNDLES_VALIDATE),
             Map.entry(AnalyticsFunctionOperations.BUNDLES_DESCRIBE, BUNDLES_DESCRIBE),
             Map.entry(AnalyticsFunctionOperations.ARTIFACTS_DESCRIBE, ARTIFACTS_DESCRIBE),
+            Map.entry(AnalyticsFunctionOperations.MODEL_DEPENDENCIES_LIST,
+                    MODEL_DEPENDENCIES_LIST),
             Map.entry(AnalyticsFunctionOperations.SEMANTIC_MODELS_DESCRIBE,
                     SEMANTIC_MODELS_DESCRIBE),
             Map.entry(AnalyticsFunctionOperations.SEMANTIC_QUERIES_EXECUTE,

@@ -29,6 +29,22 @@ class FoggyAnalyticsModelDependencyOperationsTest {
     }
 
     @Test
+    void listsCanonicalQueryModelsWithCurrentExactRevisions() {
+        FoggyAnalyticsModelDependencyOperations operations = operations(
+                FoggyAdapterTestFixtures.trackedView(),
+                true);
+
+        var listed = operations.list(FoggyAdapterTestFixtures.NAMESPACE, "qm");
+
+        assertEquals(FoggyAdapterTestFixtures.NAMESPACE, listed.namespace());
+        assertEquals("qm", listed.modelKind());
+        assertEquals(1, listed.models().size());
+        assertEquals(FoggyAdapterTestFixtures.MODEL, listed.models().get(0).modelName());
+        assertEquals(FoggyAdapterTestFixtures.MODEL_REVISION.value(),
+                listed.models().get(0).modelRevision());
+    }
+
+    @Test
     void delegatesExactTableModelResolutionToTheStableRevisionPort() {
         FoggyAnalyticsModelDependencyOperations operations = operations(
                 FoggyAdapterTestFixtures.trackedView(),

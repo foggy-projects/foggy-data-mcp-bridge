@@ -25,10 +25,9 @@ foggy:
       authority-reference: local-dev-only
     question-profiles:
       - id: orders
-        display-name: 订单分析
-        description: 直接询问订单、客户、日期、销售团队及订单指标。
+        display-name: 默认空间
+        description: 在 default Namespace 内选择合适的语义模型进行分析。
         namespace: default
-        model-name: FactOrderQueryModel
     fap:
       enabled: "${ANALYTICS_CONSOLE_FAP_ENABLED:false}"
       base-url: "${ANALYTICS_CONSOLE_FAP_BASE_URL:}"

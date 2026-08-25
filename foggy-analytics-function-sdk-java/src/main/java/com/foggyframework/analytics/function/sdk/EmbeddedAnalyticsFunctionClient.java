@@ -11,6 +11,8 @@ import com.foggyframework.analytics.function.contract.AnalyticsFunctionEnvelope;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionRequestContext;
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyDescription;
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyResolutionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyList;
+import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyListRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderResult;
 import com.foggyframework.analytics.function.contract.AnalyticsSemanticModelDescription;
@@ -63,6 +65,12 @@ public final class EmbeddedAnalyticsFunctionClient implements AnalyticsFunctionC
     public AnalyticsFunctionEnvelope<AnalyticsModelDependencyDescription>
             resolveModelDependency(AnalyticsModelDependencyResolutionRequest request) {
         return requireOutcome(endpoint.resolveModelDependency(request));
+    }
+
+    @Override
+    public AnalyticsFunctionEnvelope<AnalyticsModelDependencyList> listModelDependencies(
+            AnalyticsModelDependencyListRequest request) {
+        return requireOutcome(endpoint.listModelDependencies(request));
     }
 
     @Override

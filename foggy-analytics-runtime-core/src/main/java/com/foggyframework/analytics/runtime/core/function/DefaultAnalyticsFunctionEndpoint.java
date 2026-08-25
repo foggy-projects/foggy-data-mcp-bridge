@@ -18,6 +18,8 @@ import com.foggyframework.analytics.function.contract.AnalyticsFunctionErrorCode
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionOperations;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionRequestContext;
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyDescription;
+import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyList;
+import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyListRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyResolutionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderResult;
@@ -181,6 +183,22 @@ public final class DefaultAnalyticsFunctionEndpoint
     }
 
     @Override
+    public AnalyticsFunctionEnvelope<AnalyticsModelDependencyList> listModelDependencies(
+            AnalyticsModelDependencyListRequest request) {
+        Objects.requireNonNull(request, "request");
+        return execute(request.context(), ignored -> {
+            AnalyticsModelDependencyOperations operations =
+                    modelDependencyOperations.get();
+            if (operations == null) {
+                throw new AnalyticsModelDependencyResolutionException(
+                        AnalyticsModelDependencyResolutionException.Code.REVISION_UNAVAILABLE,
+                        "Model dependency listing is unavailable");
+            }
+            return operations.list(request.namespace(), request.modelKind());
+        });
+    }
+
+    @Override
     public AnalyticsFunctionEnvelope<AnalyticsSemanticModelDescription> describeSemanticModel(
             AnalyticsSemanticModelFunctionRequest request) {
         Objects.requireNonNull(request, "request");
@@ -241,6 +259,9 @@ public final class DefaultAnalyticsFunctionEndpoint
                 status(bundleOperations.artifactInspectionAvailable()));
         operations.put(
                 AnalyticsFunctionOperations.MODEL_DEPENDENCIES_RESOLVE,
+                status(modelDependencyResolutionAvailable));
+        operations.put(
+                AnalyticsFunctionOperations.MODEL_DEPENDENCIES_LIST,
                 status(modelDependencyResolutionAvailable));
         operations.put(
                 AnalyticsFunctionOperations.SEMANTIC_MODELS_DESCRIBE,

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ConversationSummary } from '../api'
+import AppearanceMenu from '../components/AppearanceMenu.vue'
 import type { Session } from '../domain'
 import { formatConversationTime } from './presentation'
 
@@ -62,6 +63,7 @@ defineEmits<{
       <button v-if="designer" type="button" class="studio-link" @click="$emit('openStudio')">
         <span>▦</span><strong>分析工作室</strong><em>报表与 Dashboard →</em>
       </button>
+      <AppearanceMenu />
       <div v-if="session" class="sidebar-identity">
         <span>{{ session.displayName.slice(0, 1).toUpperCase() }}</span>
         <div><strong>{{ session.displayName }}</strong><small>{{ session.roles.join(' · ') }}</small></div>
@@ -108,6 +110,7 @@ defineEmits<{
 .conversation-history button.active > i { background: var(--acid); }
 .history-empty { margin: 24px 13px; color: #899590; font-size: 11px; line-height: 1.7; }
 .sidebar-footer { margin-top: auto; border-top: 1px solid #3c4945; }
+.sidebar-footer > .appearance-menu { margin: 0 12px 4px; }
 .studio-link { display: grid; grid-template-columns: 25px 1fr; width: calc(100% - 24px); margin: 12px; padding: 11px; border: 1px solid #4a5752; background: transparent; color: inherit; cursor: pointer; text-align: left; }
 .studio-link > span { grid-row: 1 / 3; color: var(--acid); font-size: 20px; }
 .studio-link strong { font-size: 12px; }

@@ -27,6 +27,13 @@ public interface AnalyticsFunctionEndpoint {
                 "Analytics model dependency resolution is not implemented");
     }
 
+    /** Lists current exact model identities within one namespace. */
+    default AnalyticsFunctionEnvelope<AnalyticsModelDependencyList>
+            listModelDependencies(AnalyticsModelDependencyListRequest request) {
+        throw new UnsupportedOperationException(
+                "Analytics model dependency listing is not implemented");
+    }
+
     /**
      * Describes one parsed Report or Dashboard at an exact Bundle revision.
      *

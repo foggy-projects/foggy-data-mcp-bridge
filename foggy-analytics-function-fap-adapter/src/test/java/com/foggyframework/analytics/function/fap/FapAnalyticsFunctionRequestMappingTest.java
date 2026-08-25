@@ -10,6 +10,9 @@ import com.foggyframework.analytics.function.contract.AnalyticsFunctionAuthority
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionEnvelope;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionOperations;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionRequestContext;
+import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyDescription;
+import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyList;
+import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyListRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderResult;
 import com.foggyframework.analytics.function.contract.AnalyticsSemanticQueryFunctionRequest;
@@ -118,6 +121,50 @@ class FapAnalyticsFunctionRequestMappingTest {
 
         assertThat(outcome).isInstanceOf(FapAnalyticsFunctionOutcome.Success.class);
         assertThat(client.calls).isEqualTo(1);
+        assertThat(resolutions).hasValue(0);
+    }
+
+    @Test
+    void listsNamespaceQueryModelsWithoutResolvingProductDataAuthority() {
+        class Client extends FapAnalyticsAdapterTestSupport.StubClient {
+            AnalyticsModelDependencyListRequest request;
+
+            @Override
+            public AnalyticsFunctionEnvelope<AnalyticsModelDependencyList>
+                    listModelDependencies(AnalyticsModelDependencyListRequest value) {
+                calls++;
+                request = value;
+                return AnalyticsFunctionEnvelope.ok(
+                        "foggy-analytics-runtime-api/v1",
+                        "analytics-runtime/v1",
+                        new AnalyticsModelDependencyList(
+                                value.namespace(),
+                                value.modelKind(),
+                                List.of(new AnalyticsModelDependencyDescription(
+                                        value.namespace(),
+                                        value.modelKind(),
+                                        "FactOrderQueryModel",
+                                        FapAnalyticsAdapterTestSupport.REVISION))),
+                        FapAnalyticsAdapterTestSupport.context(value.context()));
+            }
+        }
+        Client client = new Client();
+        AtomicInteger resolutions = new AtomicInteger();
+        FapAnalyticsFunctionAdapter adapter = new FapAnalyticsFunctionAdapter(
+                client,
+                (caller, operation) -> {
+                    resolutions.incrementAndGet();
+                    return new AnalyticsFunctionAuthority("tms", "unused");
+                });
+
+        FapAnalyticsFunctionOutcome outcome = adapter.invoke(
+                FapAnalyticsAdapterTestSupport.invocation(
+                        FapAnalyticsFunctionRefs.MODEL_DEPENDENCIES_LIST,
+                        Map.of("namespace", "default")));
+
+        assertThat(outcome).isInstanceOf(FapAnalyticsFunctionOutcome.Success.class);
+        assertThat(client.request.namespace()).isEqualTo("default");
+        assertThat(client.request.modelKind()).isEqualTo("qm");
         assertThat(resolutions).hasValue(0);
     }
 

@@ -34,11 +34,10 @@ foggy:
     catalog-path: /absolute/development/path/console-catalog.json
     function-trace-path: /absolute/development/path/function-traces
     question-profiles:
-      - id: orders
-        display-name: 订单分析
-        description: 直接询问订单、客户、日期、销售团队及订单指标。
+      - id: default
+        display-name: 默认空间
+        description: 在 default Namespace 内选择合适的语义模型进行分析。
         namespace: default
-        model-name: FactOrderQueryModel
 ```
 
 launcher 已提供 `application-analytics-console.yml`。本地可用 `-Panalytics-console` 打包，并以
@@ -84,15 +83,17 @@ foggy:
 guard。Resolver 返回的 FAP credential、workspace/model binding 和数据 authority 不能写入 catalog 或 API
 响应。Console 只保存不透明的 Ask/Execution/Task 关联，不保存 prompt。
 
-直接问数使用两项只读 Function：
+直接问数使用三项只读 Function：
 
-- `foggy.analytics.semantic-models.describe@v1`：描述会话开始时冻结的 exact QM revision；
+- `foggy.analytics.model-dependencies.list@v1`：列出会话所选 Namespace 下可用的 QM 及 exact revision；
+- `foggy.analytics.semantic-models.describe@v1`：描述 AI 针对当前问题选定的 exact QM revision；
 - `foggy.analytics.semantic-queries.execute@v1`：只接受 columns、flat filters、groupBy、orderBy 和有界分页，
   不接受 raw SQL、Compose、脚本、calculated fields、hints 或 extData。
 
 Console 的问数 Skill/Capability 和 callback binding 由产品部署流程显式发布，callback endpoint 为
 `/analytics-console/internal/fap/functions:invoke`。本模块不会持有 Provider admin credential，也不会在
-应用启动时隐式创建或修改 FAP 资源。START 冻结 workspace/model/QM revision，CONTINUE 复用同一 Runtime
+应用启动时隐式创建或修改 FAP 资源。START 冻结 Namespace，AI 在该 Namespace 内按问题选择 QM；
+CONTINUE 复用同一 Runtime
 Execution；每次 Ask 的 request/invocation/task binding 都独立保存并用于 callback exact correlation。
 
 Console 自己承接的 Function callback 会把原始 arguments/result 按 invocation 写入独立的

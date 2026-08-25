@@ -4,9 +4,12 @@ import com.foggyframework.analytics.function.contract.AnalyticsFunctionEndpoint;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionEnvelope;
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyDescription;
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyResolutionRequest;
+import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyList;
+import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyListRequest;
 import com.foggyframework.analytics.runtime.api.AnalyticsRuntimeApiRoutes;
 import com.foggyframework.analytics.runtime.api.AnalyticsRuntimeEndpoint;
 import com.foggyframework.analytics.runtime.api.dto.AnalyticsModelDependencyResolutionHttpRequest;
+import com.foggyframework.analytics.runtime.api.dto.AnalyticsModelDependencyListHttpRequest;
 import com.foggyframework.analytics.runtime.api.service.AnalyticsRuntimeApiResponseFactory;
 import com.foggyframework.analytics.runtime.api.service.AnalyticsRuntimeHttpResponseMapper;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -51,6 +54,19 @@ public class AnalyticsModelDependenciesController {
                         request.namespace(),
                         request.modelKind(),
                         request.modelName(),
+                        responses.requestContext(request.requestId(), request.traceId()))));
+    }
+
+    @PostMapping("/list")
+    public ResponseEntity<AnalyticsFunctionEnvelope<AnalyticsModelDependencyList>>
+            list(@RequestBody AnalyticsModelDependencyListHttpRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("request is required");
+        }
+        return http.map(endpoint.listModelDependencies(
+                new AnalyticsModelDependencyListRequest(
+                        request.namespace(),
+                        request.modelKind(),
                         responses.requestContext(request.requestId(), request.traceId()))));
     }
 }

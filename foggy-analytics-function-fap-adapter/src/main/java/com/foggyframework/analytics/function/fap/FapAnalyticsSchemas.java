@@ -72,6 +72,13 @@ final class FapAnalyticsSchemas {
                 false);
     }
 
+    static Map<String, Object> modelDependencyListArguments() {
+        return object(
+                map("namespace", nonBlankString()),
+                List.of("namespace"),
+                false);
+    }
+
     static Map<String, Object> semanticQueryArguments() {
         Map<String, Object> scalar = map(
                 "type", List.of("string", "number", "integer", "boolean"));
@@ -271,6 +278,26 @@ final class FapAnalyticsSchemas {
                         List.of(
                                 "namespace", "modelName", "modelRevision",
                                 "format", "content"),
+                        false));
+    }
+
+    static Map<String, Object> modelDependencyListResult(String operation) {
+        Map<String, Object> model = object(
+                map(
+                        "namespace", nonBlankString(),
+                        "modelKind", map("const", "qm"),
+                        "modelName", nonBlankString(),
+                        "modelRevision", string(REVISION)),
+                List.of("namespace", "modelKind", "modelName", "modelRevision"),
+                false);
+        return result(
+                operation,
+                object(
+                        map(
+                                "namespace", nonBlankString(),
+                                "modelKind", map("const", "qm"),
+                                "models", array(model)),
+                        List.of("namespace", "modelKind", "models"),
                         false));
     }
 

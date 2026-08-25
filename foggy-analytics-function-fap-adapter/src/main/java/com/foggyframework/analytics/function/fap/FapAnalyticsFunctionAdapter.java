@@ -12,6 +12,7 @@ import com.foggyframework.analytics.function.contract.AnalyticsFunctionErrorCode
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionJsonValues;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionOperations;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionRequestContext;
+import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyListRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderResult;
 import com.foggyframework.analytics.function.sdk.AnalyticsFunctionClient;
@@ -34,6 +35,7 @@ public final class FapAnalyticsFunctionAdapter {
             "bundleRef", "expectedBundleRevision");
     private static final Set<String> ARTIFACT_ARGUMENTS = Set.of(
             "bundleRef", "artifactKind", "artifactRef", "expectedBundleRevision");
+    private static final Set<String> MODEL_LIST_ARGUMENTS = Set.of("namespace");
     private static final Set<String> RENDER_ARGUMENTS = Set.of(
             "bundleRef",
             "artifactRef",
@@ -115,6 +117,11 @@ public final class FapAnalyticsFunctionAdapter {
                         operation,
                         client.describeArtifact(artifactRequest(invocation)),
                         FapAnalyticsResults::artifactDescription);
+                case AnalyticsFunctionOperations.MODEL_DEPENDENCIES_LIST -> complete(
+                        invocation,
+                        operation,
+                        client.listModelDependencies(modelListRequest(invocation)),
+                        FapAnalyticsResults::modelDependencyList);
                 case AnalyticsFunctionOperations.SEMANTIC_MODELS_DESCRIBE -> complete(
                         invocation,
                         operation,
@@ -194,6 +201,21 @@ public final class FapAnalyticsFunctionAdapter {
             return new AnalyticsBundleFunctionRequest(
                     requiredString(invocation.arguments(), "bundleRef"),
                     optionalString(invocation.arguments(), "expectedBundleRevision"),
+                    context(invocation));
+        } catch (ArgumentsInvalid invalid) {
+            throw invalid;
+        } catch (IllegalArgumentException | NullPointerException invalid) {
+            throw new ArgumentsInvalid();
+        }
+    }
+
+    private AnalyticsModelDependencyListRequest modelListRequest(
+            FapAnalyticsFunctionInvocation invocation) {
+        try {
+            requireArguments(invocation.arguments(), MODEL_LIST_ARGUMENTS);
+            return new AnalyticsModelDependencyListRequest(
+                    requiredString(invocation.arguments(), "namespace"),
+                    "qm",
                     context(invocation));
         } catch (ArgumentsInvalid invalid) {
             throw invalid;

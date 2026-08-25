@@ -12,11 +12,6 @@ import com.foggyframework.analytics.console.model.AnalyticsConsoleVisibility;
 import com.foggyframework.analytics.console.security.AnalyticsConsoleRole;
 import com.foggyframework.analytics.console.security.AnalyticsConsoleSubject;
 import com.foggyframework.analytics.console.service.AnalyticsConsoleService;
-import com.foggyframework.analytics.function.contract.AnalyticsFunctionContext;
-import com.foggyframework.analytics.function.contract.AnalyticsFunctionContract;
-import com.foggyframework.analytics.function.contract.AnalyticsFunctionEnvelope;
-import com.foggyframework.analytics.function.contract.AnalyticsFunctionRequestContext;
-import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyDescription;
 import com.foggyframework.analytics.function.sdk.AnalyticsFunctionClient;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -117,16 +112,6 @@ class AnalyticsConsoleAgentServiceTest {
                 tempDir.resolve("question-catalog.json"), new ObjectMapper());
         AnalyticsConsoleService console = mock(AnalyticsConsoleService.class);
         AnalyticsFunctionClient functions = mock(AnalyticsFunctionClient.class);
-        String revision = "sha256:" + "b".repeat(64);
-        AnalyticsFunctionContext context = AnalyticsFunctionContext.normalize(
-                AnalyticsFunctionRequestContext.empty());
-        when(functions.resolveModelDependency(any())).thenReturn(
-                AnalyticsFunctionEnvelope.ok(
-                        AnalyticsFunctionContract.DEFAULT_RUNTIME_API_VERSION,
-                        AnalyticsFunctionContract.DEFAULT_SCHEMA_VERSION,
-                        new AnalyticsModelDependencyDescription(
-                                "default", "qm", "FactOrderQueryModel", revision),
-                        context));
 
         AtomicReference<AnalyticsConsoleAgentGateway.StartCommand> started =
                 new AtomicReference<>();
@@ -188,7 +173,6 @@ class AnalyticsConsoleAgentServiceTest {
         profile.setDisplayName("订单分析");
         profile.setDescription("受治理的订单问数");
         profile.setNamespace("default");
-        profile.setModelName("FactOrderQueryModel");
         properties.setQuestionProfiles(List.of(profile));
 
         ObjectMapper json = new ObjectMapper();
@@ -226,9 +210,11 @@ class AnalyticsConsoleAgentServiceTest {
 
         assertThat(conversation.mode()).isEqualTo(AnalyticsConsoleConversationMode.QUESTION);
         assertThat(conversation.assetId()).isNull();
-        assertThat(conversation.modelRevision()).isEqualTo(revision);
+        assertThat(conversation.namespace()).isEqualTo("default");
+        assertThat(conversation.modelName()).isNull();
+        assertThat(conversation.modelRevision()).isNull();
         assertThat(started.get().initialSystemInstruction())
-                .contains("FactOrderQueryModel", revision)
+                .contains("namespace default", "list the available QMs")
                 .contains("Do not create or modify a Report or Dashboard");
         assertThat(started.get().skillName()).isEqualTo("analytics-question-answering");
         assertThat(continued.get().runtimeExecutionId()).isEqualTo("execution-question");
@@ -249,7 +235,9 @@ class AnalyticsConsoleAgentServiceTest {
             assertThat(summary.title()).isEqualTo("订单分析");
             assertThat(summary.questionProfileId()).isEqualTo("orders");
             assertThat(summary.lastActivityAt()).isEqualTo(Instant.EPOCH);
-            assertThat(summary.modelRevision()).isEqualTo(revision);
+            assertThat(summary.namespace()).isEqualTo("default");
+            assertThat(summary.modelName()).isNull();
+            assertThat(summary.modelRevision()).isNull();
         });
         assertThat(service.requireCallbackConversation(
                 subject,

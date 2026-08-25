@@ -147,7 +147,50 @@ class AnalyticsConsoleFapCallbackControllerTest {
                         conversation.askBindings().get(0));
 
         assertThatThrownBy(() -> controller.invoke("Bearer callback-secret", request))
-                .hasMessageContaining("cannot change the question model scope");
+                .hasMessageContaining("cannot change the legacy question model scope");
+    }
+
+    @Test
+    void namespaceScopedQuestionAllowsAnyQmInTheBoundNamespace() {
+        FapAnalyticsCallbackRequest request = questionRequest(
+                "analytics.question-read", 2, "sha256:" + "c".repeat(64));
+        var conversation = namespaceConversation(request, "default");
+        when(bindings.resolveCaller(any())).thenReturn(subject);
+        when(agents.requireCallbackConversation(
+                subject,
+                request.externalConversationRef(),
+                request.askRequestId(),
+                request.askInvocationRef())).thenReturn(conversation);
+        when(agents.requireCallbackAskBinding(
+                conversation,
+                request.askRequestId(),
+                request.askInvocationRef())).thenReturn(conversation.askBindings().get(0));
+        when(adapter.invoke(any())).thenReturn(FapAnalyticsFunctionOutcome.Success.create(
+                "callback-request-1", "function-invocation-1", Map.of("accepted", true)));
+
+        var response = controller.invoke("Bearer callback-secret", request);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+    }
+
+    @Test
+    void namespaceScopedQuestionRejectsCrossNamespaceQm() {
+        FapAnalyticsCallbackRequest request = questionRequest(
+                "analytics.question-read", 2, "sha256:" + "c".repeat(64), "other");
+        var conversation = namespaceConversation(request, "default");
+        when(bindings.resolveCaller(any())).thenReturn(subject);
+        when(agents.requireCallbackConversation(
+                subject,
+                request.externalConversationRef(),
+                request.askRequestId(),
+                request.askInvocationRef())).thenReturn(conversation);
+        when(agents.requireCallbackAskBinding(
+                conversation,
+                request.askRequestId(),
+                request.askInvocationRef())).thenReturn(conversation.askBindings().get(0));
+
+        assertThatThrownBy(() -> controller.invoke("Bearer callback-secret", request))
+                .hasMessageContaining("cannot change the question namespace");
     }
 
     private static FapAnalyticsCallbackRequest request(
@@ -187,6 +230,14 @@ class AnalyticsConsoleFapCallbackControllerTest {
             String capabilityId,
             long capabilityRevision,
             String modelRevision) {
+        return questionRequest(capabilityId, capabilityRevision, modelRevision, "default");
+    }
+
+    private static FapAnalyticsCallbackRequest questionRequest(
+            String capabilityId,
+            long capabilityRevision,
+            String modelRevision,
+            String namespace) {
         return new FapAnalyticsCallbackRequest(
                 "PROVIDER_FUNCTION_CALLBACK",
                 new FapAnalyticsCallbackRequest.Meta(
@@ -205,10 +256,31 @@ class AnalyticsConsoleFapCallbackControllerTest {
                 capabilityRevision,
                 FapAnalyticsFunctionRefs.SEMANTIC_QUERIES_EXECUTE,
                 Map.of(
-                        "namespace", "default",
+                        "namespace", namespace,
                         "modelName", "FactOrderQueryModel",
                         "expectedModelRevision", modelRevision,
                         "query", Map.of("columns", java.util.List.of("orderCount"))),
                 "sha256:" + "a".repeat(64));
+    }
+
+    private AnalyticsConsoleConversation namespaceConversation(
+            FapAnalyticsCallbackRequest request,
+            String namespace) {
+        return new AnalyticsConsoleConversation(
+                "conversation-1",
+                null,
+                subject.subjectRef(),
+                request.externalConversationRef(),
+                request.askRequestId(),
+                request.askInvocationRef(),
+                request.binding().runtimeExecutionId(),
+                request.binding().runtimeTaskId(),
+                Instant.EPOCH,
+                AnalyticsConsoleConversationMode.QUESTION,
+                "default",
+                namespace,
+                null,
+                null,
+                null);
     }
 }

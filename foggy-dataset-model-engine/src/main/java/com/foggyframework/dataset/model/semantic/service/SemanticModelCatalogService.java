@@ -368,6 +368,13 @@ public class SemanticModelCatalogService implements SemanticModelCatalogReadPort
         return scanNamespaceCatalogView(canonicalNamespace);
     }
 
+    @Override
+    public List<String> discoverAvailableQueryModelNames(String namespace) {
+        return scanNamespaceCatalogView(
+                        CatalogIdentity.canonicalNamespace(namespace))
+                .modelNames();
+    }
+
     /**
      * Materializes only the requested models when the lifecycle loader is
      * available. This deliberately accepts an incomplete namespace snapshot:
