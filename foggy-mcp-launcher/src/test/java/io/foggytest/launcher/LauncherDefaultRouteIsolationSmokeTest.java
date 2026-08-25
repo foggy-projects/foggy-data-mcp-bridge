@@ -1,5 +1,7 @@
 package io.foggytest.launcher;
 
+import com.foggyframework.analytics.console.api.AnalyticsConsoleController;
+import com.foggyframework.analytics.runtime.api.controller.AnalyticsCapabilitiesController;
 import com.foggyframework.dataset.model.semantic.controller.SemanticServiceV3TestController;
 import com.foggyframework.dataset.mcp.controller.ChartImageController;
 import com.foggyframework.dataset.mcp.controller.DevToolsController;
@@ -43,7 +45,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
                         + "org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration,"
                         + "org.springframework.boot.autoconfigure.data.mongo.MongoRepositoriesAutoConfiguration",
                 "spring.ai.openai.api-key=",
-                "spring.datasource.url=jdbc:sqlite:file:/tmp/foggy-launcher-smoke-default.db",
+                "spring.datasource.url="
+                        + "jdbc:sqlite:file:foggy-launcher-smoke-default-${random.uuid}"
+                        + "?mode=memory&cache=shared",
                 "foggy.auth.token=",
                 "foggy.runtime-api.enabled=false",
                 "foggy.data-viewer.enabled=false",
@@ -52,7 +56,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
                 "foggy.demo.enabled=true",
                 "foggy.test.enabled=false",
                 "foggy.dev-tools.enabled=false",
-                "foggy.chart.storage.local.directory=${java.io.tmpdir}/foggy-launcher-smoke-default"
+                "foggy.chart.storage.local.directory="
+                        + "${java.io.tmpdir}/foggy-launcher-smoke-default-${random.uuid}"
         })
 @AutoConfigureMockMvc
 @ActiveProfiles("lite")
@@ -75,6 +80,8 @@ class LauncherDefaultRouteIsolationSmokeTest {
         assertThat(applicationContext.getBeansOfType(ExplainQueryTool.class)).hasSize(1);
         assertThat(applicationContext.getBeansOfType(QueryExpertService.class)).isEmpty();
         assertThat(applicationContext.getBeansOfType(NaturalLanguageQueryTool.class)).isEmpty();
+        assertThat(applicationContext.getBeansOfType(AnalyticsConsoleController.class)).isEmpty();
+        assertThat(applicationContext.getBeansOfType(AnalyticsCapabilitiesController.class)).isEmpty();
 
         McpToolDispatcher toolDispatcher = applicationContext.getBean(McpToolDispatcher.class);
         assertThat(toolDispatcher.hasTool("dataset.explain_query")).isTrue();
@@ -88,5 +95,13 @@ class LauncherDefaultRouteIsolationSmokeTest {
                 .andExpect(status().isNotFound());
         mockMvc.perform(get("/charts/stats"))
                 .andExpect(status().isOk());
+        mockMvc.perform(get("/analytics-console/"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/analytics-console/index.html"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/analytics-console/api/v1/session"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/analytics/api/v1/capabilities"))
+                .andExpect(status().isNotFound());
     }
 }

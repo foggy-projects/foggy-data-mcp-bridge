@@ -1,5 +1,6 @@
-# Local Analytics Console assembly. Package the launcher with -Panalytics-console
-# and activate this together with the datasource profile, for example:
+# Local Analytics Console activation. The standard launcher already contains the
+# Console and Analytics Runtime API; activate them explicitly with the datasource
+# profile, for example:
 #   --spring.profiles.active=lite,analytics-console
 
 foggy:

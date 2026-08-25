@@ -119,7 +119,9 @@
                         <goals><goal>copy-resources</goal></goals>
                         <configuration>
                             <skip>${foggy.analytics-console.frontend.skip}</skip>
-                            <outputDirectory>${project.build.outputDirectory}/META-INF/resources/analytics-console</outputDirectory>
+                            <!-- Keep the SPA outside Spring Boot's global static locations.
+                                 The conditional Console WebMvcConfigurer exposes it only when enabled. -->
+                            <outputDirectory>${project.build.outputDirectory}/META-INF/foggy-analytics-console</outputDirectory>
                             <resources>
                                 <resource>
                                     <directory>${project.basedir}/frontend/dist</directory>

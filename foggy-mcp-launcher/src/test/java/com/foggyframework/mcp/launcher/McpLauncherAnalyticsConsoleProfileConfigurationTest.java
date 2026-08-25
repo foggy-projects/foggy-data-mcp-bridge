@@ -7,6 +7,7 @@ import org.springframework.core.io.ClassPathResource;
 import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 class McpLauncherAnalyticsConsoleProfileConfigurationTest {
 
@@ -23,7 +24,7 @@ class McpLauncherAnalyticsConsoleProfileConfigurationTest {
                 "foggy.analytics-console.question-profiles[0].id"));
         assertEquals("default", properties.getProperty(
                 "foggy.analytics-console.question-profiles[0].namespace"));
-        assertEquals("FactOrderQueryModel", properties.getProperty(
+        assertNull(properties.getProperty(
                 "foggy.analytics-console.question-profiles[0].model-name"));
         assertEquals("${ANALYTICS_CONSOLE_FAP_ENABLED:false}", properties.getProperty(
                 "foggy.analytics-console.fap.enabled"));

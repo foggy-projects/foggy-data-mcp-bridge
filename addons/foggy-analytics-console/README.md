@@ -6,8 +6,9 @@
 
 ## 装配
 
-模块默认不进入 launcher。开发环境可显式使用 launcher 的 `analytics-console` Maven profile，生产宿主
-也可以只依赖本模块和 `foggy-analytics-runtime-api`：
+标准 `foggy-mcp-launcher` 已内置本模块和 `foggy-analytics-runtime-api`，但默认 `lite` profile 不会启用
+Console。开发环境通过 `analytics-console` Spring profile 显式开启；生产宿主也可以只依赖本模块和
+`foggy-analytics-runtime-api`：
 
 ```xml
 <dependency>
@@ -40,9 +41,10 @@ foggy:
         namespace: default
 ```
 
-launcher 已提供 `application-analytics-console.yml`。本地可用 `-Panalytics-console` 打包，并以
-`--spring.profiles.active=lite,analytics-console` 启动；FAP 默认关闭，因此不设置凭据时只启动 Console、
-Catalog 与 Analytics Runtime，不会发起外部连接。
+launcher 已提供 `application-analytics-console.yml`。标准发布包的 Bash 启动脚本使用
+`ANALYTICS_CONSOLE_ENABLED=true`，PowerShell 启动脚本使用 `-AnalyticsConsole`；直接运行 JAR 时可显式传入
+`--spring.profiles.active=lite,analytics-console`。FAP 默认关闭，因此不设置凭据时只启动 Console、Catalog
+与 Analytics Runtime，不会发起外部连接，也不会隐式创建或修改 FAP 资源。
 
 `static-dev-only` 仅用于本机开发。生产必须保留默认 `host-managed` 并提供
 `AnalyticsConsoleSubjectResolver` Bean，从已认证的宿主请求解析 subject、产品角色以及不透明的数据权限

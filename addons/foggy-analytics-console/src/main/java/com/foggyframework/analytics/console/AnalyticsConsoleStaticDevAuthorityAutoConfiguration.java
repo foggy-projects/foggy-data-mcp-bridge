@@ -6,7 +6,6 @@ import com.foggyframework.analytics.console.security.StaticDevFoggyComposeCaller
 import com.foggyframework.analytics.runtime.api.AnalyticsRuntimeApiAutoConfiguration;
 import com.foggyframework.analytics.runtime.foggy.FoggySemanticRequestContextResolver;
 import com.foggyframework.analytics.runtime.foggy.FoggyComposeCallerResolver;
-import com.foggyframework.dataset.model.DbModelAutoConfiguration;
 import com.foggyframework.dataset.model.engine.compose.security.AuthorityResolution;
 import com.foggyframework.dataset.model.engine.compose.security.AuthorityResolver;
 import com.foggyframework.dataset.model.engine.compose.security.ModelBinding;
@@ -18,10 +17,9 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 
 /** Installs the explicit local-only authority bridge before Runtime lane selection. */
-@AutoConfiguration(before = {
-        DbModelAutoConfiguration.class,
-        AnalyticsRuntimeApiAutoConfiguration.class
-})
+@AutoConfiguration(
+        before = AnalyticsRuntimeApiAutoConfiguration.class,
+        beforeName = "com.foggyframework.dataset.model.DbModelAutoConfiguration")
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @ConditionalOnProperty(
         prefix = "foggy.analytics-console",

@@ -10,12 +10,17 @@ import com.foggyframework.analytics.function.contract.AnalyticsSemanticQueryFunc
 import com.foggyframework.analytics.runtime.core.function.AnalyticsSemanticFunctionOperations;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.forwardedUrl;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(
         classes = McpLauncherApplication.class,
@@ -28,13 +33,34 @@ import static org.assertj.core.api.Assertions.assertThat;
                 "foggy.mcp.audit.enabled=false",
                 "foggy.analytics-console.fap.enabled=false",
                 "foggy.analytics-console.catalog-path="
-                        + "${java.io.tmpdir}/foggy-analytics-console-smoke/catalog.json"
+                        + "${java.io.tmpdir}/foggy-analytics-console-smoke-${random.uuid}/catalog.json",
+                "foggy.analytics-console.function-trace-path="
+                        + "${java.io.tmpdir}/foggy-analytics-console-smoke-${random.uuid}/function-traces"
         })
 @ActiveProfiles({"lite", "analytics-console"})
+@AutoConfigureMockMvc
 class AnalyticsConsoleDirectQuestionSmokeTest {
 
     @Autowired
     private AnalyticsSemanticFunctionOperations semantic;
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Test
+    void exposesEmbeddedConsoleAndAnalyticsRoutesOnlyAfterProfileOptIn() throws Exception {
+        mockMvc.perform(get("/analytics-console/"))
+                .andExpect(status().isOk())
+                .andExpect(forwardedUrl("/analytics-console/index.html"));
+        mockMvc.perform(get("/analytics-console/index.html"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/analytics-console/api/v1/session"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/analytics/api/v1/capabilities"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/analytics-console/api/v1/agent/question-profiles"))
+                .andExpect(status().isNotFound());
+    }
 
     @Test
     void describesTheCurrentConfiguredQuestionModelThroughTheAnalyticsLane() {

@@ -53,6 +53,20 @@
             <version>${project.version}</version>
         </dependency>
 
+        <!-- Independent Analytics Runtime API; packaged in the standard launcher and disabled by default. -->
+        <dependency>
+            <groupId>com.foggysource</groupId>
+            <artifactId>foggy-analytics-runtime-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Analytics Console backend and prebuilt SPA; packaged in the standard launcher and disabled by default. -->
+        <dependency>
+            <groupId>com.foggysource</groupId>
+            <artifactId>foggy-analytics-console</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
         <!-- 云存储支持（阿里云OSS、华为云OBS、腾讯云COS、AWS S3） -->
         <dependency>
             <groupId>com.foggysource</groupId>
@@ -186,20 +200,8 @@
         </profile>
         <profile>
             <id>analytics-console</id>
-            <dependencies>
-                <!-- Independent Analytics Runtime API; it does not route through Runtime API v1. -->
-                <dependency>
-                    <groupId>com.foggysource</groupId>
-                    <artifactId>foggy-analytics-runtime-api</artifactId>
-                    <version>${project.version}</version>
-                </dependency>
-                <!-- Product Console owns catalog metadata and its own Web/API surface. -->
-                <dependency>
-                    <groupId>com.foggysource</groupId>
-                    <artifactId>foggy-analytics-console</artifactId>
-                    <version>${project.version}</version>
-                </dependency>
-            </dependencies>
+            <!-- Compatibility no-op: standard launcher builds now always include the Analytics Console.
+                 Runtime activation remains explicit through the Spring analytics-console profile. -->
         </profile>
     </profiles>
 
