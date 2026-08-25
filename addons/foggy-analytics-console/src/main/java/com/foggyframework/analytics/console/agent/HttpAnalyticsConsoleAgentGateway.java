@@ -229,7 +229,7 @@ public final class HttpAnalyticsConsoleAgentGateway
         String functionRef = required(event, "functionRef");
         MutableToolCall tool = tools.computeIfAbsent(
                 invocationId,
-                ignored -> new MutableToolCall(sequence, functionRef));
+                ignored -> new MutableToolCall(sequence, invocationId, functionRef));
         if (!tool.functionRef.equals(functionRef)) {
             throw protocol("FAP trace changed a Function invocation binding", null);
         }
@@ -272,14 +272,19 @@ public final class HttpAnalyticsConsoleAgentGateway
 
     private static final class MutableToolCall {
         private final long sequence;
+        private final String functionInvocationId;
         private final String functionRef;
         private String state = "RUNNING";
         private Instant startedAt;
         private Instant completedAt;
         private String errorCode;
 
-        private MutableToolCall(long sequence, String functionRef) {
+        private MutableToolCall(
+                long sequence,
+                String functionInvocationId,
+                String functionRef) {
             this.sequence = sequence;
+            this.functionInvocationId = functionInvocationId;
             this.functionRef = functionRef;
         }
 
@@ -291,6 +296,7 @@ public final class HttpAnalyticsConsoleAgentGateway
                     ? null : Duration.between(startedAt, completedAt).toMillis();
             return new ToolCall(
                     sequence,
+                    functionInvocationId,
                     functionRef,
                     state,
                     startedAt,

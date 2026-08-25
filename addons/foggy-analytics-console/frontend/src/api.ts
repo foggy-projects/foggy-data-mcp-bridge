@@ -71,12 +71,16 @@ export interface AgentActivity {
 
 export interface AgentToolCall {
   sequence: number
+  functionInvocationId: string
   functionRef: string
   state: 'RUNNING' | 'SUCCEEDED' | 'FAILED'
   startedAt: string | null
   completedAt: string | null
   durationMs: number | null
   errorCode: string | null
+  arguments: Record<string, unknown> | null
+  result: Record<string, unknown> | null
+  callbackHttpStatus: number | null
 }
 
 export interface AgentTurnDetail {

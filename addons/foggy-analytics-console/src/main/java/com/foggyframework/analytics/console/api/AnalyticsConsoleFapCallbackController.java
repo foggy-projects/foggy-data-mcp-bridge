@@ -1,7 +1,10 @@
 package com.foggyframework.analytics.console.api;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.analytics.console.agent.AnalyticsConsoleAgentService;
 import com.foggyframework.analytics.console.agent.AnalyticsConsoleFapBindingResolver;
+import com.foggyframework.analytics.console.agent.AnalyticsConsoleFunctionTraceRepository;
 import com.foggyframework.analytics.console.catalog.AnalyticsConsoleCatalogException;
 import com.foggyframework.analytics.console.config.AnalyticsConsoleProperties;
 import com.foggyframework.analytics.console.model.AnalyticsConsoleConversation;
@@ -9,12 +12,14 @@ import com.foggyframework.analytics.console.model.AnalyticsConsoleAskBinding;
 import com.foggyframework.analytics.console.model.AnalyticsConsoleConversationMode;
 import com.foggyframework.analytics.console.security.AnalyticsConsoleSubject;
 import com.foggyframework.analytics.console.service.AnalyticsConsoleService;
+import com.foggyframework.analytics.function.contract.AnalyticsFunctionOperations;
 import com.foggyframework.analytics.function.fap.FapAnalyticsFunctionAdapter;
 import com.foggyframework.analytics.function.fap.FapAnalyticsFunctionInvocation;
 import com.foggyframework.analytics.function.fap.FapAnalyticsFunctionOutcome;
 import com.foggyframework.analytics.function.fap.FapAnalyticsFunctionRefs;
-import com.foggyframework.analytics.function.contract.AnalyticsFunctionOperations;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -28,6 +33,9 @@ import java.util.Set;
 
 @RestController
 public class AnalyticsConsoleFapCallbackController {
+
+    private static final Logger LOG =
+            LoggerFactory.getLogger(AnalyticsConsoleFapCallbackController.class);
 
     private static final Set<String> DESIGN_OPERATIONS = Set.of(
             AnalyticsFunctionOperations.CAPABILITIES,
@@ -47,18 +55,24 @@ public class AnalyticsConsoleFapCallbackController {
     private final AnalyticsConsoleAgentService agents;
     private final AnalyticsConsoleService console;
     private final FapAnalyticsFunctionAdapter adapter;
+    private final AnalyticsConsoleFunctionTraceRepository functionTraces;
+    private final ObjectMapper json;
 
     public AnalyticsConsoleFapCallbackController(
             AnalyticsConsoleProperties properties,
             AnalyticsConsoleFapBindingResolver bindings,
             AnalyticsConsoleAgentService agents,
             AnalyticsConsoleService console,
-            FapAnalyticsFunctionAdapter adapter) {
+            FapAnalyticsFunctionAdapter adapter,
+            AnalyticsConsoleFunctionTraceRepository functionTraces,
+            ObjectMapper json) {
         this.properties = properties.getFap();
         this.bindings = bindings;
         this.agents = agents;
         this.console = console;
         this.adapter = adapter;
+        this.functionTraces = functionTraces;
+        this.json = json.copy().findAndRegisterModules();
     }
 
     @PostMapping("/analytics-console/internal/fap/functions:invoke")
@@ -129,8 +143,34 @@ public class AnalyticsConsoleFapCallbackController {
                         request.arguments(),
                         request.requestDigest(),
                         caller));
+        recordTrace(conversation, request, outcome);
         return ResponseEntity.status(outcome.recommendedHttpStatus())
                 .body(outcome.callbackBody());
+    }
+
+    private void recordTrace(
+            AnalyticsConsoleConversation conversation,
+            FapAnalyticsCallbackRequest request,
+            FapAnalyticsFunctionOutcome outcome) {
+        JsonNode result = outcome instanceof FapAnalyticsFunctionOutcome.Success success
+                ? json.valueToTree(success.result())
+                : json.valueToTree(outcome.callbackBody());
+        try {
+            functionTraces.save(new AnalyticsConsoleFunctionTraceRepository.FunctionTrace(
+                    conversation.conversationId(),
+                    request.askRequestId(),
+                    request.askInvocationRef(),
+                    request.functionInvocationId(),
+                    request.functionRef(),
+                    json.valueToTree(request.arguments()),
+                    result,
+                    outcome.recommendedHttpStatus()));
+        } catch (RuntimeException unavailable) {
+            LOG.warn(
+                    "Analytics Function trace could not be recorded for invocation {}",
+                    request.functionInvocationId(),
+                    unavailable);
+        }
     }
 
     private void requireCapability(

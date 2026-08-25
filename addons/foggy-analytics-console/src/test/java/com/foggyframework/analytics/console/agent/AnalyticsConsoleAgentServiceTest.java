@@ -165,8 +165,16 @@ class AnalyticsConsoleAgentServiceTest {
                     String expectedAskInvocationRef,
                     String expectedExternalConversationRef) {
                 tracedRequest.set(askRequestId);
-                return new TurnDetail(
-                        expectedAskInvocationRef, "COMPLETE", false, List.of(), List.of());
+                return new TurnDetail(expectedAskInvocationRef, "COMPLETE", false, List.of(),
+                        List.of(new ToolCall(
+                                4,
+                                "function-invocation-1",
+                                "foggy.analytics.semantic-queries.execute@v1",
+                                "SUCCEEDED",
+                                Instant.EPOCH,
+                                Instant.EPOCH.plusMillis(50),
+                                50L,
+                                null)));
             }
         };
         AnalyticsConsoleSubject subject = new AnalyticsConsoleSubject(
@@ -183,6 +191,9 @@ class AnalyticsConsoleAgentServiceTest {
         profile.setModelName("FactOrderQueryModel");
         properties.setQuestionProfiles(List.of(profile));
 
+        ObjectMapper json = new ObjectMapper();
+        AnalyticsConsoleFunctionTraceRepository functionTraces =
+                mock(AnalyticsConsoleFunctionTraceRepository.class);
         AnalyticsConsoleAgentService service = new AnalyticsConsoleAgentService(
                 console,
                 catalog,
@@ -191,11 +202,24 @@ class AnalyticsConsoleAgentServiceTest {
                 properties.getFap(),
                 properties.getQuestionProfiles(),
                 functions,
+                functionTraces,
                 Clock.fixed(Instant.EPOCH, ZoneOffset.UTC));
 
         var conversation = service.startQuestion(subject, "orders", "本月订单量是多少？");
         var updated = service.continueConversation(
                 subject, conversation.conversationId(), "按销售团队拆分");
+        when(functionTraces.findByTurn(
+                conversation.conversationId(), "ask-question-2")).thenReturn(List.of(
+                        new AnalyticsConsoleFunctionTraceRepository.FunctionTrace(
+                                conversation.conversationId(),
+                                updated.askBindings().get(1).askRequestId(),
+                                "ask-question-2",
+                                "function-invocation-1",
+                                "foggy.analytics.semantic-queries.execute@v1",
+                                json.createObjectNode()
+                                        .put("modelName", "FactOrderQueryModel"),
+                                json.createObjectNode().put("total", 6),
+                                200)));
         var summaries = service.questionConversations(subject);
         var detail = service.turnDetail(
                 subject, conversation.conversationId(), "ask-question-2");
@@ -210,6 +234,12 @@ class AnalyticsConsoleAgentServiceTest {
         assertThat(continued.get().runtimeExecutionId()).isEqualTo("execution-question");
         assertThat(updated.askBindings()).hasSize(2);
         assertThat(detail.askInvocationRef()).isEqualTo("ask-question-2");
+        assertThat(detail.toolCalls()).singleElement().satisfies(tool -> {
+            assertThat(tool.arguments().path("modelName").asText())
+                    .isEqualTo("FactOrderQueryModel");
+            assertThat(tool.result().path("total").asInt()).isEqualTo(6);
+            assertThat(tool.callbackHttpStatus()).isEqualTo(200);
+        });
         assertThat(tracedRequest.get())
                 .isEqualTo(updated.askBindings().get(1).askRequestId());
         assertThat(service.conversation(subject, conversation.conversationId()))

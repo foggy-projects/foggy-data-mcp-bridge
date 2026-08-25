@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import type {
+  AgentToolCall,
   AgentTurn,
   AgentTurnDetail,
   Conversation,
   ConversationSummary,
   QuestionProfile
 } from '../api'
-import { formatDuration } from './presentation'
+import { formatDuration, formatJsonPayload } from './presentation'
 
 const props = defineProps<{
   profiles: QuestionProfile[]
@@ -41,6 +42,8 @@ const emit = defineEmits<{
 
 const transcript = ref<HTMLElement | null>(null)
 const expandedTurns = ref<Record<string, boolean>>({})
+const expandedTools = ref<Record<string, boolean>>({})
+const copiedPayload = ref('')
 const title = computed(() => props.activeSummary?.title
   ?? props.activeProfile?.displayName
   ?? '新的分析会话')
@@ -95,6 +98,52 @@ const formatClock = (value: string | null) => value
 const stateLabel = (state: string) => ({
   RUNNING: '进行中', SUCCEEDED: '完成', FAILED: '失败'
 }[state] ?? state)
+
+const toolKey = (askInvocationRef: string, tool: AgentToolCall) =>
+  `${askInvocationRef}:${tool.functionInvocationId}`
+
+const hasPayload = (tool: AgentToolCall) => tool.arguments !== null || tool.result !== null
+
+const toggleToolPayload = (key: string, tool: AgentToolCall) => {
+  if (!hasPayload(tool)) return
+  expandedTools.value = { ...expandedTools.value, [key]: !expandedTools.value[key] }
+}
+
+const fallbackCopy = (content: string) => {
+  const area = document.createElement('textarea')
+  area.value = content
+  area.style.position = 'fixed'
+  area.style.opacity = '0'
+  document.body.appendChild(area)
+  area.select()
+  const copied = document.execCommand('copy')
+  area.remove()
+  return copied
+}
+
+const copyPayload = async (
+  key: string,
+  value: Record<string, unknown> | null
+) => {
+  const content = formatJsonPayload(value)
+  if (!content) return
+  let copied = false
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(content)
+      copied = true
+    } else {
+      copied = fallbackCopy(content)
+    }
+  } catch {
+    copied = fallbackCopy(content)
+  }
+  if (!copied) return
+  copiedPayload.value = key
+  window.setTimeout(() => {
+    if (copiedPayload.value === key) copiedPayload.value = ''
+  }, 1_600)
+}
 </script>
 
 <template>
@@ -199,14 +248,50 @@ const stateLabel = (state: string) => ({
                   <section v-if="turnDetails[turn.askInvocationRef].toolCalls.length" class="activity-section tool-section">
                     <h3><span>TOOL CALLS</span><em>{{ turnDetails[turn.askInvocationRef].toolCalls.length }} 次调用</em></h3>
                     <div v-for="tool in turnDetails[turn.askInvocationRef].toolCalls"
-                         :key="`${tool.sequence}-${tool.functionRef}`" class="tool-call">
-                      <span class="tool-glyph">⌘</span>
-                      <div>
-                        <strong>{{ tool.functionRef }}</strong>
-                        <small>{{ formatClock(tool.startedAt) }} · {{ stateLabel(tool.state) }}</small>
+                         :key="`${tool.sequence}-${tool.functionInvocationId}`" class="tool-record">
+                      <button
+                        type="button"
+                        class="tool-call"
+                        :class="{ expandable: hasPayload(tool) }"
+                        :aria-expanded="hasPayload(tool)
+                          ? Boolean(expandedTools[toolKey(turn.askInvocationRef, tool)])
+                          : undefined"
+                        @click="toggleToolPayload(toolKey(turn.askInvocationRef, tool), tool)"
+                      >
+                        <span class="tool-glyph">⌘</span>
+                        <span class="tool-identity">
+                          <strong>{{ tool.functionRef }}</strong>
+                          <small>{{ formatClock(tool.startedAt) }} · {{ stateLabel(tool.state) }}</small>
+                        </span>
+                        <em>{{ formatDuration(tool.durationMs) }}</em>
+                        <i v-if="hasPayload(tool)"
+                           :class="{ expanded: expandedTools[toolKey(turn.askInvocationRef, tool)] }">⌄</i>
+                        <code v-if="tool.errorCode">{{ tool.errorCode }}</code>
+                      </button>
+                      <div v-if="expandedTools[toolKey(turn.askInvocationRef, tool)]"
+                           class="tool-payload">
+                        <section v-if="tool.arguments">
+                          <header>
+                            <span>CALL ARGUMENTS</span>
+                            <button type="button"
+                                    @click="copyPayload(`${toolKey(turn.askInvocationRef, tool)}:arguments`, tool.arguments)">
+                              {{ copiedPayload === `${toolKey(turn.askInvocationRef, tool)}:arguments` ? '已复制' : '复制 JSON' }}
+                            </button>
+                          </header>
+                          <pre><code>{{ formatJsonPayload(tool.arguments) }}</code></pre>
+                        </section>
+                        <section v-if="tool.result">
+                          <header>
+                            <span>FUNCTION RESULT</span>
+                            <em v-if="tool.callbackHttpStatus">HTTP {{ tool.callbackHttpStatus }}</em>
+                            <button type="button"
+                                    @click="copyPayload(`${toolKey(turn.askInvocationRef, tool)}:result`, tool.result)">
+                              {{ copiedPayload === `${toolKey(turn.askInvocationRef, tool)}:result` ? '已复制' : '复制 JSON' }}
+                            </button>
+                          </header>
+                          <pre><code>{{ formatJsonPayload(tool.result) }}</code></pre>
+                        </section>
                       </div>
-                      <em>{{ formatDuration(tool.durationMs) }}</em>
-                      <code v-if="tool.errorCode">{{ tool.errorCode }}</code>
                     </div>
                   </section>
                   <p v-if="!turnDetails[turn.askInvocationRef].agentActivities.length
@@ -214,7 +299,7 @@ const stateLabel = (state: string) => ({
                      class="detail-empty">本轮暂无可展示的安全执行事件。</p>
                   <div class="trace-note">
                     <span>{{ turnDetails[turn.askInvocationRef].historyState }}</span>
-                    仅展示阶段状态与工具引用，不包含内部推理、参数和数据结果。
+                    阶段状态来自 FAP Service Provider；原始参数和结果来自 Console Function 回调。
                   </div>
                 </template>
               </div>
@@ -337,14 +422,29 @@ const stateLabel = (state: string) => ({
 .activity-list strong { font-size: 10px; }
 .activity-list small { margin-top: 3px; color: var(--ink-soft); font: 8px var(--mono); }
 .activity-list code { color: var(--vermilion); font: 8px var(--mono); }
-.tool-call { display: grid; grid-template-columns: 27px minmax(0, 1fr) auto; gap: 9px; align-items: center; min-height: 48px; margin-top: 6px; padding: 8px 10px; border: 1px solid var(--line); background: var(--paper); }
+.tool-record { margin-top: 6px; border: 1px solid var(--line); background: var(--paper); }
+.tool-call { display: grid; grid-template-columns: 27px minmax(0, 1fr) auto 14px; gap: 9px; align-items: center; width: 100%; min-height: 48px; padding: 8px 10px; border: 0; background: transparent; color: var(--ink); text-align: left; }
+.tool-call.expandable { cursor: pointer; }
+.tool-call.expandable:hover, .tool-call.expandable[aria-expanded="true"] { background: var(--paper-light); }
 .tool-glyph { display: grid; width: 26px; height: 26px; place-items: center; border: 1px solid var(--ink); color: var(--cobalt); font: 800 12px var(--mono); }
-.tool-call div { min-width: 0; }
+.tool-identity { min-width: 0; }
 .tool-call strong, .tool-call small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tool-call strong { font: 700 9px var(--mono); }
 .tool-call small { margin-top: 4px; color: var(--ink-soft); font: 8px var(--mono); }
 .tool-call > em { color: var(--ink-soft); font: normal 9px var(--mono); }
+.tool-call > i { color: var(--ink-soft); font: normal 13px/1 var(--sans); transition: transform .16s ease; }
+.tool-call > i.expanded { transform: rotate(180deg); }
 .tool-call > code { grid-column: 2 / -1; color: var(--vermilion); font: 8px var(--mono); }
+.tool-payload { display: grid; gap: 1px; border-top: 1px solid var(--ink); background: var(--ink); animation: detail-reveal .16s ease-out; }
+.tool-payload section { min-width: 0; background: #101917; color: #ecf2e8; }
+.tool-payload header { display: flex; align-items: center; gap: 9px; min-height: 35px; padding: 0 10px; border-bottom: 1px solid rgba(236, 242, 232, .16); }
+.tool-payload header span { color: var(--acid); font: 800 8px var(--mono); letter-spacing: .12em; }
+.tool-payload header em { margin-left: auto; color: rgba(236, 242, 232, .58); font: normal 8px var(--mono); }
+.tool-payload header button { margin-left: auto; padding: 4px 7px; border: 1px solid rgba(236, 242, 232, .32); background: transparent; color: #ecf2e8; cursor: pointer; font: 7px var(--mono); }
+.tool-payload header em + button { margin-left: 0; }
+.tool-payload header button:hover { border-color: var(--acid); color: var(--acid); }
+.tool-payload pre { max-height: 320px; margin: 0; padding: 12px; overflow: auto; white-space: pre; tab-size: 2; }
+.tool-payload pre code { color: #d9e3d5; font: 9px/1.65 var(--mono); }
 .trace-note { margin-top: 11px; color: var(--ink-soft); font: 8px/1.55 var(--mono); }
 .trace-note span { margin-right: 6px; padding: 2px 5px; background: var(--ink); color: var(--paper-light); letter-spacing: .05em; }
 .pending-chat-message { opacity: .65; }

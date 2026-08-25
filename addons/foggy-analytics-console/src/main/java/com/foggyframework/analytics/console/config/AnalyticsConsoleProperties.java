@@ -13,6 +13,8 @@ public class AnalyticsConsoleProperties {
     private boolean enabled;
     private String securityMode = "host-managed";
     private String catalogPath = ".foggy-runtime/analytics-console/catalog.json";
+    private String functionTracePath =
+            ".foggy-runtime/analytics-console/function-traces";
     private long maxDefinitionBytes = 1_048_576;
     private DevSubject devSubject = new DevSubject();
     private Fap fap = new Fap();
@@ -40,6 +42,14 @@ public class AnalyticsConsoleProperties {
 
     public void setCatalogPath(String catalogPath) {
         this.catalogPath = catalogPath;
+    }
+
+    public String getFunctionTracePath() {
+        return functionTracePath;
+    }
+
+    public void setFunctionTracePath(String functionTracePath) {
+        this.functionTracePath = functionTracePath;
     }
 
     public long getMaxDefinitionBytes() {

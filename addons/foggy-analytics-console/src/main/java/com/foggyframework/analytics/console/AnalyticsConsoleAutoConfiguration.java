@@ -9,6 +9,8 @@ import com.foggyframework.analytics.console.api.AnalyticsConsoleFapCallbackExcep
 import com.foggyframework.analytics.console.agent.AnalyticsConsoleAgentGateway;
 import com.foggyframework.analytics.console.agent.AnalyticsConsoleAgentService;
 import com.foggyframework.analytics.console.agent.AnalyticsConsoleFapBindingResolver;
+import com.foggyframework.analytics.console.agent.AnalyticsConsoleFunctionTraceRepository;
+import com.foggyframework.analytics.console.agent.FileAnalyticsConsoleFunctionTraceRepository;
 import com.foggyframework.analytics.console.agent.HttpAnalyticsConsoleAgentGateway;
 import com.foggyframework.analytics.console.agent.StaticDevAnalyticsConsoleFapBindingResolver;
 import com.foggyframework.analytics.console.catalog.AnalyticsConsoleCatalogRepository;
@@ -97,6 +99,15 @@ public class AnalyticsConsoleAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean(AnalyticsConsoleFunctionTraceRepository.class)
+    AnalyticsConsoleFunctionTraceRepository analyticsConsoleFunctionTraceRepository(
+            AnalyticsConsoleProperties properties,
+            ObjectMapper objectMapper) {
+        return new FileAnalyticsConsoleFunctionTraceRepository(
+                Path.of(properties.getFunctionTracePath()), objectMapper);
+    }
+
+    @Bean
     @ConditionalOnMissingBean(AnalyticsConsoleService.class)
     AnalyticsConsoleService analyticsConsoleService(
             AnalyticsConsoleCatalogRepository catalog,
@@ -141,9 +152,10 @@ public class AnalyticsConsoleAutoConfiguration {
             AnalyticsConsoleAgentGateway gateway,
             AnalyticsConsoleFapBindingResolver bindings,
             AnalyticsConsoleProperties properties,
-            AnalyticsFunctionClient functions) {
+            AnalyticsFunctionClient functions,
+            AnalyticsConsoleFunctionTraceRepository functionTraces) {
         return new AnalyticsConsoleAgentService(
-                console, catalog, gateway, bindings, properties, functions);
+                console, catalog, gateway, bindings, properties, functions, functionTraces);
     }
 
     @Bean
@@ -184,9 +196,11 @@ public class AnalyticsConsoleAutoConfiguration {
             AnalyticsConsoleFapBindingResolver bindings,
             AnalyticsConsoleAgentService agents,
             AnalyticsConsoleService console,
-            FapAnalyticsFunctionAdapter adapter) {
+            FapAnalyticsFunctionAdapter adapter,
+            AnalyticsConsoleFunctionTraceRepository functionTraces,
+            ObjectMapper objectMapper) {
         return new AnalyticsConsoleFapCallbackController(
-                properties, bindings, agents, console, adapter);
+                properties, bindings, agents, console, adapter, functionTraces, objectMapper);
     }
 
     @Bean

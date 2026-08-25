@@ -21,6 +21,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -35,6 +36,7 @@ public final class AnalyticsConsoleAgentService {
     private final AnalyticsConsoleProperties.Fap properties;
     private final List<AnalyticsConsoleProperties.QuestionProfile> questionProfiles;
     private final AnalyticsFunctionClient functions;
+    private final AnalyticsConsoleFunctionTraceRepository functionTraces;
     private final Clock clock;
 
     public AnalyticsConsoleAgentService(
@@ -43,7 +45,8 @@ public final class AnalyticsConsoleAgentService {
             AnalyticsConsoleAgentGateway gateway,
             AnalyticsConsoleFapBindingResolver bindings,
             AnalyticsConsoleProperties properties,
-            AnalyticsFunctionClient functions) {
+            AnalyticsFunctionClient functions,
+            AnalyticsConsoleFunctionTraceRepository functionTraces) {
         this(
                 console,
                 catalog,
@@ -52,6 +55,7 @@ public final class AnalyticsConsoleAgentService {
                 properties.getFap(),
                 properties.getQuestionProfiles(),
                 functions,
+                functionTraces,
                 Clock.systemUTC());
     }
 
@@ -70,6 +74,7 @@ public final class AnalyticsConsoleAgentService {
                 properties,
                 List.of(),
                 null,
+                AnalyticsConsoleFunctionTraceRepository.none(),
                 clock);
     }
 
@@ -82,6 +87,28 @@ public final class AnalyticsConsoleAgentService {
             List<AnalyticsConsoleProperties.QuestionProfile> questionProfiles,
             AnalyticsFunctionClient functions,
             Clock clock) {
+        this(
+                console,
+                catalog,
+                gateway,
+                bindings,
+                properties,
+                questionProfiles,
+                functions,
+                AnalyticsConsoleFunctionTraceRepository.none(),
+                clock);
+    }
+
+    AnalyticsConsoleAgentService(
+            AnalyticsConsoleService console,
+            AnalyticsConsoleCatalogRepository catalog,
+            AnalyticsConsoleAgentGateway gateway,
+            AnalyticsConsoleFapBindingResolver bindings,
+            AnalyticsConsoleProperties.Fap properties,
+            List<AnalyticsConsoleProperties.QuestionProfile> questionProfiles,
+            AnalyticsFunctionClient functions,
+            AnalyticsConsoleFunctionTraceRepository functionTraces,
+            Clock clock) {
         this.console = Objects.requireNonNull(console, "console");
         this.catalog = Objects.requireNonNull(catalog, "catalog");
         this.gateway = Objects.requireNonNull(gateway, "gateway");
@@ -90,6 +117,7 @@ public final class AnalyticsConsoleAgentService {
         this.questionProfiles = List.copyOf(Objects.requireNonNull(
                 questionProfiles, "questionProfiles"));
         this.functions = functions;
+        this.functionTraces = Objects.requireNonNull(functionTraces, "functionTraces");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
@@ -292,11 +320,51 @@ public final class AnalyticsConsoleAgentService {
                         "ANALYTICS_CONSOLE_TURN_NOT_FOUND",
                         "Analytics Console conversation turn was not found"));
         AnalyticsConsoleFapBindingResolver.OutboundBinding binding = bindings.resolve(subject);
-        return gateway.turnDetail(
+        AnalyticsConsoleAgentGateway.TurnDetail detail = gateway.turnDetail(
                 binding,
                 ask.askRequestId(),
                 ask.askInvocationRef(),
                 conversation.externalConversationRef());
+        var traces = functionTraces.findByTurn(
+                conversation.conversationId(), ask.askInvocationRef());
+        var traceByInvocation = new LinkedHashMap<
+                String, AnalyticsConsoleFunctionTraceRepository.FunctionTrace>();
+        traces.stream()
+                .filter(trace -> trace.conversationId().equals(conversation.conversationId()))
+                .filter(trace -> trace.askRequestId().equals(ask.askRequestId()))
+                .filter(trace -> trace.askInvocationRef().equals(ask.askInvocationRef()))
+                .forEach(trace -> traceByInvocation.put(
+                        trace.functionInvocationId(), trace));
+        List<AnalyticsConsoleAgentGateway.ToolCall> tools = detail.toolCalls().stream()
+                .map(tool -> attachTrace(tool, traceByInvocation.get(
+                        tool.functionInvocationId())))
+                .toList();
+        return new AnalyticsConsoleAgentGateway.TurnDetail(
+                detail.askInvocationRef(),
+                detail.historyState(),
+                detail.eventsTruncated(),
+                detail.agentActivities(),
+                tools);
+    }
+
+    private static AnalyticsConsoleAgentGateway.ToolCall attachTrace(
+            AnalyticsConsoleAgentGateway.ToolCall tool,
+            AnalyticsConsoleFunctionTraceRepository.FunctionTrace trace) {
+        if (trace == null || !tool.functionRef().equals(trace.functionRef())) {
+            return tool;
+        }
+        return new AnalyticsConsoleAgentGateway.ToolCall(
+                tool.sequence(),
+                tool.functionInvocationId(),
+                tool.functionRef(),
+                tool.state(),
+                tool.startedAt(),
+                tool.completedAt(),
+                tool.durationMs(),
+                tool.errorCode(),
+                trace.arguments(),
+                trace.result(),
+                trace.httpStatus());
     }
 
     public AnalyticsConsoleConversation requireCallbackConversation(

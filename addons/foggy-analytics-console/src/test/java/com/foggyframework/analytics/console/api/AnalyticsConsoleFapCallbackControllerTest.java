@@ -1,7 +1,9 @@
 package com.foggyframework.analytics.console.api;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.analytics.console.agent.AnalyticsConsoleAgentService;
 import com.foggyframework.analytics.console.agent.AnalyticsConsoleFapBindingResolver;
+import com.foggyframework.analytics.console.agent.AnalyticsConsoleFunctionTraceRepository;
 import com.foggyframework.analytics.console.config.AnalyticsConsoleProperties;
 import com.foggyframework.analytics.console.model.AnalyticsConsoleConversation;
 import com.foggyframework.analytics.console.model.AnalyticsConsoleConversationMode;
@@ -21,7 +23,9 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class AnalyticsConsoleFapCallbackControllerTest {
@@ -31,6 +35,8 @@ class AnalyticsConsoleFapCallbackControllerTest {
     private final AnalyticsConsoleAgentService agents = mock(AnalyticsConsoleAgentService.class);
     private final AnalyticsConsoleService console = mock(AnalyticsConsoleService.class);
     private final FapAnalyticsFunctionAdapter adapter = mock(FapAnalyticsFunctionAdapter.class);
+    private final AnalyticsConsoleFunctionTraceRepository functionTraces =
+            mock(AnalyticsConsoleFunctionTraceRepository.class);
     private AnalyticsConsoleFapCallbackController controller;
     private AnalyticsConsoleSubject subject;
 
@@ -44,7 +50,13 @@ class AnalyticsConsoleFapCallbackControllerTest {
         properties.getFap().setQuestionCallbackCapabilityRevision(2);
         properties.getFap().setCallbackAuthorization("Bearer callback-secret");
         controller = new AnalyticsConsoleFapCallbackController(
-                properties, bindings, agents, console, adapter);
+                properties,
+                bindings,
+                agents,
+                console,
+                adapter,
+                functionTraces,
+                new ObjectMapper());
         subject = new AnalyticsConsoleSubject(
                 "designer", "Designer", Set.of(AnalyticsConsoleRole.DESIGNER),
                 "console", "authority-designer");
@@ -90,6 +102,15 @@ class AnalyticsConsoleFapCallbackControllerTest {
         assertThat(response.getStatusCode().value()).isEqualTo(200);
         assertThat(response.getBody())
                 .containsEntry("type", "PROVIDER_FUNCTION_CALLBACK_RESULT");
+        var trace = forClass(
+                AnalyticsConsoleFunctionTraceRepository.FunctionTrace.class);
+        verify(functionTraces).save(trace.capture());
+        assertThat(trace.getValue().conversationId()).isEqualTo("conversation-1");
+        assertThat(trace.getValue().functionRef()).isEqualTo(request.functionRef());
+        assertThat(trace.getValue().arguments().path("bundleRef").asText())
+                .isEqualTo("sales");
+        assertThat(trace.getValue().result().path("accepted").asBoolean()).isTrue();
+        assertThat(trace.getValue().httpStatus()).isEqualTo(200);
     }
 
     @Test

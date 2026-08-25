@@ -32,6 +32,7 @@ foggy:
     enabled: true
     security-mode: static-dev-only
     catalog-path: /absolute/development/path/console-catalog.json
+    function-trace-path: /absolute/development/path/function-traces
     question-profiles:
       - id: orders
         display-name: 订单分析
@@ -93,6 +94,10 @@ Console 的问数 Skill/Capability 和 callback binding 由产品部署流程显
 `/analytics-console/internal/fap/functions:invoke`。本模块不会持有 Provider admin credential，也不会在
 应用启动时隐式创建或修改 FAP 资源。START 冻结 workspace/model/QM revision，CONTINUE 复用同一 Runtime
 Execution；每次 Ask 的 request/invocation/task binding 都独立保存并用于 callback exact correlation。
+
+Console 自己承接的 Function callback 会把原始 arguments/result 按 invocation 写入独立的
+`function-trace-path`，用于会话内的工具详情展示。Service Provider 仍是任务生命周期与时间轨迹的真相源；
+这些执行负载不会写入 owner、目录、ACL 所在的 Console catalog，也不会让 Console 直连 FAP Runtime。
 
 问数产品 API（均为 Console 自有 API）：
 

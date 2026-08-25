@@ -1,5 +1,7 @@
 package com.foggyframework.analytics.console.agent;
 
+import com.fasterxml.jackson.databind.JsonNode;
+
 import java.time.Instant;
 import java.util.List;
 
@@ -112,11 +114,43 @@ public interface AnalyticsConsoleAgentGateway {
 
     record ToolCall(
             long sequence,
+            String functionInvocationId,
             String functionRef,
             String state,
             Instant startedAt,
             Instant completedAt,
             Long durationMs,
-            String errorCode) {
+            String errorCode,
+            JsonNode arguments,
+            JsonNode result,
+            Integer callbackHttpStatus) {
+
+        public ToolCall {
+            arguments = arguments == null ? null : arguments.deepCopy();
+            result = result == null ? null : result.deepCopy();
+        }
+
+        public ToolCall(
+                long sequence,
+                String functionInvocationId,
+                String functionRef,
+                String state,
+                Instant startedAt,
+                Instant completedAt,
+                Long durationMs,
+                String errorCode) {
+            this(
+                    sequence,
+                    functionInvocationId,
+                    functionRef,
+                    state,
+                    startedAt,
+                    completedAt,
+                    durationMs,
+                    errorCode,
+                    null,
+                    null,
+                    null);
+        }
     }
 }

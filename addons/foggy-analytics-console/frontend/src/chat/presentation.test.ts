@@ -5,6 +5,7 @@ import {
   conversationIdFromHash,
   formatConversationTime,
   formatDuration,
+  formatJsonPayload,
   turnSequenceFinished
 } from './presentation'
 
@@ -43,5 +44,11 @@ describe('chat presentation', () => {
     expect(formatDuration(850)).toBe('850 毫秒')
     expect(formatDuration(12_400)).toBe('12 秒')
     expect(formatDuration(72_000)).toBe('1 分 12 秒')
+  })
+
+  it('formats raw Function arguments and results as readable JSON', () => {
+    expect(formatJsonPayload({ query: { columns: ['amount'] }, limit: 20 }))
+      .toBe('{\n  "query": {\n    "columns": [\n      "amount"\n    ]\n  },\n  "limit": 20\n}')
+    expect(formatJsonPayload(null)).toBe('')
   })
 })

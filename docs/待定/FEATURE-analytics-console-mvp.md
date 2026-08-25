@@ -3,8 +3,8 @@ doc_role: workitem
 doc_type: implementation-plan
 intended_for: implementation agent / reviewer
 purpose: 记录未绑定正式 9.3.x 发布版本的独立 Analytics Console MVP 实施与验证边界。
-status: DIRECT_QUESTION_IMPLEMENTED_FOCUSED_VERIFIED
-recorded_at: 2026-08-24
+status: FUNCTION_TRACE_IMPLEMENTED_FOCUSED_VERIFIED
+recorded_at: 2026-08-25
 ---
 
 # FEATURE Analytics Console MVP
@@ -21,6 +21,8 @@ Console Agent 和大型产品扩张，本项先归档在 `docs/待定/`；确认
 5. 用模块依赖与文档 guard 证明 TMS 与 Console 无业务依赖。
 6. 保持 CLI `runtime`/`analytics` 双域，补 Console 开发 lane 文档与聚焦测试。
 7. 把“直接对话问数”提升为普通用户首入口；不要求先创建 Report/Dashboard，并保持与设计会话隔离。
+8. 收紧为左侧会话列表、新建会话和右侧直接问数的 conversation-first 界面。
+9. 在每轮对话下展示耗时、Agent 阶段回复和 Function 调用，并将 Console 回调中的原始参数/结果与 SP trace 合并。
 
 ## 验证预算
 
@@ -47,6 +49,8 @@ Console Agent 和大型产品扩张，本项先归档在 `docs/待定/`；确认
 | 6 | CLI 继续保持 `foggy runtime` / `foggy analytics` 两个命令域、独立 URL 与 credential scope；Analytics 11 tests 通过。 |
 | 7 | 新增 QUESTION/DESIGN 两种 conversation mode；QUESTION 绑定服务端 QM profile 和 exact model revision，支持 FAP START/CONTINUE/turn transcript，不创建 Analytics asset。 |
 | 8 | Function SDK 新增 semantic model describe 与 strict semantic query；embedded、HTTP、FAP 三种 adapter 共用同一合同，Java engine 使用当前 subject authority 执行。 |
+| 9 | Console 首页改为 conversation-first 布局：左侧是当前用户的最近会话与新建入口，右侧是单一对话主窗口，分析工作室作为次级入口。 |
+| 10 | 每轮终态对话显示耗时并可展开 Agent activities / Function calls；Function 原始参数、结果和 HTTP 状态由 Console callback 独立持久化，按 invocation ID 与 SP 生命周期 trace 严格合并，前端支持 JSON 展开和复制。 |
 
 请求边界另增加：浏览器 mutation 专用请求头、Viewer definition suppression、FAP exact Provider/Capability/
 Ask request+invocation/Conversation/Execution/Task/Subject correlation、FAP response 5 MiB 上限和启用配置 fail-fast。
@@ -63,7 +67,10 @@ raw SQL、Compose、脚本、calculated fields、hints、extData 与调用方权
   guard、catalog/service 与 static-dev authority resolver 共 7 classes / 14 tests，均通过。
 - Launcher：profile configuration 1 test；`AnalyticsConsoleDirectQuestionSmokeTest` 1 test 在 `lite,analytics-console`
   组合上下文内完成 stable QM revision resolve、semantic describe 和真实 `amount` query。
-- Frontend：`vue-tsc --noEmit`、2 unit tests、Vite production build 通过；最终 JS 约 80.23 kB、CSS 约 13.10 kB。
+- Function trace focused lane：file repository、callback 精确记录、SP trace 合并与 HTTP gateway 共
+  4 classes / 8 tests，均为 0 failures/errors。
+- Frontend：`vue-tsc --noEmit`、5 个 presentation unit tests、Vite production build 通过；当前 JS 约
+  101.33 kB、CSS 约 34.05 kB。
 - Maven affected package 使用 `maven.test.skip=true` 成功，生成 9.3.0-SNAPSHOT Console 与 launcher JAR；测试
   证据来自上述 named/focused lanes，不把 package 伪装成额外测试。
 - Disposable HTTP smoke：健康状态 `UP`，semantic describe/query capabilities 均为 supported；
@@ -71,11 +78,17 @@ raw SQL、Compose、脚本、calculated fields、hints、extData 与调用方权
   与 catalog 已在验证后删除。
 - CLI：`PYTHONPATH=src python3 -m unittest tests.test_analytics_cli`，11 tests 通过。
 - TMS boundary：根 `foggy-data.version=9.3.0-SNAPSHOT`；排除 build output 后源码扫描没有 Console addon 引用。
-- 未运行：全仓、全 reactor、完整浏览器、live FAP、完整 Console/TMS E2E（未获授权）。
+- 8023 targeted browser smoke：创建真实问数会话，验证 55 秒耗时、3 条 Agent activities、6 次
+  Function calls、arguments/result/HTTP 200 展开、JSON 复制，整页刷新后内容仍可重新加载；浏览器
+  console 为 0 errors / 0 warnings。该问数轮因 FAP `LANGBIZ_MODEL_TURN_LIMIT_EXCEEDED` 终止，不影响
+  trace 链路验证。
+- 未运行：全仓、全 reactor、完整浏览器套件、完整 Console/TMS E2E（未获授权）。
 
 ## 已知后续门禁
 
 - 当前 file catalog 只承诺单进程；多实例需提供独立 `AnalyticsConsoleCatalogRepository` 实现。
+- Function trace file repository 与 catalog 一样只承诺单进程；它仅保存经 Console Function
+  callback 发生的调用，其他 Provider 工具仍只展示 SP 提供的状态与耗时。
 - FAP Ask 已接受但 catalog 落盘失败时，首版没有自动 reconcile orphan Ask；生产启用前应补 pending/outcome-unknown recovery。
 - FAP Provider/Skill/Function/Capability/callback binding 仍由部署流程显式发布；Console 不持有 Provider admin
   credential，也不在启动时隐式修改 FAP 资源。当前代码已具备 static-dev binding、START/CONTINUE/turn 和

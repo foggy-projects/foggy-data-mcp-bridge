@@ -13,6 +13,7 @@ foggy:
     enabled: true
     security-mode: static-dev-only
     catalog-path: "${ANALYTICS_CONSOLE_CATALOG_PATH:${java.io.tmpdir}/foggy_analytics_console/catalog.json}"
+    function-trace-path: "${ANALYTICS_CONSOLE_FUNCTION_TRACE_PATH:${java.io.tmpdir}/foggy_analytics_console/function-traces}"
     dev-subject:
       subject-ref: local-analytics-admin
       display-name: Local Analytics Admin

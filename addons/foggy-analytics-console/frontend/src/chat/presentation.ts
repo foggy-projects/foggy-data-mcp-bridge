@@ -27,6 +27,9 @@ export const formatDuration = (milliseconds: number | null | undefined) => {
   return remainder ? `${minutes} 分 ${remainder} 秒` : `${minutes} 分钟`
 }
 
+export const formatJsonPayload = (value: Record<string, unknown> | null) =>
+  value === null ? '' : JSON.stringify(value, null, 2)
+
 export const formatConversationTime = (value: string, now = Date.now()) => {
   const timestamp = Date.parse(value)
   if (!Number.isFinite(timestamp)) return ''
