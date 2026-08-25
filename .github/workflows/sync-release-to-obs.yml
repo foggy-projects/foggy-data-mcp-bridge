@@ -1,0 +1,61 @@
+name: Sync launcher release to Huawei OBS
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: foggy-runtime-obs-launcher-release
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: startsWith(github.event.release.tag_name, 'foggy-runtime-launcher-v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ github.event.release.tag_name }}
+      OBS_ACCESS_KEY_ID: ${{ secrets.HUAWEI_OBS_ACCESS_KEY_ID }}
+      OBS_SECRET_ACCESS_KEY: ${{ secrets.HUAWEI_OBS_SECRET_ACCESS_KEY }}
+      OBS_BUCKET: obs-fe55
+      OBS_PREFIX: foggy-runtime
+      OBS_ENDPOINT: obs.cn-north-4.myhuaweicloud.com
+    steps:
+      - name: Checkout release sync script
+        uses: actions/checkout@v4
+
+      - name: Install obsutil
+        shell: bash
+        run: |
+          set -euo pipefail
+          obsutil_root="$RUNNER_TEMP/obsutil"
+          archive="$RUNNER_TEMP/obsutil_linux_amd64.tar.gz"
+          mkdir -p "$obsutil_root"
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors \
+            --proto '=https' --proto-redir '=https' \
+            https://obs-community.obs.cn-north-1.myhuaweicloud.com/obsutil/current/obsutil_linux_amd64.tar.gz \
+            -o "$archive"
+          printf '%s  %s\n' \
+            1a90e8861d4ce7f8829ae4392850bfb7d56a3e02e7cdd1f951135b7ae68ff9dd \
+            "$archive" | sha256sum -c -
+          tar -xzf "$archive" -C "$obsutil_root"
+          obsutil_bin="$(find "$obsutil_root" -type f -name obsutil -print -quit)"
+          test -n "$obsutil_bin"
+          chmod 755 "$obsutil_bin"
+          echo "OBSUTIL_BIN=$obsutil_bin" >> "$GITHUB_ENV"
+
+      - name: Verify credentials and sync public release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$OBS_ACCESS_KEY_ID"
+          test -n "$OBS_SECRET_ACCESS_KEY"
+          bash scripts/sync-release-to-obs.sh \
+            --component "launcher" \
+            --repo "$GITHUB_REPOSITORY" \
+            --tag "$RELEASE_TAG" \
+            --obsutil "$OBSUTIL_BIN"
