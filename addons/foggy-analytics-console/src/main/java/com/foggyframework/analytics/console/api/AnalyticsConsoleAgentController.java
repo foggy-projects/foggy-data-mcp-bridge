@@ -82,6 +82,15 @@ public class AnalyticsConsoleAgentController {
         return ok(agents.turns(subjects.resolve(request), conversationId));
     }
 
+    @GetMapping("/agent/conversations/{conversationId}/turns/{askInvocationRef}/detail")
+    public AnalyticsConsoleEnvelope<AnalyticsConsoleAgentGateway.TurnDetail> turnDetail(
+            @PathVariable String conversationId,
+            @PathVariable String askInvocationRef,
+            HttpServletRequest request) {
+        return ok(agents.turnDetail(
+                subjects.resolve(request), conversationId, askInvocationRef));
+    }
+
     private static <T> AnalyticsConsoleEnvelope<T> ok(T data) {
         return AnalyticsConsoleEnvelope.ok(data, "console-" + UUID.randomUUID());
     }

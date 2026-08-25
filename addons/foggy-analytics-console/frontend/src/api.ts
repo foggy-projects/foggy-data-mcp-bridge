@@ -56,6 +56,35 @@ export interface AgentTurn {
   userMessage: string | null
   assistantMessage: string | null
   failureCode: string | null
+  startedAt: string
+  updatedAt: string
+  durationMs: number
+}
+
+export interface AgentActivity {
+  sequence: number
+  label: string
+  state: 'RUNNING' | 'SUCCEEDED' | 'FAILED'
+  occurredAt: string
+  errorCode: string | null
+}
+
+export interface AgentToolCall {
+  sequence: number
+  functionRef: string
+  state: 'RUNNING' | 'SUCCEEDED' | 'FAILED'
+  startedAt: string | null
+  completedAt: string | null
+  durationMs: number | null
+  errorCode: string | null
+}
+
+export interface AgentTurnDetail {
+  askInvocationRef: string
+  historyState: 'PENDING' | 'COMPLETE' | 'PARTIAL' | 'UNAVAILABLE'
+  eventsTruncated: boolean
+  agentActivities: AgentActivity[]
+  toolCalls: AgentToolCall[]
 }
 
 const root = '/analytics-console/api/v1'
@@ -122,5 +151,8 @@ export const api = {
     call<Conversation>(`/agent/conversations/${encodeURIComponent(conversationId)}/turns`,
       json('POST', { prompt })),
   turns: (conversationId: string) =>
-    call<AgentTurn[]>(`/agent/conversations/${encodeURIComponent(conversationId)}/turns`)
+    call<AgentTurn[]>(`/agent/conversations/${encodeURIComponent(conversationId)}/turns`),
+  turnDetail: (conversationId: string, askInvocationRef: string) =>
+    call<AgentTurnDetail>(
+      `/agent/conversations/${encodeURIComponent(conversationId)}/turns/${encodeURIComponent(askInvocationRef)}/detail`)
 }

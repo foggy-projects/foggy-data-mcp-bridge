@@ -2,6 +2,7 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 import {
   api,
   type AgentTurn,
+  type AgentTurnDetail,
   type Conversation,
   type ConversationSummary,
   type QuestionProfile
@@ -25,6 +26,9 @@ export const useQuestionConversations = () => {
   const loading = ref(true)
   const submitting = ref(false)
   const refreshing = ref(false)
+  const turnDetails = ref<Record<string, AgentTurnDetail>>({})
+  const detailLoading = ref<Record<string, boolean>>({})
+  const detailErrors = ref<Record<string, string>>({})
   const error = ref('')
   const notice = ref('')
   let pollTimer: number | undefined
@@ -91,6 +95,9 @@ export const useQuestionConversations = () => {
       activeConversation.value = conversation
       selectedProfileId.value = conversation.questionProfileId ?? selectedProfileId.value
       turns.value = await api.turns(conversationId)
+      turnDetails.value = {}
+      detailLoading.value = {}
+      detailErrors.value = {}
       pendingPrompt.value = ''
       if (updateRoute) replaceRoute(conversationId)
       if (!turnSequenceFinished(turns.value, '')) schedulePoll()
@@ -105,6 +112,9 @@ export const useQuestionConversations = () => {
     stopPolling()
     activeConversation.value = null
     turns.value = []
+    turnDetails.value = {}
+    detailLoading.value = {}
+    detailErrors.value = {}
     pendingPrompt.value = ''
     prompt.value = ''
     error.value = ''
@@ -157,6 +167,28 @@ export const useQuestionConversations = () => {
     }
   }
 
+  const loadTurnDetail = async (askInvocationRef: string) => {
+    const conversationId = activeConversation.value?.conversationId
+    if (!conversationId || detailLoading.value[askInvocationRef]) return
+    const current = turnDetails.value[askInvocationRef]
+    if (current?.historyState === 'COMPLETE' && !current.eventsTruncated) return
+    detailLoading.value = { ...detailLoading.value, [askInvocationRef]: true }
+    detailErrors.value = { ...detailErrors.value, [askInvocationRef]: '' }
+    try {
+      const detail = await api.turnDetail(conversationId, askInvocationRef)
+      if (activeConversation.value?.conversationId === conversationId) {
+        turnDetails.value = { ...turnDetails.value, [askInvocationRef]: detail }
+      }
+    } catch (reason) {
+      detailErrors.value = {
+        ...detailErrors.value,
+        [askInvocationRef]: reason instanceof Error ? reason.message : '执行详情读取失败'
+      }
+    } finally {
+      detailLoading.value = { ...detailLoading.value, [askInvocationRef]: false }
+    }
+  }
+
   const handleRouteChange = () => {
     const requestedId = conversationIdFromHash(window.location.hash)
     if (requestedId && requestedId !== activeConversation.value?.conversationId) {
@@ -181,6 +213,9 @@ export const useQuestionConversations = () => {
     loading,
     submitting,
     refreshing,
+    turnDetails,
+    detailLoading,
+    detailErrors,
     waiting,
     error,
     notice,
@@ -189,6 +224,7 @@ export const useQuestionConversations = () => {
     newConversation,
     send,
     refreshTurns,
+    loadTurnDetail,
     handleRouteChange
   }
 }

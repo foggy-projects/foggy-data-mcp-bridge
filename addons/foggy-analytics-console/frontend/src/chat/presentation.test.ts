@@ -4,6 +4,7 @@ import {
   conversationHash,
   conversationIdFromHash,
   formatConversationTime,
+  formatDuration,
   turnSequenceFinished
 } from './presentation'
 
@@ -14,7 +15,10 @@ const turn = (terminal: boolean): AgentTurn => ({
   definitiveTerminal: terminal,
   userMessage: '订单量？',
   assistantMessage: terminal ? '6 单' : null,
-  failureCode: null
+  failureCode: null,
+  startedAt: '2026-08-24T09:59:48Z',
+  updatedAt: '2026-08-24T10:00:00Z',
+  durationMs: 12_000
 })
 
 describe('chat presentation', () => {
@@ -33,5 +37,11 @@ describe('chat presentation', () => {
   it('formats recent activity without exposing message content', () => {
     const now = Date.parse('2026-08-24T10:00:00Z')
     expect(formatConversationTime('2026-08-24T09:55:00Z', now)).toBe('5 分钟前')
+  })
+
+  it('formats turn and tool durations for the disclosure summary', () => {
+    expect(formatDuration(850)).toBe('850 毫秒')
+    expect(formatDuration(12_400)).toBe('12 秒')
+    expect(formatDuration(72_000)).toBe('1 分 12 秒')
   })
 })

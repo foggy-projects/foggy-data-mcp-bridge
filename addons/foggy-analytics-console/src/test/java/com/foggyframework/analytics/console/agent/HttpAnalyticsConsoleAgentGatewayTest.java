@@ -52,6 +52,8 @@ class HttpAnalyticsConsoleAgentGatewayTest {
                     "operation": "CONTINUE",
                     "displayState": "COMPLETED",
                     "definitiveTerminal": true,
+                    "createdAt": "2026-08-24T08:00:00Z",
+                    "updatedAt": "2026-08-24T08:00:06Z",
                     "userMessage": {
                       "contentState": "AVAILABLE",
                       "text": "按销售团队拆分"
@@ -63,8 +65,50 @@ class HttpAnalyticsConsoleAgentGatewayTest {
                   }]
                 }
                 """);
+        HttpResponse traceResponse = response(200, """
+                {
+                  "type": "ASK_TRACE",
+                  "askInvocationRef": "ask-2",
+                  "externalConversationRef": "analytics-console.conversation-1",
+                  "eventHistory": {
+                    "state": "COMPLETE",
+                    "eventsTruncated": false
+                  },
+                  "events": [
+                    {
+                      "eventSeq": 1,
+                      "eventType": "worker.operation.input.accepted",
+                      "occurredAt": "2026-08-24T08:00:00Z"
+                    },
+                    {
+                      "eventSeq": 2,
+                      "eventType": "provider.operation.started",
+                      "occurredAt": "2026-08-24T08:00:01Z"
+                    },
+                    {
+                      "eventSeq": 3,
+                      "eventType": "langbiz.function.started",
+                      "occurredAt": "2026-08-24T08:00:02Z",
+                      "functionInvocationId": "function-1",
+                      "functionRef": "analytics.semantic.query@v1"
+                    },
+                    {
+                      "eventSeq": 4,
+                      "eventType": "langbiz.function.completed",
+                      "occurredAt": "2026-08-24T08:00:04Z",
+                      "functionInvocationId": "function-1",
+                      "functionRef": "analytics.semantic.query@v1"
+                    },
+                    {
+                      "eventSeq": 5,
+                      "eventType": "provider.operation.terminal",
+                      "occurredAt": "2026-08-24T08:00:06Z"
+                    }
+                  ]
+                }
+                """);
         when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
-                .thenReturn(startResponse, continueResponse, turnsResponse);
+                .thenReturn(startResponse, continueResponse, turnsResponse, traceResponse);
         HttpAnalyticsConsoleAgentGateway gateway =
                 new HttpAnalyticsConsoleAgentGateway(
                         URI.create("http://127.0.0.1:4882"),
@@ -100,16 +144,31 @@ class HttpAnalyticsConsoleAgentGatewayTest {
                 binding,
                 "request-turns",
                 "analytics-console.conversation-1");
+        var detail = gateway.turnDetail(
+                binding,
+                "request-2",
+                "ask-2",
+                "analytics-console.conversation-1");
 
         assertThat(continued.runtimeExecutionId()).isEqualTo("execution-1");
         assertThat(turns).singleElement().satisfies(turn -> {
             assertThat(turn.operation()).isEqualTo("CONTINUE");
             assertThat(turn.userMessage()).isEqualTo("按销售团队拆分");
             assertThat(turn.assistantMessage()).isEqualTo("东区 12 单，西区 7 单。");
+            assertThat(turn.durationMs()).isEqualTo(6_000L);
+        });
+        assertThat(detail.historyState()).isEqualTo("COMPLETE");
+        assertThat(detail.agentActivities())
+                .extracting(AnalyticsConsoleAgentGateway.AgentActivity::label)
+                .containsExactly("已接收本轮问题", "Agent 开始分析", "Agent 完成本轮分析");
+        assertThat(detail.toolCalls()).singleElement().satisfies(tool -> {
+            assertThat(tool.functionRef()).isEqualTo("analytics.semantic.query@v1");
+            assertThat(tool.state()).isEqualTo("SUCCEEDED");
+            assertThat(tool.durationMs()).isEqualTo(2_000L);
         });
 
         ArgumentCaptor<HttpRequest> requests = ArgumentCaptor.forClass(HttpRequest.class);
-        verify(http, times(3)).send(
+        verify(http, times(4)).send(
                 requests.capture(), any(HttpResponse.BodyHandler.class));
         JsonNode startBody = json.readTree(
                 requests.getAllValues().get(0).bodyPublisher().orElseThrow()
@@ -124,6 +183,8 @@ class HttpAnalyticsConsoleAgentGatewayTest {
         assertThat(continueBody.has("workspaceRef")).isFalse();
         assertThat(continueBody.has("modelConfigRef")).isFalse();
         assertThat(continueBody.has("initialSystemInstruction")).isFalse();
+        assertThat(requests.getAllValues().get(3).uri().getPath())
+                .endsWith("/asks/requests/request-2/trace");
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

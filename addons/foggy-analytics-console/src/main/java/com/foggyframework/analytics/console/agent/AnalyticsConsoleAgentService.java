@@ -279,6 +279,26 @@ public final class AnalyticsConsoleAgentService {
                 conversation.externalConversationRef());
     }
 
+    public AnalyticsConsoleAgentGateway.TurnDetail turnDetail(
+            AnalyticsConsoleSubject subject,
+            String conversationId,
+            String askInvocationRef) {
+        AnalyticsConsoleConversation conversation = requireConversation(subject, conversationId);
+        String expectedAskRef = required(askInvocationRef, "askInvocationRef", 256);
+        AnalyticsConsoleAskBinding ask = conversation.askBindings().stream()
+                .filter(value -> value.askInvocationRef().equals(expectedAskRef))
+                .findFirst()
+                .orElseThrow(() -> new AnalyticsConsoleCatalogException(
+                        "ANALYTICS_CONSOLE_TURN_NOT_FOUND",
+                        "Analytics Console conversation turn was not found"));
+        AnalyticsConsoleFapBindingResolver.OutboundBinding binding = bindings.resolve(subject);
+        return gateway.turnDetail(
+                binding,
+                ask.askRequestId(),
+                ask.askInvocationRef(),
+                conversation.externalConversationRef());
+    }
+
     public AnalyticsConsoleConversation requireCallbackConversation(
             AnalyticsConsoleSubject subject,
             String externalConversationRef,

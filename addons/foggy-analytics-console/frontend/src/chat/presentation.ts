@@ -14,6 +14,19 @@ export const turnSequenceFinished = (turns: AgentTurn[], pendingPrompt: string) 
   return Boolean(latest?.definitiveTerminal)
 }
 
+export const formatDuration = (milliseconds: number | null | undefined) => {
+  if (milliseconds === null || milliseconds === undefined || milliseconds < 0) return '—'
+  if (milliseconds < 1_000) return `${Math.max(1, Math.round(milliseconds))} 毫秒`
+  const seconds = milliseconds / 1_000
+  if (seconds < 60) {
+    const value = seconds < 10 ? seconds.toFixed(1).replace(/\.0$/, '') : Math.round(seconds)
+    return `${value} 秒`
+  }
+  const minutes = Math.floor(seconds / 60)
+  const remainder = Math.round(seconds % 60)
+  return remainder ? `${minutes} 分 ${remainder} 秒` : `${minutes} 分钟`
+}
+
 export const formatConversationTime = (value: string, now = Date.now()) => {
   const timestamp = Date.parse(value)
   if (!Number.isFinite(timestamp)) return ''

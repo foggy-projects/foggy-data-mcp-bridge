@@ -2,10 +2,12 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import type {
   AgentTurn,
+  AgentTurnDetail,
   Conversation,
   ConversationSummary,
   QuestionProfile
 } from '../api'
+import { formatDuration } from './presentation'
 
 const props = defineProps<{
   profiles: QuestionProfile[]
@@ -19,6 +21,9 @@ const props = defineProps<{
   loading: boolean
   submitting: boolean
   refreshing: boolean
+  turnDetails: Record<string, AgentTurnDetail>
+  detailLoading: Record<string, boolean>
+  detailErrors: Record<string, string>
   waiting: boolean
   error: string
   notice: string
@@ -29,11 +34,13 @@ const emit = defineEmits<{
   'update:prompt': [prompt: string]
   send: []
   refresh: []
+  loadTurnDetail: [askInvocationRef: string]
   newConversation: []
   openSidebar: []
 }>()
 
 const transcript = ref<HTMLElement | null>(null)
+const expandedTurns = ref<Record<string, boolean>>({})
 const title = computed(() => props.activeSummary?.title
   ?? props.activeProfile?.displayName
   ?? '新的分析会话')
@@ -72,6 +79,22 @@ const handleKeydown = (event: KeyboardEvent) => {
 }
 
 const useSuggestion = (value: string) => emit('update:prompt', value)
+
+const toggleTurnDetail = (askInvocationRef: string) => {
+  const expanded = !expandedTurns.value[askInvocationRef]
+  expandedTurns.value = { ...expandedTurns.value, [askInvocationRef]: expanded }
+  if (expanded) emit('loadTurnDetail', askInvocationRef)
+}
+
+const formatClock = (value: string | null) => value
+  ? new Intl.DateTimeFormat('zh-CN', {
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+    }).format(new Date(value))
+  : '—'
+
+const stateLabel = (state: string) => ({
+  RUNNING: '进行中', SUCCEEDED: '完成', FAILED: '失败'
+}[state] ?? state)
 </script>
 
 <template>
@@ -139,6 +162,61 @@ const useSuggestion = (value: string) => emit('update:prompt', value)
             <div class="message-body">
               <div class="message-label">
                 <span>FOGGY ANALYST</span><small>{{ turn.displayState }}</small>
+              </div>
+              <button
+                class="turn-disclosure"
+                type="button"
+                :aria-expanded="Boolean(expandedTurns[turn.askInvocationRef])"
+                :aria-controls="`turn-detail-${turn.askInvocationRef}`"
+                @click="toggleTurnDetail(turn.askInvocationRef)"
+              >
+                <span>{{ turn.definitiveTerminal ? '耗时' : '已耗时' }} {{ formatDuration(turn.durationMs) }}</span>
+                <i :class="{ expanded: expandedTurns[turn.askInvocationRef] }">⌄</i>
+              </button>
+              <div
+                v-if="expandedTurns[turn.askInvocationRef]"
+                :id="`turn-detail-${turn.askInvocationRef}`"
+                class="turn-detail"
+              >
+                <div v-if="detailLoading[turn.askInvocationRef]" class="detail-loading">
+                  <i></i><span>读取本轮安全执行摘要…</span>
+                </div>
+                <p v-else-if="detailErrors[turn.askInvocationRef]" class="detail-error">
+                  {{ detailErrors[turn.askInvocationRef] }}
+                </p>
+                <template v-else-if="turnDetails[turn.askInvocationRef]">
+                  <section v-if="turnDetails[turn.askInvocationRef].agentActivities.length" class="activity-section">
+                    <h3><span>AGENT UPDATES</span><em>阶段回复</em></h3>
+                    <ol class="activity-list">
+                      <li v-for="activity in turnDetails[turn.askInvocationRef].agentActivities"
+                          :key="activity.sequence" :class="activity.state.toLowerCase()">
+                        <i></i>
+                        <div><strong>{{ activity.label }}</strong><small>{{ formatClock(activity.occurredAt) }}</small></div>
+                        <code v-if="activity.errorCode">{{ activity.errorCode }}</code>
+                      </li>
+                    </ol>
+                  </section>
+                  <section v-if="turnDetails[turn.askInvocationRef].toolCalls.length" class="activity-section tool-section">
+                    <h3><span>TOOL CALLS</span><em>{{ turnDetails[turn.askInvocationRef].toolCalls.length }} 次调用</em></h3>
+                    <div v-for="tool in turnDetails[turn.askInvocationRef].toolCalls"
+                         :key="`${tool.sequence}-${tool.functionRef}`" class="tool-call">
+                      <span class="tool-glyph">⌘</span>
+                      <div>
+                        <strong>{{ tool.functionRef }}</strong>
+                        <small>{{ formatClock(tool.startedAt) }} · {{ stateLabel(tool.state) }}</small>
+                      </div>
+                      <em>{{ formatDuration(tool.durationMs) }}</em>
+                      <code v-if="tool.errorCode">{{ tool.errorCode }}</code>
+                    </div>
+                  </section>
+                  <p v-if="!turnDetails[turn.askInvocationRef].agentActivities.length
+                           && !turnDetails[turn.askInvocationRef].toolCalls.length"
+                     class="detail-empty">本轮暂无可展示的安全执行事件。</p>
+                  <div class="trace-note">
+                    <span>{{ turnDetails[turn.askInvocationRef].historyState }}</span>
+                    仅展示阶段状态与工具引用，不包含内部推理、参数和数据结果。
+                  </div>
+                </template>
               </div>
               <p>{{ turn.assistantMessage || turn.failureCode || '正在读取受治理数据…' }}</p>
               <div v-if="!turn.definitiveTerminal" class="thinking-line"><i></i><i></i><i></i></div>
@@ -234,6 +312,41 @@ const useSuggestion = (value: string) => emit('update:prompt', value)
 .analyst-avatar { display: grid; width: 36px; height: 36px; place-items: center; border: 1px solid var(--ink); background: var(--cobalt); color: white; font: 800 10px var(--serif); box-shadow: 3px 3px 0 var(--acid); }
 .message-body { min-width: 0; padding: 3px 0 0; }
 .analyst-chat-message p { font-size: 14px; line-height: 1.85; }
+.turn-disclosure { display: inline-flex; align-items: center; gap: 7px; min-height: 29px; margin: -2px 0 12px; padding: 0 9px; border: 1px solid transparent; background: transparent; color: var(--ink-soft); cursor: pointer; font: 700 10px var(--mono); }
+.turn-disclosure:hover, .turn-disclosure[aria-expanded="true"] { border-color: var(--line); background: var(--paper); color: var(--ink); }
+.turn-disclosure i { display: inline-block; font: normal 14px/1 var(--sans); transition: transform .16s ease; }
+.turn-disclosure i.expanded { transform: rotate(180deg); }
+.turn-detail { position: relative; margin: 0 0 17px; padding: 2px 0 2px 17px; border-left: 1px solid var(--ink); animation: detail-reveal .18s ease-out; }
+@keyframes detail-reveal { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+.detail-loading { display: flex; align-items: center; gap: 8px; min-height: 44px; color: var(--ink-soft); font: 9px var(--mono); }
+.detail-loading i { width: 11px; height: 11px; border: 2px solid var(--paper-deep); border-top-color: var(--cobalt); border-radius: 50%; animation: chat-spin .7s linear infinite; }
+.turn-detail .detail-error, .turn-detail .detail-empty { padding: 11px 12px; background: var(--paper); color: var(--ink-soft); font: 10px/1.6 var(--mono); }
+.turn-detail .detail-error { border-left: 3px solid var(--vermilion); color: var(--vermilion); }
+.activity-section + .activity-section { margin-top: 15px; }
+.activity-section h3 { display: flex; align-items: center; justify-content: space-between; margin: 0 0 8px; padding-bottom: 7px; border-bottom: 1px solid var(--line); }
+.activity-section h3 span { color: var(--cobalt); font: 800 8px var(--mono); letter-spacing: .12em; }
+.activity-section h3 em { color: var(--ink-soft); font: normal 9px var(--sans); }
+.activity-list { margin: 0; padding: 0; list-style: none; }
+.activity-list li { position: relative; display: grid; grid-template-columns: 11px minmax(0, 1fr) auto; gap: 8px; align-items: start; min-height: 31px; padding: 5px 0; }
+.activity-list li::before { content: ''; position: absolute; top: 18px; bottom: -9px; left: 4px; width: 1px; background: var(--line); }
+.activity-list li:last-child::before { display: none; }
+.activity-list li > i { position: relative; z-index: 1; width: 9px; height: 9px; margin-top: 2px; border: 2px solid var(--paper-light); border-radius: 50%; background: var(--cobalt); box-shadow: 0 0 0 1px var(--cobalt); }
+.activity-list li.failed > i { background: var(--vermilion); box-shadow: 0 0 0 1px var(--vermilion); }
+.activity-list li.running > i { background: var(--acid); box-shadow: 0 0 0 1px var(--ink); }
+.activity-list strong, .activity-list small { display: block; }
+.activity-list strong { font-size: 10px; }
+.activity-list small { margin-top: 3px; color: var(--ink-soft); font: 8px var(--mono); }
+.activity-list code { color: var(--vermilion); font: 8px var(--mono); }
+.tool-call { display: grid; grid-template-columns: 27px minmax(0, 1fr) auto; gap: 9px; align-items: center; min-height: 48px; margin-top: 6px; padding: 8px 10px; border: 1px solid var(--line); background: var(--paper); }
+.tool-glyph { display: grid; width: 26px; height: 26px; place-items: center; border: 1px solid var(--ink); color: var(--cobalt); font: 800 12px var(--mono); }
+.tool-call div { min-width: 0; }
+.tool-call strong, .tool-call small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tool-call strong { font: 700 9px var(--mono); }
+.tool-call small { margin-top: 4px; color: var(--ink-soft); font: 8px var(--mono); }
+.tool-call > em { color: var(--ink-soft); font: normal 9px var(--mono); }
+.tool-call > code { grid-column: 2 / -1; color: var(--vermilion); font: 8px var(--mono); }
+.trace-note { margin-top: 11px; color: var(--ink-soft); font: 8px/1.55 var(--mono); }
+.trace-note span { margin-right: 6px; padding: 2px 5px; background: var(--ink); color: var(--paper-light); letter-spacing: .05em; }
 .pending-chat-message { opacity: .65; }
 .thinking-line { display: flex; gap: 4px; margin-top: 13px; }
 .thinking-line i { width: 5px; height: 5px; border-radius: 50%; background: var(--cobalt); animation: pulse 1.1s ease-in-out infinite; }
@@ -271,6 +384,7 @@ const useSuggestion = (value: string) => emit('update:prompt', value)
   .suggestion-grid button { min-height: 48px; }
   .message-stream { width: calc(100% - 26px); padding-top: 28px; }
   .user-chat-message { width: 88%; }
+  .turn-detail { padding-left: 12px; }
   .composer-dock { padding: 8px 9px 12px; }
   .composer-scope > span { display: none; }
   .composer-note span:last-child { display: none; }

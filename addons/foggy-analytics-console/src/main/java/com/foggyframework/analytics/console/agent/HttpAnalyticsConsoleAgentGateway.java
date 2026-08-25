@@ -12,8 +12,11 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /** Narrow FAP Service Provider client; mutations are sent exactly once. */
 public final class HttpAnalyticsConsoleAgentGateway
@@ -123,6 +126,11 @@ public final class HttpAnalyticsConsoleAgentGateway
                     assistant.path("contentState").asText())
                     ? assistant.path("text").asText(null)
                     : null;
+            Instant startedAt = timestamp(value, "createdAt");
+            Instant updatedAt = timestamp(value, "updatedAt");
+            if (updatedAt.isBefore(startedAt)) {
+                throw protocol("FAP conversation turn timestamps are inconsistent", null);
+            }
             turns.add(new Turn(
                     required(value, "askInvocationRef"),
                     required(value, "operation"),
@@ -130,9 +138,166 @@ public final class HttpAnalyticsConsoleAgentGateway
                     value.path("definitiveTerminal").asBoolean(false),
                     userMessage,
                     message,
-                    optional(value, "failureCode")));
+                    optional(value, "failureCode"),
+                    startedAt,
+                    updatedAt,
+                    Duration.between(startedAt, updatedAt).toMillis()));
         }
         return List.copyOf(turns);
+    }
+
+    @Override
+    public TurnDetail turnDetail(
+            AnalyticsConsoleFapBindingResolver.OutboundBinding binding,
+            String askRequestId,
+            String expectedAskInvocationRef,
+            String expectedExternalConversationRef) {
+        JsonNode response = exchange(
+                "GET",
+                ROOT + "/asks/requests/" + segment(askRequestId) + "/trace",
+                binding.authorization(),
+                null,
+                200);
+        requireType(response, "ASK_TRACE");
+        if (!expectedAskInvocationRef.equals(required(response, "askInvocationRef"))
+                || !expectedExternalConversationRef.equals(
+                        required(response, "externalConversationRef"))) {
+            throw protocol("FAP Ask trace changed the frozen conversation binding", null);
+        }
+        JsonNode history = response.path("eventHistory");
+        JsonNode events = response.path("events");
+        if (!history.isObject() || !events.isArray() || events.size() > 256) {
+            throw protocol("FAP Ask trace is invalid", null);
+        }
+
+        List<AgentActivity> activities = new ArrayList<>();
+        Map<String, MutableToolCall> tools = new LinkedHashMap<>();
+        for (JsonNode event : events) {
+            long sequence = positiveLong(event, "eventSeq");
+            String eventType = required(event, "eventType");
+            Instant occurredAt = timestamp(event, "occurredAt");
+            AgentActivity activity = activity(sequence, eventType, occurredAt, event);
+            if (activity != null) activities.add(activity);
+            if ("langbiz.function.started".equals(eventType)
+                    || "langbiz.function.completed".equals(eventType)
+                    || "langbiz.function.rejected".equals(eventType)) {
+                collectToolCall(tools, sequence, eventType, occurredAt, event);
+            }
+        }
+        String historyState = required(history, "state");
+        if (!List.of("PENDING", "COMPLETE", "PARTIAL", "UNAVAILABLE")
+                .contains(historyState)
+                || !history.path("eventsTruncated").isBoolean()) {
+            throw protocol("FAP Ask trace history is invalid", null);
+        }
+        return new TurnDetail(
+                expectedAskInvocationRef,
+                historyState,
+                history.path("eventsTruncated").booleanValue(),
+                activities,
+                tools.values().stream().map(MutableToolCall::freeze).toList());
+    }
+
+    private static AgentActivity activity(
+            long sequence,
+            String eventType,
+            Instant occurredAt,
+            JsonNode event) {
+        return switch (eventType) {
+            case "worker.operation.input.accepted" -> new AgentActivity(
+                    sequence, "已接收本轮问题", "SUCCEEDED", occurredAt, null);
+            case "provider.operation.started" -> new AgentActivity(
+                    sequence, "Agent 开始分析", "RUNNING", occurredAt, null);
+            case "provider.operation.terminal" -> new AgentActivity(
+                    sequence, "Agent 完成本轮分析", "SUCCEEDED", occurredAt, null);
+            case "codex.turn.failed" -> new AgentActivity(
+                    sequence, "Agent 分析失败", "FAILED", occurredAt, errorCode(event));
+            case "codex.stream.diagnostic" -> new AgentActivity(
+                    sequence, "Agent 返回诊断信息", "FAILED", occurredAt, errorCode(event));
+            default -> null;
+        };
+    }
+
+    private static void collectToolCall(
+            Map<String, MutableToolCall> tools,
+            long sequence,
+            String eventType,
+            Instant occurredAt,
+            JsonNode event) {
+        if ("langbiz.function.schema-delivered".equals(eventType)) return;
+        String invocationId = required(event, "functionInvocationId");
+        String functionRef = required(event, "functionRef");
+        MutableToolCall tool = tools.computeIfAbsent(
+                invocationId,
+                ignored -> new MutableToolCall(sequence, functionRef));
+        if (!tool.functionRef.equals(functionRef)) {
+            throw protocol("FAP trace changed a Function invocation binding", null);
+        }
+        switch (eventType) {
+            case "langbiz.function.started" -> tool.startedAt = occurredAt;
+            case "langbiz.function.completed" -> {
+                tool.completedAt = occurredAt;
+                tool.state = "SUCCEEDED";
+            }
+            case "langbiz.function.rejected" -> {
+                tool.completedAt = occurredAt;
+                tool.state = "FAILED";
+                tool.errorCode = errorCode(event);
+            }
+            default -> {
+                // The explicit Service Provider allowlist controls future safe event types.
+            }
+        }
+    }
+
+    private static String errorCode(JsonNode event) {
+        return optional(event.path("error"), "code");
+    }
+
+    private static Instant timestamp(JsonNode node, String field) {
+        try {
+            return Instant.parse(required(node, field));
+        } catch (java.time.format.DateTimeParseException invalid) {
+            throw protocol("FAP response timestamp is invalid", invalid);
+        }
+    }
+
+    private static long positiveLong(JsonNode node, String field) {
+        JsonNode value = node.get(field);
+        if (value == null || !value.canConvertToLong() || value.longValue() < 1) {
+            throw protocol("FAP response sequence is invalid", null);
+        }
+        return value.longValue();
+    }
+
+    private static final class MutableToolCall {
+        private final long sequence;
+        private final String functionRef;
+        private String state = "RUNNING";
+        private Instant startedAt;
+        private Instant completedAt;
+        private String errorCode;
+
+        private MutableToolCall(long sequence, String functionRef) {
+            this.sequence = sequence;
+            this.functionRef = functionRef;
+        }
+
+        private ToolCall freeze() {
+            if (startedAt != null && completedAt != null && completedAt.isBefore(startedAt)) {
+                throw protocol("FAP Function trace timestamps are inconsistent", null);
+            }
+            Long durationMs = startedAt == null || completedAt == null
+                    ? null : Duration.between(startedAt, completedAt).toMillis();
+            return new ToolCall(
+                    sequence,
+                    functionRef,
+                    state,
+                    startedAt,
+                    completedAt,
+                    durationMs,
+                    errorCode);
+        }
     }
 
     private JsonNode exchange(

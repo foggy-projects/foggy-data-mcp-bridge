@@ -66,6 +66,9 @@ onBeforeUnmount(() => {
       :loading="chat.loading.value"
       :submitting="chat.submitting.value"
       :refreshing="chat.refreshing.value"
+      :turn-details="chat.turnDetails.value"
+      :detail-loading="chat.detailLoading.value"
+      :detail-errors="chat.detailErrors.value"
       :waiting="chat.waiting.value"
       :error="chat.error.value"
       :notice="chat.notice.value"
@@ -73,6 +76,7 @@ onBeforeUnmount(() => {
       @update:prompt="chat.prompt.value = $event"
       @send="chat.send"
       @refresh="chat.refreshTurns"
+      @load-turn-detail="chat.loadTurnDetail"
       @new-conversation="newConversation"
       @open-sidebar="sidebarOpen = true"
     />

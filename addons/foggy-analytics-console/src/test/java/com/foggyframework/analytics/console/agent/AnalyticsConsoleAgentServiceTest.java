@@ -132,6 +132,7 @@ class AnalyticsConsoleAgentServiceTest {
                 new AtomicReference<>();
         AtomicReference<AnalyticsConsoleAgentGateway.ContinueCommand> continued =
                 new AtomicReference<>();
+        AtomicReference<String> tracedRequest = new AtomicReference<>();
         AnalyticsConsoleAgentGateway gateway = new AnalyticsConsoleAgentGateway() {
             @Override
             public Accepted start(
@@ -155,6 +156,17 @@ class AnalyticsConsoleAgentServiceTest {
                     String requestId,
                     String externalConversationRef) {
                 return List.of();
+            }
+
+            @Override
+            public TurnDetail turnDetail(
+                    AnalyticsConsoleFapBindingResolver.OutboundBinding binding,
+                    String askRequestId,
+                    String expectedAskInvocationRef,
+                    String expectedExternalConversationRef) {
+                tracedRequest.set(askRequestId);
+                return new TurnDetail(
+                        expectedAskInvocationRef, "COMPLETE", false, List.of(), List.of());
             }
         };
         AnalyticsConsoleSubject subject = new AnalyticsConsoleSubject(
@@ -185,6 +197,8 @@ class AnalyticsConsoleAgentServiceTest {
         var updated = service.continueConversation(
                 subject, conversation.conversationId(), "按销售团队拆分");
         var summaries = service.questionConversations(subject);
+        var detail = service.turnDetail(
+                subject, conversation.conversationId(), "ask-question-2");
 
         assertThat(conversation.mode()).isEqualTo(AnalyticsConsoleConversationMode.QUESTION);
         assertThat(conversation.assetId()).isNull();
@@ -195,6 +209,9 @@ class AnalyticsConsoleAgentServiceTest {
         assertThat(started.get().skillName()).isEqualTo("analytics-question-answering");
         assertThat(continued.get().runtimeExecutionId()).isEqualTo("execution-question");
         assertThat(updated.askBindings()).hasSize(2);
+        assertThat(detail.askInvocationRef()).isEqualTo("ask-question-2");
+        assertThat(tracedRequest.get())
+                .isEqualTo(updated.askBindings().get(1).askRequestId());
         assertThat(service.conversation(subject, conversation.conversationId()))
                 .isEqualTo(updated);
         assertThat(summaries).singleElement().satisfies(summary -> {

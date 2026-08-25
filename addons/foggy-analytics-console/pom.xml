@@ -20,6 +20,7 @@
         <analytics-console.node.version>v22.23.1</analytics-console.node.version>
         <analytics-console.npm.version>10.9.8</analytics-console.npm.version>
         <foggy.analytics-console.frontend.skip>false</foggy.analytics-console.frontend.skip>
+        <foggy.analytics-console.frontend.test.skip>${foggy.analytics-console.frontend.skip}</foggy.analytics-console.frontend.test.skip>
     </properties>
 
     <dependencies>
@@ -96,7 +97,10 @@
                         <id>npm-unit-test</id>
                         <phase>generate-resources</phase>
                         <goals><goal>npm</goal></goals>
-                        <configuration><arguments>run test:unit</arguments></configuration>
+                        <configuration>
+                            <skip>${foggy.analytics-console.frontend.test.skip}</skip>
+                            <arguments>run test:unit</arguments>
+                        </configuration>
                     </execution>
                     <execution>
                         <id>npm-build</id>
