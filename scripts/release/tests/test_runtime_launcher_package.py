@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import json
 import sys
 import tempfile
 import unittest
@@ -45,6 +46,20 @@ class RuntimeLauncherPackageTest(unittest.TestCase):
             ],
         )
         self.assertNotIn("-Dfoggy.analytics-console.frontend.skip=true", package)
+
+    def test_candidate_build_runs_focused_java_lane_and_keeps_frontend_build(self) -> None:
+        _, package = release.maven_build_commands(
+            "mvn", skip_java_tests=False, candidate=True
+        )
+
+        self.assertIn(
+            "-Dtest=" + ",".join(release.CANDIDATE_JAVA_TESTS), package
+        )
+        self.assertIn(
+            "-Dfoggy.analytics-console.frontend.test.skip=true", package
+        )
+        self.assertNotIn("-Dfoggy.analytics-console.frontend.skip=true", package)
+        self.assertNotIn("-Dmaven.test.skip=true", package)
 
     def test_preserves_committed_root_target_evidence_across_maven_clean(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -116,15 +131,79 @@ class RuntimeLauncherPackageTest(unittest.TestCase):
             ):
                 release.verify_launcher_jar(jar)
 
+    def test_rejects_incomplete_function_schema_delivery(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            jar = Path(directory) / "launcher.jar"
+            functions = list(release.EXPECTED_FAP_FUNCTION_SCHEMA_DELIVERY[:-1])
+            self._write_launcher(jar, delivered_functions=functions)
+
+            with self.assertRaisesRegex(
+                release.ReleaseValidationError,
+                "exact governed FunctionRef set",
+            ):
+                release.verify_launcher_jar(jar)
+
+    def test_rejects_non_inline_function_schema_delivery(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            jar = Path(directory) / "launcher.jar"
+            self._write_launcher(jar, non_inline_function=True)
+
+            with self.assertRaisesRegex(
+                release.ReleaseValidationError,
+                "must use INLINE schema delivery",
+            ):
+                release.verify_launcher_jar(jar)
+
+    def test_rejects_host_publication_digest_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            jar = Path(directory) / "launcher.jar"
+            self._write_launcher(jar, publication_digest_drift=True)
+
+            with self.assertRaisesRegex(
+                release.ReleaseValidationError,
+                "host publication Function digest mismatch",
+            ):
+                release.verify_launcher_jar(jar)
+
+    def test_rejects_skill_revision_drift_between_metadata_and_host_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            jar = Path(directory) / "launcher.jar"
+            self._write_launcher(jar, skill_revision_drift=True)
+
+            with self.assertRaisesRegex(
+                release.ReleaseValidationError,
+                "Skill identity does not match skill-metadata.json",
+            ):
+                release.verify_launcher_jar(jar)
+
+    def test_rejects_forbidden_model_version_marker_in_analytics_jar(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            jar = Path(directory) / "launcher.jar"
+            self._write_launcher(jar, forbidden_marker=True)
+
+            with self.assertRaisesRegex(
+                release.ReleaseValidationError,
+                "forbidden caller-visible model version marker",
+            ):
+                release.verify_launcher_jar(jar)
+
     @staticmethod
-    def _empty_jar() -> bytes:
+    def _empty_jar(marker: bytes | None = None) -> bytes:
         content = io.BytesIO()
         with zipfile.ZipFile(content, "w") as archive:
             archive.writestr("META-INF/MANIFEST.MF", "Manifest-Version: 1.0\n")
+            if marker is not None:
+                archive.writestr("contract.bin", marker)
         return content.getvalue()
 
     @classmethod
-    def _console_jar(cls, stale_asset: bool) -> bytes:
+    def _console_jar(
+            cls,
+            stale_asset: bool,
+            delivered_functions: list[str] | None = None,
+            non_inline_function: bool = False,
+            publication_digest_drift: bool = False,
+            skill_revision_drift: bool = False) -> bytes:
         content = io.BytesIO()
         index = (
             '<script src="/analytics-console/theme-init.js"></script>'
@@ -148,9 +227,81 @@ class RuntimeLauncherPackageTest(unittest.TestCase):
                 archive.writestr(
                     "META-INF/foggy-analytics-console/assets/index-stale.js", "// stale"
                 )
-            archive.writestr("fap/analytics-question-answering/SKILL.md", "# Skill")
+            function_refs = list(
+                delivered_functions
+                if delivered_functions is not None
+                else release.EXPECTED_FAP_FUNCTION_SCHEMA_DELIVERY
+            )
             archive.writestr(
-                "fap/analytics-question-answering/function-schema-delivery.json", "{}"
+                "fap/analytics-question-answering/SKILL.md",
+                "# Skill\n" + "\n".join(function_refs),
+            )
+            functions = [
+                {
+                    "functionRef": function_ref,
+                    "mode": (
+                        "ON_DEMAND"
+                        if non_inline_function and index == 0
+                        else "INLINE"
+                    ),
+                }
+                for index, function_ref in enumerate(function_refs)
+            ]
+            archive.writestr(
+                "fap/analytics-question-answering/function-schema-delivery.json",
+                json.dumps(
+                    {
+                        "contractVersion": "fap.langbiz.function-schema-delivery.v1",
+                        "functions": functions,
+                    }
+                ),
+            )
+            publications = []
+            for function_ref in function_refs:
+                schema_digest, projection_digest = (
+                    release.EXPECTED_FAP_FUNCTION_DIGESTS.get(
+                        function_ref, ("sha256:" + "0" * 64, "sha256:" + "1" * 64)
+                    )
+                )
+                publications.append(
+                    {
+                        "functionRef": function_ref,
+                        "schemaDigest": (
+                            "sha256:" + "f" * 64
+                            if publication_digest_drift and not publications
+                            else schema_digest
+                        ),
+                        "projectionDigest": projection_digest,
+                    }
+                )
+            archive.writestr(
+                "fap/analytics-question-answering/host-publication-manifest.json",
+                json.dumps(
+                    {
+                        "contractVersion": "foggy.analytics.question-host-publication.v1",
+                        "publicationMode": "HOST_MANAGED_EXPLICIT",
+                        "launcherStartupMutationAllowed": False,
+                        "skill": {
+                            "name": "analytics-question-answering",
+                            "revision": 6 if skill_revision_drift else 7,
+                        },
+                        "functions": publications,
+                    }
+                ),
+            )
+            archive.writestr(
+                "fap/analytics-question-answering/skill-metadata.json",
+                json.dumps(
+                    {
+                        "contractVersion": "fap.skill.metadata.v1",
+                        "skillId": "skill.analytics-console-question-answering-v1",
+                        "name": "analytics-question-answering",
+                        "revision": 7,
+                        "title": "Analytics question answering",
+                        "description": "Governed Analytics guidance.",
+                        "entryDocumentPath": "SKILL.md",
+                    }
+                ),
             )
             archive.writestr(
                 "fap/analytics-question-answering/references/query-model-dsl.md", "# DSL"
@@ -161,18 +312,34 @@ class RuntimeLauncherPackageTest(unittest.TestCase):
         return content.getvalue()
 
     @classmethod
-    def _write_launcher(cls, path: Path, stale_asset: bool = False) -> None:
+    def _write_launcher(
+            cls,
+            path: Path,
+            stale_asset: bool = False,
+            delivered_functions: list[str] | None = None,
+            non_inline_function: bool = False,
+            forbidden_marker: bool = False,
+            publication_digest_drift: bool = False,
+            skill_revision_drift: bool = False) -> None:
         with zipfile.ZipFile(path, "w") as outer:
             outer.writestr(
                 "BOOT-INF/classes/application-analytics-console.yml", "foggy: {}"
             )
             outer.writestr(
                 "BOOT-INF/lib/foggy-analytics-console-9.3.0-SNAPSHOT.jar",
-                cls._console_jar(stale_asset),
+                cls._console_jar(
+                    stale_asset,
+                    delivered_functions=delivered_functions,
+                    non_inline_function=non_inline_function,
+                    publication_digest_drift=publication_digest_drift,
+                    skill_revision_drift=skill_revision_drift,
+                ),
             )
             outer.writestr(
                 "BOOT-INF/lib/foggy-analytics-runtime-api-9.3.0-SNAPSHOT.jar",
-                cls._empty_jar(),
+                cls._empty_jar(
+                    b"MODEL_REVISION_CONFLICT" if forbidden_marker else None
+                ),
             )
 
 

@@ -46,6 +46,8 @@ After readiness succeeds, open `http://127.0.0.1:18066/analytics-console/`. The 
 
 FAP integration is optional and remains disabled by default. Enabling Console does not provision, publish, or mutate FAP resources. A FAP-enabled deployment must separately supply its FAP URL, binding, callback authorization, Skill, Capability, and Function catalog. Do not put credentials in this package or in its manifest.
 
+An authenticated Console administrator can export the credential-free FAP handoff bundle from `GET /analytics-console/api/v1/integrations/fap/question-publication`. A host-managed FAP publisher may pull that bundle and append missing immutable Function, Skill, and Capability revisions. The endpoint is read-only and never applies FAP changes.
+
 Useful port overrides:
 
 ```powershell
