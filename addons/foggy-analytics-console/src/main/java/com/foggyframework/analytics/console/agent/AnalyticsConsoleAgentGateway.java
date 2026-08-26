@@ -80,7 +80,7 @@ public interface AnalyticsConsoleAgentGateway {
             String failureCode,
             Instant startedAt,
             Instant updatedAt,
-            long durationMs) {
+            Long durationMs) {
 
         public Turn(
                 String askInvocationRef,
@@ -98,7 +98,7 @@ public interface AnalyticsConsoleAgentGateway {
                     failureCode,
                     null,
                     null,
-                    0L);
+                    null);
         }
     }
 

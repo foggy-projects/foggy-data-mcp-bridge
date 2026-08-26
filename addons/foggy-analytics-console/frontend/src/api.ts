@@ -58,7 +58,7 @@ export interface AgentTurn {
   failureCode: string | null
   startedAt: string
   updatedAt: string
-  durationMs: number
+  durationMs: number | null
 }
 
 export interface AgentActivity {

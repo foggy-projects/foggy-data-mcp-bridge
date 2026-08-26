@@ -12,6 +12,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -52,8 +53,13 @@ class HttpAnalyticsConsoleAgentGatewayTest {
                     "operation": "CONTINUE",
                     "displayState": "COMPLETED",
                     "definitiveTerminal": true,
-                    "createdAt": "2026-08-24T08:00:00Z",
-                    "updatedAt": "2026-08-24T08:00:06Z",
+                    "createdAt": "2026-08-24T07:59:30Z",
+                    "updatedAt": "2026-08-24T11:01:00Z",
+                    "executionTiming": {
+                      "startedAt": "2026-08-24T08:00:00Z",
+                      "completedAt": "2026-08-24T08:00:06Z",
+                      "durationMs": 6000
+                    },
                     "userMessage": {
                       "contentState": "AVAILABLE",
                       "text": "按销售团队拆分"
@@ -185,6 +191,8 @@ class HttpAnalyticsConsoleAgentGatewayTest {
             assertThat(turn.operation()).isEqualTo("CONTINUE");
             assertThat(turn.userMessage()).isEqualTo("按销售团队拆分");
             assertThat(turn.assistantMessage()).isEqualTo("东区 12 单，西区 7 单。");
+            assertThat(turn.startedAt()).isEqualTo(Instant.parse("2026-08-24T08:00:00Z"));
+            assertThat(turn.updatedAt()).isEqualTo(Instant.parse("2026-08-24T08:00:06Z"));
             assertThat(turn.durationMs()).isEqualTo(6_000L);
         });
         assertThat(title).isEqualTo("本月订单量是多少？");
@@ -217,6 +225,49 @@ class HttpAnalyticsConsoleAgentGatewayTest {
         assertThat(requests.getAllValues().get(3).uri().getQuery()).contains("limit=1");
         assertThat(requests.getAllValues().get(4).uri().getPath())
                 .endsWith("/asks/requests/request-2/trace");
+    }
+
+    @Test
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void doesNotInferExecutionDurationFromLegacyAskAndTaskProjectionTimestamps()
+            throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        HttpClient http = mock(HttpClient.class);
+        HttpResponse turnsResponse = response(200, """
+                        {
+                          "type": "ASK_CONVERSATION_TURN_PAGE",
+                          "turns": [{
+                            "askInvocationRef": "ask-legacy",
+                            "operation": "START",
+                            "displayState": "SUCCEEDED",
+                            "definitiveTerminal": true,
+                            "createdAt": "2026-08-24T08:00:00Z",
+                            "updatedAt": "2026-08-24T11:01:00Z",
+                            "userMessage": {"contentState": "AVAILABLE", "text": "问题"},
+                            "assistantMessage": {"contentState": "AVAILABLE", "text": "回答"}
+                          }]
+                        }
+                        """);
+        when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(turnsResponse);
+        HttpAnalyticsConsoleAgentGateway gateway =
+                new HttpAnalyticsConsoleAgentGateway(
+                        URI.create("http://127.0.0.1:4882"),
+                        Duration.ofSeconds(2),
+                        json,
+                        http);
+
+        var turns = gateway.turns(
+                new AnalyticsConsoleFapBindingResolver.OutboundBinding(
+                        "Bearer subject", "workspace-1", "model-1", "variant-1"),
+                "request-turns",
+                "analytics-console.conversation-legacy");
+
+        assertThat(turns).singleElement().satisfies(turn -> {
+            assertThat(turn.startedAt()).isEqualTo(Instant.parse("2026-08-24T08:00:00Z"));
+            assertThat(turn.updatedAt()).isEqualTo(Instant.parse("2026-08-24T11:01:00Z"));
+            assertThat(turn.durationMs()).isNull();
+        });
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

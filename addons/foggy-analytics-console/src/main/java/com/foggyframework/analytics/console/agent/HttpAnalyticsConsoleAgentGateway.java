@@ -147,11 +147,12 @@ public final class HttpAnalyticsConsoleAgentGateway
                     assistant.path("contentState").asText())
                     ? assistant.path("text").asText(null)
                     : null;
-            Instant startedAt = timestamp(value, "createdAt");
-            Instant updatedAt = timestamp(value, "updatedAt");
-            if (updatedAt.isBefore(startedAt)) {
+            Instant askCreatedAt = timestamp(value, "createdAt");
+            Instant taskUpdatedAt = timestamp(value, "updatedAt");
+            if (taskUpdatedAt.isBefore(askCreatedAt)) {
                 throw protocol("FAP conversation turn timestamps are inconsistent", null);
             }
+            ExecutionTiming timing = executionTiming(value);
             turns.add(new Turn(
                     required(value, "askInvocationRef"),
                     required(value, "operation"),
@@ -160,11 +161,27 @@ public final class HttpAnalyticsConsoleAgentGateway
                     userMessage,
                     message,
                     optional(value, "failureCode"),
-                    startedAt,
-                    updatedAt,
-                    Duration.between(startedAt, updatedAt).toMillis()));
+                    timing == null ? askCreatedAt : timing.startedAt(),
+                    timing == null ? taskUpdatedAt : timing.completedAt(),
+                    timing == null ? null : timing.durationMs()));
         }
         return List.copyOf(turns);
+    }
+
+    private static ExecutionTiming executionTiming(JsonNode turn) {
+        JsonNode value = turn.get("executionTiming");
+        if (value == null || value.isNull()) return null;
+        if (!value.isObject()) {
+            throw protocol("FAP executionTiming is invalid", null);
+        }
+        Instant startedAt = timestamp(value, "startedAt");
+        Instant completedAt = timestamp(value, "completedAt");
+        long durationMs = nonNegativeLong(value, "durationMs");
+        if (completedAt.isBefore(startedAt)
+                || Duration.between(startedAt, completedAt).toMillis() != durationMs) {
+            throw protocol("FAP executionTiming is inconsistent", null);
+        }
+        return new ExecutionTiming(startedAt, completedAt, durationMs);
     }
 
     @Override
@@ -289,6 +306,21 @@ public final class HttpAnalyticsConsoleAgentGateway
             throw protocol("FAP response sequence is invalid", null);
         }
         return value.longValue();
+    }
+
+    private static long nonNegativeLong(JsonNode node, String field) {
+        JsonNode value = node.get(field);
+        if (value == null || !value.isIntegralNumber()
+                || !value.canConvertToLong() || value.longValue() < 0) {
+            throw protocol("FAP response duration is invalid", null);
+        }
+        return value.longValue();
+    }
+
+    private record ExecutionTiming(
+            Instant startedAt,
+            Instant completedAt,
+            long durationMs) {
     }
 
     private static final class MutableToolCall {
