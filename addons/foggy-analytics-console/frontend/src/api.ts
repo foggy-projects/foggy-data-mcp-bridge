@@ -56,8 +56,8 @@ export interface AgentTurn {
   userMessage: string | null
   assistantMessage: string | null
   failureCode: string | null
-  startedAt: string
-  updatedAt: string
+  startedAt: string | null
+  completedAt: string | null
   durationMs: number | null
 }
 

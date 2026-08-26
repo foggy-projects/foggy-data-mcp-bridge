@@ -219,7 +219,12 @@ const copyPayload = async (
                 :aria-controls="`turn-detail-${turn.askInvocationRef}`"
                 @click="toggleTurnDetail(turn.askInvocationRef)"
               >
-                <span>{{ turn.definitiveTerminal ? '耗时' : '已耗时' }} {{ formatDuration(turn.durationMs) }}</span>
+                <span class="turn-timing-summary">
+                  <span>{{ turn.definitiveTerminal ? '耗时' : '已耗时' }} {{ formatDuration(turn.durationMs) }}</span>
+                  <small v-if="turn.startedAt || turn.completedAt">
+                    开始 {{ formatClock(turn.startedAt) }} · 完成 {{ formatClock(turn.completedAt) }}
+                  </small>
+                </span>
                 <i
                   aria-hidden="true"
                   :class="{ expanded: expandedTurns[turn.askInvocationRef] }"
@@ -401,6 +406,8 @@ const copyPayload = async (
 .message-body { min-width: 0; padding: 3px 0 0; }
 .analyst-chat-message p { font-size: 14px; line-height: 1.85; }
 .turn-disclosure { display: inline-flex; align-items: center; gap: 7px; min-height: 29px; margin: -2px 0 12px; padding: 0 9px; border: 1px solid transparent; background: transparent; color: var(--ink-soft); cursor: pointer; font: 700 10px var(--mono); }
+.turn-timing-summary { display: inline-flex; align-items: baseline; gap: 10px; }
+.turn-timing-summary small { color: var(--ink-soft); font: 400 8px var(--mono); }
 .turn-disclosure:hover, .turn-disclosure[aria-expanded="true"] { border-color: var(--line); background: var(--paper); color: var(--ink); }
 .turn-disclosure i { display: inline-block; width: 6px; height: 6px; margin-top: -2px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(-45deg); transform-origin: center; transition: transform .16s ease; }
 .turn-disclosure i.expanded { transform: rotate(45deg); }

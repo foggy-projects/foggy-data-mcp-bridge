@@ -18,7 +18,7 @@ const turn = (terminal: boolean): AgentTurn => ({
   assistantMessage: terminal ? '6 单' : null,
   failureCode: null,
   startedAt: '2026-08-24T09:59:48Z',
-  updatedAt: '2026-08-24T10:00:00Z',
+  completedAt: '2026-08-24T10:00:00Z',
   durationMs: 12_000
 })
 
@@ -44,6 +44,7 @@ describe('chat presentation', () => {
     expect(formatDuration(850)).toBe('850 毫秒')
     expect(formatDuration(12_400)).toBe('12 秒')
     expect(formatDuration(72_000)).toBe('1 分 12 秒')
+    expect(formatDuration(null)).toBe('—')
   })
 
   it('formats raw Function arguments and results as readable JSON', () => {

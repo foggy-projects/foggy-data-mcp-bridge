@@ -161,8 +161,8 @@ public final class HttpAnalyticsConsoleAgentGateway
                     userMessage,
                     message,
                     optional(value, "failureCode"),
-                    timing == null ? askCreatedAt : timing.startedAt(),
-                    timing == null ? taskUpdatedAt : timing.completedAt(),
+                    timing == null ? null : timing.startedAt(),
+                    timing == null ? null : timing.completedAt(),
                     timing == null ? null : timing.durationMs()));
         }
         return List.copyOf(turns);

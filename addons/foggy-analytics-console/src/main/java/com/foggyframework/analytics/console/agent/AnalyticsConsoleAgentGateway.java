@@ -79,7 +79,7 @@ public interface AnalyticsConsoleAgentGateway {
             String assistantMessage,
             String failureCode,
             Instant startedAt,
-            Instant updatedAt,
+            Instant completedAt,
             Long durationMs) {
 
         public Turn(

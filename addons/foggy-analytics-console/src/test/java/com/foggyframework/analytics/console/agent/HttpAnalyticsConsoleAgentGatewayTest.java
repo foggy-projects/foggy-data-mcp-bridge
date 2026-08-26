@@ -192,7 +192,7 @@ class HttpAnalyticsConsoleAgentGatewayTest {
             assertThat(turn.userMessage()).isEqualTo("按销售团队拆分");
             assertThat(turn.assistantMessage()).isEqualTo("东区 12 单，西区 7 单。");
             assertThat(turn.startedAt()).isEqualTo(Instant.parse("2026-08-24T08:00:00Z"));
-            assertThat(turn.updatedAt()).isEqualTo(Instant.parse("2026-08-24T08:00:06Z"));
+            assertThat(turn.completedAt()).isEqualTo(Instant.parse("2026-08-24T08:00:06Z"));
             assertThat(turn.durationMs()).isEqualTo(6_000L);
         });
         assertThat(title).isEqualTo("本月订单量是多少？");
@@ -264,8 +264,8 @@ class HttpAnalyticsConsoleAgentGatewayTest {
                 "analytics-console.conversation-legacy");
 
         assertThat(turns).singleElement().satisfies(turn -> {
-            assertThat(turn.startedAt()).isEqualTo(Instant.parse("2026-08-24T08:00:00Z"));
-            assertThat(turn.updatedAt()).isEqualTo(Instant.parse("2026-08-24T11:01:00Z"));
+            assertThat(turn.startedAt()).isNull();
+            assertThat(turn.completedAt()).isNull();
             assertThat(turn.durationMs()).isNull();
         });
     }
