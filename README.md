@@ -74,18 +74,19 @@ default.
 
 ### 1. Download and start the Runtime
 
-The commands below pin launcher `0.1.17`. Check the
+The commands below pin launcher `0.1.18`. Check the
 [releases page](https://github.com/foggy-projects/foggy-data-mcp-bridge/releases)
 for a newer version.
 
 ```bash
 mkdir foggy-runtime && cd foggy-runtime
 
-curl -fLO https://github.com/foggy-projects/foggy-data-mcp-bridge/releases/download/foggy-runtime-launcher-v0.1.17/foggy-runtime-launcher-0.1.17.jar
-curl -fLO https://github.com/foggy-projects/foggy-data-mcp-bridge/releases/download/foggy-runtime-launcher-v0.1.17/start-foggy-runtime.sh
-curl -fLO https://github.com/foggy-projects/foggy-data-mcp-bridge/releases/download/foggy-runtime-launcher-v0.1.17/SHA256SUMS
+curl -fLO https://github.com/foggy-projects/foggy-data-mcp-bridge/releases/download/foggy-runtime-launcher-v0.1.18/foggy-runtime-launcher-0.1.18.jar
+curl -fLO https://github.com/foggy-projects/foggy-data-mcp-bridge/releases/download/foggy-runtime-launcher-v0.1.18/start-foggy-runtime.sh
+curl -fLO https://github.com/foggy-projects/foggy-data-mcp-bridge/releases/download/foggy-runtime-launcher-v0.1.18/runtime-launcher-manifest.json
+curl -fLO https://github.com/foggy-projects/foggy-data-mcp-bridge/releases/download/foggy-runtime-launcher-v0.1.18/SHA256SUMS
 
-grep -E 'foggy-runtime-launcher-0.1.17.jar|start-foggy-runtime.sh' SHA256SUMS | sha256sum -c -
+grep -E 'foggy-runtime-launcher-0.1.18.jar|start-foggy-runtime.sh|runtime-launcher-manifest.json' SHA256SUMS | sha256sum -c -
 chmod +x start-foggy-runtime.sh
 ./start-foggy-runtime.sh
 ```
@@ -93,6 +94,12 @@ chmod +x start-foggy-runtime.sh
 Windows users can download `start-foggy-runtime.ps1` from the same release and
 run it from PowerShell. The default service URL is
 `http://127.0.0.1:18066`.
+
+Launcher `0.1.18` embeds the Analytics Console and its Analytics Runtime API in the same JAR, so
+there is no separate Console installation. Both remain disabled by default. Verify
+`features.analyticsConsole.embedded=true` in `runtime-launcher-manifest.json`, then opt in with
+`ANALYTICS_CONSOLE_ENABLED=true ./start-foggy-runtime.sh` or
+`.\start-foggy-runtime.ps1 -AnalyticsConsole`. FAP integration remains disabled and host-managed.
 
 ### 2. Verify the service
 

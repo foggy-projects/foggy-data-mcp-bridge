@@ -1,0 +1,36 @@
+{
+  "contractVersion": "foggy.analytics.question-host-publication.v1",
+  "publicationMode": "HOST_MANAGED_EXPLICIT",
+  "launcherStartupMutationAllowed": false,
+  "skill": {
+    "name": "analytics-question-answering",
+    "revision": 7
+  },
+  "functions": [
+    {
+      "functionRef": "foggy.analytics.model-dependencies.list@v3",
+      "schemaDigest": "sha256:67c63e15308184ad1b910b9987407e328378a7e83bdb1a83d76eadac28e31480",
+      "projectionDigest": "sha256:aec14b4e921eda2b835c11537d1471170b1b3f25c7bc4000cf587699ceeac72f"
+    },
+    {
+      "functionRef": "foggy.analytics.semantic-models.describe@v2",
+      "schemaDigest": "sha256:00eb1587238a3c47bab587744ceb2d7f02ee12269d2021f9edfde8bc199a2edb",
+      "projectionDigest": "sha256:df604deb8375f7287ea714e39718acfc14cec7dc74af98b57276a36ee97e6a83"
+    },
+    {
+      "functionRef": "foggy.analytics.semantic-queries.execute@v2",
+      "schemaDigest": "sha256:1cdb14041e9d1c61ea537e7217d5b47342b9b56e766ac502e89f46b957450599",
+      "projectionDigest": "sha256:42b9bb399338090ab0dbb1e13b691acaecff7608eb2b8d53375b21648f0a47a8"
+    },
+    {
+      "functionRef": "foggy.analytics.query-model.run@v2",
+      "schemaDigest": "sha256:c38308571dd06457c1494224ee05807a9727b537dda6ffda5cd2fe163ac9372b",
+      "projectionDigest": "sha256:561199380d0c7dae7d1b85dcda5c7b54a3cd400e8c661644a41d22783d03d090"
+    },
+    {
+      "functionRef": "foggy.analytics.compose.run@v1",
+      "schemaDigest": "sha256:5596a48f0b34471fe938805d36321de9fbe16de0dc554473f4e825d007283abc",
+      "projectionDigest": "sha256:33a554bc4a775ad86c8e755d1f169ef0ce7fb8af4a5706f7d95a51be86dcf4a4"
+    }
+  ]
+}

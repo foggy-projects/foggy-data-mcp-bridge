@@ -9,6 +9,7 @@ import com.foggyframework.analytics.runtime.core.function.AnalyticsModelDependen
 import com.foggyframework.analytics.runtime.core.function.AnalyticsModelDependencyResolutionException;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogResolution;
 import com.foggyframework.dataset.model.lifecycle.identity.CatalogIdentity;
+import com.foggyframework.dataset.model.impl.AiObject;
 import com.foggyframework.dataset.model.semantic.port.SemanticModelCatalogReadPort;
 import com.foggyframework.dataset.model.semantic.service.SemanticModelCatalogService.NamespaceCatalogView;
 import com.foggyframework.dataset.model.spi.QueryModel;
@@ -95,8 +96,12 @@ public final class FoggyAnalyticsModelDependencyOperations
             NamespaceCatalogView view = catalogReadPort.modelCatalogView(
                     engineNamespace, List.of(modelName));
             CatalogIdentity identity = requireCatalog(view, engineNamespace);
-            requireExactQueryModel(view, modelName, identity);
-            return Optional.of(new AnalyticsModelSummary(namespace, "qm", modelName));
+            QueryModel model = requireExactQueryModel(view, modelName, identity);
+            return Optional.of(new AnalyticsModelSummary(
+                    namespace,
+                    "qm",
+                    modelName,
+                    modelDescription(model)));
         } catch (RuntimeException unavailable) {
             return Optional.empty();
         }
@@ -113,7 +118,7 @@ public final class FoggyAnalyticsModelDependencyOperations
         return view.identity();
     }
 
-    private void requireExactQueryModel(
+    private QueryModel requireExactQueryModel(
             NamespaceCatalogView view,
             String modelName,
             CatalogIdentity catalogIdentity) {
@@ -125,6 +130,15 @@ public final class FoggyAnalyticsModelDependencyOperations
                     AnalyticsModelDependencyResolutionException.Code.MODEL_NOT_FOUND,
                     "Selected model does not exist in the current catalog");
         }
+        return resolution.model();
+    }
+
+    private static String modelDescription(QueryModel model) {
+        AiObject ai = model.getAi();
+        if (ai != null && ai.getPrompt() != null && !ai.getPrompt().isBlank()) {
+            return ai.getPrompt();
+        }
+        return model.getDescription() == null ? "" : model.getDescription();
     }
 
     private String canonicalEngineNamespace(AnalyticsNamespaceRef namespaceRef) {

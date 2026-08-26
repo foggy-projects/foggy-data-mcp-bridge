@@ -2,7 +2,7 @@
   "contractVersion": "fap.langbiz.function-schema-delivery.v1",
   "functions": [
     {
-      "functionRef": "foggy.analytics.model-dependencies.list@v2",
+      "functionRef": "foggy.analytics.model-dependencies.list@v3",
       "mode": "INLINE"
     },
     {

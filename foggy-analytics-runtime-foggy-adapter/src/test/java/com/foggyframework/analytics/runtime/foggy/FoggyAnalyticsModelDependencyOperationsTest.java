@@ -40,6 +40,7 @@ class FoggyAnalyticsModelDependencyOperationsTest {
         assertEquals("qm", listed.modelKind());
         assertEquals(1, listed.models().size());
         assertEquals(FoggyAdapterTestFixtures.MODEL, listed.models().get(0).modelName());
+        assertEquals("Sales order analysis", listed.models().get(0).description());
     }
 
     @Test

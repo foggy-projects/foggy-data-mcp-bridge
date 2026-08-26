@@ -19,9 +19,12 @@ import com.foggyframework.analytics.function.contract.AnalyticsQueryModelFunctio
 import com.foggyframework.analytics.function.contract.AnalyticsQueryModelResult;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderResult;
+import com.foggyframework.analytics.function.contract.AnalyticsSemanticModelDescription;
+import com.foggyframework.analytics.function.contract.AnalyticsSemanticModelFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsSemanticQueryFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsSemanticQueryResult;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -147,7 +150,8 @@ class FapAnalyticsFunctionRequestMappingTest {
                                 List.of(new AnalyticsModelSummary(
                                         value.namespace(),
                                         value.modelKind(),
-                                        "FactOrderQueryModel"))),
+                                        "FactOrderQueryModel",
+                                        "Order facts for governed business analysis"))),
                         FapAnalyticsAdapterTestSupport.context(value.context()));
             }
         }
@@ -169,6 +173,92 @@ class FapAnalyticsFunctionRequestMappingTest {
         assertThat(client.request.namespace()).isEqualTo("default");
         assertThat(client.request.modelKind()).isEqualTo("qm");
         assertThat(resolutions).hasValue(0);
+        FapAnalyticsFunctionOutcome.Success success =
+                (FapAnalyticsFunctionOutcome.Success) outcome;
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) success.result().get("data");
+        assertThat(data)
+                .containsEntry("format", "markdown")
+                .hasEntrySatisfying("content", content -> assertThat(content.toString())
+                        .contains("FactOrderQueryModel")
+                        .contains("Order facts for governed business analysis"));
+    }
+
+    @Test
+    void preservesMarkdownSemanticModelDescription() {
+        class Client extends FapAnalyticsAdapterTestSupport.StubClient {
+            @Override
+            public AnalyticsFunctionEnvelope<AnalyticsSemanticModelDescription>
+                    describeSemanticModel(AnalyticsSemanticModelFunctionRequest value) {
+                calls++;
+                return AnalyticsFunctionEnvelope.ok(
+                        "foggy-analytics-runtime-api/v1",
+                        "analytics-runtime/v1",
+                        new AnalyticsSemanticModelDescription(
+                                value.namespace(),
+                                value.modelName(),
+                                "markdown",
+                                "# Orders\n\nOrder facts and governed fields."),
+                        FapAnalyticsAdapterTestSupport.context(value.context()));
+            }
+        }
+        Client client = new Client();
+        FapAnalyticsFunctionAdapter adapter = new FapAnalyticsFunctionAdapter(
+                client,
+                (caller, operation) -> new AnalyticsFunctionAuthority(
+                        "tms", "opaque-authority-42"));
+
+        FapAnalyticsFunctionOutcome.Success success =
+                (FapAnalyticsFunctionOutcome.Success) adapter.invoke(
+                        FapAnalyticsAdapterTestSupport.invocation(
+                                FapAnalyticsFunctionRefs.SEMANTIC_MODELS_DESCRIBE,
+                                Map.of(
+                                        "namespace", "default",
+                                        "modelName", "FactOrderQueryModel")));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) success.result().get("data");
+        assertThat(data)
+                .containsEntry("namespace", "default")
+                .containsEntry("modelName", "FactOrderQueryModel")
+                .containsEntry("format", "markdown")
+                .containsEntry(
+                        "content",
+                        "# Orders\n\nOrder facts and governed fields.");
+    }
+
+    @Test
+    void rejectsNonMarkdownSemanticModelResultAtTheFapBoundary() {
+        class Client extends FapAnalyticsAdapterTestSupport.StubClient {
+            @Override
+            public AnalyticsFunctionEnvelope<AnalyticsSemanticModelDescription>
+                    describeSemanticModel(AnalyticsSemanticModelFunctionRequest value) {
+                calls++;
+                return AnalyticsFunctionEnvelope.ok(
+                        "foggy-analytics-runtime-api/v1",
+                        "analytics-runtime/v1",
+                        new AnalyticsSemanticModelDescription(
+                                value.namespace(), value.modelName(), "json", "{}"),
+                        FapAnalyticsAdapterTestSupport.context(value.context()));
+            }
+        }
+        Client client = new Client();
+        FapAnalyticsFunctionAdapter adapter = new FapAnalyticsFunctionAdapter(
+                client,
+                (caller, operation) -> new AnalyticsFunctionAuthority(
+                        "tms", "opaque-authority-42"));
+
+        FapAnalyticsFunctionOutcome outcome = adapter.invoke(
+                FapAnalyticsAdapterTestSupport.invocation(
+                        FapAnalyticsFunctionRefs.SEMANTIC_MODELS_DESCRIBE,
+                        Map.of(
+                                "namespace", "default",
+                                "modelName", "FactOrderQueryModel")));
+
+        assertThat(outcome).isInstanceOfSatisfying(
+                FapAnalyticsFunctionOutcome.Failure.class,
+                failure -> assertThat(failure.code()).isEqualTo(
+                        FapAnalyticsErrorCodes.PROTOCOL_ERROR));
     }
 
     @Test
@@ -275,6 +365,20 @@ class FapAnalyticsFunctionRequestMappingTest {
                 new AnalyticsFunctionAuthority("tms", "opaque-authority-42"));
         assertThat(client.request.query().columns()).containsExactly("orderCount");
         assertThat(client.request.query().filters()).hasSize(1);
+        FapAnalyticsFunctionOutcome.Success success =
+                (FapAnalyticsFunctionOutcome.Success) outcome;
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) success.result().get("data");
+        assertThat(data)
+                .containsEntry("namespace", "default")
+                .containsEntry("modelName", "FactOrderQueryModel")
+                .containsEntry(
+                        "rows",
+                        List.of(Map.of("orderCount", BigInteger.valueOf(12))))
+                .containsEntry("total", BigInteger.ONE)
+                .containsEntry("hasMore", false)
+                .containsEntry("truncated", false)
+                .containsEntry("warnings", List.of());
     }
 
     @Test
@@ -368,6 +472,20 @@ class FapAnalyticsFunctionRequestMappingTest {
         assertThat(accepted).isInstanceOf(FapAnalyticsFunctionOutcome.Success.class);
         assertThat(client.request.payload()).containsKeys("columns", "timeWindow");
         assertThat(client.request.authority().reference()).isEqualTo("opaque-authority-42");
+        FapAnalyticsFunctionOutcome.Success success =
+                (FapAnalyticsFunctionOutcome.Success) accepted;
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) success.result().get("data");
+        assertThat(data)
+                .containsEntry("namespace", "default")
+                .containsEntry("modelName", "FactOrderQueryModel")
+                .containsEntry("mode", "validate")
+                .containsEntry(
+                        "response",
+                        Map.of(
+                                "items",
+                                List.of(Map.of(
+                                        "orderCount", BigInteger.valueOf(12)))));
         assertThat(rejected).isInstanceOfSatisfying(
                 FapAnalyticsFunctionOutcome.Failure.class,
                 failure -> assertThat(failure.code()).isEqualTo(
@@ -390,7 +508,10 @@ class FapAnalyticsFunctionRequestMappingTest {
                         "analytics-runtime/v1",
                         new AnalyticsComposeResult(
                                 value.namespace(), value.mode(), true, false,
-                                Map.of("plans", List.of()), null, List.of(), List.of()),
+                                Map.of("plans", List.of(Map.of("orderCount", 12))),
+                                "select count(*) from orders where status = ?",
+                                List.of("SHIPPED"),
+                                List.of("PREVIEW_ONLY")),
                         FapAnalyticsAdapterTestSupport.context(value.context()));
             }
         }
@@ -413,6 +534,26 @@ class FapAnalyticsFunctionRequestMappingTest {
         assertThat(client.request.namespace()).isEqualTo("default");
         assertThat(client.request.mode()).isEqualTo("validate");
         assertThat(client.request.authority().reference()).isEqualTo("opaque-authority-42");
+        FapAnalyticsFunctionOutcome.Success success =
+                (FapAnalyticsFunctionOutcome.Success) outcome;
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) success.result().get("data");
+        assertThat(data)
+                .containsEntry("namespace", "default")
+                .containsEntry("mode", "validate")
+                .containsEntry("valid", true)
+                .containsEntry("executed", false)
+                .containsEntry(
+                        "value",
+                        Map.of(
+                                "plans",
+                                List.of(Map.of(
+                                        "orderCount", BigInteger.valueOf(12)))))
+                .containsEntry(
+                        "sql",
+                        "select count(*) from orders where status = ?")
+                .containsEntry("params", List.of("SHIPPED"))
+                .containsEntry("warnings", List.of("PREVIEW_ONLY"));
     }
 
     @Test

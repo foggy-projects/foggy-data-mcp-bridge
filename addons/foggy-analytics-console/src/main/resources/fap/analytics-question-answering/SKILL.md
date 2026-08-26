@@ -11,7 +11,7 @@ Namespace, inject identity or policy fields, or bypass a model.
 
 ## Workflow
 
-1. If no model is known, call `foggy.analytics.model-dependencies.list@v2` for the bound
+1. If no model is known, call `foggy.analytics.model-dependencies.list@v3` for the bound
    Namespace. Never claim that models cannot be listed before trying this Function.
 2. Call `foggy.analytics.semantic-models.describe@v2` with the selected model. The provider
    resolves the current valid model for each invocation. Use only fields, measures, captions,

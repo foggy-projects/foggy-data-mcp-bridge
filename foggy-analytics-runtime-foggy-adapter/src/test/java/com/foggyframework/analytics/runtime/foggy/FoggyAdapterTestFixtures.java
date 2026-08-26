@@ -106,6 +106,7 @@ final class FoggyAdapterTestFixtures {
                 (proxy, method, arguments) -> switch (method.getName()) {
                     case "getName" -> modelName;
                     case "getShortAlias" -> shortAlias;
+                    case "getDescription" -> "Sales order analysis";
                     case "toString" -> modelType.getSimpleName() + "[" + modelName + "]";
                     case "hashCode" -> System.identityHashCode(proxy);
                     case "equals" -> proxy == arguments[0];

@@ -282,8 +282,11 @@ final class FapAnalyticsSchemas {
                 map(
                         "namespace", nonBlankString(),
                         "modelKind", map("const", "qm"),
-                        "modelName", nonBlankString()),
-                List.of("namespace", "modelKind", "modelName"),
+                        "modelName", nonBlankString(),
+                        "description", map(
+                                "type", "string",
+                                "maxLength", 1_048_576)),
+                List.of("namespace", "modelKind", "modelName", "description"),
                 false);
         return result(
                 operation,
@@ -291,8 +294,18 @@ final class FapAnalyticsSchemas {
                         map(
                                 "namespace", nonBlankString(),
                                 "modelKind", map("const", "qm"),
-                                "models", array(model)),
-                        List.of("namespace", "modelKind", "models"),
+                                "models", array(model),
+                                "format", map("const", "markdown"),
+                                "content", map(
+                                        "type", "string",
+                                        "minLength", 1,
+                                        "maxLength", 1_048_576)),
+                        List.of(
+                                "namespace",
+                                "modelKind",
+                                "models",
+                                "format",
+                                "content"),
                         false));
     }
 

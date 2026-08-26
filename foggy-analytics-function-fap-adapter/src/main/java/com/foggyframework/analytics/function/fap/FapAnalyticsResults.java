@@ -98,6 +98,10 @@ final class FapAnalyticsResults {
     }
 
     static Map<String, Object> semanticModel(AnalyticsSemanticModelDescription value) {
+        if (!"markdown".equals(value.format())) {
+            throw new IllegalArgumentException(
+                    "FAP semantic model description must use markdown");
+        }
         return FapAnalyticsValues.object("semanticModel", Map.of(
                 "namespace", value.namespace(),
                 "modelName", value.modelName(),
@@ -112,13 +116,38 @@ final class FapAnalyticsResults {
                     item.put("namespace", model.namespace());
                     item.put("modelKind", model.modelKind());
                     item.put("modelName", model.modelName());
+                    item.put("description", model.description());
                     return item;
                 })
                 .toList();
         return FapAnalyticsValues.object("modelDependencyList", Map.of(
                 "namespace", value.namespace(),
                 "modelKind", value.modelKind(),
-                "models", models));
+                "models", models,
+                "format", "markdown",
+                "content", modelDependencyListMarkdown(value)));
+    }
+
+    private static String modelDependencyListMarkdown(
+            AnalyticsModelDependencyList value) {
+        StringBuilder markdown = new StringBuilder("# Query Models\n\n");
+        if (value.models().isEmpty()) {
+            return markdown.append("No query models available.").toString();
+        }
+        for (var model : value.models()) {
+            markdown.append("- Model: `")
+                    .append(model.modelName().replace("`", "\\`"))
+                    .append("`\n");
+            if (!model.description().isBlank()) {
+                markdown.append("  - Description: ")
+                        .append(model.description()
+                                .replace("\n", " ")
+                                .replace("\r", " ")
+                                .replace("|", "｜"))
+                        .append('\n');
+            }
+        }
+        return markdown.toString().trim();
     }
 
     static Map<String, Object> semanticQuery(AnalyticsSemanticQueryResult value) {

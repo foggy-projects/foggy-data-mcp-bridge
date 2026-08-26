@@ -63,24 +63,31 @@ AI 面对的是销售额、客户、商品、下单日期等业务概念。Foggy
 
 ### 1. 下载并启动 Runtime
 
-下面的命令固定使用 Launcher `0.1.17`。如有新版本，请以
+下面的命令固定使用 Launcher `0.1.18`。如有新版本，请以
 [Releases](https://github.com/foggy-projects/foggy-data-mcp-bridge/releases)
 页面为准。
 
 ```bash
 mkdir foggy-runtime && cd foggy-runtime
 
-curl -fLO https://github.com/foggy-projects/foggy-data-mcp-bridge/releases/download/foggy-runtime-launcher-v0.1.17/foggy-runtime-launcher-0.1.17.jar
-curl -fLO https://github.com/foggy-projects/foggy-data-mcp-bridge/releases/download/foggy-runtime-launcher-v0.1.17/start-foggy-runtime.sh
-curl -fLO https://github.com/foggy-projects/foggy-data-mcp-bridge/releases/download/foggy-runtime-launcher-v0.1.17/SHA256SUMS
+curl -fLO https://github.com/foggy-projects/foggy-data-mcp-bridge/releases/download/foggy-runtime-launcher-v0.1.18/foggy-runtime-launcher-0.1.18.jar
+curl -fLO https://github.com/foggy-projects/foggy-data-mcp-bridge/releases/download/foggy-runtime-launcher-v0.1.18/start-foggy-runtime.sh
+curl -fLO https://github.com/foggy-projects/foggy-data-mcp-bridge/releases/download/foggy-runtime-launcher-v0.1.18/runtime-launcher-manifest.json
+curl -fLO https://github.com/foggy-projects/foggy-data-mcp-bridge/releases/download/foggy-runtime-launcher-v0.1.18/SHA256SUMS
 
-grep -E 'foggy-runtime-launcher-0.1.17.jar|start-foggy-runtime.sh' SHA256SUMS | sha256sum -c -
+grep -E 'foggy-runtime-launcher-0.1.18.jar|start-foggy-runtime.sh|runtime-launcher-manifest.json' SHA256SUMS | sha256sum -c -
 chmod +x start-foggy-runtime.sh
 ./start-foggy-runtime.sh
 ```
 
 Windows 用户可从同一 Release 下载 `start-foggy-runtime.ps1`，然后在 PowerShell
 中运行。默认服务地址为 `http://127.0.0.1:18066`。
+
+Launcher `0.1.18` 已在同一 JAR 中内嵌 Analytics Console 与 Analytics Runtime API，用户
+无需单独安装 Console。两项能力默认均关闭；先确认 `runtime-launcher-manifest.json` 中
+`features.analyticsConsole.embedded=true`，再用
+`ANALYTICS_CONSOLE_ENABLED=true ./start-foggy-runtime.sh` 或
+`.\start-foggy-runtime.ps1 -AnalyticsConsole` 显式启用。FAP 集成仍默认关闭并由宿主独立管理。
 
 ### 2. 验证服务
 

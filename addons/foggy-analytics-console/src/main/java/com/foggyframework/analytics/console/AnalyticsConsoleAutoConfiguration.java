@@ -6,6 +6,7 @@ import com.foggyframework.analytics.console.api.AnalyticsConsoleAgentController;
 import com.foggyframework.analytics.console.api.AnalyticsConsoleExceptionHandler;
 import com.foggyframework.analytics.console.api.AnalyticsConsoleFapCallbackController;
 import com.foggyframework.analytics.console.api.AnalyticsConsoleFapCallbackExceptionHandler;
+import com.foggyframework.analytics.console.api.AnalyticsConsoleFapPublicationController;
 import com.foggyframework.analytics.console.agent.AnalyticsConsoleAgentGateway;
 import com.foggyframework.analytics.console.agent.AnalyticsConsoleAgentService;
 import com.foggyframework.analytics.console.agent.AnalyticsConsoleFapBindingResolver;
@@ -124,6 +125,14 @@ public class AnalyticsConsoleAutoConfiguration {
             AnalyticsConsoleService service,
             AnalyticsConsoleSubjectResolver subjects) {
         return new AnalyticsConsoleController(service, subjects);
+    }
+
+    @Bean
+    @ConditionalOnBean(AnalyticsConsoleSubjectResolver.class)
+    AnalyticsConsoleFapPublicationController analyticsConsoleFapPublicationController(
+            AnalyticsConsoleSubjectResolver subjects,
+            ObjectMapper objectMapper) {
+        return new AnalyticsConsoleFapPublicationController(subjects, objectMapper);
     }
 
     @Bean

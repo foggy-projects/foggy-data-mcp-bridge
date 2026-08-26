@@ -107,8 +107,14 @@ class AnalyticsFunctionContractTest {
                 "tms-ai",
                 "qm",
                 List.of(new AnalyticsModelSummary(
-                        "tms-ai", "qm", "TenantOrgManagementQuery")));
+                        "tms-ai",
+                        "qm",
+                        "TenantOrgManagementQuery",
+                        "Tenant organization management analysis")));
         assertEquals("TenantOrgManagementQuery", list.models().get(0).modelName());
+        assertEquals(
+                "Tenant organization management analysis",
+                list.models().get(0).description());
         assertThrows(
                 IllegalArgumentException.class,
                 () -> new AnalyticsModelDependencyResolutionRequest(

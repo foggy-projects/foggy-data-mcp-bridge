@@ -3,10 +3,12 @@ package com.foggyframework.analytics.console.agent;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.analytics.function.fap.FapAnalyticsFunctionCatalog;
+import com.foggyframework.analytics.function.fap.FapAnalyticsQuestionFunctionCatalog;
 import org.junit.jupiter.api.Test;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -18,10 +20,11 @@ class AnalyticsConsoleQuestionSkillBundleTest {
     private final ObjectMapper json = new ObjectMapper();
 
     @Test
-    void revisionSixDeliversCurrentModelFunctionsAndRequiredReferences()
+    void revisionSevenDeliversCurrentModelFunctionsAndRequiredReferences()
             throws Exception {
         JsonNode metadata = json.readTree(resource("skill-metadata.json"));
         JsonNode delivery = json.readTree(resource("function-schema-delivery.json"));
+        JsonNode publication = json.readTree(resource("host-publication-manifest.json"));
         Set<String> delivered = java.util.stream.StreamSupport.stream(
                         delivery.path("functions").spliterator(), false)
                 .map(item -> item.path("functionRef").asText())
@@ -30,16 +33,46 @@ class AnalyticsConsoleQuestionSkillBundleTest {
                 .map(descriptor -> descriptor.projection().functionRef())
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
 
-        assertThat(metadata.path("revision").asInt()).isEqualTo(6);
+        assertThat(metadata.path("revision").asInt()).isEqualTo(7);
         assertThat(metadata.path("name").asText())
                 .isEqualTo("analytics-question-answering");
         assertThat(delivered).containsExactlyInAnyOrder(
-                "foggy.analytics.model-dependencies.list@v2",
+                "foggy.analytics.model-dependencies.list@v3",
                 "foggy.analytics.semantic-models.describe@v2",
                 "foggy.analytics.semantic-queries.execute@v2",
                 "foggy.analytics.query-model.run@v2",
                 "foggy.analytics.compose.run@v1");
         assertThat(published).containsAll(delivered);
+        assertThat(publication.path("contractVersion").asText())
+                .isEqualTo("foggy.analytics.question-host-publication.v1");
+        assertThat(publication.path("publicationMode").asText())
+                .isEqualTo("HOST_MANAGED_EXPLICIT");
+        assertThat(publication.path("launcherStartupMutationAllowed").asBoolean())
+                .isFalse();
+        assertThat(publication.path("skill").path("name").asText())
+                .isEqualTo(metadata.path("name").asText());
+        assertThat(publication.path("skill").path("revision").asInt())
+                .isEqualTo(metadata.path("revision").asInt());
+
+        Map<String, DigestPair> expectedPublications =
+                FapAnalyticsQuestionFunctionCatalog.descriptors().stream()
+                        .collect(java.util.stream.Collectors.toUnmodifiableMap(
+                                descriptor -> descriptor.projection().functionRef(),
+                                descriptor -> new DigestPair(
+                                        descriptor.projection().schemaDigest(),
+                                        descriptor.projection().projectionDigest())));
+        assertThat(publication.path("functions").size()).isEqualTo(5);
+        java.util.stream.StreamSupport.stream(
+                publication.path("functions").spliterator(), false)
+                .forEach(item -> {
+                    DigestPair expected =
+                            expectedPublications.get(item.path("functionRef").asText());
+                    assertThat(expected).isNotNull();
+                    assertThat(item.path("schemaDigest").asText())
+                            .isEqualTo(expected.schemaDigest());
+                    assertThat(item.path("projectionDigest").asText())
+                            .isEqualTo(expected.projectionDigest());
+                });
         assertThat(resource("SKILL.md"))
                 .contains(
                         "validate",
@@ -91,5 +124,10 @@ class AnalyticsConsoleQuestionSkillBundleTest {
             assertThat(stream).as(ROOT + relativePath).isNotNull();
             return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
         }
+    }
+
+    private record DigestPair(
+            String schemaDigest,
+            String projectionDigest) {
     }
 }

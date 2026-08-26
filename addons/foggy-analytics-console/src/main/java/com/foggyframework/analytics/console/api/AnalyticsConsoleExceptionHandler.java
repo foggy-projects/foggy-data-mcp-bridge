@@ -13,7 +13,8 @@ import java.util.UUID;
 
 @RestControllerAdvice(assignableTypes = {
         AnalyticsConsoleController.class,
-        AnalyticsConsoleAgentController.class
+        AnalyticsConsoleAgentController.class,
+        AnalyticsConsoleFapPublicationController.class
 })
 public class AnalyticsConsoleExceptionHandler {
 

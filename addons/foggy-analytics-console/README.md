@@ -89,7 +89,8 @@ Console catalog。
 
 直接分析使用五项只读 Function：
 
-- `foggy.analytics.model-dependencies.list@v2`：列出会话所选 Namespace 下当前可用的 QM；
+- `foggy.analytics.model-dependencies.list@v3`：以 Markdown 目录列出会话所选 Namespace 下当前可用的
+  QM 及其 AI prompt/description，同时保留结构化 `models` 兼容字段；
 - `foggy.analytics.semantic-models.describe@v2`：描述 AI 针对当前问题选定的当前 QM；
 - `foggy.analytics.semantic-queries.execute@v2`：只接受 columns、flat filters、groupBy、orderBy 和有界分页，
   保留为严格的轻量查询子集；
@@ -104,7 +105,7 @@ QM，并在一次调用内固定同一个 CatalogResolution。Compose 使用当�
 Compose authority/sandbox 再次约束。
 
 可发布的问数 Skill bundle 位于
-`src/main/resources/fap/analytics-question-answering/`。revision 6 包含主指令、完整 DSL/Compose 参考和
+`src/main/resources/fap/analytics-question-answering/`。revision 7 包含主指令、完整 DSL/Compose 参考和
 五项 Function 的 schema-delivery 声明；FAP 与 Worker 本地 Skill registry 必须以相同 digest 追加该修订，
 Capability 也必须追加包含同一五项 Function 的 revision。不要原地覆盖旧修订，已开始的会话仍使用冻结的
 旧 Skill/Capability/Function catalog，新能力只对新建会话生效。
@@ -114,6 +115,16 @@ Console 的问数 Skill/Capability 和 callback binding 由产品部署流程显
 应用启动时隐式创建或修改 FAP 资源。START 冻结 Namespace，AI 在该 Namespace 内按问题选择 QM；
 CONTINUE 复用同一 Runtime
 Execution；每次 Ask 的 request/invocation/task binding 都独立保存并用于 callback exact correlation。
+
+五项 Function 的宿主 publisher 必须直接消费
+`FapAnalyticsQuestionFunctionCatalog.publicationValues()`，并在 apply 前用
+`scripts/release/fap_question_publication_gate.py` 校验 exact schema/projection digest。完整顺序和回退边界见
+[`docs/release/fap-analytics-question-publication.md`](../../docs/release/fap-analytics-question-publication.md)。
+
+安装并启用 Console 后，管理员可读取
+`GET /analytics-console/api/v1/integrations/fap/question-publication`，取得完整、无凭据的
+`foggy.analytics.question-host-sync-bundle.v1` handoff bundle。FAP 宿主可拉取该 bundle 后执行自己的
+append-only dry-run/apply；该 GET 只导出 Function、Skill 和 callback 合同，不会连接或修改 FAP。
 
 Console 自己承接的 Function callback 会把原始 arguments/result 按 invocation 写入独立的
 `function-trace-path`，用于会话内的工具详情展示。Service Provider 仍是任务生命周期与时间轨迹的真相源；

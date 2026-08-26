@@ -207,6 +207,17 @@ class FapAnalyticsFunctionCatalogTest {
     }
 
     @Test
+    void questionFunctionPublicationIsExactAndHasNoCallerModelRevisionContract() {
+        assertThat(FapAnalyticsQuestionFunctionCatalog.descriptors())
+                .extracting(descriptor -> descriptor.projection().functionRef())
+                .containsExactlyElementsOf(
+                        FapAnalyticsQuestionFunctionCatalog.FUNCTION_REFS);
+
+        FapAnalyticsQuestionFunctionCatalog.publicationValues()
+                .forEach(FapAnalyticsFunctionCatalogTest::assertNoCallerModelRevisionMarkers);
+    }
+
+    @Test
     void canonicalDigestMatchesTheFapCrossLanguageFixture() {
         String digest = FapCanonicalDigests.json(Map.of(
                 "askInvocationRef", "ask.focused",
@@ -331,8 +342,8 @@ class FapAnalyticsFunctionCatalogTest {
                 Map.entry(
                         FapAnalyticsFunctionRefs.MODEL_DEPENDENCIES_LIST,
                         List.of(
-                                "sha256:76cf2b289152f2d4f9d3e78d6e2c2d49cde48df948a6a93b38f9be25b901cb0f",
-                                "sha256:f242bd61c622bcb906802016dee745ea29c39d6139813c97290398edf445a321")),
+                                "sha256:67c63e15308184ad1b910b9987407e328378a7e83bdb1a83d76eadac28e31480",
+                                "sha256:aec14b4e921eda2b835c11537d1471170b1b3f25c7bc4000cf587699ceeac72f")),
                 Map.entry(
                         FapAnalyticsFunctionRefs.QUERY_MODEL_RUN,
                         List.of(
@@ -383,6 +394,22 @@ class FapAnalyticsFunctionCatalogTest {
             }
         } else if (value instanceof List<?> list) {
             list.forEach(FapAnalyticsFunctionCatalogTest::assertNoLifecycleKeys);
+        }
+    }
+
+    private static void assertNoCallerModelRevisionMarkers(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                assertNoCallerModelRevisionMarkers(entry.getKey().toString());
+                assertNoCallerModelRevisionMarkers(entry.getValue());
+            }
+        } else if (value instanceof List<?> list) {
+            list.forEach(FapAnalyticsFunctionCatalogTest::assertNoCallerModelRevisionMarkers);
+        } else if (value instanceof String text) {
+            assertThat(text.toLowerCase()).doesNotContain(
+                    "expectedmodelrevision",
+                    "modelrevision",
+                    "model_revision_conflict");
         }
     }
 }

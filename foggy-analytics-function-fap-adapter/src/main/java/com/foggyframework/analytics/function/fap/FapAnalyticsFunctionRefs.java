@@ -17,7 +17,7 @@ public final class FapAnalyticsFunctionRefs {
     public static final String ARTIFACTS_DESCRIBE =
             "foggy.analytics.artifacts.describe@v1";
     public static final String MODEL_DEPENDENCIES_LIST =
-            "foggy.analytics.model-dependencies.list@v2";
+            "foggy.analytics.model-dependencies.list@v3";
     public static final String SEMANTIC_MODELS_DESCRIBE =
             "foggy.analytics.semantic-models.describe@v2";
     public static final String SEMANTIC_QUERIES_EXECUTE =
