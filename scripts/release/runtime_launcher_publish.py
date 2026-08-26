@@ -3,7 +3,8 @@
 
 All build artifacts, distribution files, checksums, and manifest content come from
 ``runtime_launcher_package.py``. This script only orchestrates release preflight,
-runtime smoke checks, conservative tag/Release creation, and public OBS replay.
+runtime smoke checks, conservative GitHub tag/Release creation, and an optional
+legacy OBS replay check.
 """
 
 from __future__ import annotations
@@ -685,6 +686,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="publish a stable rather than prerelease GitHub Release",
     )
     parser.add_argument("--port", type=int, default=0)
+    parser.add_argument(
+        "--verify-obs",
+        action="store_true",
+        help="opt in to the legacy OBS replay check after GitHub publication",
+    )
     parser.add_argument("--obs-timeout-seconds", type=int, default=300)
     return parser
 
@@ -703,6 +709,8 @@ def main() -> int:
                 )
         if not args.skip_upload and args.skip_smoke:
             raise ReleaseError("publication forbids --skip-smoke")
+        if args.skip_upload and args.verify_obs:
+            raise ReleaseError("--verify-obs requires GitHub publication")
         if args.retarget_tag and not args.replace_existing:
             raise ReleaseError(
                 "--retarget-tag requires --replace-existing and explicit approval"
@@ -748,7 +756,8 @@ def main() -> int:
                 args.retarget_tag,
                 args.stable,
             )
-            obs = verify_obs(package_dir, version, args.obs_timeout_seconds)
+            if args.verify_obs:
+                obs = verify_obs(package_dir, version, args.obs_timeout_seconds)
 
         print(
             json.dumps(
@@ -761,6 +770,7 @@ def main() -> int:
                     "jar": manifest["jar"],
                     "smoke": smokes,
                     "releaseUrl": release_url,
+                    "primaryDistribution": "github-release",
                     "obs": obs,
                 },
                 ensure_ascii=False,

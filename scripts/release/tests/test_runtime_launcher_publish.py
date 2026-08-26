@@ -26,6 +26,16 @@ class RuntimeLauncherPublishTest(unittest.TestCase):
         with self.assertRaisesRegex(release.ReleaseError, "invalid launcher release version"):
             release.normalize_version("latest")
 
+    def test_obs_replay_is_opt_in(self) -> None:
+        parser = release.build_parser()
+        default = parser.parse_args(["--release-version", "0.1.19"])
+        requested = parser.parse_args(
+            ["--release-version", "0.1.19", "--verify-obs"]
+        )
+
+        self.assertFalse(default.verify_obs)
+        self.assertTrue(requested.verify_obs)
+
     @mock.patch.object(release, "run")
     def test_verifies_exact_release_package(self, verify_jar: mock.Mock) -> None:
         with tempfile.TemporaryDirectory() as temporary:

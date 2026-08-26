@@ -1,8 +1,17 @@
-name: Sync launcher release to Huawei OBS
+name: Manual sync launcher release to Huawei OBS
 
 on:
-  release:
-    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing GitHub launcher release tag to mirror
+        required: true
+        type: string
+      confirm_upload:
+        description: Explicitly confirm the optional OBS upload
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -13,12 +22,12 @@ concurrency:
 
 jobs:
   sync:
-    if: startsWith(github.event.release.tag_name, 'foggy-runtime-launcher-v')
+    if: inputs.confirm_upload && startsWith(inputs.release_tag, 'foggy-runtime-launcher-v')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
       GITHUB_TOKEN: ${{ github.token }}
-      RELEASE_TAG: ${{ github.event.release.tag_name }}
+      RELEASE_TAG: ${{ inputs.release_tag }}
       OBS_ACCESS_KEY_ID: ${{ secrets.HUAWEI_OBS_ACCESS_KEY_ID }}
       OBS_SECRET_ACCESS_KEY: ${{ secrets.HUAWEI_OBS_SECRET_ACCESS_KEY }}
       OBS_BUCKET: obs-fe55

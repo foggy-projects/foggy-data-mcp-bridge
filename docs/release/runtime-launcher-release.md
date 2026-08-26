@@ -43,7 +43,7 @@ launcher. A Console source change therefore cannot reuse an older `target/classe
 The command fails on a dirty worktree, a non-empty output directory, or any build-induced
 change to tracked files.
 
-For the complete tag, GitHub Release, and OBS workflow, use the repository publisher instead of
+For the complete tag and GitHub Release workflow, use the repository publisher instead of
 assembling or rewriting assets in a caller-owned script:
 
 ```bash
@@ -55,9 +55,10 @@ Use `--skip-upload` for a local-only formal package and both runtime smokes. Use
 `--reuse-package --output-dir <existing-release-directory>` only to revalidate an existing exact
 six-asset package after an interrupted external publication. The publisher requires clean
 `origin/main`, creates an annotated tag and draft GitHub Release conservatively, checks the exact
-asset set and GitHub digests, publishes the draft, then waits for the public OBS replay. Existing
+asset set and GitHub digests, then publishes the draft. Existing
 tags or releases are never replaced unless the caller has explicit replacement authority; moving
-an existing tag additionally requires `--retarget-tag`.
+an existing tag additionally requires `--retarget-tag`. GitHub Release is the authoritative source.
+Legacy OBS replay is opt-in with `--verify-obs`; it is not part of the default publication path.
 
 Development-only `--allow-dirty` or `--skip-java-tests` runs are marked
 `releaseReady=false` in the generated manifest and must not be published. Skipping Java
@@ -96,22 +97,20 @@ README, `runtime-launcher-manifest.json`, and `SHA256SUMS`. The manifest adverti
 `features.analyticsConsole.embedded=true`, `enabledByDefault=false`, the activation
 contract, and nested component digests.
 
-Before a GitHub Release is copied to OBS, the shared sync script performs an offline exact-asset
-gate that does not require credentials:
+After GitHub publication, an operator may explicitly mirror the release to the company download
+server from the workspace root:
 
 ```bash
-bash scripts/sync-release-to-obs.sh \
+./scripts/publish-foggy-github-release-to-company.sh \
   --component launcher \
-  --tag foggy-runtime-launcher-v<version> \
   --repo foggy-projects/foggy-data-mcp-bridge \
-  --source-dir <six-asset-release-directory> \
-  --validate-assets-only
+  --tag foggy-runtime-launcher-v<version>
 ```
 
-The live workflow writes `foggy-runtime/latest/launcher.json` first, verifies its public replay,
-then reconciles the derived shared `foggy-runtime/latest.json` from the independent CLI, Skills,
-and Launcher component indexes. This prevents concurrent releases in the three repositories from
-silently losing another component through a shared read/modify/write race.
+The mirror command downloads the published GitHub assets unless `--source-dir` is supplied,
+validates every checksum and checksum coverage, uploads immutable files to the company server, and
+returns permanent `download.qlfloor.com` links. It refuses to overwrite a different remote file.
+OBS workflows are manual-only and require a separate explicit confirmation.
 
 ## Runtime smoke
 
