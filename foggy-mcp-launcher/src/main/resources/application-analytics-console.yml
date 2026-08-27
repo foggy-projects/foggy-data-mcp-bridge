@@ -48,4 +48,5 @@ foggy:
       dev-model-variant-id: "${ANALYTICS_CONSOLE_FAP_MODEL_VARIANT_ID:}"
       dev-tenant-ref: "${ANALYTICS_CONSOLE_FAP_TENANT_REF:local-tenant}"
       dev-provider-subject-ref: "${ANALYTICS_CONSOLE_FAP_PROVIDER_SUBJECT_REF:local-provider-subject}"
+      workspace-files-enabled: "${ANALYTICS_CONSOLE_FAP_WORKSPACE_FILES_ENABLED:false}"
       timeout-seconds: "${ANALYTICS_CONSOLE_FAP_TIMEOUT_SECONDS:30}"

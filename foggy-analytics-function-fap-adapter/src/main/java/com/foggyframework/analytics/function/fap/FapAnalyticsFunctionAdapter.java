@@ -12,6 +12,7 @@ import com.foggyframework.analytics.function.contract.AnalyticsFunctionErrorCode
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionJsonValues;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionOperations;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionRequestContext;
+import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyList;
 import com.foggyframework.analytics.function.contract.AnalyticsModelDependencyListRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderFunctionRequest;
 import com.foggyframework.analytics.function.contract.AnalyticsRenderResult;
@@ -139,7 +140,7 @@ public final class FapAnalyticsFunctionAdapter {
                         invocation,
                         operation,
                         client.listModelDependencies(modelListRequest(invocation)),
-                        FapAnalyticsResults::modelDependencyList);
+                        modelDependencyResultMapper(invocation));
                 case AnalyticsFunctionOperations.SEMANTIC_MODELS_DESCRIBE -> complete(
                         invocation,
                         operation,
@@ -266,6 +267,15 @@ public final class FapAnalyticsFunctionAdapter {
         } catch (IllegalArgumentException | NullPointerException invalid) {
             throw new ArgumentsInvalid();
         }
+    }
+
+    private static Function<AnalyticsModelDependencyList, Map<String, Object>>
+            modelDependencyResultMapper(FapAnalyticsFunctionInvocation invocation) {
+        if (FapAnalyticsFunctionRefs.LEGACY_MODEL_DEPENDENCIES_LIST_V2.equals(
+                invocation.functionRef())) {
+            return FapAnalyticsResults::modelDependencyListV2;
+        }
+        return FapAnalyticsResults::modelDependencyList;
     }
 
     private AnalyticsRenderFunctionRequest renderRequest(

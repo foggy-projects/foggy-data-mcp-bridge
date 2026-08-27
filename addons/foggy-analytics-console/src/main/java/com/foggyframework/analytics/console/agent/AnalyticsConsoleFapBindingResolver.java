@@ -14,7 +14,17 @@ public interface AnalyticsConsoleFapBindingResolver {
             String authorization,
             String workspaceRef,
             String modelConfigRef,
-            String modelVariantId) {
+            String modelVariantId,
+            boolean workspaceFilesEnabled) {
+
+        /** Compatibility constructor for JSON-only callers. */
+        public OutboundBinding(
+                String authorization,
+                String workspaceRef,
+                String modelConfigRef,
+                String modelVariantId) {
+            this(authorization, workspaceRef, modelConfigRef, modelVariantId, false);
+        }
 
         public OutboundBinding {
             authorization = required(authorization, "authorization");

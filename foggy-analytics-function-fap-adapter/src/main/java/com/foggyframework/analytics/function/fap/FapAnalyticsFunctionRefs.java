@@ -18,6 +18,9 @@ public final class FapAnalyticsFunctionRefs {
             "foggy.analytics.artifacts.describe@v1";
     public static final String MODEL_DEPENDENCIES_LIST =
             "foggy.analytics.model-dependencies.list@v3";
+    /** Frozen external catalogs may continue invoking v2 through the compatibility adapter. */
+    public static final String LEGACY_MODEL_DEPENDENCIES_LIST_V2 =
+            "foggy.analytics.model-dependencies.list@v2";
     public static final String SEMANTIC_MODELS_DESCRIBE =
             "foggy.analytics.semantic-models.describe@v2";
     public static final String SEMANTIC_QUERIES_EXECUTE =
@@ -39,6 +42,8 @@ public final class FapAnalyticsFunctionRefs {
             Map.entry(BUNDLES_VALIDATE, AnalyticsFunctionOperations.BUNDLES_VALIDATE),
             Map.entry(BUNDLES_DESCRIBE, AnalyticsFunctionOperations.BUNDLES_DESCRIBE),
             Map.entry(ARTIFACTS_DESCRIBE, AnalyticsFunctionOperations.ARTIFACTS_DESCRIBE),
+            Map.entry(LEGACY_MODEL_DEPENDENCIES_LIST_V2,
+                    AnalyticsFunctionOperations.MODEL_DEPENDENCIES_LIST),
             Map.entry(MODEL_DEPENDENCIES_LIST,
                     AnalyticsFunctionOperations.MODEL_DEPENDENCIES_LIST),
             Map.entry(SEMANTIC_MODELS_DESCRIBE,

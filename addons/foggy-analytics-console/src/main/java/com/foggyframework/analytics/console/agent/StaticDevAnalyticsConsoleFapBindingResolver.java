@@ -31,7 +31,8 @@ public final class StaticDevAnalyticsConsoleFapBindingResolver
                 required(fap.getDevAuthorization()),
                 required(fap.getDevWorkspaceRef()),
                 required(fap.getDevModelConfigRef()),
-                required(fap.getDevModelVariantId()));
+                required(fap.getDevModelVariantId()),
+                fap.isWorkspaceFilesEnabled());
     }
 
     @Override

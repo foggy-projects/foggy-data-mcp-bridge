@@ -148,6 +148,7 @@ public class AnalyticsConsoleProperties {
         private String devModelVariantId;
         private String devTenantRef = "local-tenant";
         private String devProviderSubjectRef = "local-provider-subject";
+        private boolean workspaceFilesEnabled;
 
         public boolean isEnabled() { return enabled; }
         public void setEnabled(boolean enabled) { this.enabled = enabled; }
@@ -208,6 +209,10 @@ public class AnalyticsConsoleProperties {
         public String getDevProviderSubjectRef() { return devProviderSubjectRef; }
         public void setDevProviderSubjectRef(String value) {
             this.devProviderSubjectRef = value;
+        }
+        public boolean isWorkspaceFilesEnabled() { return workspaceFilesEnabled; }
+        public void setWorkspaceFilesEnabled(boolean value) {
+            this.workspaceFilesEnabled = value;
         }
     }
 }

@@ -120,6 +120,31 @@ class AnalyticsConsoleFapCallbackControllerTest {
     }
 
     @Test
+    void namespaceScopedQuestionAcceptsFrozenV2ModelDependencyRef() {
+        FapAnalyticsCallbackRequest request = advancedQuestionRequest(
+                FapAnalyticsFunctionRefs.LEGACY_MODEL_DEPENDENCIES_LIST_V2,
+                Map.of("namespace", "default"));
+        var conversation = namespaceConversation(request, "default");
+        when(bindings.resolveCaller(any())).thenReturn(subject);
+        when(agents.requireCallbackConversation(
+                subject,
+                request.externalConversationRef(),
+                request.askRequestId(),
+                request.askInvocationRef())).thenReturn(conversation);
+        when(agents.requireCallbackAskBinding(
+                conversation,
+                request.askRequestId(),
+                request.askInvocationRef())).thenReturn(conversation.askBindings().get(0));
+        when(adapter.invoke(any())).thenReturn(FapAnalyticsFunctionOutcome.Success.create(
+                "callback-request-1", "function-invocation-1", Map.of("accepted", true)));
+
+        var response = controller.invoke("Bearer callback-secret", request);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        verify(adapter).invoke(any());
+    }
+
+    @Test
     void legacyQuestionCallbackStillPinsTheModelName() {
         String revision = "sha256:" + "b".repeat(64);
         FapAnalyticsCallbackRequest request = advancedQuestionRequest(

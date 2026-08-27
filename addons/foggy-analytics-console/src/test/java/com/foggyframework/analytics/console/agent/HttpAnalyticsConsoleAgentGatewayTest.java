@@ -222,11 +222,78 @@ class HttpAnalyticsConsoleAgentGatewayTest {
         assertThat(continueBody.has("workspaceRef")).isFalse();
         assertThat(continueBody.has("modelConfigRef")).isFalse();
         assertThat(continueBody.has("initialSystemInstruction")).isFalse();
+        assertThat(startBody.has("workspaceFiles")).isFalse();
+        assertThat(continueBody.has("workspaceFiles")).isFalse();
         assertThat(requests.getAllValues().get(3).uri().getQuery()).contains("limit=1");
         assertThat(requests.getAllValues().get(4).uri().getPath())
                 .endsWith("/asks/requests/request-2/trace");
     }
 
+    @Test
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void addsGuardedWorkspaceFilesWhenBindingExplicitlyEnablesIt() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        HttpClient http = mock(HttpClient.class);
+        HttpResponse firstAccepted = response(202, """
+                                {
+                                  "type": "ASK_ACCEPTED",
+                                  "askInvocationRef": "ask-files-1",
+                                  "runtimeExecutionId": "execution-files-1",
+                                  "runtimeTaskId": "task-files-1"
+                                }
+                                """);
+        HttpResponse secondAccepted = response(202, """
+                                {
+                                  "type": "ASK_ACCEPTED",
+                                  "askInvocationRef": "ask-files-2",
+                                  "runtimeExecutionId": "execution-files-1",
+                                  "runtimeTaskId": "task-files-2"
+                                }
+                                """);
+        when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(firstAccepted, secondAccepted);
+        HttpAnalyticsConsoleAgentGateway gateway =
+                new HttpAnalyticsConsoleAgentGateway(
+                        URI.create("http://127.0.0.1:4882"),
+                        Duration.ofSeconds(2),
+                        json,
+                        http);
+        var binding = new AnalyticsConsoleFapBindingResolver.OutboundBinding(
+                "Bearer subject", "workspace-files-1", "model-1", "variant-1", true);
+
+        var started = gateway.start(
+                binding,
+                new AnalyticsConsoleAgentGateway.StartCommand(
+                        "request-files-1",
+                        "analytics-console.files-1",
+                        "读取工作区草稿",
+                        "frozen system instruction",
+                        "workspace-files-1",
+                        "model-1",
+                        "variant-1",
+                        "analytics-question-answering",
+                        "analytics.question-read"));
+        gateway.continueConversation(
+                binding,
+                new AnalyticsConsoleAgentGateway.ContinueCommand(
+                        "request-files-2",
+                        "analytics-console.files-1",
+                        started.runtimeExecutionId(),
+                        "继续处理",
+                        "variant-1",
+                        "analytics-question-answering",
+                        "analytics.question-read"));
+
+        ArgumentCaptor<HttpRequest> requests = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(http, times(2)).send(requests.capture(), any(HttpResponse.BodyHandler.class));
+        for (HttpRequest request : requests.getAllValues()) {
+            JsonNode workspaceFiles = json.readTree(body(request)).path("workspaceFiles");
+            assertThat(workspaceFiles.path("protocol").asText())
+                    .isEqualTo("WORKSPACE_FILES_V1");
+            assertThat(workspaceFiles.path("isolationMode").asText())
+                    .isEqualTo("WORKSPACE_GUARDED");
+        }
+    }
     @Test
     @SuppressWarnings({"unchecked", "rawtypes"})
     void doesNotInferExecutionDurationFromLegacyAskAndTaskProjectionTimestamps()

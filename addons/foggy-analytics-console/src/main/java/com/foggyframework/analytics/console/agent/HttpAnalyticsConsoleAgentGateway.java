@@ -66,6 +66,7 @@ public final class HttpAnalyticsConsoleAgentGateway
                 .put("mode", "NAME").put("name", command.skillName());
         body.putArray("capabilities").addObject()
                 .put("mode", "NAME").put("name", command.capabilityName());
+        addWorkspaceFilesPolicy(body, binding);
         JsonNode response = exchange(
                 "POST", ROOT + "/asks", binding.authorization(), body, 202);
         requireType(response, "ASK_ACCEPTED");
@@ -89,6 +90,7 @@ public final class HttpAnalyticsConsoleAgentGateway
                 .put("mode", "NAME").put("name", command.skillName());
         body.putArray("capabilities").addObject()
                 .put("mode", "NAME").put("name", command.capabilityName());
+        addWorkspaceFilesPolicy(body, binding);
         JsonNode response = exchange(
                 "POST", ROOT + "/asks", binding.authorization(), body, 202);
         requireType(response, "ASK_ACCEPTED");
@@ -100,6 +102,19 @@ public final class HttpAnalyticsConsoleAgentGateway
                 required(response, "askInvocationRef"),
                 executionId,
                 required(response, "runtimeTaskId"));
+    }
+
+    /**
+     * Workspace Files is an explicit caller opt-in. FAP remains the authority that validates
+     * the policy against the selected Worker capability and permission scope.
+     */
+    private static void addWorkspaceFilesPolicy(
+            ObjectNode body,
+            AnalyticsConsoleFapBindingResolver.OutboundBinding binding) {
+        if (!binding.workspaceFilesEnabled()) return;
+        body.putObject("workspaceFiles")
+                .put("protocol", "WORKSPACE_FILES_V1")
+                .put("isolationMode", "WORKSPACE_GUARDED");
     }
 
     @Override

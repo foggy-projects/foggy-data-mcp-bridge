@@ -128,6 +128,20 @@ final class FapAnalyticsResults {
                 "content", modelDependencyListMarkdown(value)));
     }
 
+    /** Strict projection for frozen v2 callers; v2 forbids the descriptive v3 fields. */
+    static Map<String, Object> modelDependencyListV2(AnalyticsModelDependencyList value) {
+        List<Map<String, Object>> models = value.models().stream()
+                .map(model -> FapAnalyticsValues.object("modelDependency", Map.of(
+                        "namespace", model.namespace(),
+                        "modelKind", model.modelKind(),
+                        "modelName", model.modelName())))
+                .toList();
+        return FapAnalyticsValues.object("modelDependencyList", Map.of(
+                "namespace", value.namespace(),
+                "modelKind", value.modelKind(),
+                "models", models));
+    }
+
     private static String modelDependencyListMarkdown(
             AnalyticsModelDependencyList value) {
         StringBuilder markdown = new StringBuilder("# Query Models\n\n");

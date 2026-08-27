@@ -185,6 +185,58 @@ class FapAnalyticsFunctionRequestMappingTest {
     }
 
     @Test
+    void frozenV2ModelDependencyCallUsesCurrentCoreAndStrictV2Projection() {
+        class Client extends FapAnalyticsAdapterTestSupport.StubClient {
+            AnalyticsModelDependencyListRequest request;
+
+            @Override
+            public AnalyticsFunctionEnvelope<AnalyticsModelDependencyList>
+                    listModelDependencies(AnalyticsModelDependencyListRequest value) {
+                calls++;
+                request = value;
+                return AnalyticsFunctionEnvelope.ok(
+                        "foggy-analytics-runtime-api/v1",
+                        "analytics-runtime/v1",
+                        new AnalyticsModelDependencyList(
+                                value.namespace(),
+                                value.modelKind(),
+                                List.of(new AnalyticsModelSummary(
+                                        value.namespace(),
+                                        value.modelKind(),
+                                        "FactOrderQueryModel",
+                                        "Order facts for governed business analysis"))),
+                        FapAnalyticsAdapterTestSupport.context(value.context()));
+            }
+        }
+        Client client = new Client();
+
+        FapAnalyticsFunctionOutcome outcome = new FapAnalyticsFunctionAdapter(
+                client,
+                (caller, operation) -> new AnalyticsFunctionAuthority("tms", "unused"))
+                .invoke(FapAnalyticsAdapterTestSupport.invocation(
+                        FapAnalyticsFunctionRefs.LEGACY_MODEL_DEPENDENCIES_LIST_V2,
+                        Map.of("namespace", "default")));
+
+        assertThat(outcome).isInstanceOf(FapAnalyticsFunctionOutcome.Success.class);
+        assertThat(client.request.namespace()).isEqualTo("default");
+        assertThat(client.calls).isEqualTo(1);
+        FapAnalyticsFunctionOutcome.Success success =
+                (FapAnalyticsFunctionOutcome.Success) outcome;
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) success.result().get("data");
+        assertThat(data).containsOnlyKeys("namespace", "modelKind", "models");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> models =
+                (List<Map<String, Object>>) data.get("models");
+        assertThat(models).singleElement().satisfies(model ->
+                assertThat(model).containsOnlyKeys(
+                        "namespace", "modelKind", "modelName"));
+        assertThat(FapAnalyticsFunctionRefs.functionRef(
+                AnalyticsFunctionOperations.MODEL_DEPENDENCIES_LIST))
+                .isEqualTo(FapAnalyticsFunctionRefs.MODEL_DEPENDENCIES_LIST);
+    }
+
+    @Test
     void preservesMarkdownSemanticModelDescription() {
         class Client extends FapAnalyticsAdapterTestSupport.StubClient {
             @Override
