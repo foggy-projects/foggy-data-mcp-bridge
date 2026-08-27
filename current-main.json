@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "releaseLine": "9.5",
+  "activeIteration": "9.5.5",
+  "mavenCoordinateVersion": "9.3.0-SNAPSHOT",
+  "artifacts": {
+    "foggy-runtime-console": "9.5.2",
+    "foggy-analytics-console": "0.1.0",
+    "foggy-runtime-cli": "0.1.22",
+    "foggy-runtime-launcher": "0.1.18",
+    "foggy-ai-analysis-skill": "0.1.17"
+  },
+  "mcp": {
+    "modernStateless": "2026-07-28",
+    "latestLegacy": "2025-11-25",
+    "legacyCompatibility": "2024-11-05"
+  },
+  "gates": {
+    "bridgeModules": [
+      "foggy-dataset-mcp",
+      "foggy-mcp-auth-jwt",
+      "foggy-analytics-runtime-api",
+      "addons/foggy-analytics-console",
+      "addons/foggy-runtime-console"
+    ],
+    "cliTests": "pytest"
+  }
+}

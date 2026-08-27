@@ -18,6 +18,8 @@ recorded_at: 2026-08-01
 | [Artifact/store 生命周期基础探针](workitems/SPIKE-runtime-artifact-store-lifecycle-foundations.md) | ACCEPTED | 双 store inventory、跨 store/live 引用图、中断 characterization 与安全后续边界已正式验收；未修改生产实现 |
 | [Artifact lifecycle 只读 inventory](workitems/FEATURE-runtime-artifact-lifecycle-inventory.md) | ACCEPTED | management-auth、redacted、cross-store/live 的只读容量、引用分类与 blocked reason 已正式验收；无 cleanup mutation |
 | [Published store 中断写入恢复](workitems/BUG-runtime-published-store-interrupted-write-recovery.md) | ACCEPTED | 新 staging/temp 带 ownership evidence，只恢复可证明 owned 的中断写入；legacy unknown 保留，已独立正式验收 |
+| [Current-main 生产基线](workitems/FEATURE-current-main-production-baseline.md) | READY_FOR_SIGNOFF | 用户明确提升的三个 P0：版本/CI 真相、MCP 生产认证与协议基础、Analytics Console 可信问数门禁 |
+| [MCP JWT/JWKS 生产认证适配器](workitems/FEATURE-mcp-jwt-jwks-auth-adapter.md) | READY_FOR_SIGNOFF | 可选 JWT/JWKS 验证、claim 身份映射、角色/scope 门禁、宿主 verifier 覆盖与身份 Header 防伪 |
 | [Runtime API 自动配置装配缺失](workitems/BUG-runtime-api-auto-configuration-assembly.md) | READY_FOR_SIGNOFF | 已补齐 publication/lifecycle 显式装配并通过 focused 与隔离 launcher 验证 |
 | [Console artifact lifecycle 运维视图](workitems/FEATURE-runtime-console-artifact-lifecycle-operability.md) | READY_FOR_SIGNOFF | 只读 lifecycle evidence ledger 已完成自动化与隔离 launcher 验证，等待用户体验验收 |
 
@@ -34,6 +36,9 @@ package 和 production promotion：确认磁盘 artifact/store 生命周期、�
 2. 定义 fail-closed cleanup/retention 策略，证明不会删除 live、rollback、recovery 或 foreign data
    仍需要的内容。
 3. 识别应暴露的容量、状态和人工处置诊断；不把日志或目录猜测当作稳定 API。
+
+用户于 2026-08-27 明确将 current-main、MCP 与 Analytics Console 三项提升为 P0；该范围修订
+仅覆盖上述生产基线，不扩展为通用 Console Agent 或大型 Console 改版。
 4. 技术探针签收后，再决定是否分别冻结 cleanup/retention API 与 Console 运维入口。
 5. 保持单 Runtime 进程、非 shared-NFS writer 的当前一致性边界，除非后续独立 workitem 明确扩展。
 
