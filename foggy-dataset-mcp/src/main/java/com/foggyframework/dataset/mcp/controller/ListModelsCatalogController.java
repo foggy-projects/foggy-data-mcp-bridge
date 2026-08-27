@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.mcp.controller;
 
+import com.foggyframework.dataset.mcp.auth.McpRequestAuthorization;
 import com.foggyframework.dataset.mcp.service.ModelCatalogService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +33,7 @@ public class ListModelsCatalogController {
     ) {
         Map<String, Object> options = request != null ? request : Collections.emptyMap();
         log.info("Semantic v3 list-models catalog request: namespace={}, format={}", namespace, options.get("format"));
-        return modelCatalogService.buildCatalogResponse(options, namespace, authorization);
+        return modelCatalogService.buildCatalogResponse(
+                options, namespace, McpRequestAuthorization.dataPlaneAuthorization(authorization));
     }
 }

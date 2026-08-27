@@ -24,6 +24,13 @@
             <version>${project.version}</version>
         </dependency>
 
+        <!-- Optional-by-configuration production JWT/JWKS adapter; OAuth remains disabled by default. -->
+        <dependency>
+            <groupId>com.foggysource</groupId>
+            <artifactId>foggy-mcp-auth-jwt</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
         <!-- Governed in-memory secondary analysis over result handles -->
         <dependency>
             <groupId>com.foggysource</groupId>

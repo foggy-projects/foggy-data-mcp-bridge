@@ -34,7 +34,10 @@ public class McpService {
      */
     public McpResponse handleInitialize(McpRequest request, UserRole userRole) {
         Map<String, Object> result = new HashMap<>();
-        result.put("protocolVersion", "2024-11-05");
+        Object requestedVersion = request.getParams() == null
+                ? null
+                : request.getParams().get("protocolVersion");
+        result.put("protocolVersion", McpProtocolVersions.negotiateLegacy(requestedVersion));
         result.put("capabilities", Map.of(
                 "tools", Map.of("listChanged", true),
                 "logging", Map.of()
@@ -47,6 +50,23 @@ public class McpService {
         ));
 
         log.info("MCP initialized successfully for role: {}", userRole);
+        return McpResponse.success(request.getId(), result);
+    }
+
+    /** Stateless discovery used by MCP 2026-07-28 clients before direct requests. */
+    public McpResponse handleServerDiscover(McpRequest request, UserRole userRole) {
+        Map<String, Object> result = new HashMap<>();
+        result.put("supportedVersions", McpProtocolVersions.SUPPORTED);
+        result.put("capabilities", Map.of(
+                "tools", Map.of("listChanged", true),
+                "logging", Map.of()));
+        result.put("serverInfo", Map.of(
+                "name", "foggy-data-mcp",
+                "version", "current-main",
+                "userRole", userRole.name(),
+                "roleDescription", userRole.getDescription()));
+        result.put("ttlMs", 30_000);
+        result.put("cacheScope", "role:" + userRole.name().toLowerCase());
         return McpResponse.success(request.getId(), result);
     }
 

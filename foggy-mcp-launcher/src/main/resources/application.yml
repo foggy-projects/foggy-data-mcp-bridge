@@ -35,6 +35,31 @@ spring:
 
 # Foggy MCP Service Configuration
 foggy:
+  # Authentication remains disabled unless a legacy token or an explicit OAuth mode is configured.
+  auth:
+    mode: ${FOGGY_AUTH_MODE:auto}
+    token: ${FOGGY_AUTH_TOKEN:}
+    resource-uri: ${FOGGY_AUTH_RESOURCE_URI:}
+    authorization-servers: ${FOGGY_AUTHORIZATION_SERVERS:}
+    scopes-supported: ${FOGGY_AUTH_SCOPES_SUPPORTED:}
+    required-scopes: ${FOGGY_AUTH_REQUIRED_SCOPES:}
+    enforce-mcp-role-paths: ${FOGGY_AUTH_ENFORCE_MCP_ROLE_PATHS:true}
+    jwt:
+      issuer-uri: ${FOGGY_AUTH_JWT_ISSUER_URI:}
+      jwk-set-uri: ${FOGGY_AUTH_JWT_JWK_SET_URI:}
+      audiences: ${FOGGY_AUTH_JWT_AUDIENCES:}
+      allowed-algorithms: ${FOGGY_AUTH_JWT_ALLOWED_ALGORITHMS:RS256}
+      clock-skew: ${FOGGY_AUTH_JWT_CLOCK_SKEW:60s}
+      allow-insecure-http: ${FOGGY_AUTH_JWT_ALLOW_INSECURE_HTTP:false}
+      subject-claim: ${FOGGY_AUTH_JWT_SUBJECT_CLAIM:sub}
+      tenant-claim: ${FOGGY_AUTH_JWT_TENANT_CLAIM:tenant_id}
+      department-claim: ${FOGGY_AUTH_JWT_DEPARTMENT_CLAIM:dept_id}
+      roles-claim: ${FOGGY_AUTH_JWT_ROLES_CLAIM:roles}
+      scopes-claim: ${FOGGY_AUTH_JWT_SCOPES_CLAIM:scope}
+      require-tenant: ${FOGGY_AUTH_JWT_REQUIRE_TENANT:false}
+      # role-mappings maps Foggy ADMIN/ANALYST/BUSINESS to external role aliases.
+      # Configure it in deployment YAML when the issuer does not emit those canonical names.
+
   runtime-api:
     # Development/test-only CLI adapter. Keep disabled by default; production should not enable it.
     enabled: ${FOGGY_RUNTIME_API_ENABLED:false}

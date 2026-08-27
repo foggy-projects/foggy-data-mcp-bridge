@@ -81,6 +81,7 @@
         <module>foggy-dataset</module>
         <module>foggy-dataset-demo</module>
         <module>foggy-dataset-mcp</module>
+        <module>foggy-mcp-auth-jwt</module>
         <module>foggy-dataset-model-api</module>
         <module>foggy-dataset-model-core</module>
         <module>foggy-dataset-model-jdbc</module>
@@ -267,6 +268,11 @@
             <dependency>
                 <groupId>com.foggysource</groupId>
                 <artifactId>foggy-dataset-mcp</artifactId>
+                <version>${foggy-framework.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.foggysource</groupId>
+                <artifactId>foggy-mcp-auth-jwt</artifactId>
                 <version>${foggy-framework.version}</version>
             </dependency>
             <dependency>

@@ -35,7 +35,9 @@ public class AuthWebMvcConfig implements WebMvcConfigurer {
                         "/actuator/info",
                         "/healthz",
                         "/readyz",
-                        "/api/v1/health"
+                        "/api/v1/health",
+                        "/.well-known/oauth-protected-resource",
+                        "/.well-known/oauth-protected-resource/mcp"
                 );
     }
 }

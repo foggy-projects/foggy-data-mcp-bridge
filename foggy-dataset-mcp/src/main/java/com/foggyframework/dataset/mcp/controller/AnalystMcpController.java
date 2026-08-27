@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.mcp.controller;
 
 import com.foggyframework.dataset.mcp.enums.UserRole;
+import com.foggyframework.dataset.mcp.auth.McpRequestAuthorization;
 import com.foggyframework.dataset.mcp.schema.McpError;
 import com.foggyframework.dataset.mcp.schema.McpRequest;
 import com.foggyframework.dataset.mcp.schema.McpRequestContext;
@@ -61,7 +62,7 @@ public class AnalystMcpController {
      *
      * Claude Desktop IDE 可使用此端点
      */
-    @PostMapping(value = "/rpc", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PostMapping(value = {"", "/rpc"}, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<McpResponse> handleRpc(
             @RequestBody McpRequest request,
             @RequestHeader(value = "Authorization", required = false) String authorization,
@@ -80,6 +81,7 @@ public class AnalystMcpController {
             @RequestHeader(value = "X-Policy-Snapshot-Id", required = false) String policySnapshotId
     ) {
         // traceId: AI 会话级，如果没有则生成新的
+        authorization = McpRequestAuthorization.dataPlaneAuthorization(authorization);
         if (traceId == null || traceId.isBlank()) {
             traceId = UUID.randomUUID().toString();
         }
@@ -99,6 +101,8 @@ public class AnalystMcpController {
             // 处理 MCP 内置方法
             if (request.getMethod() != null) {
                 switch (request.getMethod()) {
+                    case "server/discover":
+                        return ResponseEntity.ok(mcpService.handleServerDiscover(request, USER_ROLE));
                     case "initialize":
                         return ResponseEntity.ok(mcpService.handleInitialize(request, USER_ROLE));
                     case "tools/list":
@@ -178,6 +182,7 @@ public class AnalystMcpController {
             @RequestHeader(value = "X-Policy-Snapshot-Id", required = false) String policySnapshotId
     ) {
         // traceId: AI 会话级
+        authorization = McpRequestAuthorization.dataPlaneAuthorization(authorization);
         if (traceId == null || traceId.isBlank()) {
             traceId = UUID.randomUUID().toString();
         }
@@ -237,7 +242,7 @@ public class AnalystMcpController {
         putIfNotBlank(headers, "X-Policy-Snapshot-Id", policySnapshotId);
         putIfNotBlank(headers, "X-Trace-Id", traceId);
         putIfNotBlank(headers, "Authorization", authorization);
-        return headers;
+        return McpRequestAuthorization.applyTrustedIdentityHeaders(headers);
     }
 
     private static void putIfNotBlank(Map<String, String> headers, String name, String value) {
