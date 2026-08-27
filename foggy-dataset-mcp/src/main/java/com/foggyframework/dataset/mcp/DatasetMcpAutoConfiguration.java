@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Import;
         com.foggyframework.dataset.mcp.auth.AuthInterceptor.class,
         com.foggyframework.dataset.mcp.auth.AuthProperties.class,
         com.foggyframework.dataset.mcp.auth.AuthWebMvcConfig.class,
+        com.foggyframework.dataset.mcp.auth.McpProtectedResourceMetadataController.class,
         com.foggyframework.dataset.mcp.chart.ChartRendererRegistry.class,
         com.foggyframework.dataset.mcp.chart.EChartsRenderer.class,
         com.foggyframework.dataset.mcp.chart.XChartRenderer.class,

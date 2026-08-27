@@ -108,6 +108,8 @@ public class AuthInterceptor implements HandlerInterceptor, InitializingBean {
             verified = accessTokenVerifier.getObject().verify(token);
         } catch (RuntimeException verificationFailure) {
             log.warn("Access token verification failed for path: {}", path);
+            log.debug("Access token verification detail for path {}: {}",
+                    path, verificationFailure.getMessage());
             sendUnauthorized(response, "Invalid token");
             return false;
         }

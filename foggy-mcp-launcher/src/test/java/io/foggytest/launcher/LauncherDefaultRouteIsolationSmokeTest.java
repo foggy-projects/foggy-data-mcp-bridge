@@ -4,6 +4,7 @@ import com.foggyframework.analytics.console.api.AnalyticsConsoleController;
 import com.foggyframework.analytics.runtime.api.controller.AnalyticsCapabilitiesController;
 import com.foggyframework.dataset.model.semantic.controller.SemanticServiceV3TestController;
 import com.foggyframework.dataset.mcp.controller.ChartImageController;
+import com.foggyframework.dataset.mcp.auth.McpProtectedResourceMetadataController;
 import com.foggyframework.dataset.mcp.controller.DevToolsController;
 import com.foggyframework.dataset.mcp.service.McpToolDispatcher;
 import com.foggyframework.dataset.mcp.service.NamespaceToolPolicyService;
@@ -75,6 +76,7 @@ class LauncherDefaultRouteIsolationSmokeTest {
         assertThat(applicationContext.getBeansOfType(SemanticServiceV3TestController.class)).isEmpty();
         assertThat(applicationContext.getBeansOfType(SavedQueryTestController.class)).isEmpty();
         assertThat(applicationContext.getBeansOfType(DemoSecurityIdentityResolver.class)).isEmpty();
+        assertThat(applicationContext.getBeansOfType(McpProtectedResourceMetadataController.class)).hasSize(1);
         assertThat(applicationContext.getBeansOfType(ChartImageController.class)).hasSize(1);
         assertThat(applicationContext.getBeansOfType(NamespaceToolPolicyService.class)).hasSize(1);
         assertThat(applicationContext.getBeansOfType(ExplainQueryTool.class)).hasSize(1);
@@ -92,6 +94,8 @@ class LauncherDefaultRouteIsolationSmokeTest {
         mockMvc.perform(get("/semantic/v3/test/metadata/FactOrderQueryModel"))
                 .andExpect(status().isNotFound());
         mockMvc.perform(get("/test/identity"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/.well-known/oauth-protected-resource/mcp"))
                 .andExpect(status().isNotFound());
         mockMvc.perform(get("/charts/stats"))
                 .andExpect(status().isOk());
