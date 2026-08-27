@@ -52,7 +52,7 @@ recorded_at: 2026-08-27
 
 ## 后续边界
 
-- `external-durable` 的数据库实现和多实例恢复 worker 仍由宿主或后续独立 workitem 提供；
+- `external-durable` 的数据库实现和多实例恢复 Worker 已冻结为 [独立工作项](FEATURE-analytics-external-durable-recovery-worker.md)；
   JWT/JWKS adapter 已由后续 [独立工作项](FEATURE-mcp-jwt-jwks-auth-adapter.md) 实现。
 - 现代 MCP 的传输级 cache/TTL 与完整协议互操作矩阵仍需独立 conformance suite，不以本基础
   入口替代官方一致性认证。

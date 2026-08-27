@@ -20,6 +20,7 @@ recorded_at: 2026-08-01
 | [Published store 中断写入恢复](workitems/BUG-runtime-published-store-interrupted-write-recovery.md) | ACCEPTED | 新 staging/temp 带 ownership evidence，只恢复可证明 owned 的中断写入；legacy unknown 保留，已独立正式验收 |
 | [Current-main 生产基线](workitems/FEATURE-current-main-production-baseline.md) | READY_FOR_SIGNOFF | 用户明确提升的三个 P0：版本/CI 真相、MCP 生产认证与协议基础、Analytics Console 可信问数门禁 |
 | [MCP JWT/JWKS 生产认证适配器](workitems/FEATURE-mcp-jwt-jwks-auth-adapter.md) | READY_FOR_SIGNOFF | 可选 JWT/JWKS 验证、claim 身份映射、角色/scope 门禁、宿主 verifier 覆盖与身份 Header 防伪 |
+| [Analytics external-durable 与多实例恢复 Worker](workitems/FEATURE-analytics-external-durable-recovery-worker.md) | PROPOSED | PostgreSQL 持久化、CAS/lease 多实例恢复、FAP 幂等对账、人工处置与运维指标契约 |
 | [Runtime API 自动配置装配缺失](workitems/BUG-runtime-api-auto-configuration-assembly.md) | READY_FOR_SIGNOFF | 已补齐 publication/lifecycle 显式装配并通过 focused 与隔离 launcher 验证 |
 | [Console artifact lifecycle 运维视图](workitems/FEATURE-runtime-console-artifact-lifecycle-operability.md) | READY_FOR_SIGNOFF | 只读 lifecycle evidence ledger 已完成自动化与隔离 launcher 验证，等待用户体验验收 |
 
