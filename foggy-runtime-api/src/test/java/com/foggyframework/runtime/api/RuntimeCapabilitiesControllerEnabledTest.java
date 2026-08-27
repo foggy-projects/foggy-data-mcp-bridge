@@ -35,11 +35,11 @@ import com.foggyframework.dataset.model.validation.DefaultDetachedModelValidatio
 import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
 import com.foggyframework.runtime.api.service.RuntimeDatasourceRegistryService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.io.FileSystemResource;
@@ -49,6 +49,9 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.client.MockMvcClientHttpRequestFactory;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.client.RestTemplate;
 
 import javax.sql.DataSource;
 import java.nio.file.Files;
@@ -76,7 +79,7 @@ import static org.mockito.Mockito.when;
 
 @SpringBootTest(
         classes = RuntimeCapabilitiesControllerEnabledTest.TestApplication.class,
-        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        webEnvironment = SpringBootTest.WebEnvironment.MOCK,
         properties = {
                 "foggy.runtime-api.enabled=true",
                 "foggy.runtime-api.bundle-registry.path=target/runtime-api-test-bundles-${random.uuid}.json",
@@ -87,10 +90,10 @@ import static org.mockito.Mockito.when;
                         + "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration"
         }
 )
+@AutoConfigureMockMvc
 class RuntimeCapabilitiesControllerEnabledTest {
 
-    @LocalServerPort
-    private int port;
+    private static final String BASE_URL = "http://localhost";
 
     @MockitoBean
     private SemanticModelCatalogService catalogService;
@@ -131,12 +134,21 @@ class RuntimeCapabilitiesControllerEnabledTest {
     @Autowired
     private FoggyRuntimeApiProperties runtimeApiProperties;
 
-    private final TestRestTemplate restTemplate = new TestRestTemplate();
+    @Autowired
+    private MockMvc mockMvc;
+
+    private RestTemplate restTemplate;
+
+    @BeforeEach
+    void configureRestTemplate() {
+        restTemplate = new RestTemplate(
+                new MockMvcClientHttpRequestFactory(mockMvc));
+    }
 
     @Test
     void shouldExposeCapabilitiesWhenRuntimeApiEnabled() {
         ResponseEntity<JsonNode> response = restTemplate.getForEntity(
-                "http://localhost:" + port + "/api/v1/capabilities",
+                BASE_URL + "/api/v1/capabilities",
                 JsonNode.class
         );
 
@@ -209,7 +221,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
                 .setProductionPromotionEnabled(true);
         try {
             ResponseEntity<JsonNode> response = restTemplate.getForEntity(
-                    "http://localhost:" + port + "/api/v1/capabilities",
+                    BASE_URL + "/api/v1/capabilities",
                     JsonNode.class);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -242,7 +254,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
                 ));
 
         ResponseEntity<JsonNode> response = restTemplate.getForEntity(
-                "http://localhost:" + port + "/api/v1/models",
+                BASE_URL + "/api/v1/models",
                 JsonNode.class
         );
 
@@ -264,7 +276,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         when(semanticServiceV3.getMetadata(any(), eq("json"), any())).thenReturn(metadata);
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/models/OrderModel/describe",
+                BASE_URL + "/api/v1/models/OrderModel/describe",
                 Map.of("format", "json"),
                 JsonNode.class
         );
@@ -283,7 +295,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         Path modelsDir = Files.createTempDirectory("runtime-api-detached-validation");
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/models/validate",
+                BASE_URL + "/api/v1/models/validate",
                 Map.of("path", modelsDir.toString(), "namespace", "dev"),
                 JsonNode.class
         );
@@ -309,7 +321,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         when(systemBundlesContext.getApplicationContext()).thenReturn(applicationContext);
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/models/validate",
+                BASE_URL + "/api/v1/models/validate",
                 Map.of("path", modelsDir.toString(), "namespace", "dev"),
                 JsonNode.class
         );
@@ -335,7 +347,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         Path modelsDir = Files.createTempDirectory("runtime-api-detached-clear-false");
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/models/validate",
+                BASE_URL + "/api/v1/models/validate",
                 Map.of("path", modelsDir.toString(), "namespace", "dev", "clearExisting", false),
                 JsonNode.class
         );
@@ -357,7 +369,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         when(systemBundlesContext.getApplicationContext()).thenReturn(applicationContext);
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/models/validate",
+                BASE_URL + "/api/v1/models/validate",
                 Map.of("path", modelsDir.toString(), "namespace", "dev", "clearExisting", false),
                 JsonNode.class
         );
@@ -376,7 +388,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         Path modelsDir = Files.createTempDirectory("runtime-api-existing-validation-bundle");
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/models/validate",
+                BASE_URL + "/api/v1/models/validate",
                 Map.of("path", modelsDir.toString(), "namespace", "dev"),
                 JsonNode.class
         );
@@ -398,7 +410,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         Path modelsDir = Files.createTempDirectory("runtime-api-clear-stale-validation-bundle");
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/models/validate",
+                BASE_URL + "/api/v1/models/validate",
                 Map.of("path", modelsDir.toString(), "namespace", "dev"),
                 JsonNode.class
         );
@@ -422,7 +434,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
                 .thenReturn(queryResponse);
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/query/OrderModel/validate",
+                BASE_URL + "/api/v1/query/OrderModel/validate",
                 Map.of(
                         "namespace", "dev",
                         "payload", Map.of("columns", List.of("orderNo"))
@@ -444,7 +456,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
                 .thenThrow(new IllegalArgumentException("Field not found: customerName"));
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/query/OrderModel/validate",
+                BASE_URL + "/api/v1/query/OrderModel/validate",
                 Map.of("payload", Map.of("columns", List.of("customerName"))),
                 JsonNode.class
         );
@@ -467,7 +479,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
                 .thenReturn(queryResponse);
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/query/OrderModel/validate",
+                BASE_URL + "/api/v1/query/OrderModel/validate",
                 Map.of("payload", Map.of("columns", List.of("customerName"))),
                 JsonNode.class
         );
@@ -491,7 +503,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
                 .thenReturn(queryResponse);
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/query/OrderModel/validate",
+                BASE_URL + "/api/v1/query/OrderModel/validate",
                 Map.of("payload", Map.of("columns", List.of("amount"))),
                 JsonNode.class
         );
@@ -515,7 +527,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
                 .thenReturn(queryResponse);
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/query/OrderModel/execute",
+                BASE_URL + "/api/v1/query/OrderModel/execute",
                 Map.of("payload", Map.of("columns", List.of("orderNo"), "limit", 1)),
                 JsonNode.class
         );
@@ -534,7 +546,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
                 .thenReturn(new SqlGenerationResult("SELECT order_id FROM fact_order", List.of(), null));
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/compose/validate",
+                BASE_URL + "/api/v1/compose/validate",
                 Map.of(
                         "script", "const plan = dsl({model: 'FactOrderQueryModel', columns: ['orderId'], limit: 3}); return { plans: plan };",
                         "params", Map.of(),
@@ -601,7 +613,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
                 """;
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/compose/validate",
+                BASE_URL + "/api/v1/compose/validate",
                 Map.of("script", script, "params", Map.of()),
                 JsonNode.class
         );
@@ -677,7 +689,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         headers.set("X-NS", "wwi-compose-sqlserver");
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/compose/validate",
+                BASE_URL + "/api/v1/compose/validate",
                 new HttpEntity<>(Map.of("script", script, "params", Map.of()), headers),
                 JsonNode.class
         );
@@ -709,7 +721,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
                 .thenReturn(new SqlGenerationResult("SELECT order_id FROM fact_order", List.of(), null));
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/compose/validate",
+                BASE_URL + "/api/v1/compose/validate",
                 Map.of(
                         "script", derivedLimitComposeScript(),
                         "params", Map.of(),
@@ -738,7 +750,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
                 .thenReturn(new SqlGenerationResult("SELECT order_id FROM fact_order", List.of(), null));
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/compose/validate",
+                BASE_URL + "/api/v1/compose/validate",
                 Map.of(
                         "script", derivedOffsetWithoutOrderByComposeScript(),
                         "params", Map.of(),
@@ -766,7 +778,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
                 .thenReturn(new SqlGenerationResult("SELECT order_id FROM fact_order", List.of(), null));
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/compose/preview",
+                BASE_URL + "/api/v1/compose/preview",
                 Map.of(
                         "script", "const plan = dsl({model: 'FactOrderQueryModel', columns: ['orderId'], limit: 3}); return { plans: plan };",
                         "params", Map.of()
@@ -792,7 +804,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
                 .thenReturn(List.of(Map.of("orderId", "FO-001")));
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/compose/execute",
+                BASE_URL + "/api/v1/compose/execute",
                 Map.of(
                         "script", "const plan = dsl({model: 'FactOrderQueryModel', columns: ['orderId'], limit: 3}); return { plans: plan };",
                         "params", Map.of()
@@ -813,7 +825,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
     @Test
     void shouldReturnComposeSandboxViolationThroughRuntimeEnvelope() {
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/compose/validate",
+                BASE_URL + "/api/v1/compose/validate",
                 Map.of("script", "import java.lang.System; return { plans: [] };"),
                 JsonNode.class
         );
@@ -837,7 +849,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         ));
 
         ResponseEntity<JsonNode> response = restTemplate.getForEntity(
-                "http://localhost:" + port + "/api/v1/bundles",
+                BASE_URL + "/api/v1/bundles",
                 JsonNode.class
         );
 
@@ -869,7 +881,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         when(systemBundlesContext.listExternalBundles()).thenReturn(List.of());
 
         ResponseEntity<JsonNode> response = restTemplate.getForEntity(
-                "http://localhost:" + port + "/api/v1/bundles",
+                BASE_URL + "/api/v1/bundles",
                 JsonNode.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -903,7 +915,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
                 .thenReturn(live);
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/bundles",
+                BASE_URL + "/api/v1/bundles",
                 Map.of(
                         "name", "runtime-demo",
                         "namespace", "dev",
@@ -950,7 +962,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         Files.writeString(candidate.resolve(existingQuery.getFileName()), "candidate qm");
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/bundles",
+                BASE_URL + "/api/v1/bundles",
                 Map.of(
                         "name", "runtime-conflict",
                         "namespace", "dev",
@@ -975,7 +987,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         verify(systemBundlesContext, never()).removeBundle(anyString());
 
         ResponseEntity<JsonNode> listResponse = restTemplate.getForEntity(
-                "http://localhost:" + port + "/api/v1/bundles",
+                BASE_URL + "/api/v1/bundles",
                 JsonNode.class
         );
         assertThat(listResponse.getBody().path("data").path("bundles"))
@@ -990,7 +1002,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
                 .thenReturn(true);
 
         ResponseEntity<JsonNode> addResponse = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/bundles",
+                BASE_URL + "/api/v1/bundles",
                 Map.of(
                         "name", "runtime-rollback",
                         "namespace", "dev",
@@ -1008,7 +1020,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
                 .thenReturn(false);
 
         ResponseEntity<JsonNode> updateResponse = restTemplate.exchange(
-                "http://localhost:" + port + "/api/v1/bundles/runtime-rollback",
+                BASE_URL + "/api/v1/bundles/runtime-rollback",
                 org.springframework.http.HttpMethod.PUT,
                 new org.springframework.http.HttpEntity<>(Map.of(
                         "namespace", "dev",
@@ -1032,7 +1044,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
                 .addExternalBundle("runtime-rollback", "dev", oldModelsDir.toString(), true);
 
         ResponseEntity<JsonNode> listResponse = restTemplate.getForEntity(
-                "http://localhost:" + port + "/api/v1/bundles",
+                BASE_URL + "/api/v1/bundles",
                 JsonNode.class
         );
         assertThat(listResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -1087,7 +1099,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
                 .thenReturn(true);
 
         ResponseEntity<JsonNode> addResponse = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/bundles",
+                BASE_URL + "/api/v1/bundles",
                 Map.of(
                         "name", "runtime-resource-export",
                         "namespace", "dev",
@@ -1099,7 +1111,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(addResponse.getBody().path("success").asBoolean()).isTrue();
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/resources/export",
+                BASE_URL + "/api/v1/resources/export",
                 Map.of(
                         "bundle", "runtime-resource-export",
                         "namespace", "dev"
@@ -1127,7 +1139,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
                 .thenReturn(true);
 
         ResponseEntity<JsonNode> addResponse = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/bundles",
+                BASE_URL + "/api/v1/bundles",
                 Map.of(
                         "name", "runtime-resource-save",
                         "namespace", "dev",
@@ -1139,7 +1151,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(addResponse.getBody().path("success").asBoolean()).isTrue();
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/resources/save",
+                BASE_URL + "/api/v1/resources/save",
                 Map.of(
                         "bundle", "runtime-resource-save",
                         "namespace", "dev",
@@ -1171,7 +1183,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
                 .thenReturn(true);
 
         ResponseEntity<JsonNode> addResponse = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/bundles",
+                BASE_URL + "/api/v1/bundles",
                 Map.of(
                         "name", "runtime-resource-batch",
                         "namespace", "dev",
@@ -1183,7 +1195,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(addResponse.getBody().path("success").asBoolean()).isTrue();
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/resources/save",
+                BASE_URL + "/api/v1/resources/save",
                 Map.of(
                         "bundle", "runtime-resource-batch",
                         "namespace", "dev",
@@ -1212,7 +1224,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
     @Test
     void shouldRejectSavingConfiguredBundleResources() {
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/resources/save",
+                BASE_URL + "/api/v1/resources/save",
                 Map.of(
                         "bundle", "configured-demo",
                         "files", List.of(Map.of(
@@ -1233,7 +1245,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
     @Test
     void shouldRejectRemovingConfiguredBundle() {
         ResponseEntity<JsonNode> response = restTemplate.exchange(
-                "http://localhost:" + port + "/api/v1/bundles/configured-demo",
+                BASE_URL + "/api/v1/bundles/configured-demo",
                 org.springframework.http.HttpMethod.DELETE,
                 null,
                 JsonNode.class
@@ -1250,7 +1262,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
     @Test
     void shouldListConfiguredDefaultDatasourceAsReadOnly() {
         ResponseEntity<JsonNode> response = restTemplate.getForEntity(
-                "http://localhost:" + port + "/api/v1/datasources",
+                BASE_URL + "/api/v1/datasources",
                 JsonNode.class
         );
 
@@ -1276,7 +1288,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         }
 
         ResponseEntity<JsonNode> addResponse = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/datasources",
+                BASE_URL + "/api/v1/datasources",
                 Map.of(
                         "name", "diagnostic-sqlite",
                         "type", "sqlite",
@@ -1288,7 +1300,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(addResponse.getBody().path("success").asBoolean()).isTrue();
 
         ResponseEntity<JsonNode> bindResponse = restTemplate.exchange(
-                "http://localhost:" + port + "/api/v1/namespaces/diagnostic-ns/datasource",
+                BASE_URL + "/api/v1/namespaces/diagnostic-ns/datasource",
                 org.springframework.http.HttpMethod.PUT,
                 new org.springframework.http.HttpEntity<>(Map.of(
                         "namespace", "diagnostic-ns",
@@ -1300,7 +1312,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(bindResponse.getBody().path("success").asBoolean()).isTrue();
 
         ResponseEntity<JsonNode> response = restTemplate.getForEntity(
-                "http://localhost:" + port + "/api/v1/datasources/diagnostics",
+                BASE_URL + "/api/v1/datasources/diagnostics",
                 JsonNode.class
         );
 
@@ -1335,7 +1347,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         }
 
         ResponseEntity<JsonNode> addResponse = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/datasources",
+                BASE_URL + "/api/v1/datasources",
                 Map.of(
                         "name", "sales-sqlite",
                         "type", "sqlite",
@@ -1349,7 +1361,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
                 .isTrue();
 
         ResponseEntity<JsonNode> testResponse = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/datasources/sales-sqlite/test",
+                BASE_URL + "/api/v1/datasources/sales-sqlite/test",
                 null,
                 JsonNode.class
         );
@@ -1359,7 +1371,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(testResponse.getBody().path("data").path("productName").asText()).containsIgnoringCase("sqlite");
 
         ResponseEntity<JsonNode> bindResponse = restTemplate.exchange(
-                "http://localhost:" + port + "/api/v1/namespaces/dev/datasource",
+                BASE_URL + "/api/v1/namespaces/dev/datasource",
                 org.springframework.http.HttpMethod.PUT,
                 new org.springframework.http.HttpEntity<>(Map.of(
                         "namespace", "dev",
@@ -1372,7 +1384,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(bindResponse.getBody().path("data").path("dataSource").asText()).isEqualTo("sales-sqlite");
 
         ResponseEntity<JsonNode> inspectResponse = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/tables/inspect",
+                BASE_URL + "/api/v1/tables/inspect",
                 Map.of(
                         "dataSource", "sales-sqlite",
                         "table", "sales_drop_daily",
@@ -1392,7 +1404,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
     @Test
     void shouldRejectRemovingDefaultDatasource() {
         ResponseEntity<JsonNode> response = restTemplate.exchange(
-                "http://localhost:" + port + "/api/v1/datasources/default",
+                BASE_URL + "/api/v1/datasources/default",
                 org.springframework.http.HttpMethod.DELETE,
                 null,
                 JsonNode.class
@@ -1423,7 +1435,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         }
 
         ResponseEntity<JsonNode> addResponse = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/datasources",
+                BASE_URL + "/api/v1/datasources",
                 Map.of(
                         "name", "probe-sqlite",
                         "type", "sqlite",
@@ -1435,7 +1447,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(addResponse.getBody().path("success").asBoolean()).isTrue();
 
         ResponseEntity<JsonNode> listResponse = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/tables/list",
+                BASE_URL + "/api/v1/tables/list",
                 Map.of("dataSource", "probe-sqlite"),
                 JsonNode.class
         );
@@ -1451,7 +1463,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(foundTable).isTrue();
 
         ResponseEntity<JsonNode> queryResponse = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/sql/query",
+                BASE_URL + "/api/v1/sql/query",
                 Map.of(
                         "dataSource", "probe-sqlite",
                         "sql", "select region, sales_amount from sales_probe_daily order by id",
@@ -1470,7 +1482,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(queryBody.path("data").path("truncated").asBoolean()).isTrue();
 
         ResponseEntity<JsonNode> rejectedResponse = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/sql/query",
+                BASE_URL + "/api/v1/sql/query",
                 Map.of(
                         "dataSource", "probe-sqlite",
                         "sql", "delete from sales_probe_daily"
@@ -1502,7 +1514,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         }
 
         ResponseEntity<JsonNode> addResponse = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/datasources",
+                BASE_URL + "/api/v1/datasources",
                 Map.of(
                         "name", "probe-h2",
                         "type", "h2",
@@ -1520,7 +1532,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(addedDatasource.path("pool").path("maximumPoolSize").asInt()).isEqualTo(4);
 
         ResponseEntity<JsonNode> testResponse = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/datasources/probe-h2/test",
+                BASE_URL + "/api/v1/datasources/probe-h2/test",
                 null,
                 JsonNode.class
         );
@@ -1529,7 +1541,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(testResponse.getBody().path("data").path("productName").asText()).containsIgnoringCase("h2");
 
         ResponseEntity<JsonNode> queryResponse = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/sql/query",
+                BASE_URL + "/api/v1/sql/query",
                 Map.of(
                         "dataSource", "probe-h2",
                         "sql", "select region as \"region\", sales_amount as \"sales_amount\" from sales_probe_daily order by id",
@@ -1554,7 +1566,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         }
 
         ResponseEntity<JsonNode> bindResponse = restTemplate.exchange(
-                "http://localhost:" + port + "/api/v1/namespaces/probe-ns/datasource",
+                BASE_URL + "/api/v1/namespaces/probe-ns/datasource",
                 HttpMethod.PUT,
                 new HttpEntity<>(Map.of("dataSource", "probe-h2")),
                 JsonNode.class
@@ -1576,7 +1588,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         HttpHeaders namespaceHeaders = new HttpHeaders();
         namespaceHeaders.add("X-NS", "probe-ns");
         ResponseEntity<JsonNode> namespaceListResponse = restTemplate.exchange(
-                "http://localhost:" + port + "/api/v1/tables/list",
+                BASE_URL + "/api/v1/tables/list",
                 HttpMethod.POST,
                 new HttpEntity<>(Map.of("includeViews", false), namespaceHeaders),
                 JsonNode.class
@@ -1590,7 +1602,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
                 .anySatisfy(table -> assertThat(table.path("name").asText()).isEqualToIgnoringCase("sales_probe_daily"));
 
         ResponseEntity<JsonNode> namespaceQueryResponse = restTemplate.exchange(
-                "http://localhost:" + port + "/api/v1/sql/query",
+                BASE_URL + "/api/v1/sql/query",
                 HttpMethod.POST,
                 new HttpEntity<>(Map.of(
                         "sql", "select count(*) as \"sales_count\" from sales_probe_daily",
@@ -1606,7 +1618,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(namespaceQueryBody.path("data").path("rows").get(0).path("sales_count").asInt()).isEqualTo(2);
 
         ResponseEntity<JsonNode> diagnosticsResponse = restTemplate.getForEntity(
-                "http://localhost:" + port + "/api/v1/datasources",
+                BASE_URL + "/api/v1/datasources",
                 JsonNode.class
         );
         assertThat(diagnosticsResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -1624,7 +1636,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
     void shouldBindDatasourceWithoutResolvingPasswordRef() {
         String dataSourceName = "unresolved-ref-" + System.nanoTime();
         ResponseEntity<JsonNode> addResponse = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/datasources",
+                BASE_URL + "/api/v1/datasources",
                 Map.of(
                         "name", dataSourceName,
                         "type", "h2",
@@ -1638,7 +1650,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(addResponse.getBody().path("success").asBoolean()).isTrue();
 
         ResponseEntity<JsonNode> bindResponse = restTemplate.exchange(
-                "http://localhost:" + port + "/api/v1/namespaces/bind-ref-ns/datasource",
+                BASE_URL + "/api/v1/namespaces/bind-ref-ns/datasource",
                 HttpMethod.PUT,
                 new HttpEntity<>(Map.of("dataSource", dataSourceName)),
                 JsonNode.class
@@ -1650,7 +1662,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(namedDataSourceResolver.isConfigured(dataSourceName)).isTrue();
 
         ResponseEntity<JsonNode> listResponse = restTemplate.getForEntity(
-                "http://localhost:" + port + "/api/v1/datasources",
+                BASE_URL + "/api/v1/datasources",
                 JsonNode.class
         );
         JsonNode datasource = findDatasource(listResponse.getBody(), dataSourceName);
@@ -1658,7 +1670,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(datasource.path("pool").path("poolExists").asBoolean()).isFalse();
 
         ResponseEntity<JsonNode> testResponse = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/datasources/" + dataSourceName + "/test",
+                BASE_URL + "/api/v1/datasources/" + dataSourceName + "/test",
                 null,
                 JsonNode.class
         );
@@ -1674,7 +1686,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
     @Test
     void shouldRejectUnsupportedPasswordRefSchemeOnDatasourceAdd() {
         ResponseEntity<JsonNode> addResponse = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/datasources",
+                BASE_URL + "/api/v1/datasources",
                 Map.of(
                         "name", "unsupported-ref-" + System.nanoTime(),
                         "type", "h2",
@@ -1709,7 +1721,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         ));
 
         ResponseEntity<JsonNode> testResponse = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/datasources/" + dataSourceName + "/test",
+                BASE_URL + "/api/v1/datasources/" + dataSourceName + "/test",
                 null,
                 JsonNode.class
         );
@@ -1727,7 +1739,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
     @Test
     void shouldExecuteFsscriptThroughRuntimeEnvelope() {
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/fsscript/execute",
+                BASE_URL + "/api/v1/fsscript/execute",
                 Map.of("script", "return 1 + 2;"),
                 JsonNode.class
         );
@@ -1744,7 +1756,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
     @Test
     void shouldDenyFsscriptCteBridgeByDefault() {
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/fsscript/execute",
+                BASE_URL + "/api/v1/fsscript/execute",
                 Map.of("script", "return foggy.cte.preview({script: \"return { plans: [] };\"});"),
                 JsonNode.class
         );
@@ -1766,7 +1778,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
                 .thenReturn(new SqlGenerationResult("SELECT order_id FROM fact_order", List.of(), null));
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/fsscript/execute",
+                BASE_URL + "/api/v1/fsscript/execute",
                 Map.of(
                         "script", "return foggy.cte.preview({script: \"const plan = dsl({model: 'FactOrderQueryModel', columns: ['orderId'], limit: 3}); return { plans: plan };\"});",
                         "capabilities", Map.of("cteBridge", true)
@@ -1807,7 +1819,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         HttpHeaders headers = new HttpHeaders();
         headers.set("X-NS", "cte-compose-sqlserver");
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/fsscript/execute",
+                BASE_URL + "/api/v1/fsscript/execute",
                 new HttpEntity<>(Map.of(
                         "script", "return foggy.cte.preview({script: \"" + derivedLimitComposeScript() + "\"});",
                         "capabilities", Map.of("cteBridge", true)
@@ -1835,7 +1847,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
                 .thenReturn(new SqlGenerationResult("SELECT order_id FROM fact_order", List.of(), null));
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/fsscript/execute",
+                BASE_URL + "/api/v1/fsscript/execute",
                 Map.of(
                         "script", "return foggy.cte.preview({script: \"" + derivedLimitComposeScript()
                                 + "\", options: { dialect: 'sqlserver' }});",
@@ -1860,7 +1872,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
     @Test
     void shouldReturnComposeSandboxViolationThroughFsscriptCteBridge() {
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/fsscript/execute",
+                BASE_URL + "/api/v1/fsscript/execute",
                 Map.of(
                         "script", "return foggy.cte.validate({script: \"import java.lang.System; return { plans: [] };\"});",
                         "capabilities", Map.of("cteBridge", true)
@@ -1910,7 +1922,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         when(primaryKeys.getString("COLUMN_NAME")).thenReturn("id");
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/tables/inspect",
+                BASE_URL + "/api/v1/tables/inspect",
                 Map.of(
                         "schema", "public",
                         "table", "sale_order",
@@ -2017,7 +2029,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
                         List.of()));
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/models/refresh",
+                BASE_URL + "/api/v1/models/refresh",
                 Map.of("models", List.of("OrderModel")),
                 JsonNode.class
         );
@@ -2055,7 +2067,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
                 });
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                "http://localhost:" + port + "/api/v1/models/refresh",
+                BASE_URL + "/api/v1/models/refresh",
                 Map.of("models", List.of("MissingModel")),
                 JsonNode.class
         );

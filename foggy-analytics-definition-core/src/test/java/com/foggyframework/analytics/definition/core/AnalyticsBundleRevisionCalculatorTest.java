@@ -180,10 +180,19 @@ class AnalyticsBundleRevisionCalculatorTest {
         Path bundle = copyFixture(tempDir.resolve("bundle"));
         Path outside = tempDir.resolve("outside.txt");
         Files.writeString(outside, "outside", StandardCharsets.UTF_8);
-        Files.createSymbolicLink(bundle.resolve("assets/link.txt"), outside);
+        createSymbolicLinkOrSkip(bundle.resolve("assets/link.txt"), outside);
 
         assertThrows(AnalyticsBundleRevisionCalculator.UnsafeBundlePathException.class,
                 () -> calculator.calculate(bundle));
+    }
+
+    private void createSymbolicLinkOrSkip(Path link, Path target) {
+        try {
+            Files.createSymbolicLink(link, target);
+        } catch (Exception failure) {
+            org.junit.jupiter.api.Assumptions.assumeTrue(
+                    false, "Symbolic links are unavailable: " + failure.getMessage());
+        }
     }
 
     private Path copyFixture(Path target) throws Exception {

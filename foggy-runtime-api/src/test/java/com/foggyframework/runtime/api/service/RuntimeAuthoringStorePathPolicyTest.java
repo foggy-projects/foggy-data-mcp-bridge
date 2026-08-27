@@ -40,7 +40,7 @@ class RuntimeAuthoringStorePathPolicyTest {
 
         Path real = Files.createDirectory(tempDirectory.resolve("real"));
         Path alias = tempDirectory.resolve("alias");
-        Files.createSymbolicLink(alias, real);
+        TestFileSystemSupport.createSymbolicLinkOrSkip(alias, real);
         RuntimeAuthoringStorePathPolicy aliased = policy(
                 alias.resolve("workspace"), mock(SystemBundlesContext.class));
         assertConflict(() -> aliased.assertBundleSourceDisjoint(

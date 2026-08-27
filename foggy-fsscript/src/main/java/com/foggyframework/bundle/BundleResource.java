@@ -8,6 +8,8 @@ import org.springframework.core.io.Resource;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URL;
+import java.net.URLConnection;
 
 @Getter
 @AllArgsConstructor
@@ -18,6 +20,17 @@ public class BundleResource {
 
     public InputStream getInputStream() {
         try {
+            URL url;
+            try {
+                url = resource.getURL();
+            } catch (IOException ignored) {
+                return resource.getInputStream();
+            }
+            if ("jar".equalsIgnoreCase(url.getProtocol())) {
+                URLConnection connection = url.openConnection();
+                connection.setUseCaches(false);
+                return connection.getInputStream();
+            }
             return resource.getInputStream();
         } catch (IOException e) {
             throw new RuntimeException(e);

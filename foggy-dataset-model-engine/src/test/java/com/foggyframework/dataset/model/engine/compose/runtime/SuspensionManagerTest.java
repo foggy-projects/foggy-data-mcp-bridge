@@ -3,6 +3,8 @@ package com.foggyframework.dataset.model.engine.compose.runtime;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -78,11 +80,9 @@ class SuspensionManagerTest {
         });
         handler.start();
         assertTrue(started.await(2, TimeUnit.SECONDS));
-        Thread.sleep(50); // let handler block
+        SuspensionResult suspension = awaitSuspension(ctx);
 
         // Resume
-        SuspensionResult suspension = ctx.getSuspension();
-        assertNotNull(suspension);
         mgr.resume(new ResumeCommand(
                 ctx.getRunId(), suspension.getSuspendId(),
                 Map.of("approved", true)));
@@ -116,9 +116,7 @@ class SuspensionManagerTest {
         });
         handler.start();
         assertTrue(started.await(2, TimeUnit.SECONDS));
-        Thread.sleep(50);
-
-        SuspensionResult suspension = ctx.getSuspension();
+        SuspensionResult suspension = awaitSuspension(ctx);
         mgr.reject(new RejectCommand(ctx.getRunId(), suspension.getSuspendId(), "denied"));
 
         handler.join(5000);
@@ -168,9 +166,7 @@ class SuspensionManagerTest {
         });
         handler.start();
         assertTrue(started.await(2, TimeUnit.SECONDS));
-        Thread.sleep(50);
-
-        SuspensionResult suspension = ctx.getSuspension();
+        SuspensionResult suspension = awaitSuspension(ctx);
         mgr.resume(new ResumeCommand(ctx.getRunId(), suspension.getSuspendId(), Map.of()));
 
         handler.join(5000);
@@ -194,34 +190,76 @@ class SuspensionManagerTest {
     @Test
     void exceedLimitFails() throws Exception {
         SuspensionManager small = new SuspensionManager(2);
+        List<ScriptRunContext> contexts = new ArrayList<>();
+        List<Thread> handlers = new ArrayList<>();
 
-        // Fill up 2 slots
-        for (int i = 0; i < 2; i++) {
-            ScriptRunContext ctx = new ScriptRunContext("sr_fill_" + i);
-            small.registerRun(ctx);
-            new Thread(() -> {
-                try {
-                    small.pauseAndWait(ctx.getRunId(),
-                            PauseRequest.builder().reason("r").summary(Map.of())
-                                    .timeoutMs(10000).build());
-                } catch (Exception ignored) {}
-            }).start();
+        try {
+            // Fill up 2 slots
+            for (int i = 0; i < 2; i++) {
+                ScriptRunContext ctx = new ScriptRunContext("sr_fill_" + i);
+                contexts.add(ctx);
+                small.registerRun(ctx);
+                Thread handler = new Thread(() -> {
+                    try {
+                        small.pauseAndWait(ctx.getRunId(),
+                                PauseRequest.builder().reason("r")
+                                        .summary(Map.of())
+                                        .timeoutMs(10000).build());
+                    } catch (Exception ignored) {
+                    }
+                });
+                handlers.add(handler);
+                handler.start();
+            }
+            awaitActiveSlotCount(small, 2);
+
+            // Third should fail
+            ScriptRunContext ctx3 = new ScriptRunContext("sr_fill_2");
+            contexts.add(ctx3);
+            small.registerRun(ctx3);
+
+            ScriptSuspendException.LimitExceeded ex = assertThrows(
+                    ScriptSuspendException.LimitExceeded.class,
+                    () -> small.pauseAndWait(ctx3.getRunId(),
+                            PauseRequest.builder().reason("r")
+                                    .summary(Map.of())
+                                    .timeoutMs(5000).build()));
+            assertEquals(ScriptSuspendErrorCodes.SUSPEND_LIMIT_EXCEEDED,
+                    ex.getCode());
+
+            // ctx3 should still be RUNNING (limit failure doesn't change state)
+            assertEquals(ScriptRunState.RUNNING, ctx3.getState());
+        } finally {
+            contexts.forEach(ctx -> small.abortRun(ctx.getRunId()));
+            for (Thread handler : handlers) {
+                handler.join(2000);
+            }
         }
-        Thread.sleep(100); // let handlers block
+    }
 
-        // Third should fail
-        ScriptRunContext ctx3 = new ScriptRunContext("sr_fill_2");
-        small.registerRun(ctx3);
+    private static SuspensionResult awaitSuspension(
+            ScriptRunContext context
+    ) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (context.getSuspension() == null
+                && System.nanoTime() < deadline) {
+            Thread.sleep(10);
+        }
+        SuspensionResult suspension = context.getSuspension();
+        assertNotNull(suspension);
+        return suspension;
+    }
 
-        ScriptSuspendException.LimitExceeded ex = assertThrows(
-                ScriptSuspendException.LimitExceeded.class,
-                () -> small.pauseAndWait(ctx3.getRunId(),
-                        PauseRequest.builder().reason("r").summary(Map.of())
-                                .timeoutMs(5000).build()));
-        assertEquals(ScriptSuspendErrorCodes.SUSPEND_LIMIT_EXCEEDED, ex.getCode());
-
-        // ctx3 should still be RUNNING (limit failure doesn't change state)
-        assertEquals(ScriptRunState.RUNNING, ctx3.getState());
+    private static void awaitActiveSlotCount(
+            SuspensionManager manager,
+            int expected
+    ) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (manager.activeSlotCount() != expected
+                && System.nanoTime() < deadline) {
+            Thread.sleep(10);
+        }
+        assertEquals(expected, manager.activeSlotCount());
     }
 
     // -- slot cleanup on abort ----------------------------------------------
@@ -246,7 +284,7 @@ class SuspensionManagerTest {
         });
         handler.start();
         assertTrue(started.await(2, TimeUnit.SECONDS));
-        Thread.sleep(50);
+        awaitSuspension(ctx);
 
         mgr.abortRun(ctx.getRunId());
         handler.join(5000);

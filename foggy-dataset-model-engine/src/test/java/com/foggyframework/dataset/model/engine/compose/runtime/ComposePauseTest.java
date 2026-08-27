@@ -69,11 +69,9 @@ class ComposePauseTest {
         });
         handler.start();
         assertTrue(started.await(2, java.util.concurrent.TimeUnit.SECONDS));
-        Thread.sleep(50);
+        SuspensionResult suspension = awaitSuspension(ctx);
 
         // Resume
-        SuspensionResult suspension = ctx.getSuspension();
-        assertNotNull(suspension);
         mgr.resume(new ResumeCommand(
                 ctx.getRunId(), suspension.getSuspendId(),
                 java.util.Map.of("status", "ok")));
@@ -85,5 +83,18 @@ class ComposePauseTest {
         // Cleanup
         ScriptRunContextHolder.pop(token);
         ComposePause.CURRENT_MANAGER.remove();
+    }
+    private static SuspensionResult awaitSuspension(
+            ScriptRunContext context
+    ) throws InterruptedException {
+        long deadline = System.nanoTime()
+                + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+        while (context.getSuspension() == null
+                && System.nanoTime() < deadline) {
+            Thread.sleep(10);
+        }
+        SuspensionResult suspension = context.getSuspension();
+        assertNotNull(suspension);
+        return suspension;
     }
 }

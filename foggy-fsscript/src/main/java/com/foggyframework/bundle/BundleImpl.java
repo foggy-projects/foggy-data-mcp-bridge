@@ -8,6 +8,7 @@ import com.foggyframework.fsscript.parser.spi.Fsscript;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -103,8 +104,10 @@ public class BundleImpl implements Bundle {
     @Override
     public Resource[] findResources(String path) {
         try {
-
-            Resource[] ress = systemBundlesContext.getApplicationContext().getResources(basePath + "/" + path);
+            PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver(
+                    systemBundlesContext.getApplicationContext());
+            resolver.setUseCaches(false);
+            Resource[] ress = resolver.getResources(basePath + "/" + path);
             if (log.isDebugEnabled()) {
                 if (ress != null) {
                     for (Resource resource : ress) {

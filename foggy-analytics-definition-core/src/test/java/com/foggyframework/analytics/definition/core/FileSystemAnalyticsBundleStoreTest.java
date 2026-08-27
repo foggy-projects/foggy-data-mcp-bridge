@@ -117,7 +117,7 @@ class FileSystemAnalyticsBundleStoreTest {
         Path symlinkBundle = copyFixture(tempDir.resolve("symlink"));
         Path outside = tempDir.resolve("outside.txt");
         Files.writeString(outside, "outside", StandardCharsets.UTF_8);
-        Files.createSymbolicLink(symlinkBundle.resolve("assets/link.txt"), outside);
+        createSymbolicLinkOrSkip(symlinkBundle.resolve("assets/link.txt"), outside);
         AnalyticsBundleStoreException symlink = assertThrows(
                 AnalyticsBundleStoreException.class,
                 () -> store(symlinkBundle, AnalyticsBundleSourceState.CONFIGURED).resolve(SALES));
@@ -296,6 +296,15 @@ class FileSystemAnalyticsBundleStoreTest {
         Files.write(
                 manifest,
                 manifestCodec.withBundleRevision(Files.readAllBytes(manifest), revision));
+    }
+
+    private void createSymbolicLinkOrSkip(Path link, Path target) {
+        try {
+            Files.createSymbolicLink(link, target);
+        } catch (Exception failure) {
+            org.junit.jupiter.api.Assumptions.assumeTrue(
+                    false, "Symbolic links are unavailable: " + failure.getMessage());
+        }
     }
 
     private Path copyFixture(Path target) throws Exception {

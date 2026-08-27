@@ -2,7 +2,6 @@ package com.foggyframework.bundle.external;
 
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
-import org.springframework.core.io.support.ResourcePatternResolver;
 
 import java.io.File;
 import java.io.IOException;
@@ -13,7 +12,13 @@ import java.util.Locale;
  */
 public final class ExternalBundleResourceSupport {
 
-    private static final ResourcePatternResolver RESOLVER = new PathMatchingResourcePatternResolver();
+    private static final PathMatchingResourcePatternResolver RESOLVER = createResolver();
+
+    private static PathMatchingResourcePatternResolver createResolver() {
+        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        resolver.setUseCaches(false);
+        return resolver;
+    }
 
     private ExternalBundleResourceSupport() {
     }

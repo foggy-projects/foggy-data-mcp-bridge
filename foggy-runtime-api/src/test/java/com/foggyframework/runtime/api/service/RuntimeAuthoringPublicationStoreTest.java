@@ -120,7 +120,7 @@ class RuntimeAuthoringPublicationStoreTest {
                 tempDirectory.resolve("old-source").toString()));
         Path foreign = Files.writeString(
                 tempDirectory.resolve("foreign-target.txt"), "preserve");
-        Path link = Files.createSymbolicLink(
+        Path link = TestFileSystemSupport.createSymbolicLinkOrSkip(
                 artifact.resolve("linked.tm"), foreign);
 
         assertCode(() -> store.get(attemptId), "WORKSPACE_ARTIFACT_CORRUPT");
@@ -288,7 +288,8 @@ class RuntimeAuthoringPublicationStoreTest {
                 .resolve(stagingName));
         Path foreign = Files.writeString(
                 tempDirectory.resolve("recovery-foreign.txt"), "preserve");
-        Path link = Files.createSymbolicLink(staging.resolve("Order.tm"), foreign);
+        Path link = TestFileSystemSupport.createSymbolicLinkOrSkip(
+                staging.resolve("Order.tm"), foreign);
 
         RuntimePublishedBundleArtifactStore restarted = store(root);
         assertCode(() -> restarted.get(committedId),

@@ -98,12 +98,10 @@ class ObjectFacadePauseIT {
         });
         scriptThread.start();
         assertTrue(invokeStarted.await(2, TimeUnit.SECONDS));
-        Thread.sleep(100); // let handler block in pause
+        SuspensionResult suspension = awaitSuspension(runCtx);
 
         // Verify run is SUSPENDED
         assertEquals(ScriptRunState.SUSPENDED, runCtx.getState());
-        SuspensionResult suspension = runCtx.getSuspension();
-        assertNotNull(suspension, "suspension result should be set");
 
         // Resume with payload
         manager.resume(new ResumeCommand(
@@ -149,10 +147,7 @@ class ObjectFacadePauseIT {
         });
         scriptThread.start();
         assertTrue(invokeStarted.await(2, TimeUnit.SECONDS));
-        Thread.sleep(100);
-
-        SuspensionResult suspension = runCtx.getSuspension();
-        assertNotNull(suspension);
+        SuspensionResult suspension = awaitSuspension(runCtx);
 
         // Reject
         manager.reject(new RejectCommand(
@@ -218,5 +213,17 @@ class ObjectFacadePauseIT {
         assertEquals(ScriptSuspendErrorCodes.SUSPEND_TIMEOUT,
                 ((ScriptSuspendException) errorRef.get()).getCode());
         assertEquals(0, manager.activeSlotCount());
+    }
+    private static SuspensionResult awaitSuspension(
+            ScriptRunContext context
+    ) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (context.getSuspension() == null
+                && System.nanoTime() < deadline) {
+            Thread.sleep(10);
+        }
+        SuspensionResult suspension = context.getSuspension();
+        assertNotNull(suspension);
+        return suspension;
     }
 }

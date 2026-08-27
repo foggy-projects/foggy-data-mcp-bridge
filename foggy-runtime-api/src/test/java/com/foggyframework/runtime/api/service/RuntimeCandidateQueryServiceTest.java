@@ -55,8 +55,11 @@ class RuntimeCandidateQueryServiceTest {
     ) throws Exception {
         Path managedPath = Files.createDirectory(
                 tempDirectory.resolve("managed-source"));
-        Path relativePath = Path.of("").toAbsolutePath()
-                .relativize(managedPath.toAbsolutePath());
+        Path workingDirectory = Path.of("").toAbsolutePath();
+        Path relativePath = workingDirectory.getRoot()
+                .equals(managedPath.toAbsolutePath().getRoot())
+                ? workingDirectory.relativize(managedPath.toAbsolutePath())
+                : managedPath.toAbsolutePath();
         Fixture fixture = fixture(
                 true, NAMESPACE, relativePath, managedPath);
         SemanticQueryRequest request = request();
@@ -239,7 +242,8 @@ class RuntimeCandidateQueryServiceTest {
                 request(), null, Phase.VALIDATE)));
 
         Path symlinkPath = tempDirectory.resolve("managed-source-link");
-        Files.createSymbolicLink(symlinkPath, managedPath);
+        TestFileSystemSupport.createSymbolicLinkOrSkip(
+                symlinkPath, managedPath);
         ExternalFileBundle symlinkSource = externalBundle(
                 liveBundles, SOURCE_BUNDLE, NAMESPACE, symlinkPath);
         when(liveBundles.getBundleByName(SOURCE_BUNDLE, false))

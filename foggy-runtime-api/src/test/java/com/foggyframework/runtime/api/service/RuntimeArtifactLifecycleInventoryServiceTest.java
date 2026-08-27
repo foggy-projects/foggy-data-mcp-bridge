@@ -377,7 +377,7 @@ class RuntimeArtifactLifecycleInventoryServiceTest {
                 revision, snapshot);
         Path foreignTarget = Files.writeString(
                 tempDirectory.resolve("foreign-target.txt"), "preserve-target");
-        Path symlink = Files.createSymbolicLink(
+        Path symlink = TestFileSystemSupport.createSymbolicLinkOrSkip(
                 artifact.resolve("linked.tm"), foreignTarget);
         Files.writeString(artifact.resolve("Order.tm"), "tampered");
         Path sentinel = Files.writeString(

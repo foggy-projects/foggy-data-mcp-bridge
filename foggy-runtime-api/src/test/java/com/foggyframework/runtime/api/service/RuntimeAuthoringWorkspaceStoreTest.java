@@ -46,7 +46,7 @@ class RuntimeAuthoringWorkspaceStoreTest {
         assertThat(sentinel).hasContent("must survive byte-for-byte");
         try (var entries = Files.walk(root)) {
             assertThat(entries.map(root::relativize)
-                    .map(Path::toString)
+                    .map(path -> path.toString().replace('\\', '/'))
                     .toList())
                     .containsExactlyInAnyOrder("", "business-data",
                             "business-data/sentinel.txt");
@@ -256,7 +256,8 @@ class RuntimeAuthoringWorkspaceStoreTest {
                 .resolve(".staging-00000000-0000-0000-0000-000000000000"));
         Path outside = Files.writeString(
                 tempDirectory.resolve("staging-outside.txt"), "outside");
-        Path link = Files.createSymbolicLink(staging.resolve("link"), outside);
+        Path link = TestFileSystemSupport.createSymbolicLinkOrSkip(
+                staging.resolve("link"), outside);
 
         assertCode(() -> store(symlinkRoot).list(null, null, true),
                 "WORKSPACE_STORE_CORRUPT");
@@ -604,7 +605,7 @@ class RuntimeAuthoringWorkspaceStoreTest {
                 tempDirectory.resolve("outside.tm"), "outside");
         try (var lease = store.acquire(
                 created.workspaceId(), created.candidateRevision(), "test")) {
-            Files.createSymbolicLink(
+            TestFileSystemSupport.createSymbolicLinkOrSkip(
                     lease.path().resolve("linked.tm"), outside);
         }
         assertCode(() -> store.snapshot(
