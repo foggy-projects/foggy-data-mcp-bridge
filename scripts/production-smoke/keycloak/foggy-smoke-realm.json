@@ -1,0 +1,169 @@
+{
+  "realm": "foggy-smoke",
+  "enabled": true,
+  "sslRequired": "none",
+  "accessTokenLifespan": 300,
+  "roles": {
+    "realm": [
+      { "name": "ADMIN" },
+      { "name": "ANALYST" },
+      { "name": "BUSINESS" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "foggy-data",
+      "name": "Foggy production smoke",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "foggy-smoke-client-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "defaultClientScopes": ["basic", "roles", "profile"],
+      "protocolMappers": [
+        {
+          "name": "foggy audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "foggy-data",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        },
+        {
+          "name": "tenant id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "tenant_id",
+            "claim.name": "tenant_id",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "multivalued": "false"
+          }
+        },
+        {
+          "name": "department id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "dept_id",
+            "claim.name": "dept_id",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "multivalued": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "foggy-wrong-audience",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "foggy-smoke-client-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "defaultClientScopes": ["basic", "roles", "profile"],
+      "protocolMappers": [
+        {
+          "name": "wrong audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "another-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        },
+        {
+          "name": "tenant id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "tenant_id",
+            "claim.name": "tenant_id",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "multivalued": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "foggy-no-scope",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "foggy-smoke-client-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "defaultClientScopes": ["basic", "roles"],
+      "protocolMappers": [
+        {
+          "name": "foggy audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "foggy-data",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        },
+        {
+          "name": "tenant id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "tenant_id",
+            "claim.name": "tenant_id",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "multivalued": "false"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "analyst",
+      "email": "analyst@foggy-smoke.invalid",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Foggy",
+      "lastName": "Analyst",
+      "attributes": {
+        "tenant_id": ["tenant-smoke"],
+        "dept_id": ["analytics"]
+      },
+      "credentials": [
+        { "type": "password", "value": "analyst-password", "temporary": false }
+      ],
+      "realmRoles": ["ANALYST"]
+    },
+    {
+      "username": "admin",
+      "email": "admin@foggy-smoke.invalid",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Foggy",
+      "lastName": "Admin",
+      "attributes": {
+        "tenant_id": ["tenant-smoke"],
+        "dept_id": ["platform"]
+      },
+      "credentials": [
+        { "type": "password", "value": "admin-password", "temporary": false }
+      ],
+      "realmRoles": ["ADMIN"]
+    }
+  ]
+}
