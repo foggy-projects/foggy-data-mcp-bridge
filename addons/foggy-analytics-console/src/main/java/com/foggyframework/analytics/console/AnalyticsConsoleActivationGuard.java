@@ -33,9 +33,7 @@ final class AnalyticsConsoleActivationGuard implements InitializingBean {
             throw new IllegalStateException(
                     "Analytics Console requires foggy.analytics.runtime-api.enabled=true.");
         }
-        if (properties.getCatalogPath() == null || properties.getCatalogPath().isBlank()) {
-            throw new IllegalStateException("Analytics Console catalog-path is required.");
-        }
+
         if (properties.getMaxDefinitionBytes() < 1
                 || properties.getMaxDefinitionBytes() > 16L * 1024 * 1024) {
             throw new IllegalStateException(
@@ -46,6 +44,32 @@ final class AnalyticsConsoleActivationGuard implements InitializingBean {
                 && !"static-dev-only".equalsIgnoreCase(securityMode)) {
             throw new IllegalStateException(
                     "Analytics Console security-mode must be host-managed or static-dev-only.");
+        }
+        String storageMode = properties.getStorageMode();
+        if (!"file-single-process".equalsIgnoreCase(storageMode)
+                && !"external-durable".equalsIgnoreCase(storageMode)) {
+            throw new IllegalStateException(
+                    "Analytics Console storage-mode must be file-single-process or external-durable.");
+        }
+        if ("file-single-process".equalsIgnoreCase(storageMode)) {
+            required(properties.getCatalogPath(), "catalog-path");
+            required(properties.getFunctionTracePath(), "function-trace-path");
+            required(properties.getAskRecoveryPath(), "ask-recovery-path");
+        }
+        if (properties.isProductionMode()) {
+            if (!"host-managed".equalsIgnoreCase(securityMode)) {
+                throw new IllegalStateException(
+                        "Analytics Console production-mode requires host-managed security.");
+            }
+            if (!"external-durable".equalsIgnoreCase(storageMode)) {
+                throw new IllegalStateException(
+                        "Analytics Console production-mode requires external-durable storage.");
+            }
+            if (!properties.getFap().isEnabled()
+                    || properties.getQuestionProfiles().isEmpty()) {
+                throw new IllegalStateException(
+                        "Analytics Console production-mode requires FAP and a question profile.");
+            }
         }
         validateFap(properties);
         validateQuestionProfiles(properties);

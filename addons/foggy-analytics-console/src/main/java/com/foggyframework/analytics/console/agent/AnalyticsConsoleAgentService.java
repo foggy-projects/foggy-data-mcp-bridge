@@ -40,6 +40,7 @@ public final class AnalyticsConsoleAgentService {
     private final List<AnalyticsConsoleProperties.QuestionProfile> questionProfiles;
     private final AnalyticsFunctionClient functions;
     private final AnalyticsConsoleFunctionTraceRepository functionTraces;
+    private final AnalyticsConsoleAskRecoveryRepository askRecovery;
     private final Clock clock;
     private final Map<String, String> questionConversationTitles =
             new ConcurrentHashMap<>();
@@ -61,6 +62,29 @@ public final class AnalyticsConsoleAgentService {
                 properties.getQuestionProfiles(),
                 functions,
                 functionTraces,
+                AnalyticsConsoleAskRecoveryRepository.none(),
+                Clock.systemUTC());
+    }
+
+    public AnalyticsConsoleAgentService(
+            AnalyticsConsoleService console,
+            AnalyticsConsoleCatalogRepository catalog,
+            AnalyticsConsoleAgentGateway gateway,
+            AnalyticsConsoleFapBindingResolver bindings,
+            AnalyticsConsoleProperties properties,
+            AnalyticsFunctionClient functions,
+            AnalyticsConsoleFunctionTraceRepository functionTraces,
+            AnalyticsConsoleAskRecoveryRepository askRecovery) {
+        this(
+                console,
+                catalog,
+                gateway,
+                bindings,
+                properties.getFap(),
+                properties.getQuestionProfiles(),
+                functions,
+                functionTraces,
+                askRecovery,
                 Clock.systemUTC());
     }
 
@@ -80,6 +104,7 @@ public final class AnalyticsConsoleAgentService {
                 List.of(),
                 null,
                 AnalyticsConsoleFunctionTraceRepository.none(),
+                AnalyticsConsoleAskRecoveryRepository.none(),
                 clock);
     }
 
@@ -101,6 +126,7 @@ public final class AnalyticsConsoleAgentService {
                 questionProfiles,
                 functions,
                 AnalyticsConsoleFunctionTraceRepository.none(),
+                AnalyticsConsoleAskRecoveryRepository.none(),
                 clock);
     }
 
@@ -114,6 +140,30 @@ public final class AnalyticsConsoleAgentService {
             AnalyticsFunctionClient functions,
             AnalyticsConsoleFunctionTraceRepository functionTraces,
             Clock clock) {
+        this(
+                console,
+                catalog,
+                gateway,
+                bindings,
+                properties,
+                questionProfiles,
+                functions,
+                functionTraces,
+                AnalyticsConsoleAskRecoveryRepository.none(),
+                clock);
+    }
+
+    AnalyticsConsoleAgentService(
+            AnalyticsConsoleService console,
+            AnalyticsConsoleCatalogRepository catalog,
+            AnalyticsConsoleAgentGateway gateway,
+            AnalyticsConsoleFapBindingResolver bindings,
+            AnalyticsConsoleProperties.Fap properties,
+            List<AnalyticsConsoleProperties.QuestionProfile> questionProfiles,
+            AnalyticsFunctionClient functions,
+            AnalyticsConsoleFunctionTraceRepository functionTraces,
+            AnalyticsConsoleAskRecoveryRepository askRecovery,
+            Clock clock) {
         this.console = Objects.requireNonNull(console, "console");
         this.catalog = Objects.requireNonNull(catalog, "catalog");
         this.gateway = Objects.requireNonNull(gateway, "gateway");
@@ -123,6 +173,7 @@ public final class AnalyticsConsoleAgentService {
                 questionProfiles, "questionProfiles"));
         this.functions = functions;
         this.functionTraces = Objects.requireNonNull(functionTraces, "functionTraces");
+        this.askRecovery = Objects.requireNonNull(askRecovery, "askRecovery");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
@@ -255,6 +306,7 @@ public final class AnalyticsConsoleAgentService {
         String externalConversationRef = "analytics-console." + conversationId;
         String requestId = "analytics-console.ask." + UUID.randomUUID();
         AnalyticsConsoleFapBindingResolver.OutboundBinding binding = bindings.resolve(subject);
+        recordRecovery(conversationId, requestId, externalConversationRef, AnalyticsConsoleAskRecoveryRepository.State.PREPARED, null);
         AnalyticsConsoleAgentGateway.Accepted accepted = gateway.start(
                 binding,
                 new AnalyticsConsoleAgentGateway.StartCommand(
@@ -267,6 +319,7 @@ public final class AnalyticsConsoleAgentService {
                         binding.modelVariantId(),
                         skillName,
                         capabilityName));
+        recordRecovery(conversationId, requestId, externalConversationRef, AnalyticsConsoleAskRecoveryRepository.State.ACCEPTED, accepted);
         AnalyticsConsoleConversation conversation = new AnalyticsConsoleConversation(
                 conversationId,
                 asset == null ? null : asset.assetId(),
@@ -290,6 +343,7 @@ public final class AnalyticsConsoleAgentService {
             return new AnalyticsConsoleCatalogState(
                     state.revision(), state.folders(), state.assets(), conversations);
         });
+        recordRecovery(conversationId, requestId, externalConversationRef, AnalyticsConsoleAskRecoveryRepository.State.CATALOGED, accepted);
         if (mode == AnalyticsConsoleConversationMode.QUESTION) {
             questionConversationTitles.put(
                     conversation.conversationId(), conversationTitle(safePrompt));
@@ -310,6 +364,7 @@ public final class AnalyticsConsoleAgentService {
         }
         AnalyticsConsoleFapBindingResolver.OutboundBinding binding = bindings.resolve(subject);
         String requestId = "analytics-console.ask." + UUID.randomUUID();
+        recordRecovery(conversation.conversationId(), requestId, conversation.externalConversationRef(), AnalyticsConsoleAskRecoveryRepository.State.PREPARED, null);
         String skillName = conversation.mode() == AnalyticsConsoleConversationMode.QUESTION
                 ? properties.getQuestionSkillName()
                 : properties.getSkillName();
@@ -327,6 +382,7 @@ public final class AnalyticsConsoleAgentService {
                         binding.modelVariantId(),
                         skillName,
                         capabilityName));
+        recordRecovery(conversation.conversationId(), requestId, conversation.externalConversationRef(), AnalyticsConsoleAskRecoveryRepository.State.ACCEPTED, accepted);
         AnalyticsConsoleAskBinding askBinding = new AnalyticsConsoleAskBinding(
                 requestId,
                 accepted.askInvocationRef(),
@@ -343,6 +399,7 @@ public final class AnalyticsConsoleAgentService {
                                 ? updated
                                 : value)
                         .toList()));
+        recordRecovery(conversation.conversationId(), requestId, conversation.externalConversationRef(), AnalyticsConsoleAskRecoveryRepository.State.CATALOGED, accepted);
         return updated;
     }
 
@@ -568,6 +625,36 @@ public final class AnalyticsConsoleAgentService {
                     "ANALYTICS_CONSOLE_REQUEST_INVALID", field + " is invalid");
         }
         return value;
+    }
+
+
+    public List<AnalyticsConsoleAskRecoveryRepository.Entry> unresolvedAsks(
+            AnalyticsConsoleSubject subject) {
+        Objects.requireNonNull(subject, "subject");
+        if (!subject.hasRole(AnalyticsConsoleRole.ADMIN)) {
+            throw new AnalyticsConsoleCatalogException(
+                    "ANALYTICS_CONSOLE_FORBIDDEN",
+                    "Only Analytics Console administrators can inspect Ask recovery state");
+        }
+        return askRecovery.unresolved();
+    }
+
+    private void recordRecovery(
+            String conversationId,
+            String requestId,
+            String externalConversationRef,
+            AnalyticsConsoleAskRecoveryRepository.State state,
+            AnalyticsConsoleAgentGateway.Accepted accepted) {
+        askRecovery.record(new AnalyticsConsoleAskRecoveryRepository.Entry(
+                requestId,
+                conversationId,
+                requestId,
+                externalConversationRef,
+                state,
+                accepted == null ? null : accepted.askInvocationRef(),
+                accepted == null ? null : accepted.runtimeExecutionId(),
+                accepted == null ? null : accepted.runtimeTaskId(),
+                clock.instant()));
     }
 
     public record QuestionProfile(

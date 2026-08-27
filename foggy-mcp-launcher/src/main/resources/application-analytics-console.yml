@@ -13,8 +13,11 @@ foggy:
   analytics-console:
     enabled: true
     security-mode: static-dev-only
+    production-mode: "${ANALYTICS_CONSOLE_PRODUCTION_MODE:false}"
+    storage-mode: "${ANALYTICS_CONSOLE_STORAGE_MODE:file-single-process}"
     catalog-path: "${ANALYTICS_CONSOLE_CATALOG_PATH:${java.io.tmpdir}/foggy_analytics_console/catalog.json}"
     function-trace-path: "${ANALYTICS_CONSOLE_FUNCTION_TRACE_PATH:${java.io.tmpdir}/foggy_analytics_console/function-traces}"
+    ask-recovery-path: "${ANALYTICS_CONSOLE_ASK_RECOVERY_PATH:${java.io.tmpdir}/foggy_analytics_console/ask-recovery.jsonl}"
     dev-subject:
       subject-ref: local-analytics-admin
       display-name: Local Analytics Admin

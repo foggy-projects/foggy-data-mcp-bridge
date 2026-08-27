@@ -9,9 +9,11 @@ import com.foggyframework.analytics.console.api.AnalyticsConsoleFapCallbackExcep
 import com.foggyframework.analytics.console.api.AnalyticsConsoleFapPublicationController;
 import com.foggyframework.analytics.console.agent.AnalyticsConsoleAgentGateway;
 import com.foggyframework.analytics.console.agent.AnalyticsConsoleAgentService;
+import com.foggyframework.analytics.console.agent.AnalyticsConsoleAskRecoveryRepository;
 import com.foggyframework.analytics.console.agent.AnalyticsConsoleFapBindingResolver;
 import com.foggyframework.analytics.console.agent.AnalyticsConsoleFunctionTraceRepository;
 import com.foggyframework.analytics.console.agent.FileAnalyticsConsoleFunctionTraceRepository;
+import com.foggyframework.analytics.console.agent.FileAnalyticsConsoleAskRecoveryRepository;
 import com.foggyframework.analytics.console.agent.HttpAnalyticsConsoleAgentGateway;
 import com.foggyframework.analytics.console.agent.StaticDevAnalyticsConsoleFapBindingResolver;
 import com.foggyframework.analytics.console.catalog.AnalyticsConsoleCatalogRepository;
@@ -92,6 +94,11 @@ public class AnalyticsConsoleAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(AnalyticsConsoleCatalogRepository.class)
+    @ConditionalOnProperty(
+            prefix = "foggy.analytics-console",
+            name = "storage-mode",
+            havingValue = "file-single-process",
+            matchIfMissing = true)
     AnalyticsConsoleCatalogRepository analyticsConsoleCatalogRepository(
             AnalyticsConsoleProperties properties,
             ObjectMapper objectMapper) {
@@ -101,11 +108,30 @@ public class AnalyticsConsoleAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(AnalyticsConsoleFunctionTraceRepository.class)
+    @ConditionalOnProperty(
+            prefix = "foggy.analytics-console",
+            name = "storage-mode",
+            havingValue = "file-single-process",
+            matchIfMissing = true)
     AnalyticsConsoleFunctionTraceRepository analyticsConsoleFunctionTraceRepository(
             AnalyticsConsoleProperties properties,
             ObjectMapper objectMapper) {
         return new FileAnalyticsConsoleFunctionTraceRepository(
                 Path.of(properties.getFunctionTracePath()), objectMapper);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(AnalyticsConsoleAskRecoveryRepository.class)
+    @ConditionalOnProperty(
+            prefix = "foggy.analytics-console",
+            name = "storage-mode",
+            havingValue = "file-single-process",
+            matchIfMissing = true)
+    AnalyticsConsoleAskRecoveryRepository analyticsConsoleAskRecoveryRepository(
+            AnalyticsConsoleProperties properties,
+            ObjectMapper objectMapper) {
+        return new FileAnalyticsConsoleAskRecoveryRepository(
+                Path.of(properties.getAskRecoveryPath()), objectMapper);
     }
 
     @Bean
@@ -162,9 +188,11 @@ public class AnalyticsConsoleAutoConfiguration {
             AnalyticsConsoleFapBindingResolver bindings,
             AnalyticsConsoleProperties properties,
             AnalyticsFunctionClient functions,
-            AnalyticsConsoleFunctionTraceRepository functionTraces) {
+            AnalyticsConsoleFunctionTraceRepository functionTraces,
+            AnalyticsConsoleAskRecoveryRepository askRecovery) {
         return new AnalyticsConsoleAgentService(
-                console, catalog, gateway, bindings, properties, functions, functionTraces);
+                console, catalog, gateway, bindings, properties, functions, functionTraces,
+                askRecovery);
     }
 
     @Bean

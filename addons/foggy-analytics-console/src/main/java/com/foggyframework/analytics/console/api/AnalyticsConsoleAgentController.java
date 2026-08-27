@@ -1,6 +1,7 @@
 package com.foggyframework.analytics.console.api;
 
 import com.foggyframework.analytics.console.agent.AnalyticsConsoleAgentGateway;
+import com.foggyframework.analytics.console.agent.AnalyticsConsoleAskRecoveryRepository;
 import com.foggyframework.analytics.console.agent.AnalyticsConsoleAgentService;
 import com.foggyframework.analytics.console.model.AnalyticsConsoleConversation;
 import com.foggyframework.analytics.console.security.AnalyticsConsoleSubjectResolver;
@@ -98,6 +99,12 @@ public class AnalyticsConsoleAgentController {
                 subjects.resolve(request), conversationId, askInvocationRef));
     }
 
+
+    @GetMapping("/agent/recovery/unresolved")
+    public AnalyticsConsoleEnvelope<List<AnalyticsConsoleAskRecoveryRepository.Entry>>
+            unresolvedAsks(HttpServletRequest request) {
+        return ok(agents.unresolvedAsks(subjects.resolve(request)));
+    }
     private static <T> AnalyticsConsoleEnvelope<T> ok(T data) {
         return AnalyticsConsoleEnvelope.ok(data, "console-" + UUID.randomUUID());
     }

@@ -16,6 +16,10 @@ public class AnalyticsConsoleProperties {
     private String functionTracePath =
             ".foggy-runtime/analytics-console/function-traces";
     private long maxDefinitionBytes = 1_048_576;
+    private String askRecoveryPath =
+            ".foggy-runtime/analytics-console/ask-recovery.jsonl";
+    private String storageMode = "file-single-process";
+    private boolean productionMode;
     private DevSubject devSubject = new DevSubject();
     private Fap fap = new Fap();
     private List<QuestionProfile> questionProfiles = new ArrayList<>();
@@ -50,6 +54,30 @@ public class AnalyticsConsoleProperties {
 
     public void setFunctionTracePath(String functionTracePath) {
         this.functionTracePath = functionTracePath;
+
+    }
+    public String getAskRecoveryPath() {
+        return askRecoveryPath;
+    }
+
+    public void setAskRecoveryPath(String askRecoveryPath) {
+        this.askRecoveryPath = askRecoveryPath;
+    }
+
+    public String getStorageMode() {
+        return storageMode;
+    }
+
+    public void setStorageMode(String storageMode) {
+        this.storageMode = storageMode;
+    }
+
+    public boolean isProductionMode() {
+        return productionMode;
+    }
+
+    public void setProductionMode(boolean productionMode) {
+        this.productionMode = productionMode;
     }
 
     public long getMaxDefinitionBytes() {
