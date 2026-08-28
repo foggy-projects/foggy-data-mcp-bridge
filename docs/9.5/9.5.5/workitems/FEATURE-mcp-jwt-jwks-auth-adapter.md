@@ -3,8 +3,9 @@ doc_role: workitem
 doc_type: feature
 version: 9.5.5
 priority: P1
-status: READY_FOR_SIGNOFF
+status: ACCEPTED
 recorded_at: 2026-08-27
+accepted_at: 2026-08-28
 ---
 
 # MCP JWT/JWKS 生产认证适配器
@@ -60,7 +61,16 @@ foggy:
 2. focused 测试覆盖缺失 tenant、嵌套角色映射、scope/角色拒绝和伪造身份 Header 覆盖。
 3. 宿主 verifier 与 `SecurityIdentityResolver` 均可覆盖内置 Bean。
 4. OAuth 未配置时行为与历史版本一致，metadata 端点返回 404。
-5. Linux/Windows CI 执行完整 Maven reactor；CLI 独立执行双平台 Python 3.11/3.12 测试与构建。
+5. 本地执行完整 Maven reactor；CLI 独立执行本地测试与构建。跨平台兼容由 current-main 校验和
+   Windows 路径回归测试覆盖，不要求 GitHub Actions 运行。
+
+## 签收结果
+
+- 真实 Keycloak RSA/JWKS + PostgreSQL 生产冒烟 8/8 通过，包括错误 audience、缺失 scope、
+  ANALYST/ADMIN 角色隔离、伪造身份 Header 覆盖和未知 `kid` 后 JWKS 刷新。
+- Launcher 默认 OAuth 关闭；未配置时 metadata 路由返回 404，启用生产模式后缺失 Bearer 返回 401。
+- 本地完整 Maven reactor：5484 tests，0 failures，0 errors，11 skipped。
+- 用户于 2026-08-28 确认只采用本地测试签收，Bridge 仓库级 GitHub Actions 保持关闭。
 
 ## 后续边界
 

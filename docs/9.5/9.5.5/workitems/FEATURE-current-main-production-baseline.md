@@ -3,8 +3,9 @@ doc_role: workitem
 doc_type: feature
 version: 9.5.5
 priority: P0
-status: READY_FOR_SIGNOFF
+status: ACCEPTED
 recorded_at: 2026-08-27
+accepted_at: 2026-08-28
 ---
 
 # Current-main 生产基线
@@ -20,8 +21,8 @@ recorded_at: 2026-08-27
   Maven 坐标和独立交付物版本。
 - `scripts/current-main/verify_current_main.py` 校验 Maven、两个 Console、MCP 协议和可选
   sibling CLI pins。
-- bridge 与 CLI 分别增加 PR/main 门禁；冻结的 9.3.4 evidence chain 保留，不再被误当作
-  current-main 全量门禁。
+- bridge 与 CLI 保留可复用的 current-main 校验入口和 workflow 模板；当前签收由本地完整验证完成，
+  GitHub Actions 不作为门禁。冻结的 9.3.4 evidence chain 保留，不再被误当作 current-main 全量门禁。
 
 ## P0-2：MCP 生产认证与协议兼容
 
@@ -49,6 +50,14 @@ recorded_at: 2026-08-27
 2. MCP focused tests 覆盖 legacy 协商、discovery、OAuth fail-closed 和凭据隔离。
 3. Analytics focused tests 覆盖生产门禁、恢复日志状态和 catalog 失败后的 ACCEPTED backlog。
 4. CLI 单测、构建和包版本一致性通过。
+
+## 签收结果
+
+- 本地完整 Maven reactor：5484 tests，0 failures，0 errors，11 skipped。
+- 独立干净 CLI HEAD：126 passed，1 skipped，12 subtests；sdist/wheel 构建通过。
+- 隔离 Keycloak 26 + PostgreSQL 15 生产冒烟：8/8 通过，覆盖真实数据库连接、OAuth metadata、
+  audience/scope/role 拒绝、身份 Header 防伪和 JWKS `kid` 轮换刷新。
+- 用户于 2026-08-28 明确采用本地验证作为签收依据；Bridge 仓库级 GitHub Actions 保持关闭。
 
 ## 后续边界
 
