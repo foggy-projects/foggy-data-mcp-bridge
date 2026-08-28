@@ -1,0 +1,143 @@
+{
+  "contractId": "foggy-engine-runtime-contract",
+  "contractVersion": "v1",
+  "status": "baseline-recorded",
+  "sourceFacts": {
+    "bridgeVersion": "9.3.0-SNAPSHOT",
+    "cliVersion": "0.1.22-source-baseline",
+    "cliReleaseAuthority": "Stream B Release Truth Pack",
+    "runtimeApiVersion": "foggy-runtime-api/v1"
+  },
+  "namespace": {
+    "header": "X-NS",
+    "precedence": ["X-NS", "body.namespace", "default-namespace", "empty"]
+  },
+  "auth": {
+    "managementHeader": "X-Foggy-Runtime-Code",
+    "dataPlaneHeader": "Authorization",
+    "dataPlaneValue": "opaque",
+    "redirectRule": "never-forward-data-plane-authorization-to-a-different-origin"
+  },
+  "surfaces": [
+    {
+      "id": "runtime.capabilities",
+      "surface": "runtime-api",
+      "method": "GET",
+      "route": "/api/v1/capabilities",
+      "action": "CAPABILITIES",
+      "auth": "public-read-or-management-all",
+      "namespace": "none",
+      "capability": "runtime.capabilities",
+      "classification": "public",
+      "evidence": "foggy-runtime-api/src/main/java/com/foggyframework/runtime/api/controller/RuntimeCapabilitiesController.java"
+    },
+    {
+      "id": "query.execute",
+      "surface": "runtime-api",
+      "method": "POST",
+      "route": "/api/v1/query/{model}/execute",
+      "action": "EXECUTE",
+      "auth": "optional-opaque-Authorization",
+      "namespace": "X-NS>body.namespace>default>empty",
+      "capability": "query.execute",
+      "classification": "public",
+      "evidence": "foggy-runtime-api/src/main/java/com/foggyframework/runtime/api/controller/RuntimeQueryController.java"
+    },
+    {
+      "id": "models.list",
+      "surface": "runtime-api",
+      "method": "GET",
+      "route": "/api/v1/models",
+      "action": "DISCOVER",
+      "auth": "optional-opaque-Authorization",
+      "namespace": "X-NS",
+      "capability": "models.list",
+      "classification": "public",
+      "evidence": "foggy-runtime-api/src/main/java/com/foggyframework/runtime/api/controller/RuntimeModelsController.java"
+    },
+    {
+      "id": "members.list",
+      "surface": "runtime-api",
+      "method": "POST",
+      "route": "/api/v1/members/{model}/{dimension}",
+      "action": "MEMBER_QUERY",
+      "auth": "optional-opaque-Authorization",
+      "namespace": "X-NS",
+      "capability": "members.list",
+      "classification": "public",
+      "evidence": "foggy-runtime-api/src/main/java/com/foggyframework/runtime/api/controller/RuntimeMembersController.java"
+    },
+    {
+      "id": "members.legacy",
+      "surface": "engine-legacy",
+      "method": "POST",
+      "route": "/jdbc-model/dimension/v2/{model}/{dimension}",
+      "action": "MEMBER_QUERY",
+      "auth": "optional-opaque-Authorization",
+      "namespace": "X-NS",
+      "capability": null,
+      "classification": "legacy-adapter",
+      "evidence": "foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/controller/DimensionDataStoreController.java"
+    },
+    {
+      "id": "members.deprecated",
+      "surface": "engine-legacy",
+      "method": "POST",
+      "route": "/jdbc-model/dimension/queryDimensionData",
+      "action": "MEMBER_QUERY",
+      "auth": "optional-opaque-Authorization",
+      "namespace": "X-NS",
+      "capability": null,
+      "classification": "deprecated",
+      "evidence": "foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/controller/DimensionDataStoreController.java"
+    },
+    {
+      "id": "mcp.analyst.rpc",
+      "surface": "mcp",
+      "method": "POST",
+      "route": "/mcp/analyst/rpc",
+      "action": "server/discover|tools/list|tools/call",
+      "auth": "role-policy-middleware",
+      "namespace": "tool-context-or-X-NS",
+      "capability": "mcp.tools",
+      "classification": "public-adapter",
+      "evidence": "foggy-dataset-mcp/src/main/java/com/foggyframework/dataset/mcp/controller/AnalystMcpController.java"
+    },
+    {
+      "id": "runtime.console",
+      "surface": "runtime-console",
+      "method": "same-origin",
+      "route": "/api/v1/**",
+      "action": "mapped-runtime-action",
+      "auth": "runtime-session",
+      "namespace": "page-header",
+      "capability": "runtime.capabilities",
+      "classification": "public-feature-adapter",
+      "evidence": "addons/foggy-runtime-console/frontend/src/api/client.ts"
+    },
+    {
+      "id": "cli.query-and-members",
+      "surface": "cli",
+      "method": "POST|GET",
+      "route": "/api/v1/query/**|/api/v1/models|/jdbc-model/dimension/v2/**",
+      "action": "mapped-runtime-action",
+      "auth": "--authorization-to-data-plane;--auth-code-to-management",
+      "namespace": "--namespace-to-X-NS",
+      "capability": null,
+      "classification": "public-client",
+      "evidence": "foggy-runtime-cli/src/foggy_runtime_cli/main.py"
+    },
+    {
+      "id": "engine.query.internal",
+      "surface": "engine-java-spi",
+      "method": "in-process",
+      "route": "QueryFacade|JdbcService",
+      "action": "typed execution",
+      "auth": "caller-owned context",
+      "namespace": "explicit typed context",
+      "capability": null,
+      "classification": "internal",
+      "evidence": "foggy-runtime-api/src/main/java/com/foggyframework/runtime/api/controller/RuntimeQueryController.java"
+    }
+  ]
+}

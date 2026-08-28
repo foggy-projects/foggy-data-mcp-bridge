@@ -28,6 +28,7 @@ import com.foggyframework.dataset.model.semantic.service.SemanticModelCatalogSer
 import com.foggyframework.dataset.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.model.semantic.explain.SemanticExplainService;
 import com.foggyframework.dataset.model.semantic.service.SemanticServiceV3;
+import com.foggyframework.dataset.model.service.JdbcService;
 import com.foggyframework.dataset.model.spi.NamedDataSourceResolver;
 import com.foggyframework.dataset.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.model.spi.TableModelLoaderManager;
@@ -108,6 +109,9 @@ class RuntimeCapabilitiesControllerEnabledTest {
     private SemanticExplainService semanticExplainService;
 
     @MockitoBean
+    private JdbcService jdbcService;
+
+    @MockitoBean
     private SystemBundlesContext systemBundlesContext;
 
     @MockitoBean
@@ -166,6 +170,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(body.path("data").path("capabilities").path("models.refresh").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("models.validate").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("query.explain").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("members.list").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("bundles.list").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("bundles.add").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("bundles.update").asText()).isEqualTo("supported");

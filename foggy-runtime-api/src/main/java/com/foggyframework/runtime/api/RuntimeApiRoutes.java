@@ -30,6 +30,8 @@ public final class RuntimeApiRoutes {
         public static final String QUERY_VALIDATE = "/query/{model}/validate";
         public static final String QUERY_EXECUTE = "/query/{model}/execute";
         public static final String QUERY_EXPLAIN = "/query/{model}/explain";
+        public static final String MEMBERS = "/members";
+        public static final String MEMBER_LIST = MEMBERS + "/{model}/{dimension}";
         public static final String TABLES_LIST = "/tables/list";
         public static final String TABLES_INSPECT = "/tables/inspect";
         public static final String SQL_QUERY = "/sql/query";
@@ -101,6 +103,7 @@ public final class RuntimeApiRoutes {
         public static final String QUERY_VALIDATE = API_V1 + V1.QUERY_VALIDATE;
         public static final String QUERY_EXECUTE = API_V1 + V1.QUERY_EXECUTE;
         public static final String QUERY_EXPLAIN = API_V1 + V1.QUERY_EXPLAIN;
+        public static final String MEMBER_LIST = API_V1 + V1.MEMBER_LIST;
         public static final String TABLES_LIST = API_V1 + V1.TABLES_LIST;
         public static final String TABLES_INSPECT = API_V1 + V1.TABLES_INSPECT;
         public static final String SQL_QUERY = API_V1 + V1.SQL_QUERY;

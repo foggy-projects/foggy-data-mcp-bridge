@@ -60,6 +60,7 @@ public class RuntimeCapabilitiesController {
         capabilities.put("query.validate", "supported");
         capabilities.put("query.execute", "supported");
         capabilities.put("query.explain", "supported");
+        capabilities.put("members.list", "supported");
         capabilities.put("sql.query", "supported");
         capabilities.put("tables.list", "supported");
         capabilities.put("tables.inspect", "supported");
