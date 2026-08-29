@@ -518,3 +518,24 @@ MAIN/TOTAL `BaseProjectionPlan`，TOTAL 不再重新推导 window 隐藏依赖�
 MAIN/TOTAL 引用同一 graph，AVG 仍以 `SUM(group_sum) / SUM(group_count)` finalize，TOTAL 排除最终排序与分页，
 四方言参数拓扑和 SQLite 组合执行测试已覆盖。非阻断残余风险为数值 aggregate leaf 当前统一按
 `DbColumnType.NUMBER` 绑定；现有支持方言 widening 语义一致，待未来引入 MONEY/自定义数值类型时再细化。
+
+## 18. 验证与全量测试记录
+
+2026-08-29：tests-first 与迁移门定向测试完成。renderer/AVG 场景矩阵 159/159 通过；内部 API 暴露
+约束补测后相关类 48/48 通过；首轮全量问题修正后的 AVG、COUNT_DISTINCT、analytics、pivot、Odoo
+组合回归 55/55 通过。`HistoricalFullTruckWaybillQuery` 对应的不均衡年度样本验证 TOTAL AVG 为
+`SUM(group_sum) / SUM(group_count)`，即约 `8888.45308896`，而不是分组 AVG 的简单平均。
+
+全量测试严格使用 `mvn -o -B -ntp test -DskipITs`，授权额度及结果如下：
+
+1. 第 1/3 次在 engine 模块发现 6 个既有 COUNT_DISTINCT 主查询被 total fail-closed 提前拒绝；拒绝条件
+   收窄为仅 `returnTotal=true` 后，相关定向回归 55/55 通过；
+2. 第 2/3 次 engine 3276 项通过，后在 `foggy-runtime-api` 的
+   `RuntimeApiAuthCodeGateTest` 出现 17 个 ApplicationContext 错误。根因是既有
+   `RuntimeMembersController` 新增 `JdbcService` 构造依赖后，该集成测试未同步提供 mock；仅补充
+   `@MockitoBean JdbcService`，不修改生产代码，定向验证 17/17 通过；
+3. 第 3/3 次 44/44 reactor 模块全部通过，BUILD SUCCESS，总耗时 15:47；engine 3276 项为
+   0 failures / 0 errors / 2 skipped，runtime-api 与两个前端 console 的 typecheck、unit test、build 均通过。
+
+最终结论：验收门全部关闭；SUM、COUNT、MIN、MAX、无 groupBy、过滤、分页、多层分组、window、
+postAggregate/postSlice 及不可合并聚合 fail-closed 回归通过。全量额度已用完，不再追加全量运行。
