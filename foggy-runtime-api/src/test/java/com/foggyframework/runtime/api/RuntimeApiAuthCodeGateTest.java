@@ -8,6 +8,7 @@ import com.foggyframework.dataset.model.semantic.service.SemanticModelCatalogSer
 import com.foggyframework.dataset.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.model.semantic.explain.SemanticExplainService;
 import com.foggyframework.dataset.model.semantic.service.SemanticServiceV3;
+import com.foggyframework.dataset.model.service.JdbcService;
 import com.foggyframework.dataset.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.model.spi.TableModelLoaderManager;
 import com.foggyframework.dataset.model.validation.DetachedModelValidationFactory;
@@ -76,6 +77,9 @@ class RuntimeApiAuthCodeGateTest {
 
     @MockitoBean
     private SemanticExplainService semanticExplainService;
+
+    @MockitoBean
+    private JdbcService jdbcService;
 
     @MockitoBean
     private ComposeExecutionPort composeExecutionPort;
