@@ -170,7 +170,7 @@ class JdbcModelQueryEngineCteWrapTest extends CteWrapTestSupport {
         assertTrue(normalizedSql.contains("ORDER BY \"salesRank\" DESC"), sql);
         assertEquals(1, engine.getValues().get(engine.getValues().size() - 1));
         assertEquals(2, engine.getCteStages().size());
-        assertEquals(List.of(1), engine.getCteOuterSelectParams());
+        assertEquals(List.of(1), engine.toSqlGenerationResult(Map.of()).getParams());
     }
 
     @Test
@@ -408,7 +408,7 @@ class JdbcModelQueryEngineCteWrapTest extends CteWrapTestSupport {
 
     @Test
     @Order(101)
-    @DisplayName("结果阶段运行时对象不暴露为 JdbcModelQueryEngine 公共 Bean 属性")
+    @DisplayName("结果阶段运行时对象和 CTE 可变状态不暴露为公共 Bean 属性")
     void resultStageRuntimeObjectsShouldNotHavePublicAccessors() {
         assertThrows(NoSuchMethodException.class,
                 () -> JdbcModelQueryEngine.class.getMethod("getResultStageRenderer"));
@@ -420,5 +420,13 @@ class JdbcModelQueryEngineCteWrapTest extends CteWrapTestSupport {
         assertThrows(NoSuchMethodException.class,
                 () -> JdbcModelQueryEngine.class.getMethod(
                         "setResultStagePreparation", ResultStagePreparation.class));
+        assertThrows(NoSuchMethodException.class,
+                () -> JdbcModelQueryEngine.class.getMethod("getResultStageRenderResult"));
+        assertThrows(NoSuchMethodException.class,
+                () -> JdbcModelQueryEngine.class.getMethod("setCteWrapped", boolean.class));
+        assertThrows(NoSuchMethodException.class,
+                () -> JdbcModelQueryEngine.class.getMethod("setCteStages", List.class));
+        assertThrows(NoSuchMethodException.class,
+                () -> JdbcModelQueryEngine.class.getMethod("setCteOuterSelectSql", String.class));
     }
 }

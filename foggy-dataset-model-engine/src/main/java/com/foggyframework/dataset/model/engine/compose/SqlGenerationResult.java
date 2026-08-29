@@ -42,7 +42,13 @@ public class SqlGenerationResult {
      * @param params bind parameters for this stage
      * @since 9.2.0
      */
-    public record CteStage(String alias, String sql, List<Object> params) {}
+    public record CteStage(String alias, String sql, List<Object> params) {
+        public CteStage {
+            params = params == null
+                    ? List.of()
+                    : Collections.unmodifiableList(new ArrayList<>(params));
+        }
+    }
 
     /**
      * 生成的完整 SQL（不含分页）
@@ -122,9 +128,13 @@ public class SqlGenerationResult {
     public SqlGenerationResult(String sql, List<Object> params, JdbcModelQueryEngine queryEngine,
                                List<CteStage> cteStages, Map<String, Object> diagnostics) {
         this.sql = sql;
-        this.params = params;
+        this.params = params == null
+                ? Collections.emptyList()
+                : Collections.unmodifiableList(new ArrayList<>(params));
         this.queryEngine = queryEngine;
-        this.cteStages = cteStages != null ? cteStages : Collections.emptyList();
+        this.cteStages = cteStages == null
+                ? Collections.emptyList()
+                : Collections.unmodifiableList(new ArrayList<>(cteStages));
         this.diagnostics = diagnostics != null
                 ? Collections.unmodifiableMap(new LinkedHashMap<>(diagnostics))
                 : Collections.emptyMap();

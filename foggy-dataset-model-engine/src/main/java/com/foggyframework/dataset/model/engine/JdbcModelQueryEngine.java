@@ -156,68 +156,41 @@ public class JdbcModelQueryEngine implements QueryEngine {
      * AVG as SUM + COUNT). A physical pre-aggregation must not replace this
      * plan unless it exposes the same states explicitly.
      */
+    @Setter(AccessLevel.NONE)
     boolean algebraicAggSql;
 
     /** Bind values owned by aggSql; never inferred from the main query. */
+    @Setter(AccessLevel.NONE)
     List<Object> aggValues = List.of();
 
     /** Request-scoped totalData lowering result, also used by pre-aggregation guards. */
+    @Setter(AccessLevel.NONE)
     TotalDataAggregatePlan totalDataAggregatePlan = TotalDataAggregatePlan.notApplicable();
 
     /** Source expression captured before buildAggColumn1 applies an aggregate wrapper. */
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
     IdentityHashMap<DbColumn, String> aggregateSourceDeclares = new IdentityHashMap<>();
 
     /** Original column retained when grouped planning wraps it in AggregationDbColumn. */
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
     IdentityHashMap<DbColumn, DbColumn> aggregateSourceColumns = new IdentityHashMap<>();
 
     /**
      * 聚合SQL优化结果（用于调试和测试）
      */
+    @Setter(AccessLevel.NONE)
     AggSqlOptimizer.OptimizationResult aggSqlOptimizationResult;
 
-    // ── CTE Wrapping structured fields (9.2.0+) ──
-    // Populated by generateWithCteWrapping() so that callers can access
-    // the inner CTE stage and outer SELECT separately for flat CTE assembly.
-
-    /**
-     * Whether the engine generated two-stage CTE wrapping for window CFs.
-     */
-    boolean cteWrapped = false;
-
-    /**
-     * Stage 1 (inner CTE) SQL — base aggregations/dimensions, no window CFs.
-     * Only populated when {@link #cteWrapped} is true.
-     */
-    String cteStage1Sql;
-
-    /**
-     * Stage 1 bind parameters.
-     */
-    List<Object> cteStage1Params;
-
-    /**
-     * The CTE alias used for Stage 1 (e.g., "stage1").
-     */
-    String cteStage1Alias;
-
-    /**
-     * Stage 2 (outer SELECT) SQL — references stage1 by alias, adds window CFs + ORDER BY.
-     * Does NOT include the {@code WITH stage1 AS (...)} prefix.
-     * Only populated when {@link #cteWrapped} is true.
-     */
-    String cteOuterSelectSql;
-
-    /**
-     * Structured CTE stages for multi-stage result wrappers.
-     */
-    List<SqlGenerationResult.CteStage> cteStages;
-
-    /**
-     * Params that belong to {@link #cteOuterSelectSql} only.
-     */
-    List<Object> cteOuterSelectParams = List.of();
+    /** Canonical immutable output of the shared result-stage renderer. */
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
+    ResultStagePlan.RenderResult resultStageRenderResult;
 
     List values;
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
     QueryStagePlanner queryStagePlanner = new QueryStagePlanner();
     @Getter(AccessLevel.NONE)
     @Setter(AccessLevel.NONE)
@@ -1033,7 +1006,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
         ResultStagePlan.RenderResult rendered = resultStageRenderer.render(executable, dialect);
 
         // Note: LIMIT/OFFSET remains owned by the upper-layer pagination framework.
-        applySharedResultStageRender(rendered, stage1Sql, stage1Params);
+        applySharedResultStageRender(rendered);
 
         boolean countToSum = queryRequest.hasGroupBy();
         buildAggSqlForStagePlan(systemBundlesContext, queryRequest, jdbcQuery,
@@ -1133,7 +1106,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
                 new BoundSqlExpression(stage1Sql, stage1Params),
                 buildPostAggregateMainFinalProjection(queryRequest, originalSelectCols, dialect));
         ResultStagePlan.RenderResult rendered = resultStageRenderer.render(executable, dialect);
-        applySharedResultStageRender(rendered, stage1Sql, stage1Params);
+        applySharedResultStageRender(rendered);
 
         boolean countToSum = queryRequest.hasGroupBy();
         buildAggSqlForStagePlan(systemBundlesContext, queryRequest, jdbcQuery,
@@ -1162,25 +1135,82 @@ public class JdbcModelQueryEngine implements QueryEngine {
         return projections;
     }
 
-    private void applySharedResultStageRender(
-            ResultStagePlan.RenderResult rendered,
-            String rootSql,
-            List<Object> rootParams) {
-        this.cteWrapped = !rendered.cteStages().isEmpty();
-        this.cteStages = rendered.cteStages();
-        this.cteStage1Alias = "stage1";
-        SqlGenerationResult.CteStage baseStage = rendered.cteStages().stream()
-                .filter(stage -> "stage1".equals(stage.alias()))
-                .findFirst()
-                .orElse(null);
-        this.cteStage1Sql = baseStage == null ? rootSql : baseStage.sql();
-        this.cteStage1Params = baseStage == null ? List.copyOf(rootParams) : baseStage.params();
-        this.cteOuterSelectSql = rendered.outerSql();
-        this.cteOuterSelectParams = rendered.outerValues();
+    private void applySharedResultStageRender(ResultStagePlan.RenderResult rendered) {
+        this.resultStageRenderResult = rendered;
         this.innerSql = rendered.assembledSql();
         this.innerSqlWithoutOrder = rendered.assembledSqlWithoutOrder();
         this.sql = this.innerSql;
         this.values = rendered.assembledValues();
+    }
+
+    /**
+     * Returns whether SQL generation produced structured CTE stages.
+     */
+    public boolean isCteWrapped() {
+        return resultStageRenderResult != null
+                && !resultStageRenderResult.cteStages().isEmpty();
+    }
+
+    /**
+     * Returns the canonical, immutable CTE stage list.
+     */
+    public List<SqlGenerationResult.CteStage> getCteStages() {
+        return resultStageRenderResult == null
+                ? List.of() : resultStageRenderResult.cteStages();
+    }
+
+    /**
+     * Creates the structured SQL snapshot consumed by Compose and semantic planners.
+     * Result-stage runtime objects remain internal to the engine.
+     */
+    public SqlGenerationResult toSqlGenerationResult(Map<String, Object> diagnostics) {
+        if (isCteWrapped()) {
+            return new SqlGenerationResult(
+                    resultStageRenderResult.outerSql(),
+                    resultStageRenderResult.outerValues(),
+                    this,
+                    resultStageRenderResult.cteStages(),
+                    diagnostics);
+        }
+        return new SqlGenerationResult(sql, values, this, List.of(), diagnostics);
+    }
+
+    /** @deprecated use {@link #getCteStages()} as the canonical representation. */
+    @Deprecated(since = "9.3.0", forRemoval = true)
+    public String getCteStage1Sql() {
+        SqlGenerationResult.CteStage stage = firstCteStage();
+        return stage == null ? null : stage.sql();
+    }
+
+    /** @deprecated use {@link #getCteStages()} as the canonical representation. */
+    @Deprecated(since = "9.3.0", forRemoval = true)
+    public List<Object> getCteStage1Params() {
+        SqlGenerationResult.CteStage stage = firstCteStage();
+        return stage == null ? null : stage.params();
+    }
+
+    /** @deprecated use {@link #getCteStages()} as the canonical representation. */
+    @Deprecated(since = "9.3.0", forRemoval = true)
+    public String getCteStage1Alias() {
+        SqlGenerationResult.CteStage stage = firstCteStage();
+        return stage == null ? null : stage.alias();
+    }
+
+    /** @deprecated use {@link #toSqlGenerationResult(Map)}. */
+    @Deprecated(since = "9.3.0", forRemoval = true)
+    public String getCteOuterSelectSql() {
+        return isCteWrapped() ? resultStageRenderResult.outerSql() : null;
+    }
+
+    /** @deprecated use {@link #toSqlGenerationResult(Map)}. */
+    @Deprecated(since = "9.3.0", forRemoval = true)
+    public List<Object> getCteOuterSelectParams() {
+        return isCteWrapped() ? resultStageRenderResult.outerValues() : List.of();
+    }
+
+    private SqlGenerationResult.CteStage firstCteStage() {
+        List<SqlGenerationResult.CteStage> stages = getCteStages();
+        return stages.isEmpty() ? null : stages.get(0);
     }
 
     private void buildAggSqlForStagePlan(SystemBundlesContext systemBundlesContext,
