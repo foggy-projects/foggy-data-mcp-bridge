@@ -166,7 +166,28 @@ class ResultStagePlanContractTest {
                         "SELECT opening_year AS \"openingYear\", COUNT(*) AS \"waybillCount\" "
                                 + "FROM waybill WHERE opening_year >= ? GROUP BY opening_year",
                         List.of(2020)),
-                List.of());
+                rootColumns());
+    }
+
+    static List<ResultStagePlan.Column> rootColumns() {
+        return List.of(
+                new ResultStagePlan.Column(
+                        "openingYear",
+                        ResultStagePlan.ColumnRole.PUBLIC_RESULT,
+                        "agg",
+                        "final",
+                        DbColumnType.INTEGER,
+                        "openingYear",
+                        BoundSqlExpression.of("\"openingYear\"")),
+                new ResultStagePlan.Column(
+                        "waybillCount",
+                        ResultStagePlan.ColumnRole.PUBLIC_RESULT,
+                        "agg",
+                        "final",
+                        DbColumnType.BIGINT,
+                        "waybillCount",
+                        BoundSqlExpression.of("\"waybillCount\""))
+        );
     }
 
     static List<ResultStagePlan.FinalProjection> publicProjection() {

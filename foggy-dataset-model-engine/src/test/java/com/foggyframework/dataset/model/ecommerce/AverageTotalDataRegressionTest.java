@@ -10,8 +10,14 @@ import com.foggyframework.dataset.model.def.query.request.PostAggregateCalculati
 import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.model.def.query.request.WindowOrderDef;
 import com.foggyframework.dataset.model.engine.JdbcModelQueryEngine;
+import com.foggyframework.dataset.model.engine.pivot.transport.DomainTransportField;
+import com.foggyframework.dataset.model.engine.pivot.transport.DomainTransportPlan;
+import com.foggyframework.dataset.model.engine.pivot.transport.DomainTransportTuple;
 import com.foggyframework.dataset.model.engine.query.DbQueryResult;
+import com.foggyframework.dataset.model.engine.stage.result.ResultStagePlan;
+import com.foggyframework.dataset.model.engine.stage.result.ResultStagePreparation;
 import com.foggyframework.dataset.model.impl.measure.DbMeasureSupport;
+import com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.model.service.AdvancedQueryFacade;
 import com.foggyframework.dataset.model.spi.DbAggregation;
 import com.foggyframework.dataset.model.spi.DbMeasure;
@@ -22,6 +28,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +36,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -372,6 +380,67 @@ class AverageTotalDataRegressionTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("SQLite 组合：domain CTE + AVG state + window/postSlice 必须执行并保持参数拓扑")
+    void domainCteAverageWindowPostSliceShouldExecuteWithWeightedTotal() {
+        List<String> categories = jdbcTemplate.queryForList(
+                "select distinct category_name from dim_product order by category_name",
+                String.class);
+        assertTrue(categories.size() >= 3, "夹具至少需要三个不同样本量的分组");
+        DomainTransportPlan domain = DomainTransportPlan.builder()
+                .relationName("_avg_domain")
+                .fields(List.of(new DomainTransportField("product$categoryName")))
+                .tuples(categories.stream()
+                        .map(category -> new DomainTransportTuple(List.of(category)))
+                        .toList())
+                .build();
+
+        DbQueryRequestDef request = groupedRequest("product$categoryName");
+        CalculatedFieldDef rank = calculated("averagePriceRank", "RANK()", null);
+        rank.setWindowOrderBy(List.of(new WindowOrderDef("averageUnitPrice", "desc")));
+        request.setCalculatedFields(List.of(rank));
+        request.setColumns(List.of(
+                "product$categoryName",
+                "avg(unitPrice) as averageUnitPrice",
+                "averagePriceRank"
+        ));
+        request.setPostSlice(List.of(new SliceRequestDef("averagePriceRank", "<=", 2)));
+
+        DbQueryResult queryResult = queryWithAverageMeasureAndDomain(
+                request, 0, 100, "unitPrice", domain);
+        PagingResultImpl<?> result = queryResult.getPagingResult();
+        String placeholders = String.join(", ",
+                Collections.nCopies(categories.size(), "?"));
+        BigDecimal expected = nativeDecimal("""
+                with grouped as (
+                    select p.category_name,
+                           sum(fs.unit_price) as avg_sum,
+                           count(fs.unit_price) as avg_count
+                    from fact_sales fs
+                    join dim_product p on p.product_key = fs.product_key
+                    where p.category_name in (%s)
+                    group by p.category_name
+                ), ranked as (
+                    select grouped.*,
+                           rank() over (order by avg_sum * 1.0 / avg_count desc) as price_rank
+                    from grouped
+                )
+                select sum(avg_sum) * 1.0 / sum(avg_count)
+                from ranked
+                where price_rank <= 2
+                """.formatted(placeholders), categories.toArray());
+
+        assertDecimalEquals(expected, totalData(result).get("averageUnitPrice"),
+                "domain 过滤后的幸存组必须按 SUM/COUNT 状态加权");
+        JdbcModelQueryEngine engine = (JdbcModelQueryEngine) queryResult.getQueryEngine();
+        String totalSql = engine.getAggSql();
+        assertTrue(totalSql.startsWith("WITH _avg_domain AS"), totalSql);
+        assertTrue(totalSql.contains(",\nstage1 AS"), totalSql);
+        assertEquals(totalSql.toUpperCase().indexOf("WITH "),
+                totalSql.toUpperCase().lastIndexOf("WITH "), totalSql);
+        assertEquals(categories, engine.getAggValues().subList(0, categories.size()));
+    }
+
+    @Test
     @DisplayName("window 隐藏输入：未公开选择的排序度量也必须投影到 totalData 结果阶段")
     void windowShouldMaterializeHiddenOrderingMeasureForTotalData() {
         DbQueryRequestDef request = groupedRequest("product$categoryName");
@@ -386,8 +455,8 @@ class AverageTotalDataRegressionTest extends EcommerceTestSupport {
         ));
         request.setPostSlice(List.of(new SliceRequestDef("hiddenSalesRowNumber", "<=", 2)));
 
-        PagingResultImpl<?> result = queryWithAverageMeasure(request, 0, 100, "unitPrice")
-                .getPagingResult();
+        DbQueryResult queryResult = queryWithAverageMeasure(request, 0, 100, "unitPrice");
+        PagingResultImpl<?> result = queryResult.getPagingResult();
         BigDecimal expected = nativeDecimal("""
                 with grouped as (
                     select p.category_name,
@@ -409,6 +478,7 @@ class AverageTotalDataRegressionTest extends EcommerceTestSupport {
 
         assertDecimalEquals(expected, totalData(result).get("averageUnitPrice"),
                 "totalData 必须补齐 window 引用但未公开返回的聚合度量");
+        assertPreparedHiddenDependencySharedByMainAndTotal(queryResult, "salesAmount");
     }
 
     @Test
@@ -555,6 +625,27 @@ class AverageTotalDataRegressionTest extends EcommerceTestSupport {
                 request, start, limit, measureName, DbAggregation.AVG);
     }
 
+    private DbQueryResult queryWithAverageMeasureAndDomain(
+            DbQueryRequestDef request,
+            int start,
+            int limit,
+            String measureName,
+            DomainTransportPlan domain) {
+        DbMeasureSupport measure = findMeasure(measureName);
+        DbAggregation original = measure.getAggregation();
+        measure.setAggregation(DbAggregation.AVG);
+        try {
+            PagingRequest<DbQueryRequestDef> paging = new PagingRequest<>(
+                    start / Math.max(limit, 1) + 1, limit, start, limit, request);
+            ModelResultContext context = new ModelResultContext();
+            context.setRequest(paging);
+            context.getExtData().put(DomainTransportPlan.EXT_DATA_KEY, List.of(domain));
+            return queryFacade.queryModelResult(context);
+        } finally {
+            measure.setAggregation(original);
+        }
+    }
+
     private DbQueryResult queryWithMeasureAggregation(DbQueryRequestDef request,
                                                       int start,
                                                       int limit,
@@ -607,6 +698,10 @@ class AverageTotalDataRegressionTest extends EcommerceTestSupport {
         return decimal(jdbcTemplate.queryForObject(sql, Object.class));
     }
 
+    private BigDecimal nativeDecimal(String sql, Object... args) {
+        return decimal(jdbcTemplate.queryForObject(sql, Object.class, args));
+    }
+
     private BigDecimal decimal(Object value) {
         assertNotNull(value, "数值不应为 null");
         if (value instanceof BigDecimal decimal) {
@@ -624,6 +719,30 @@ class AverageTotalDataRegressionTest extends EcommerceTestSupport {
         assertTrue(totalSql.contains(expectedResultStageAlias + " AS"), totalSql);
         assertFalse(totalSql.contains("__foggy_total_stage_"), totalSql);
         assertFalse(totalSql.contains("WITH __foggy_total_base AS"), totalSql);
+    }
+
+    private void assertPreparedHiddenDependencySharedByMainAndTotal(
+            DbQueryResult queryResult,
+            String alias) {
+        JdbcModelQueryEngine engine = (JdbcModelQueryEngine) queryResult.getQueryEngine();
+        ResultStagePreparation preparation = engine.getResultStagePreparation();
+        assertNotNull(preparation, "window 请求必须在 visitor 前生成 request preparation");
+        ResultStagePreparation.Projection main = preparation.baseProjectionPlan().main().projections()
+                .stream()
+                .filter(projection -> projection.column().role()
+                        == ResultStagePlan.ColumnRole.HIDDEN_DEPENDENCY)
+                .filter(projection -> alias.equals(projection.column().alias()))
+                .findFirst()
+                .orElseThrow();
+        ResultStagePreparation.Projection total = preparation.baseProjectionPlan().total().projections()
+                .stream()
+                .filter(projection -> projection.column().role()
+                        == ResultStagePlan.ColumnRole.HIDDEN_DEPENDENCY)
+                .filter(projection -> alias.equals(projection.column().alias()))
+                .findFirst()
+                .orElseThrow();
+        assertSame(main.source(), total.source(),
+                "MAIN/TOTAL hidden dependency 必须来自一次 prepare 的同一个物理列绑定");
     }
 
     private void assertDecimalEquals(BigDecimal expected, Object actual, String message) {

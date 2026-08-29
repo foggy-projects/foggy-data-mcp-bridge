@@ -8,8 +8,12 @@ import com.foggyframework.dataset.model.engine.stage.QueryStageType;
 import com.foggyframework.dataset.model.spi.DbColumnType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.List;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -37,6 +41,11 @@ class ResultStageRendererTest {
 
         assertEquals(List.of("stage1", "__POST_RESULT_STAGE__"),
                 rendered.cteStages().stream().map(SqlGenerationResult.CteStage::alias).toList());
+        String windowStage = rendered.cteStages().get(1).sql();
+        assertFalse(windowStage.contains("stage1.*"),
+                "renderer 必须消费 root columns，不能继续透传 sourceAlias.*: " + windowStage);
+        assertTrue(windowStage.contains("stage1.\"openingYear\""), windowStage);
+        assertTrue(windowStage.contains("stage1.\"waybillCount\""), windowStage);
         assertTrue(rendered.outerSql().contains("FROM __POST_RESULT_STAGE__"), rendered.outerSql());
         assertTrue(rendered.outerSql().contains("WHERE \"rankNo\" <= ?"), rendered.outerSql());
         assertTrue(rendered.outerSql().contains("ORDER BY \"openingYear\" DESC"), rendered.outerSql());
@@ -74,7 +83,8 @@ class ResultStageRendererTest {
     void cteParameterOrderFollowsSerializedSql() {
         ResultStagePlan.Graph graph = postAggregateGraph("cte");
         ResultStagePlan.RootSql root = new ResultStagePlan.RootSql(
-                List.of(), "agg", new BoundSqlExpression("SELECT ? AS \"amount\"", List.of(10)), List.of());
+                List.of(), "agg", new BoundSqlExpression("SELECT ? AS \"amount\"", List.of(10)),
+                amountRootColumns());
         List<ResultStagePlan.FinalProjection> finals = List.of(new ResultStagePlan.FinalProjection(
                 "adjusted",
                 ResultStagePlan.ColumnRole.PUBLIC_RESULT,
@@ -96,7 +106,8 @@ class ResultStageRendererTest {
     void derivedParameterOrderFollowsSerializedSql() {
         ResultStagePlan.Graph graph = postAggregateGraph("derived");
         ResultStagePlan.RootSql root = new ResultStagePlan.RootSql(
-                List.of(), "agg", new BoundSqlExpression("SELECT ? AS \"amount\"", List.of(10)), List.of());
+                List.of(), "agg", new BoundSqlExpression("SELECT ? AS \"amount\"", List.of(10)),
+                amountRootColumns());
         List<ResultStagePlan.FinalProjection> finals = List.of(new ResultStagePlan.FinalProjection(
                 "adjusted",
                 ResultStagePlan.ColumnRole.PUBLIC_RESULT,
@@ -122,7 +133,8 @@ class ResultStageRendererTest {
                 List.of("year"),
                 new BoundSqlExpression("VALUES (?)", List.of(2026)));
         ResultStagePlan.RootSql root = new ResultStagePlan.RootSql(
-                List.of(domain), "agg", BoundSqlExpression.of("SELECT 1 AS \"amount\""), List.of());
+                List.of(domain), "agg", BoundSqlExpression.of("SELECT 1 AS \"amount\""),
+                amountRootColumns());
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> renderer.render(
@@ -147,6 +159,73 @@ class ResultStageRendererTest {
                         DbColumnType.NUMBER,
                         new BoundSqlExpression("? + \"adjusted\"", List.of())));
         assertTrue(ex.getMessage().contains("placeholder"));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("cteDialectCases")
+    @DisplayName("domain + AVG state + base/result/final/filter 参数按四方言 assembled SQL 词法顺序")
+    void combinedCteTopologyKeepsSiblingAndParameterOrder(
+            String name,
+            FDialect dialect,
+            String domainBody) {
+        ResultStagePlan.Graph graph = postAggregateGraph("cte");
+        ResultStagePlan.StructuredCte domain = new ResultStagePlan.StructuredCte(
+                "domain_year",
+                List.of("openingYear"),
+                new BoundSqlExpression(domainBody, List.of(2026)));
+        List<ResultStagePlan.Column> rootColumns = List.of(
+                rootColumn("amount", ResultStagePlan.ColumnRole.PUBLIC_RESULT),
+                rootColumn("__foggy_avg_sum_0",
+                        ResultStagePlan.ColumnRole.INTERNAL_AGGREGATE_STATE),
+                rootColumn("__foggy_avg_count_0",
+                        ResultStagePlan.ColumnRole.INTERNAL_AGGREGATE_STATE));
+        ResultStagePlan.RootSql root = new ResultStagePlan.RootSql(
+                List.of(domain),
+                "agg",
+                new BoundSqlExpression(
+                        "SELECT ? AS \"amount\", ? AS \"__foggy_avg_sum_0\", "
+                                + "? AS \"__foggy_avg_count_0\" WHERE ? = ?",
+                        List.of(10, 11, 11, "base", "base")),
+                rootColumns);
+        List<ResultStagePlan.FinalProjection> finals = List.of(
+                new ResultStagePlan.FinalProjection(
+                        "adjusted",
+                        ResultStagePlan.ColumnRole.RESULT_STAGE_ONLY,
+                        DbColumnType.NUMBER,
+                        new BoundSqlExpression("(? + \"adjusted\")", List.of(3))),
+                new ResultStagePlan.FinalProjection(
+                        "averageAmount",
+                        ResultStagePlan.ColumnRole.PUBLIC_RESULT,
+                        DbColumnType.NUMBER,
+                        BoundSqlExpression.of(
+                                "SUM(\"__foggy_avg_sum_0\") / "
+                                        + "NULLIF(SUM(\"__foggy_avg_count_0\"), 0)")));
+
+        ResultStagePlan.RenderResult rendered = renderer.render(
+                ResultStagePlan.Executable.bind(
+                        graph, ResultStagePlan.Mode.TOTAL, root, finals),
+                dialect);
+
+        assertEquals(List.of("domain_year", "stage1", "post_stage"),
+                rendered.cteStages().stream().map(SqlGenerationResult.CteStage::alias).toList());
+        assertEquals(List.of(2026, 10, 11, 11, "base", "base", 2, 3, 4),
+                rendered.assembledValues(), name);
+        assertFalse(rendered.assembledSql().contains("stage1.*"), rendered.assembledSql());
+        String upper = rendered.assembledSql().toUpperCase();
+        assertEquals(upper.indexOf("WITH "), upper.lastIndexOf("WITH "),
+                "只能有一个根 WITH，禁止 nested WITH: " + rendered.assembledSql());
+        assertEquals(rendered.assembledSql(), asSqlGenerationResult(rendered).getAssembledSql());
+        assertEquals(rendered.assembledValues(), asSqlGenerationResult(rendered).getAssembledParams());
+    }
+
+    private static Stream<Arguments> cteDialectCases() {
+        return Stream.of(
+                Arguments.of("postgres", FDialect.POSTGRES_DIALECT, "VALUES (?)"),
+                Arguments.of("sqlite", FDialect.SQLITE_DIALECT, "VALUES (?)"),
+                Arguments.of("mysql8", FDialect.MYSQL8_DIALECT, "VALUES ROW(?)"),
+                Arguments.of("sqlserver", FDialect.SQLSERVER_DIALECT,
+                        "SELECT CAST(? AS INT) AS [openingYear]")
+        );
     }
 
     private static ResultStagePlan.Graph postAggregateGraph(String strategy) {
@@ -189,6 +268,23 @@ class ResultStageRendererTest {
     private static QueryStagePlan.Stage diagnostic(String id, QueryStageType type, String alias) {
         return new QueryStagePlan.Stage(
                 id, type, alias, List.of(), List.of(), List.of(), List.of(), true, 0);
+    }
+
+    private static List<ResultStagePlan.Column> amountRootColumns() {
+        return List.of(rootColumn("amount", ResultStagePlan.ColumnRole.PUBLIC_RESULT));
+    }
+
+    private static ResultStagePlan.Column rootColumn(
+            String alias,
+            ResultStagePlan.ColumnRole role) {
+        return new ResultStagePlan.Column(
+                alias,
+                role,
+                "agg",
+                "final",
+                DbColumnType.NUMBER,
+                alias,
+                BoundSqlExpression.of("\"" + alias + "\""));
     }
 
     private static SqlGenerationResult asSqlGenerationResult(ResultStagePlan.RenderResult result) {

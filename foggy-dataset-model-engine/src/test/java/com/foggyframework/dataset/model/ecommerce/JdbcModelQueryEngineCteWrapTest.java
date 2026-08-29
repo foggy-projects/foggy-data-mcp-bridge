@@ -11,6 +11,7 @@ import com.foggyframework.dataset.model.engine.formula.SqlFormulaService;
 import com.foggyframework.dataset.model.engine.query_model.JdbcQueryModelImpl;
 import com.foggyframework.dataset.model.engine.stage.QueryStagePlan;
 import com.foggyframework.dataset.model.engine.stage.result.ResultStagePlan;
+import com.foggyframework.dataset.model.engine.stage.result.ResultStagePreparation;
 import com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.model.spi.JdbcQueryModel;
 import jakarta.annotation.Resource;
@@ -535,20 +536,25 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
 
     @Test
     @Order(99)
-    @DisplayName("Post-aggregate MAIN binds the diagnostics topology to the shared result-stage graph")
-    void testPostAggregateMainBindsSharedResultStageGraph() throws Exception {
+    @DisplayName("Post-aggregate MAIN/TOTAL bind one request-scoped graph + base projection preparation")
+    void testPostAggregateMainBindsSharedResultStagePreparation() throws Exception {
         DbQueryRequestDef request = buildPostAggregateSalesShareRequest();
 
         AnalysisResult result = analyzeWithContext(request);
         Map<String, Object> diagnostics = queryStagePlan(result.context());
-        java.lang.reflect.Field field = JdbcModelQueryEngine.class.getDeclaredField("resultStageGraph");
+        java.lang.reflect.Field field = JdbcModelQueryEngine.class.getDeclaredField(
+                "resultStagePreparation");
         field.setAccessible(true);
-        ResultStagePlan.Graph graph = (ResultStagePlan.Graph) field.get(result.engine());
+        ResultStagePreparation preparation = (ResultStagePreparation) field.get(result.engine());
+        ResultStagePlan.Graph graph = preparation.graph();
 
-        assertNotNull(graph, "postAggregate MAIN must bind the request-scoped shared result-stage graph");
+        assertNotNull(preparation,
+                "postAggregate MAIN must prepare graph and base projections before visitor");
         assertEquals(diagnostics, graph.diagnostics().toDiagnosticsMap());
         assertEquals(stageIds(diagnostics),
                 graph.stages().stream().map(ResultStagePlan.Stage::stageId).toList());
+        assertFalse(preparation.baseProjectionPlan().main().columns().isEmpty());
+        assertFalse(preparation.baseProjectionPlan().total().columns().isEmpty());
         ResultStagePlan.Stage postAggregate = graph.stage("post_agg");
         assertNotNull(postAggregate);
         assertEquals(List.of("salesShare"),
