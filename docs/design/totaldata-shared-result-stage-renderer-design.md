@@ -527,6 +527,12 @@ MAIN/TOTAL 引用同一 graph，AVG 仍以 `SUM(group_sum) / SUM(group_count)` f
 四方言参数拓扑和 SQLite 组合执行测试已覆盖。非阻断残余风险为数值 aggregate leaf 当前统一按
 `DbColumnType.NUMBER` 绑定；现有支持方言 widening 语义一致，待未来引入 MONEY/自定义数值类型时再细化。
 
+2026-08-29：本轮加固最终独立 review 为 GO；无 P0/P1。复审确认 domain CTE 先于 `stage1` 时，
+废弃兼容 getter 仍按 alias 精确返回 `stage1` 的 SQL/params；新增 SQLite 生命周期测试实际执行生产
+Builder 生成的 DDL、FULL/INCREMENTAL refresh SQL 和生产 Rewriter 生成的 AVG state rollup SQL，
+不均衡样本、NULL 与事实 AVG parity 均有可失败断言。唯一 P2 为 `PreAggQueryRewriter` 仍有约 2318 行，
+本轮不做高风险拆分；仅在新增 VAR/STDDEV 等代数状态或再次大改预聚合重写时启动专项拆分。
+
 ## 18. 验证与全量测试记录
 
 ### 18.1 既有基线验证（方案 A 首次交付）
@@ -559,5 +565,6 @@ postAggregate/postSlice 及不可合并聚合 fail-closed 回归通过。全量�
 - `7944cfe3`：`ResultStagePlan.RenderResult` 成为 CTE outer/assembled 的唯一事实源。
 
 当前定向结果：AVG/结果阶段联合回归 50/50，通过；CTE/Compose/renderer 组合回归 45/45，通过；
-CTE 核心最终回归 14/14，通过。新的 reactor 全量测试额度为 3 次，目前使用 0/3；只有完成最终独立
-review 后才开始使用，结果将在本节继续追加，不复用 18.1 的历史结论。
+CTE 核心最终回归 14/14，通过；最终 review 修复后的 engine 组合回归 37/37、预聚合 SQL Builder 与
+SQLite AVG 生命周期回归 31/31，通过。新的 reactor 全量测试额度为 3 次，目前使用 0/3；最终独立
+review 已 GO，下一步开始使用该额度，结果将在本节继续追加，不复用 18.1 的历史结论。
