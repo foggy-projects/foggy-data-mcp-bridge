@@ -370,7 +370,7 @@ public class PreAggQueryRequirement {
      * <ul>
      *   <li>相同聚合类型（SUM→SUM, MIN→MIN, MAX→MAX 等）直接兼容</li>
      *   <li>COUNT → SUM（rollup 时 COUNT 变成 SUM）</li>
-     *   <li>AVG → 需要 SUM + COUNT（暂不支持）</li>
+     *   <li>AVG → AVG（物理预聚合必须由状态契约提供 SUM + COUNT）</li>
      * </ul>
      * </p>
      *

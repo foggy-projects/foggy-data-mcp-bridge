@@ -157,9 +157,31 @@ class PreAggregationMatcherTest {
                 "MONTH grain must not prove that a physical month column exists");
     }
 
+    @Test
+    @DisplayName("AVG 双状态支持从细粒度预聚合安全 rollup")
+    void averageStatesSupportRollupButRemainHybridFailClosed() {
+        PreAggregation preAgg = createDailyProductPreAgg("derivedMeasure", "AVG");
+
+        PreAggQueryRequirement coarser = new PreAggQueryRequirement();
+        coarser.setHasGroupBy(true);
+        coarser.addDimension("product");
+        coarser.addMeasure("derivedMeasure", DbAggregation.AVG);
+
+        PreAggregationMatchResult coarserResult = matcher.findBestMatch(
+                coarser, List.of(preAgg));
+        assertTrue(coarserResult.isMatched());
+        assertTrue(coarserResult.isNeedsRollup());
+
+        PreAggregation hybridPreAgg = createDailyProductPreAgg(
+                "derivedMeasure", "AVG", true);
+        hybridPreAgg.setDataWatermark(LocalDate.now().minusDays(1));
+        assertFalse(matcher.findBestMatch(coarser, List.of(hybridPreAgg)).isMatched(),
+                "AVG hybrid merge remains fail closed until both UNION branches expose states");
+    }
+
     @ParameterizedTest
-    @EnumSource(value = DbAggregation.class, names = {"AVG", "COUNT_DISTINCT"})
-    @DisplayName("非可分解度量只允许精确粒度，粗粒度 rollup 必须拒绝")
+    @EnumSource(value = DbAggregation.class, names = {"COUNT_DISTINCT"})
+    @DisplayName("真正不可分解度量只允许精确粒度，粗粒度 rollup 必须拒绝")
     void nonDecomposableMeasuresRequireExactGrain(DbAggregation aggregation) {
         PreAggregation preAgg = createDailyProductPreAgg("derivedMeasure", aggregation.name());
 

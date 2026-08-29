@@ -507,6 +507,33 @@ class PreAggSqlBuilderTest {
     }
 
     @Test
+    @DisplayName("AVG materialization should persist independent SUM and non-null COUNT states")
+    void testAverageMaterializationUsesAlgebraicStates() {
+        when(mockPreAgg.getMeasureAggregations()).thenReturn(
+                new LinkedHashMap<>(Map.of("amount", DbAggregation.AVG)));
+        when(mockPreAgg.getMeasureColumnNames()).thenReturn(Map.of(
+                "amount", "amount_avg"));
+
+        String ddl = sqlBuilder.buildCreateTableDdl(mockPreAgg, mockSourceModel);
+        String refreshSql = sqlBuilder.buildFullRefreshInsertSql(
+                mockPreAgg, mockSourceModel);
+        String incrementalSql = sqlBuilder.buildIncrementalInsertSql(
+                mockPreAgg, mockSourceModel, refreshConfig,
+                LocalDate.of(2024, 1, 1), LocalDate.of(2024, 1, 2)).getSql();
+
+        assertTrue(ddl.contains("amount_avg__sum DECIMAL(20,4)"));
+        assertTrue(ddl.contains("amount_avg__count BIGINT"));
+        assertFalse(ddl.contains("amount_avg DECIMAL(20,4)"),
+                "AVG must not keep an unmergeable single physical value");
+        assertTrue(refreshSql.contains("SUM(src.amount) AS amount_avg__sum"));
+        assertTrue(refreshSql.contains("COUNT(src.amount) AS amount_avg__count"));
+        assertFalse(refreshSql.contains("AVG(src.amount)"));
+        assertTrue(incrementalSql.contains("SUM(src.amount) AS amount_avg__sum"));
+        assertTrue(incrementalSql.contains("COUNT(src.amount) AS amount_avg__count"));
+        assertFalse(incrementalSql.contains("AVG(src.amount)"));
+    }
+
+    @Test
     @DisplayName("formula and semantic scale measures should use the model-rendered expression")
     void testFormulaMeasureUsesRenderedSourceExpression() {
         when(mockPreAgg.getMeasureAggregations()).thenReturn(

@@ -28,7 +28,11 @@ public class PreAggMeasureDef {
     private String aggregation;
 
     /**
-     * 预聚合表中的列名（默认为 name_aggregation，如 salesAmount_sum）
+     * 预聚合表中的列名（默认为 name_aggregation，如 salesAmount_sum）。
+     * <p>
+     * AVG 场景下该值是物理状态列前缀，实际物化列为
+     * {@code columnName__sum} 与 {@code columnName__count}。
+     * </p>
      */
     private String columnName;
 

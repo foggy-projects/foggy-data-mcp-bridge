@@ -187,11 +187,6 @@ public class PreAggregationInterceptor {
 
         // 2. 从查询中提取需求（专门用于聚合查询）
         JdbcQuery jdbcQuery = queryEngine.getJdbcQuery();
-        if (queryEngine.isAlgebraicAggSql()
-                || containsNonDecomposableAverage(jdbcQuery)) {
-            log.debug("Pre-aggregation aggregate SQL skipped: AVG requires independent SUM/COUNT states");
-            return null;
-        }
         PreAggQueryRequirement requirement = buildAggregateRequirement(queryRequest, jdbcQuery, queryModel);
 
         if (log.isDebugEnabled()) {
@@ -211,7 +206,11 @@ public class PreAggregationInterceptor {
         // 4. 构建聚合 SQL（支持混合查询模式）
         PreAggregation preAgg = matchResult.getPreAggregation();
         PreAggQueryRewriter rewriter = new PreAggQueryRewriter(queryModel, applicationContext);
-        PreAggQueryRewriter.PreAggAggregateSqlResult result = rewriter.buildAggregateSql(
+        PreAggQueryRewriter.PreAggAggregateSqlResult result = queryEngine.isAlgebraicAggSql()
+                ? rewriter.buildAlgebraicAggregateSql(
+                preAgg, jdbcQuery, queryRequest, matchResult,
+                queryEngine.getTotalDataAggregatePlan())
+                : rewriter.buildAggregateSql(
                 preAgg, jdbcQuery, queryRequest, matchResult);
 
         if (result != null) {
@@ -292,10 +291,11 @@ public class PreAggregationInterceptor {
     }
 
     /**
-     * Current pre-aggregation measure storage has one physical value per
-     * measure. AVG cannot be rolled up correctly from that value alone; it
-     * needs independent SUM and non-null COUNT states. Fail closed so the
-     * fact-based algebraic total plan remains authoritative.
+     * Detects AVG projections that advanced final-stage and calculated-field
+     * pre-aggregation builders cannot yet prove. Direct predefined AVG measures
+     * use the SUM/COUNT physical-state contract in the main and algebraic-total
+     * builders; callers of this guard must therefore be scoped to unsupported
+     * paths rather than treating every AVG as globally non-decomposable.
      */
     static boolean containsNonDecomposableAverage(JdbcQuery jdbcQuery) {
         if (jdbcQuery == null || jdbcQuery.getSelect() == null

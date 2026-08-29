@@ -6,6 +6,8 @@ import com.foggyframework.dataset.model.def.query.request.CondRequestDef;
 import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.model.engine.JdbcModelQueryEngine;
+import com.foggyframework.dataset.model.engine.total.TotalDataAggregatePlan;
+import com.foggyframework.dataset.model.engine.total.TotalDataSqlDialect;
 import com.foggyframework.dataset.model.engine.preagg.internal.PreAggWatermarkResolver;
 import com.foggyframework.dataset.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.model.spi.*;
@@ -253,6 +255,94 @@ public class PreAggQueryRewriter {
     }
 
     /**
+     * Builds grouped totalData from physical pre-aggregation states.
+     *
+     * <p>The inner query reconstructs the complete filtered group domain without
+     * ORDER BY or pagination. The outer query then merges those group states with
+     * the same algebraic plan used by the fact-table path.</p>
+     */
+    PreAggAggregateSqlResult buildAlgebraicAggregateSql(
+            PreAggregation preAgg,
+            JdbcQuery jdbcQuery,
+            DbQueryRequestDef queryRequest,
+            PreAggregationMatchResult matchResult,
+            TotalDataAggregatePlan plan) {
+        if (preAgg == null || jdbcQuery == null || plan == null
+                || plan.getStatus() != TotalDataAggregatePlan.LoweringStatus.LOWERED
+                || matchResult == null || !matchResult.isMatched()
+                || matchResult.isHybridQuery()
+                || matchResult.getPreAggregation() != preAgg) {
+            return null;
+        }
+        if ((queryRequest != null && queryRequest.getHaving() != null
+                && !queryRequest.getHaving().isEmpty())
+                || (jdbcQuery.getHaving() != null && !jdbcQuery.getHaving().isEmpty())) {
+            log.debug("Algebraic pre-aggregation totalData refused: HAVING is not reconstructable");
+            return null;
+        }
+
+        try {
+            String alias = "pa";
+            List<String> stateProjections = new ArrayList<>();
+            for (TotalDataAggregatePlan.AggregateStateSpec state : plan.getStates()) {
+                DbColumn measure = resolveStateMeasure(jdbcQuery, state);
+                if (measure == null || !measure.isMeasure()) {
+                    log.debug("Algebraic pre-aggregation totalData refused: state owner '{}' "
+                                    + "is not a direct semantic measure",
+                            state.leafId().ownerAlias());
+                    return null;
+                }
+                String measureName = measure.getName();
+                PreAggMeasureStateContract.MeasureState physical =
+                        PreAggMeasureStateContract.resolve(preAgg, measureName);
+                if (physical.aggregation() != state.aggregation()) {
+                    log.debug("Algebraic pre-aggregation totalData refused: state aggregation "
+                                    + "mismatch for '{}'",
+                            measureName);
+                    return null;
+                }
+                appendAlgebraicStateProjection(
+                        stateProjections, state, physical, alias);
+            }
+            if (stateProjections.isEmpty()) {
+                return null;
+            }
+
+            StringBuilder inner = new StringBuilder("SELECT ")
+                    .append(String.join(", ", stateProjections))
+                    .append(" FROM ")
+                    .append(getFullTableName(preAgg)).append(" ").append(alias);
+            WhereClauseResult where = buildWhereClauseFromSlices(
+                    preAgg, queryRequest, alias);
+            if (StringUtils.isNotEmpty(where.getClause())) {
+                inner.append(" WHERE ").append(where.getClause());
+            }
+            List<String> groupByColumns = buildGroupByColumns(preAgg, jdbcQuery, alias);
+            if (!groupByColumns.isEmpty()) {
+                inner.append(" GROUP BY ").append(String.join(", ", groupByColumns));
+            }
+
+            FDialect dialect = queryModel.getDialect();
+            String totalAlias = "tx";
+            List<String> publicProjections = new ArrayList<>();
+            for (String publicAlias : plan.getPublicAliases()) {
+                String expression = plan.renderPublicExpression(
+                        publicAlias, dialect, totalAlias);
+                publicProjections.add((StringUtils.isEmpty(expression) ? "NULL" : expression)
+                        + " AS " + dialect.quoteIdentifier(publicAlias));
+            }
+            publicProjections.add("COUNT(*) AS " + dialect.quoteIdentifier("total"));
+            String sql = "SELECT " + String.join(", ", publicProjections)
+                    + " FROM (" + inner + ") " + totalAlias;
+            return PreAggAggregateSqlResult.single(
+                    sql, where.getParams(), preAgg.getName());
+        } catch (IllegalArgumentException ex) {
+            log.debug("Algebraic pre-aggregation totalData refused: {}", ex.getMessage());
+            return null;
+        }
+    }
+
+    /**
      * 构建基于预聚合主查询结果的 final-stage count SQL。
      * <p>
      * 该路径用于多阶段查询中“最终 stage 未新增过滤，只改变投影/派生列”的场景。
@@ -473,12 +563,19 @@ public class PreAggQueryRewriter {
                     String measureName = column.getName();
                     String columnAlias = column.getAlias();
 
+                    DbAggregation agg = measureAggregations.get(measureName);
+                    if (agg == DbAggregation.AVG) {
+                        PreAggMeasureStateContract.MeasureState state =
+                                PreAggMeasureStateContract.resolve(preAgg, measureName);
+                        sb.append(", ").append(renderAverageState(
+                                        alias, state, true))
+                                .append(" AS ").append(columnAlias);
+                        continue;
+                    }
                     String preAggColumnName = measureColumnNames.get(measureName);
                     if (preAggColumnName == null) {
                         preAggColumnName = measureName + "_sum";
                     }
-
-                    DbAggregation agg = measureAggregations.get(measureName);
                     String aggFunc = getAggregationFunction(agg);
 
                     sb.append(", ").append(aggFunc).append("(")
@@ -1145,6 +1242,14 @@ public class PreAggQueryRewriter {
 
             if (semanticColumn.isMeasure()) {
                 // 度量列：从预聚合表中获取对应的列名
+                DbAggregation agg = measureAggregations.get(columnName);
+                if (agg == DbAggregation.AVG) {
+                    PreAggMeasureStateContract.MeasureState state =
+                            PreAggMeasureStateContract.resolve(preAgg, columnName);
+                    columns.add(renderAverageState(alias, state, needsRollup)
+                            + " AS " + quotedColumnAlias);
+                    continue;
+                }
                 String preAggColumnName = measureColumnNames.get(columnName);
                 if (preAggColumnName == null) {
                     throw new IllegalStateException(
@@ -1153,7 +1258,6 @@ public class PreAggQueryRewriter {
 
                 if (needsRollup) {
                     // 需要 rollup：根据聚合类型包装
-                    DbAggregation agg = measureAggregations.get(columnName);
                     String aggFunc = getAggregationFunction(agg);
                     columns.add(aggFunc + "(" + alias + "." + preAggColumnName + ") AS " + quotedColumnAlias);
                 } else {
@@ -1177,6 +1281,60 @@ public class PreAggQueryRewriter {
         }
 
         return columns;
+    }
+
+    private String renderAverageState(
+            String alias,
+            PreAggMeasureStateContract.MeasureState state,
+            boolean rollup) {
+        String sum = alias + "." + state.sumColumn();
+        String count = alias + "." + state.countColumn();
+        if (rollup) {
+            sum = "SUM(" + sum + ")";
+            count = "SUM(" + count + ")";
+        }
+        return TotalDataSqlDialect.safeRatio(queryModel.getDialect(), sum, count);
+    }
+
+    private DbColumn resolveStateMeasure(
+            JdbcQuery jdbcQuery,
+            TotalDataAggregatePlan.AggregateStateSpec state) {
+        if (jdbcQuery.getSelect() == null
+                || jdbcQuery.getSelect().getColumns() == null) {
+            return null;
+        }
+        String ownerAlias = state.leafId().ownerAlias();
+        for (DbColumn column : jdbcQuery.getSelect().getColumns()) {
+            if (column != null && ownerAlias.equals(column.getAlias())) {
+                DbColumn semantic = resolveSemanticColumn(column);
+                return semantic != null && semantic.isMeasure() ? semantic : null;
+            }
+        }
+        return null;
+    }
+
+    private void appendAlgebraicStateProjection(
+            List<String> projections,
+            TotalDataAggregatePlan.AggregateStateSpec state,
+            PreAggMeasureStateContract.MeasureState physical,
+            String sourceAlias) {
+        FDialect dialect = queryModel.getDialect();
+        if (state.aggregation() == DbAggregation.AVG) {
+            projections.add("SUM(" + sourceAlias + "." + physical.sumColumn()
+                    + ") AS " + dialect.quoteIdentifier(state.sumAlias()));
+            projections.add("SUM(" + sourceAlias + "." + physical.countColumn()
+                    + ") AS " + dialect.quoteIdentifier(state.countAlias()));
+            return;
+        }
+        String merge = switch (state.aggregation()) {
+            case SUM, COUNT -> "SUM";
+            case MIN -> "MIN";
+            case MAX, PK -> "MAX";
+            default -> throw new IllegalArgumentException(
+                    "Unsupported pre-aggregation totalData state: " + state.aggregation());
+        };
+        projections.add(merge + "(" + sourceAlias + "." + physical.valueColumn()
+                + ") AS " + dialect.quoteIdentifier(state.valueAlias()));
     }
 
     /**

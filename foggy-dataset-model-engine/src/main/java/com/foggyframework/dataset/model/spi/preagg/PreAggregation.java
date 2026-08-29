@@ -111,9 +111,14 @@ public interface PreAggregation {
     Map<String, DbAggregation> getMeasureAggregations();
 
     /**
-     * 获取度量在预聚合表中的列名映射
+     * 获取度量在预聚合表中的列名映射。
+     * <p>
+     * 对非 AVG 度量，value 是实际物理列名；对 AVG 度量，value 是状态列前缀，
+     * 实际物理列为 {@code value__sum} 与 {@code value__count}。调用方不应把 AVG
+     * 的 value 当作单一物理列名。
+     * </p>
      *
-     * @return key: 度量名称, value: 预聚合表中的列名
+     * @return key: 度量名称, value: 物理列名或 AVG 状态列前缀
      */
     Map<String, String> getMeasureColumnNames();
 

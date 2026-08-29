@@ -2,6 +2,7 @@ package com.foggyframework.dataset.model.preagg.ddl;
 
 import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.model.def.preagg.PreAggRefreshDef;
+import com.foggyframework.dataset.model.engine.preagg.PreAggMeasureStateContract;
 import com.foggyframework.dataset.model.spi.*;
 import com.foggyframework.dataset.model.spi.preagg.PreAggregation;
 import com.foggyframework.dataset.model.spi.preagg.TimeGranularity;
@@ -182,14 +183,26 @@ public class PreAggSqlBuilder {
         }
 
         // 度量列
-        Map<String, String> measureColumns = preAgg.getMeasureColumnNames();
         for (Map.Entry<String, DbAggregation> entry : preAgg.getMeasureAggregations().entrySet()) {
             String measureName = entry.getKey();
             DbAggregation aggregation = entry.getValue();
-            String columnName = requireMeasureColumn(measureColumns, measureName);
-            requireUniqueColumn(declaredColumns, columnName, "measure " + measureName);
-            columnDefs.add("    " + columnName + " "
-                    + dialect.mapColumnType(getMeasureDataType(aggregation)));
+            PreAggMeasureStateContract.MeasureState state =
+                    PreAggMeasureStateContract.resolve(preAgg, measureName);
+            if (state.isAverage()) {
+                requireUniqueColumn(
+                        declaredColumns, state.sumColumn(), "measure " + measureName + " SUM state");
+                columnDefs.add("    " + state.sumColumn() + " "
+                        + dialect.mapColumnType(getMeasureDataType(DbAggregation.SUM)));
+                requireUniqueColumn(
+                        declaredColumns, state.countColumn(), "measure " + measureName + " COUNT state");
+                columnDefs.add("    " + state.countColumn() + " "
+                        + dialect.mapColumnType(getMeasureDataType(DbAggregation.COUNT)));
+            } else {
+                requireUniqueColumn(
+                        declaredColumns, state.valueColumn(), "measure " + measureName);
+                columnDefs.add("    " + state.valueColumn() + " "
+                        + dialect.mapColumnType(getMeasureDataType(aggregation)));
+            }
         }
 
         // 元数据列
@@ -284,12 +297,11 @@ public class PreAggSqlBuilder {
 
         // 2. 处理度量列
         Map<String, DbAggregation> measureAggs = preAgg.getMeasureAggregations();
-        Map<String, String> measureColumns = preAgg.getMeasureColumnNames();
-
         for (Map.Entry<String, DbAggregation> entry : measureAggs.entrySet()) {
             String measureName = entry.getKey();
             DbAggregation agg = entry.getValue();
-            String targetColumnName = requireMeasureColumn(measureColumns, measureName);
+            PreAggMeasureStateContract.MeasureState state =
+                    PreAggMeasureStateContract.resolve(preAgg, measureName);
 
             String sourceExpression = null;
             if (agg != DbAggregation.COUNT) {
@@ -305,9 +317,21 @@ public class PreAggSqlBuilder {
                 }
             }
 
-            addTargetColumn(parts, targetColumnName, "measure " + measureName);
-            parts.selectExprs.add(buildAggregationExpr(sourceExpression, agg)
-                    + " AS " + targetColumnName);
+            if (state.isAverage()) {
+                addTargetColumn(parts, state.sumColumn(),
+                        "measure " + measureName + " SUM state");
+                parts.selectExprs.add(buildAggregationExpr(
+                        sourceExpression, DbAggregation.SUM)
+                        + " AS " + state.sumColumn());
+                addTargetColumn(parts, state.countColumn(),
+                        "measure " + measureName + " COUNT state");
+                parts.selectExprs.add("COUNT(" + sourceExpression + ") AS "
+                        + state.countColumn());
+            } else {
+                addTargetColumn(parts, state.valueColumn(), "measure " + measureName);
+                parts.selectExprs.add(buildAggregationExpr(sourceExpression, agg)
+                        + " AS " + state.valueColumn());
+            }
         }
 
         // 3. 添加行数统计列
@@ -435,15 +459,6 @@ public class PreAggSqlBuilder {
             throw contractError(
                     "Materialized column " + column + " is declared more than once (" + source + ")");
         }
-    }
-
-    private String requireMeasureColumn(Map<String, String> measureColumns, String measureName) {
-        String column = measureColumns != null ? measureColumns.get(measureName) : null;
-        if (isBlank(column)) {
-            throw contractError(
-                    "No explicit materialized measure column is declared for " + measureName);
-        }
-        return column;
     }
 
     private Set<String> getDeclaredDimensionProperties(PreAggregation preAgg,

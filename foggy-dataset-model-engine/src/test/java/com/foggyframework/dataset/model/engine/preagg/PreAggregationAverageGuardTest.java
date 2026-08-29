@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PreAggregationAverageGuardTest {
 
     @Test
-    void detectsAverageThatCannotBeReaggregatedFromOnePhysicalPreAggColumn() {
+    void detectsDirectAverageForUnsupportedAdvancedBuilderGuards() {
         JdbcQuery query = queryWith(new AggregationDbColumn(
                 null, "averageAmount", "avg(t.amount)", DbColumnType.NUMBER, DbAggregation.AVG));
 

@@ -459,7 +459,8 @@ public class PreAggregationMatcher {
         return aggregation == DbAggregation.SUM
                 || aggregation == DbAggregation.COUNT
                 || aggregation == DbAggregation.MIN
-                || aggregation == DbAggregation.MAX;
+                || aggregation == DbAggregation.MAX
+                || aggregation == DbAggregation.AVG;
     }
 
     /**
