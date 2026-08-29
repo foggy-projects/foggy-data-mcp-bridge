@@ -304,8 +304,8 @@ class AverageTotalDataRegressionTest extends EcommerceTestSupport {
                 "salesShare", "ratioToTotal", "totalSales", "grandTotal", "ratio")));
         request.setPostSlice(List.of(new SliceRequestDef("salesShare", ">", 0.2)));
 
-        PagingResultImpl<?> result = queryWithAverageMeasure(request, 0, 100, "unitPrice")
-                .getPagingResult();
+        DbQueryResult queryResult = queryWithAverageMeasure(request, 0, 100, "unitPrice");
+        PagingResultImpl<?> result = queryResult.getPagingResult();
         BigDecimal expected = nativeDecimal("""
                 with grouped as (
                     select p.category_name,
@@ -327,6 +327,7 @@ class AverageTotalDataRegressionTest extends EcommerceTestSupport {
 
         assertDecimalEquals(expected, totalData(result).get("averageUnitPrice"),
                 "postSlice 后 AVG 总计必须只合并幸存分组的 SUM/COUNT 状态");
+        assertSharedResultStageTotalSql(queryResult, "post_stage");
     }
 
     @Test
@@ -344,8 +345,8 @@ class AverageTotalDataRegressionTest extends EcommerceTestSupport {
         ));
         request.setPostSlice(List.of(new SliceRequestDef("averagePriceRank", "<=", 2)));
 
-        PagingResultImpl<?> result = queryWithAverageMeasure(request, 0, 100, "unitPrice")
-                .getPagingResult();
+        DbQueryResult queryResult = queryWithAverageMeasure(request, 0, 100, "unitPrice");
+        PagingResultImpl<?> result = queryResult.getPagingResult();
         BigDecimal expected = nativeDecimal("""
                 with grouped as (
                     select p.category_name,
@@ -367,6 +368,7 @@ class AverageTotalDataRegressionTest extends EcommerceTestSupport {
 
         assertDecimalEquals(expected, totalData(result).get("averageUnitPrice"),
                 "window postSlice 后 AVG 总计必须保留幸存组状态");
+        assertSharedResultStageTotalSql(queryResult, "__POST_RESULT_STAGE__");
     }
 
     @Test
@@ -611,6 +613,17 @@ class AverageTotalDataRegressionTest extends EcommerceTestSupport {
             return decimal;
         }
         return new BigDecimal(String.valueOf(value));
+    }
+
+    private void assertSharedResultStageTotalSql(
+            DbQueryResult queryResult,
+            String expectedResultStageAlias) {
+        JdbcModelQueryEngine engine = (JdbcModelQueryEngine) queryResult.getQueryEngine();
+        String totalSql = engine.getAggSql();
+        assertTrue(totalSql.contains("WITH stage1 AS"), totalSql);
+        assertTrue(totalSql.contains(expectedResultStageAlias + " AS"), totalSql);
+        assertFalse(totalSql.contains("__foggy_total_stage_"), totalSql);
+        assertFalse(totalSql.contains("WITH __foggy_total_base AS"), totalSql);
     }
 
     private void assertDecimalEquals(BigDecimal expected, Object actual, String message) {

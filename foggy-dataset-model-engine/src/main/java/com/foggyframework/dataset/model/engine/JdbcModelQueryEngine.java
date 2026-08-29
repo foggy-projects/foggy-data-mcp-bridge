@@ -507,6 +507,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
         //   Stage 2 (outer): SELECT stage1.*, windowCF1, windowCF2 FROM stage1 ORDER BY ... LIMIT ...
         QueryStagePlan stagePlan = attachQueryStagePlan(context, queryRequest, jdbcQuery);
         validateStagePlan(stagePlan);
+        this.resultStageGraph = null;
 
         AggregateJoinTableModel.setRuntimeFilterContext(context);
         try {
@@ -1731,6 +1732,137 @@ public class JdbcModelQueryEngine implements QueryEngine {
             jdbcQuery.setOrder(savedOrder);
         }
 
+        List<Object> baseParams = new ArrayList<>(stateExpressionParams);
+        baseParams.addAll(baseVisitorParams);
+        if (resultStageGraph != null) {
+            return renderSharedResultStageTotal(
+                    plan,
+                    originalColumns,
+                    baseColumns,
+                    baseSql,
+                    baseParams,
+                    domainTransportSqlInjection,
+                    dialect);
+        }
+        return renderSingleStageAlgebraicTotal(
+                plan, baseSql, baseParams, domainTransportSqlInjection, dialect);
+    }
+
+    private BoundSqlExpression renderSharedResultStageTotal(
+            TotalDataAggregatePlan plan,
+            List<DbColumn> originalColumns,
+            List<DbColumn> baseColumns,
+            String baseSql,
+            List<Object> baseParams,
+            DomainTransportSqlInjection domainTransportSqlInjection,
+            FDialect dialect) {
+        String boundThroughStageId = lastBaseStageId(resultStageGraph);
+        String totalSourceAlias = lastResultStageAlias(resultStageGraph);
+        ResultStagePlan.RootSql root = new ResultStagePlan.RootSql(
+                domainTransportSqlInjection == null
+                        ? List.of() : domainTransportSqlInjection.structuredCtes(),
+                boundThroughStageId,
+                new BoundSqlExpression(baseSql, baseParams),
+                buildTotalRootColumns(
+                        plan, baseColumns, boundThroughStageId,
+                        stageId(resultStageGraph.diagnostics(), QueryStageType.FINAL_STAGE),
+                        dialect));
+        ResultStagePlan.Executable executable = ResultStagePlan.Executable.bind(
+                resultStageGraph,
+                ResultStagePlan.Mode.TOTAL,
+                root,
+                buildTotalFinalProjection(plan, originalColumns, totalSourceAlias, dialect));
+        ResultStagePlan.RenderResult rendered = resultStageRenderer.render(executable, dialect);
+        return new BoundSqlExpression(rendered.assembledSql(), rendered.assembledValues());
+    }
+
+    private List<ResultStagePlan.Column> buildTotalRootColumns(
+            TotalDataAggregatePlan plan,
+            List<DbColumn> baseColumns,
+            String producerStageId,
+            String lastConsumerStageId,
+            FDialect dialect) {
+        Set<String> publicAliases = new LinkedHashSet<>(plan.getPublicAliases());
+        List<ResultStagePlan.Column> columns = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        for (DbColumn column : baseColumns) {
+            String alias = getCteProjectionAlias(column);
+            if (StringUtils.isEmpty(alias) || !seen.add(alias)) {
+                continue;
+            }
+            ResultStagePlan.ColumnRole role;
+            if (alias.toLowerCase(Locale.ROOT).startsWith("__foggy_")) {
+                role = ResultStagePlan.ColumnRole.INTERNAL_AGGREGATE_STATE;
+            } else if (publicAliases.contains(alias)) {
+                role = ResultStagePlan.ColumnRole.PUBLIC_RESULT;
+            } else {
+                role = ResultStagePlan.ColumnRole.HIDDEN_DEPENDENCY;
+            }
+            columns.add(new ResultStagePlan.Column(
+                    alias,
+                    role,
+                    producerStageId,
+                    lastConsumerStageId,
+                    column.getType(),
+                    column.getAlias(),
+                    BoundSqlExpression.of(dialect.quoteIdentifier(alias))));
+        }
+        return columns;
+    }
+
+    private List<ResultStagePlan.FinalProjection> buildTotalFinalProjection(
+            TotalDataAggregatePlan plan,
+            List<DbColumn> originalColumns,
+            String totalSourceAlias,
+            FDialect dialect) {
+        Map<String, DbColumn> originalByAlias = new LinkedHashMap<>();
+        for (DbColumn column : originalColumns) {
+            originalByAlias.put(column.getAlias(), column);
+        }
+        Set<String> resultStageAliases = resultStageGraph.stages().stream()
+                .flatMap(stage -> stage.computedColumns().stream())
+                .map(ResultStagePlan.Column::alias)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        List<ResultStagePlan.FinalProjection> projections = new ArrayList<>();
+        for (String alias : plan.getPublicAliases()) {
+            String expression = plan.renderPublicExpression(alias, dialect, totalSourceAlias);
+            DbColumn original = originalByAlias.get(alias);
+            projections.add(new ResultStagePlan.FinalProjection(
+                    alias,
+                    resultStageAliases.contains(alias)
+                            ? ResultStagePlan.ColumnRole.RESULT_STAGE_ONLY
+                            : ResultStagePlan.ColumnRole.PUBLIC_RESULT,
+                    original == null ? DbColumnType.UNKNOWN : original.getType(),
+                    BoundSqlExpression.of(StringUtils.isEmpty(expression) ? "NULL" : expression)));
+        }
+        projections.add(new ResultStagePlan.FinalProjection(
+                "total",
+                ResultStagePlan.ColumnRole.PUBLIC_RESULT,
+                DbColumnType.INTEGER,
+                BoundSqlExpression.of("COUNT(*)")));
+        return projections;
+    }
+
+    private String lastResultStageAlias(ResultStagePlan.Graph graph) {
+        String alias = null;
+        for (ResultStagePlan.Stage stage : graph.stages()) {
+            if (stage.type() == QueryStageType.WINDOW_RESULT_STAGE
+                    || stage.type() == QueryStageType.POST_AGGREGATE_STAGE) {
+                alias = stage.renderAlias();
+            }
+        }
+        if (alias == null) {
+            throw new IllegalArgumentException("Shared TOTAL graph has no result stage");
+        }
+        return alias;
+    }
+
+    private BoundSqlExpression renderSingleStageAlgebraicTotal(
+            TotalDataAggregatePlan plan,
+            String baseSql,
+            List<Object> baseParams,
+            DomainTransportSqlInjection domainTransportSqlInjection,
+            FDialect dialect) {
         List<Object> params = new ArrayList<>();
         String ctePrefix = "";
         if (domainTransportSqlInjection != null && domainTransportSqlInjection.hasCte()) {
@@ -1739,59 +1871,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
                     + ",\n__foggy_total_base AS (\n" + baseSql + "\n)\n";
             baseSql = "SELECT * FROM __foggy_total_base";
         }
-        params.addAll(stateExpressionParams);
-        params.addAll(baseVisitorParams);
-
-        String currentSql = baseSql;
-        int stageIndex = 0;
-        if (!windowColumns.isEmpty()) {
-            String sourceAlias = "__foggy_total_stage_" + stageIndex++;
-            List<String> projections = new ArrayList<>();
-            projections.add(sourceAlias + ".*");
-            for (DbColumn window : windowColumns) {
-                projections.add(window.getDeclare() + " AS "
-                        + dialect.quoteIdentifier(window.getAlias()));
-            }
-            currentSql = "SELECT " + String.join(",\n       ", projections)
-                    + "\nFROM (\n" + currentSql + "\n) " + sourceAlias;
-        }
-
-        if (queryRequest.getPostAggregateCalculations() != null
-                && !queryRequest.getPostAggregateCalculations().isEmpty()) {
-            String sourceAlias = "__foggy_total_stage_" + stageIndex++;
-            List<String> projections = new ArrayList<>();
-            projections.add(sourceAlias + ".*");
-            for (PostAggregateCalculationDef calc : queryRequest.getPostAggregateCalculations()) {
-                String measureRef = sourceAlias + "." + dialect.quoteIdentifier(calc.getMeasure());
-                projections.add(buildPostAggregateCalculationSql(calc, measureRef)
-                        + " AS " + dialect.quoteIdentifier(calc.getName()));
-            }
-            currentSql = "SELECT " + String.join(",\n       ", projections)
-                    + "\nFROM (\n" + currentSql + "\n) " + sourceAlias;
-        }
-
-        List<SliceRequestDef> resultFilters = new ArrayList<>();
-        if (postAggregateSlice != null) {
-            resultFilters.addAll(postAggregateSlice);
-        }
-        if (queryRequest.getPostSlice() != null) {
-            resultFilters.addAll(queryRequest.getPostSlice());
-        }
-        if (!resultFilters.isEmpty()) {
-            String sourceAlias = "__foggy_total_stage_" + stageIndex++;
-            Set<String> availableAliases = new LinkedHashSet<>(plan.getPublicAliases());
-            if (queryRequest.getPostAggregateCalculations() != null) {
-                queryRequest.getPostAggregateCalculations().stream()
-                        .map(PostAggregateCalculationDef::getName)
-                        .forEach(availableAliases::add);
-            }
-            List<String> filters = new ArrayList<>();
-            for (SliceRequestDef filter : resultFilters) {
-                filters.add(buildPostAggregateFilterSql(filter, dialect, availableAliases, params));
-            }
-            currentSql = "SELECT *\nFROM (\n" + currentSql + "\n) " + sourceAlias
-                    + "\nWHERE " + String.join(" AND ", filters);
-        }
+        params.addAll(baseParams);
 
         String totalAlias = "tx";
         List<String> totalProjections = new ArrayList<>();
@@ -1802,7 +1882,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
         }
         totalProjections.add("COUNT(*) AS " + dialect.quoteIdentifier("total"));
         String sql = ctePrefix + "SELECT " + String.join(",\n       ", totalProjections)
-                + "\nFROM (\n" + currentSql + "\n) " + totalAlias;
+                + "\nFROM (\n" + baseSql + "\n) " + totalAlias;
         return new BoundSqlExpression(sql, params);
     }
 
