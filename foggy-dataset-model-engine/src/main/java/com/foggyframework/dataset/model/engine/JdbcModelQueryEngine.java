@@ -523,7 +523,8 @@ public class JdbcModelQueryEngine implements QueryEngine {
             boolean countToSum = queryRequest.hasGroupBy();
             this.totalDataAggregatePlan = buildTotalDataAggregatePlan(
                     queryRequest, jdbcQuery, countToSum);
-            if (totalDataAggregatePlan.getStatus()
+            if (queryRequest.isReturnTotal()
+                    && totalDataAggregatePlan.getStatus()
                     == TotalDataAggregatePlan.LoweringStatus.REFUSED) {
                 throw RX.throwAUserTip(
                         "TOTAL_DATA_AGGREGATE_NOT_MERGEABLE: "

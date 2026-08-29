@@ -37,6 +37,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -568,6 +569,23 @@ class AverageTotalDataRegressionTest extends EcommerceTestSupport {
 
         assertTrue(error.getMessage().contains("TOTAL_DATA_AGGREGATE_NOT_MERGEABLE"),
                 error.getMessage());
+    }
+
+    @Test
+    @DisplayName("未请求 totalData 时 COUNT_DISTINCT 分组主查询不得被 total merge 门禁拒绝")
+    void countDistinctWithoutReturnTotalShouldKeepMainQueryExecutable() {
+        DbQueryRequestDef request = groupedRequest("product$categoryName");
+        request.setReturnTotal(false);
+        request.setColumns(List.of(
+                "product$categoryName",
+                "countd(customer$id) as uniqueCustomers"
+        ));
+
+        PagingResultImpl<?> result = queryWithAverageMeasure(
+                request, 0, 100, "unitPrice").getPagingResult();
+
+        assertFalse(result.getItems().isEmpty());
+        assertNull(result.getTotalData(), "returnTotal=false 不应执行或返回 totalData");
     }
 
     @Test
