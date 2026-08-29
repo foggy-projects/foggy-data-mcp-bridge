@@ -499,7 +499,7 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
         } else {
             // 使用原始查询
             aggSql = queryEngine.getAggSql();
-            aggParams = queryEngine.getValues();
+            aggParams = queryEngine.getAggValues();
         }
 
         // 记录 SQL 日志（汇总查询）

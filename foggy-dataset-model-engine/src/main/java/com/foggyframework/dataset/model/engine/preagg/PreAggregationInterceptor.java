@@ -2,7 +2,11 @@ package com.foggyframework.dataset.model.engine.preagg;
 
 import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.model.engine.JdbcModelQueryEngine;
+import com.foggyframework.dataset.model.engine.expression.TotalExpressionNode;
 import com.foggyframework.dataset.model.engine.query.JdbcQuery;
+import com.foggyframework.dataset.model.spi.DbAggregation;
+import com.foggyframework.dataset.model.spi.DbColumn;
+import com.foggyframework.dataset.model.spi.support.CalculatedDbColumn;
 import com.foggyframework.dataset.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.model.spi.TableModel;
 import com.foggyframework.dataset.model.spi.preagg.PreAggregation;
@@ -183,6 +187,11 @@ public class PreAggregationInterceptor {
 
         // 2. 从查询中提取需求（专门用于聚合查询）
         JdbcQuery jdbcQuery = queryEngine.getJdbcQuery();
+        if (queryEngine.isAlgebraicAggSql()
+                || containsNonDecomposableAverage(jdbcQuery)) {
+            log.debug("Pre-aggregation aggregate SQL skipped: AVG requires independent SUM/COUNT states");
+            return null;
+        }
         PreAggQueryRequirement requirement = buildAggregateRequirement(queryRequest, jdbcQuery, queryModel);
 
         if (log.isDebugEnabled()) {
@@ -239,6 +248,11 @@ public class PreAggregationInterceptor {
         if (jdbcQuery == null) {
             return null;
         }
+        if (queryEngine.isAlgebraicAggSql()
+                || containsNonDecomposableAverage(jdbcQuery)) {
+            log.debug("Final-stage pre-aggregation aggregate SQL skipped: AVG requires independent SUM/COUNT states");
+            return null;
+        }
 
         PreAggQueryRequirement requirement =
                 requirementBuilder.buildFinalStage(
@@ -275,5 +289,42 @@ public class PreAggregationInterceptor {
         return requirementBuilder.buildAggregate(
                 queryRequest, jdbcQuery, queryModel,
                 securityPredicates, securityContextCacheable);
+    }
+
+    /**
+     * Current pre-aggregation measure storage has one physical value per
+     * measure. AVG cannot be rolled up correctly from that value alone; it
+     * needs independent SUM and non-null COUNT states. Fail closed so the
+     * fact-based algebraic total plan remains authoritative.
+     */
+    static boolean containsNonDecomposableAverage(JdbcQuery jdbcQuery) {
+        if (jdbcQuery == null || jdbcQuery.getSelect() == null
+                || jdbcQuery.getSelect().getColumns() == null) {
+            return false;
+        }
+        for (DbColumn column : jdbcQuery.getSelect().getColumns()) {
+            if (column != null && column.getAggregation() == DbAggregation.AVG) {
+                return true;
+            }
+            if (column instanceof CalculatedDbColumn calculated
+                    && calculated.getSqlFragment() != null
+                    && containsAverageLeaf(calculated.getSqlFragment().getTotalExpression())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean containsAverageLeaf(TotalExpressionNode expression) {
+        if (expression == null) {
+            return false;
+        }
+        boolean[] found = {false};
+        expression.visitAggregateLeaves(leaf -> {
+            if (DbAggregation.AVG.name().equalsIgnoreCase(leaf.aggregation())) {
+                found[0] = true;
+            }
+        });
+        return found[0];
     }
 }

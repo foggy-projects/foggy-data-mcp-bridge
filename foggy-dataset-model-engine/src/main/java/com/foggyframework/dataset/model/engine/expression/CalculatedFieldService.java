@@ -2,6 +2,7 @@ package com.foggyframework.dataset.model.engine.expression;
 
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
+import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.model.engine.expression.sql.SqlBinaryExp;
 import com.foggyframework.dataset.model.engine.expression.sql.SqlCalculateExp;
@@ -11,6 +12,8 @@ import com.foggyframework.dataset.model.engine.expression.sql.SqlListExp;
 import com.foggyframework.dataset.model.engine.expression.sql.SqlRemoveExp;
 import com.foggyframework.dataset.model.engine.expression.sql.SqlUnaryExp;
 import com.foggyframework.dataset.model.engine.expression.SqlExpHolder;
+import com.foggyframework.dataset.model.spi.DbColumnType;
+import com.foggyframework.dataset.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.model.spi.support.CalculatedDbColumn;
 import com.foggyframework.fsscript.DefaultExpEvaluator;
 import com.foggyframework.fsscript.parser.FsscriptDialect;
@@ -464,6 +467,15 @@ public final class CalculatedFieldService {
         wrapped.setHasAggregate(hasAggregate);
         wrapped.setHasWindow(hasWindow);
         wrapped.setAggregationType(aggregationType);
+        TotalExpressionNode expression = sqlFragment.getTotalExpression();
+        if (!sqlFragment.isHasAggregate() && !sqlFragment.isHasWindow()
+                && fieldDef.getAgg() != null) {
+            expression = TotalExpressionNode.aggregate(
+                    fieldDef.getAgg().toUpperCase(), BoundSqlExpression.of(sqlFragment.getSql()));
+        }
+        wrapped.setTotalExpression(TotalExpressionNode.function("COALESCE", List.of(
+                expression,
+                TotalExpressionNode.raw(toSqlLiteral(fieldDef.getEmptyDefault())))));
         return wrapped;
     }
 

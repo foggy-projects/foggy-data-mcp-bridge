@@ -2,6 +2,8 @@ package com.foggyframework.dataset.model.engine.expression.sql;
 
 import com.foggyframework.dataset.model.engine.expression.SqlExpContext;
 import com.foggyframework.dataset.model.engine.expression.SqlFragment;
+import com.foggyframework.dataset.model.engine.expression.BoundSqlExpression;
+import com.foggyframework.dataset.model.engine.expression.TotalExpressionNode;
 import com.foggyframework.dataset.model.spi.DbAggregation;
 import com.foggyframework.dataset.model.spi.DbQueryColumn;
 import com.foggyframework.dataset.model.spi.support.CalculatedDbColumn;
@@ -76,6 +78,7 @@ public class SqlColumnRefExp extends AbstractExp<String> {
             log.debug("SqlColumnRefExp.evalValue: sqlDeclare='{}'", sqlDeclare);
         }
 
+        String aggregateSourceDeclare = sqlDeclare;
         DbAggregation groupedAggregation = resolveGroupedAggregation(ctx, column);
         if (groupedAggregation != null && !ctx.isInsideAggregateFunctionArgument()) {
             sqlDeclare = buildAggregateSql(ctx, groupedAggregation, sqlDeclare);
@@ -89,6 +92,8 @@ public class SqlColumnRefExp extends AbstractExp<String> {
         if (groupedAggregation != null && !ctx.isInsideAggregateFunctionArgument()) {
             fragment.setHasAggregate(true);
             fragment.setAggregationType(groupedAggregation.name());
+            fragment.setTotalExpression(TotalExpressionNode.aggregate(
+                    groupedAggregation.name(), BoundSqlExpression.of(aggregateSourceDeclare)));
         }
 
         // 如果是计算字段，需要合并其依赖的列和聚合状态

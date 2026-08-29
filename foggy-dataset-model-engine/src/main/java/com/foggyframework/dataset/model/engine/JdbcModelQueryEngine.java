@@ -12,8 +12,12 @@ import com.foggyframework.dataset.db.dialect.DbType;
 import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.model.engine.expression.CalculateDialectCapabilities;
 import com.foggyframework.dataset.model.engine.expression.CalculateQueryContext;
+import com.foggyframework.dataset.model.engine.expression.CalculatedFieldService;
+import com.foggyframework.dataset.model.engine.expression.BoundSqlExpression;
 import com.foggyframework.dataset.model.engine.expression.SqlCalculatedFieldProcessor;
 import com.foggyframework.dataset.model.engine.expression.SqlExpContext;
+import com.foggyframework.dataset.model.engine.expression.SqlFragment;
+import com.foggyframework.dataset.model.engine.expression.TotalExpressionNode;
 import com.foggyframework.dataset.model.engine.formula.SqlFormulaService;
 import com.foggyframework.dataset.model.engine.formula.hierarchy.HierarchyOperator;
 import com.foggyframework.dataset.model.engine.formula.hierarchy.HierarchyOperatorService;
@@ -37,6 +41,7 @@ import com.foggyframework.dataset.model.engine.query.SimpleSqlJdbcQueryVisitor;
 import com.foggyframework.dataset.model.engine.query_model.PredefinedCalculatedFieldInjector;
 import com.foggyframework.dataset.model.engine.stage.QueryStagePlan;
 import com.foggyframework.dataset.model.engine.stage.QueryStagePlanner;
+import com.foggyframework.dataset.model.engine.total.TotalDataAggregatePlan;
 import com.foggyframework.dataset.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.model.impl.AiObject;
 import com.foggyframework.dataset.model.impl.DbColumnDelegate;
@@ -64,8 +69,11 @@ import org.springframework.context.ApplicationContext;
 import java.sql.Connection;
 import java.sql.Types;
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -135,6 +143,25 @@ public class JdbcModelQueryEngine implements QueryEngine {
     String innerSql;
     String sql;
     String aggSql;
+
+    /**
+     * Whether {@link #aggSql} carries mergeable aggregate states (for example
+     * AVG as SUM + COUNT). A physical pre-aggregation must not replace this
+     * plan unless it exposes the same states explicitly.
+     */
+    boolean algebraicAggSql;
+
+    /** Bind values owned by aggSql; never inferred from the main query. */
+    List<Object> aggValues = List.of();
+
+    /** Request-scoped totalData lowering result, also used by pre-aggregation guards. */
+    TotalDataAggregatePlan totalDataAggregatePlan = TotalDataAggregatePlan.notApplicable();
+
+    /** Source expression captured before buildAggColumn1 applies an aggregate wrapper. */
+    IdentityHashMap<DbColumn, String> aggregateSourceDeclares = new IdentityHashMap<>();
+
+    /** Original column retained when grouped planning wraps it in AggregationDbColumn. */
+    IdentityHashMap<DbColumn, DbColumn> aggregateSourceColumns = new IdentityHashMap<>();
 
     /**
      * 聚合SQL优化结果（用于调试和测试）
@@ -831,7 +858,8 @@ public class JdbcModelQueryEngine implements QueryEngine {
         this.sql = this.innerSql;
 
         boolean countToSum = queryRequest.hasGroupBy();
-        buildAggSqlForStagePlan(systemBundlesContext, queryRequest, jdbcQuery, stagePlan, countToSum);
+        buildAggSqlForStagePlan(systemBundlesContext, queryRequest, jdbcQuery,
+                domainTransportInjection, stagePlan, countToSum);
     }
 
     /**
@@ -942,10 +970,11 @@ public class JdbcModelQueryEngine implements QueryEngine {
         }
 
         for (WindowColumnInfo wci : windowColumns) {
-            if (wci.column instanceof CalculatedDbColumn calc && calc.getReferencedColumns() != null) {
+            CalculatedDbColumn calc = sourceCalculatedColumn(wci.column);
+            if (calc != null && calc.getReferencedColumns() != null) {
                 for (DbQueryColumn ref : calc.getReferencedColumns()) {
                     if (!containsCteProjectionAlias(stage1SelectCols, ref)) {
-                        stage1SelectCols.add(ref);
+                        stage1SelectCols.add(windowDependencyProjection(systemBundlesContext, ref));
                     }
                 }
             }
@@ -1082,7 +1111,8 @@ public class JdbcModelQueryEngine implements QueryEngine {
         this.values = mergedValues;
 
         boolean countToSum = queryRequest.hasGroupBy();
-        buildAggSqlForStagePlan(systemBundlesContext, queryRequest, jdbcQuery, stagePlan, countToSum);
+        buildAggSqlForStagePlan(systemBundlesContext, queryRequest, jdbcQuery,
+                domainTransportInjection, stagePlan, countToSum);
     }
 
     private List<String> buildWindowResultOrderExprs(
@@ -1257,14 +1287,33 @@ public class JdbcModelQueryEngine implements QueryEngine {
         this.values = mergedValues;
 
         boolean countToSum = queryRequest.hasGroupBy();
-        buildAggSqlForStagePlan(systemBundlesContext, queryRequest, jdbcQuery, stagePlan, countToSum);
+        buildAggSqlForStagePlan(systemBundlesContext, queryRequest, jdbcQuery,
+                domainTransportInjection, stagePlan, countToSum);
     }
 
     private void buildAggSqlForStagePlan(SystemBundlesContext systemBundlesContext,
                                          DbQueryRequestDef queryRequest,
                                          JdbcQuery jdbcQuery,
+                                         DomainTransportSqlInjection domainTransportInjection,
                                          QueryStagePlan stagePlan,
                                          boolean countToSum) {
+        TotalDataAggregatePlan plan = buildTotalDataAggregatePlan(queryRequest, jdbcQuery, countToSum);
+        this.totalDataAggregatePlan = plan;
+        if (plan.getStatus() == TotalDataAggregatePlan.LoweringStatus.REFUSED) {
+            throw RX.throwAUserTip("TOTAL_DATA_AGGREGATE_NOT_MERGEABLE: " + plan.getRefusalReason());
+        }
+        if (plan.getStatus() == TotalDataAggregatePlan.LoweringStatus.LOWERED) {
+            BoundSqlExpression rendered = renderAlgebraicTotalData(
+                    systemBundlesContext, queryRequest, jdbcQuery,
+                    domainTransportInjection, plan);
+            this.aggSql = rendered.sql();
+            this.aggValues = rendered.values();
+            this.algebraicAggSql = true;
+            this.aggSqlOptimizationResult = null;
+            return;
+        }
+        this.algebraicAggSql = false;
+        this.aggValues = this.values == null ? List.of() : new ArrayList<>(this.values);
         boolean optimizeAggSql = queryRequest.isOptimizeAggSqlEnabled()
                 && (stagePlan == null || !stagePlan.requiresFinalStageAggSql());
         if (optimizeAggSql) {
@@ -1282,6 +1331,441 @@ public class JdbcModelQueryEngine implements QueryEngine {
                 && stagePlan != null && stagePlan.requiresFinalStageAggSql()) {
             log.debug("聚合SQL优化跳过: {}", stagePlan.aggSqlOptimizationPolicy());
         }
+    }
+
+    private TotalDataAggregatePlan buildTotalDataAggregatePlan(DbQueryRequestDef queryRequest,
+                                                               JdbcQuery jdbcQuery,
+                                                               boolean countToSum) {
+        if (!countToSum || queryRequest == null || !queryRequest.hasGroupBy()
+                || jdbcQuery == null || jdbcQuery.getSelect() == null
+                || jdbcQuery.getSelect().getColumns() == null) {
+            return TotalDataAggregatePlan.notApplicable();
+        }
+
+        List<DbColumn> publicColumns = new ArrayList<>(jdbcQuery.getSelect().getColumns());
+        Map<String, CalculatedDbColumn> calculatedByAlias = new LinkedHashMap<>();
+        if (calculatedColumns != null) {
+            for (CalculatedDbColumn calculated : calculatedColumns) {
+                calculatedByAlias.put(calculated.getAlias(), calculated);
+            }
+        }
+
+        Map<String, TotalExpressionNode> materialized = new LinkedHashMap<>();
+        List<String> publicAliases = new ArrayList<>();
+        boolean requiresLowering = false;
+        for (DbColumn column : publicColumns) {
+            String alias = column.getAlias();
+            publicAliases.add(alias);
+            TotalExpressionNode expression = resolveTotalExpression(column);
+            if (expression != null) {
+                materialized.put(alias, expression);
+                String nonMergeable = findNonMergeableAggregation(
+                        expression, calculatedByAlias, new LinkedHashSet<>());
+                if (nonMergeable != null) {
+                    return TotalDataAggregatePlan.refused(
+                            "aggregate '" + nonMergeable + "' in '" + alias
+                                    + "' has no mergeable totalData state");
+                }
+                boolean aggregateThroughDependencies = containsAggregate(
+                        expression, calculatedByAlias, new LinkedHashSet<>());
+                boolean containsAverage = containsAggregation(
+                        expression, calculatedByAlias, DbAggregation.AVG, new LinkedHashSet<>());
+                boolean compositeCalculated = column instanceof CalculatedDbColumn
+                        && aggregateThroughDependencies
+                        && expression.getKind() != TotalExpressionNode.Kind.AGGREGATE;
+                requiresLowering = requiresLowering || containsAverage || compositeCalculated;
+            }
+        }
+        if (!requiresLowering) {
+            return TotalDataAggregatePlan.notApplicable();
+        }
+        for (String alias : publicAliases) {
+            if (alias != null && alias.toLowerCase(Locale.ROOT).startsWith("__foggy_")) {
+                return TotalDataAggregatePlan.refused(
+                        "output alias '" + alias + "' uses the reserved __foggy_ namespace");
+            }
+        }
+
+        TotalDataAggregatePlan.Builder builder = new TotalDataAggregatePlan.Builder();
+        for (String alias : publicAliases) {
+            builder.addPublicExpression(alias, materialized.get(alias));
+        }
+        for (String alias : publicAliases) {
+            materializeCalculatedDependencies(
+                    alias, materialized.get(alias), calculatedByAlias,
+                    materialized, builder, new LinkedHashSet<>());
+        }
+        if (builder.isRefused()) {
+            return builder.build();
+        }
+
+        Set<String> boundAliases = new LinkedHashSet<>();
+        for (String alias : publicAliases) {
+            bindExpressionLeaves(alias, materialized, builder, boundAliases, new LinkedHashSet<>());
+        }
+        return builder.build();
+    }
+
+    private String findNonMergeableAggregation(
+            TotalExpressionNode expression,
+            Map<String, CalculatedDbColumn> calculatedByAlias,
+            Set<String> visiting) {
+        if (expression == null) {
+            return null;
+        }
+        String[] found = {null};
+        expression.visitAggregateLeaves(leaf -> {
+            if (found[0] != null) {
+                return;
+            }
+            DbAggregation aggregation;
+            try {
+                aggregation = DbAggregation.valueOf(
+                        leaf.aggregation().toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException ignored) {
+                found[0] = leaf.aggregation();
+                return;
+            }
+            if (aggregation != DbAggregation.SUM
+                    && aggregation != DbAggregation.COUNT
+                    && aggregation != DbAggregation.MIN
+                    && aggregation != DbAggregation.MAX
+                    && aggregation != DbAggregation.PK
+                    && aggregation != DbAggregation.AVG) {
+                found[0] = leaf.aggregation();
+            }
+        });
+        if (found[0] != null) {
+            return found[0];
+        }
+        List<String> references = new ArrayList<>();
+        expression.visitReferences(references::add);
+        for (String reference : references) {
+            if (!visiting.add(reference)) {
+                continue;
+            }
+            CalculatedDbColumn calculated = calculatedByAlias.get(reference);
+            String nested = calculated == null || calculated.getSqlFragment() == null
+                    ? null
+                    : findNonMergeableAggregation(
+                    calculated.getSqlFragment().getTotalExpression(), calculatedByAlias, visiting);
+            visiting.remove(reference);
+            if (nested != null) {
+                return nested;
+            }
+        }
+        return null;
+    }
+
+    private TotalExpressionNode resolveTotalExpression(DbColumn column) {
+        if (column instanceof CalculatedDbColumn calculated) {
+            SqlFragment fragment = calculated.getSqlFragment();
+            return fragment == null ? null : fragment.getTotalExpression();
+        }
+        DbAggregation aggregation = resolveAggregation(column);
+        if (aggregation == DbAggregation.NONE || aggregation == DbAggregation.WINDOW) {
+            return null;
+        }
+        String source = aggregateSourceDeclares.get(column);
+        if (aggregation == DbAggregation.COUNT) {
+            source = "*";
+        }
+        if (StringUtils.isEmpty(source)) {
+            return null;
+        }
+        return TotalExpressionNode.aggregate(
+                aggregation.name(), BoundSqlExpression.of(source));
+    }
+
+    private DbAggregation resolveAggregation(DbColumn column) {
+        if (column instanceof CalculatedDbColumn calculated) {
+            String aggregationType = calculated.getAggregationType();
+            if (StringUtils.isEmpty(aggregationType)) {
+                return DbAggregation.NONE;
+            }
+            try {
+                return DbAggregation.valueOf(aggregationType.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException ignored) {
+                return DbAggregation.NONE;
+            }
+        }
+        DbAggregation aggregation = column == null ? null : column.getAggregation();
+        return aggregation == null ? DbAggregation.NONE : aggregation;
+    }
+
+    private boolean containsAggregate(TotalExpressionNode expression,
+                                      Map<String, CalculatedDbColumn> calculatedByAlias,
+                                      Set<String> visiting) {
+        if (expression == null) {
+            return false;
+        }
+        if (expression.containsAggregate()) {
+            return true;
+        }
+        List<String> references = new ArrayList<>();
+        expression.visitReferences(references::add);
+        for (String reference : references) {
+            if (!visiting.add(reference)) {
+                continue;
+            }
+            CalculatedDbColumn calculated = calculatedByAlias.get(reference);
+            if (calculated != null && calculated.getSqlFragment() != null
+                    && containsAggregate(calculated.getSqlFragment().getTotalExpression(),
+                    calculatedByAlias, visiting)) {
+                return true;
+            }
+            visiting.remove(reference);
+        }
+        return false;
+    }
+
+    private boolean containsAggregation(TotalExpressionNode expression,
+                                        Map<String, CalculatedDbColumn> calculatedByAlias,
+                                        DbAggregation target,
+                                        Set<String> visiting) {
+        if (expression == null) {
+            return false;
+        }
+        boolean[] found = {false};
+        expression.visitAggregateLeaves(leaf -> {
+            if (target.name().equalsIgnoreCase(leaf.aggregation())) {
+                found[0] = true;
+            }
+        });
+        if (found[0]) {
+            return true;
+        }
+        List<String> references = new ArrayList<>();
+        expression.visitReferences(references::add);
+        for (String reference : references) {
+            if (!visiting.add(reference)) {
+                continue;
+            }
+            CalculatedDbColumn calculated = calculatedByAlias.get(reference);
+            if (calculated != null && calculated.getSqlFragment() != null
+                    && containsAggregation(calculated.getSqlFragment().getTotalExpression(),
+                    calculatedByAlias, target, visiting)) {
+                return true;
+            }
+            visiting.remove(reference);
+        }
+        return false;
+    }
+
+    private void materializeCalculatedDependencies(String ownerAlias,
+                                                   TotalExpressionNode expression,
+                                                   Map<String, CalculatedDbColumn> calculatedByAlias,
+                                                   Map<String, TotalExpressionNode> materialized,
+                                                   TotalDataAggregatePlan.Builder builder,
+                                                   Set<String> visiting) {
+        if (expression == null || builder.isRefused()) {
+            return;
+        }
+        List<String> references = new ArrayList<>();
+        expression.visitReferences(references::add);
+        for (String reference : references) {
+            TotalExpressionNode dependency = materialized.get(reference);
+            if (dependency == null) {
+                CalculatedDbColumn calculated = calculatedByAlias.get(reference);
+                if (calculated == null || calculated.getSqlFragment() == null) {
+                    builder.refuse("calculated totalData expression '" + ownerAlias
+                            + "' references non-aggregate field '" + reference + "'");
+                    return;
+                }
+                dependency = calculated.getSqlFragment().getTotalExpression();
+                materialized.put(reference, dependency);
+                builder.addDependencyExpression(reference, dependency);
+            }
+            if (!visiting.add(reference)) {
+                builder.refuse("calculated totalData dependency cycle at '" + reference + "'");
+                return;
+            }
+            materializeCalculatedDependencies(
+                    reference, dependency, calculatedByAlias, materialized, builder, visiting);
+            visiting.remove(reference);
+        }
+    }
+
+    private void bindExpressionLeaves(String alias,
+                                      Map<String, TotalExpressionNode> materialized,
+                                      TotalDataAggregatePlan.Builder builder,
+                                      Set<String> boundAliases,
+                                      Set<String> visiting) {
+        if (alias == null || boundAliases.contains(alias) || builder.isRefused()) {
+            return;
+        }
+        if (!visiting.add(alias)) {
+            builder.refuse("calculated totalData dependency cycle at '" + alias + "'");
+            return;
+        }
+        TotalExpressionNode expression = materialized.get(alias);
+        if (expression != null) {
+            builder.bindLeaves(alias, expression, DbColumnType.NUMBER);
+            List<String> references = new ArrayList<>();
+            expression.visitReferences(references::add);
+            for (String reference : references) {
+                bindExpressionLeaves(reference, materialized, builder, boundAliases, visiting);
+            }
+        }
+        visiting.remove(alias);
+        boundAliases.add(alias);
+    }
+
+    private BoundSqlExpression renderAlgebraicTotalData(
+            SystemBundlesContext systemBundlesContext,
+            DbQueryRequestDef queryRequest,
+            JdbcQuery jdbcQuery,
+            DomainTransportSqlInjection domainTransportSqlInjection,
+            TotalDataAggregatePlan plan) {
+        ApplicationContext appCtx = systemBundlesContext.getApplicationContext();
+        FDialect dialect = jdbcQueryModel != null
+                ? jdbcQueryModel.getDialect() : FDialect.MYSQL_DIALECT;
+        List<DbColumn> originalColumns = new ArrayList<>(jdbcQuery.getSelect().getColumns());
+        List<DbColumn> baseColumns = new ArrayList<>();
+        List<DbColumn> windowColumns = new ArrayList<>();
+        for (DbColumn column : originalColumns) {
+            if (resolveAggregation(column) == DbAggregation.WINDOW
+                    || (column instanceof CalculatedDbColumn calculated && calculated.hasWindow())) {
+                windowColumns.add(column);
+            } else {
+                baseColumns.add(column);
+            }
+        }
+
+        for (DbColumn window : windowColumns) {
+            CalculatedDbColumn calculated = sourceCalculatedColumn(window);
+            if (calculated != null && calculated.getReferencedColumns() != null) {
+                for (DbQueryColumn reference : calculated.getReferencedColumns()) {
+                    if (!containsCteProjectionAlias(baseColumns, reference)) {
+                        baseColumns.add(windowDependencyProjection(systemBundlesContext, reference));
+                    }
+                }
+            }
+        }
+
+        List<Object> stateExpressionParams = new ArrayList<>();
+        for (TotalDataAggregatePlan.AggregateStateSpec state : plan.getStates()) {
+            addStateColumns(baseColumns, state, stateExpressionParams);
+        }
+
+        List<DbColumn> savedColumns = jdbcQuery.getSelect().getColumns();
+        JdbcQuery.JdbcOrder savedOrder = jdbcQuery.getOrder();
+        String baseSql;
+        List<Object> baseVisitorParams;
+        try {
+            jdbcQuery.getSelect().setColumns(baseColumns);
+            jdbcQuery.setOrder(null);
+            SimpleSqlJdbcQueryVisitor visitor = new SimpleSqlJdbcQueryVisitor(
+                    appCtx, jdbcQueryModel, queryRequest);
+            jdbcQuery.accept(visitor);
+            baseSql = visitor.getSqlWithoutOrder();
+            baseVisitorParams = new ArrayList<>(visitor.getValues());
+        } finally {
+            jdbcQuery.getSelect().setColumns(savedColumns);
+            jdbcQuery.setOrder(savedOrder);
+        }
+
+        List<Object> params = new ArrayList<>();
+        String ctePrefix = "";
+        if (domainTransportSqlInjection != null && domainTransportSqlInjection.hasCte()) {
+            params.addAll(domainTransportSqlInjection.cteParams());
+            ctePrefix = "WITH " + String.join(",\n", domainTransportSqlInjection.cteFragments())
+                    + ",\n__foggy_total_base AS (\n" + baseSql + "\n)\n";
+            baseSql = "SELECT * FROM __foggy_total_base";
+        }
+        params.addAll(stateExpressionParams);
+        params.addAll(baseVisitorParams);
+
+        String currentSql = baseSql;
+        int stageIndex = 0;
+        if (!windowColumns.isEmpty()) {
+            String sourceAlias = "__foggy_total_stage_" + stageIndex++;
+            List<String> projections = new ArrayList<>();
+            projections.add(sourceAlias + ".*");
+            for (DbColumn window : windowColumns) {
+                projections.add(window.getDeclare() + " AS "
+                        + dialect.quoteIdentifier(window.getAlias()));
+            }
+            currentSql = "SELECT " + String.join(",\n       ", projections)
+                    + "\nFROM (\n" + currentSql + "\n) " + sourceAlias;
+        }
+
+        if (queryRequest.getPostAggregateCalculations() != null
+                && !queryRequest.getPostAggregateCalculations().isEmpty()) {
+            String sourceAlias = "__foggy_total_stage_" + stageIndex++;
+            List<String> projections = new ArrayList<>();
+            projections.add(sourceAlias + ".*");
+            for (PostAggregateCalculationDef calc : queryRequest.getPostAggregateCalculations()) {
+                String measureRef = sourceAlias + "." + dialect.quoteIdentifier(calc.getMeasure());
+                projections.add(buildPostAggregateCalculationSql(calc, measureRef)
+                        + " AS " + dialect.quoteIdentifier(calc.getName()));
+            }
+            currentSql = "SELECT " + String.join(",\n       ", projections)
+                    + "\nFROM (\n" + currentSql + "\n) " + sourceAlias;
+        }
+
+        List<SliceRequestDef> resultFilters = new ArrayList<>();
+        if (postAggregateSlice != null) {
+            resultFilters.addAll(postAggregateSlice);
+        }
+        if (queryRequest.getPostSlice() != null) {
+            resultFilters.addAll(queryRequest.getPostSlice());
+        }
+        if (!resultFilters.isEmpty()) {
+            String sourceAlias = "__foggy_total_stage_" + stageIndex++;
+            Set<String> availableAliases = new LinkedHashSet<>(plan.getPublicAliases());
+            if (queryRequest.getPostAggregateCalculations() != null) {
+                queryRequest.getPostAggregateCalculations().stream()
+                        .map(PostAggregateCalculationDef::getName)
+                        .forEach(availableAliases::add);
+            }
+            List<String> filters = new ArrayList<>();
+            for (SliceRequestDef filter : resultFilters) {
+                filters.add(buildPostAggregateFilterSql(filter, dialect, availableAliases, params));
+            }
+            currentSql = "SELECT *\nFROM (\n" + currentSql + "\n) " + sourceAlias
+                    + "\nWHERE " + String.join(" AND ", filters);
+        }
+
+        String totalAlias = "tx";
+        List<String> totalProjections = new ArrayList<>();
+        for (String alias : plan.getPublicAliases()) {
+            String expression = plan.renderPublicExpression(alias, dialect, totalAlias);
+            totalProjections.add((StringUtils.isEmpty(expression) ? "NULL" : expression)
+                    + " AS " + dialect.quoteIdentifier(alias));
+        }
+        totalProjections.add("COUNT(*) AS " + dialect.quoteIdentifier("total"));
+        String sql = ctePrefix + "SELECT " + String.join(",\n       ", totalProjections)
+                + "\nFROM (\n" + currentSql + "\n) " + totalAlias;
+        return new BoundSqlExpression(sql, params);
+    }
+
+    private void addStateColumns(List<DbColumn> baseColumns,
+                                 TotalDataAggregatePlan.AggregateStateSpec state,
+                                 List<Object> params) {
+        String source = state.source().sql();
+        DbColumnType type = state.type() == null ? DbColumnType.NUMBER : state.type();
+        if (state.aggregation() == DbAggregation.AVG) {
+            baseColumns.add(new AggregationDbColumn(
+                    null, state.sumAlias(), "SUM(" + source + ")", type, DbAggregation.SUM));
+            params.addAll(state.source().values());
+            baseColumns.add(new AggregationDbColumn(
+                    null, state.countAlias(), "COUNT(" + source + ")",
+                    DbColumnType.INTEGER, DbAggregation.COUNT));
+            params.addAll(state.source().values());
+            return;
+        }
+        String declare = switch (state.aggregation()) {
+            case COUNT -> "*".equals(source) ? "COUNT(*)" : "COUNT(" + source + ")";
+            case SUM -> "SUM(" + source + ")";
+            case MIN -> "MIN(" + source + ")";
+            case MAX, PK -> "MAX(" + source + ")";
+            default -> throw new IllegalStateException(
+                    "Unsupported totalData state: " + state.aggregation());
+        };
+        baseColumns.add(new AggregationDbColumn(
+                null, state.valueAlias(), declare, type, state.aggregation()));
+        params.addAll(state.source().values());
     }
 
     private String buildPostAggregateCalculationSql(PostAggregateCalculationDef calc, String measureRef) {
@@ -1545,6 +2029,8 @@ public class JdbcModelQueryEngine implements QueryEngine {
         }
 
         AggregationDbColumn aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType(), agg);
+        aggregateSourceDeclares.put(aggColumn, declare);
+        aggregateSourceColumns.put(aggColumn, column);
         FDialect dialect = jdbcQueryModel != null ? jdbcQueryModel.getDialect() : FDialect.MYSQL_DIALECT;
 
         switch (agg) {
@@ -1604,6 +2090,29 @@ public class JdbcModelQueryEngine implements QueryEngine {
         }
 
         return aggColumn;
+    }
+
+    private CalculatedDbColumn sourceCalculatedColumn(DbColumn column) {
+        if (column instanceof CalculatedDbColumn calculated) {
+            return calculated;
+        }
+        DbColumn source = aggregateSourceColumns.get(column);
+        return source instanceof CalculatedDbColumn calculated ? calculated : null;
+    }
+
+    private DbColumn windowDependencyProjection(SystemBundlesContext systemBundlesContext,
+                                                DbQueryColumn reference) {
+        DbAggregation aggregation = reference.getAggregation();
+        if (aggregation == null
+                || aggregation == DbAggregation.NONE
+                || aggregation == DbAggregation.WINDOW) {
+            return reference;
+        }
+        String tableAlias = jdbcQueryModel.getAlias(reference.getQueryObject());
+        String declare = reference.getDeclare(
+                systemBundlesContext.getApplicationContext(), tableAlias, jdbcQueryModel.getDialect());
+        return buildAggColumn1(
+                reference.getQueryObject(), declare, reference, aggregation);
     }
 
 

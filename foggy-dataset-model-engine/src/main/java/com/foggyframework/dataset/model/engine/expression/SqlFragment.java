@@ -65,12 +65,16 @@ public class SqlFragment {
      */
     private String aggregationType;
 
+    /** Structured form used only by the totalData algebraic planner. */
+    private TotalExpressionNode totalExpression;
+
     /**
      * 创建字面量片段（数字、字符串等）
      */
     public static SqlFragment ofLiteral(String literal) {
         SqlFragment f = new SqlFragment();
         f.sql = literal;
+        f.totalExpression = TotalExpressionNode.raw(literal);
         f.inferredType = inferLiteralType(literal);
         return f;
     }
@@ -81,6 +85,7 @@ public class SqlFragment {
     public static SqlFragment ofLiteral(String literal, DbColumnType type) {
         SqlFragment f = new SqlFragment();
         f.sql = literal;
+        f.totalExpression = TotalExpressionNode.raw(literal);
         f.inferredType = type;
         return f;
     }
@@ -94,6 +99,7 @@ public class SqlFragment {
     public static SqlFragment ofColumn(DbQueryColumn column, String sqlDeclare) {
         SqlFragment f = new SqlFragment();
         f.sql = sqlDeclare;
+        f.totalExpression = TotalExpressionNode.reference(column.getAlias(), sqlDeclare);
         f.referencedColumns.add(column);
         // 从列继承类型
         f.inferredType = inferColumnType(column);
@@ -110,6 +116,8 @@ public class SqlFragment {
     public static SqlFragment binary(SqlFragment left, String operator, SqlFragment right) {
         SqlFragment f = new SqlFragment();
         f.sql = "(" + left.sql + " " + operator + " " + right.sql + ")";
+        f.totalExpression = TotalExpressionNode.binary(
+                left.totalExpression, operator, right.totalExpression);
         f.referencedColumns.addAll(left.referencedColumns);
         f.referencedColumns.addAll(right.referencedColumns);
         // 推断二元运算结果类型
@@ -130,6 +138,7 @@ public class SqlFragment {
     public static SqlFragment unary(String operator, SqlFragment operand) {
         SqlFragment f = new SqlFragment();
         f.sql = "(" + operator + " " + operand.sql + ")";
+        f.totalExpression = TotalExpressionNode.unary(operator, operand.totalExpression);
         f.referencedColumns.addAll(operand.referencedColumns);
         // 一元运算通常保持操作数类型，NOT 除外返回布尔
         f.inferredType = "NOT".equalsIgnoreCase(operator) ? DbColumnType.BOOL : operand.inferredType;
@@ -165,11 +174,20 @@ public class SqlFragment {
             // 检测聚合函数
             f.hasAggregate = true;
             f.aggregationType = upperFuncName;
+            String argumentSql = args.isEmpty() ? "*" : argsStr;
+            f.totalExpression = TotalExpressionNode.aggregate(
+                    upperFuncName, BoundSqlExpression.of(argumentSql));
         } else {
             // 继承子表达式的聚合状态和窗口状态
             f.hasAggregate = args.stream().anyMatch(SqlFragment::isHasAggregate);
             f.hasWindow = args.stream().anyMatch(SqlFragment::isHasWindow);
             // 复合聚合时不设置单一类型
+            f.totalExpression = TotalExpressionNode.function(funcName,
+                    args.stream().map(SqlFragment::getTotalExpression).toList());
+        }
+
+        if (f.totalExpression == null) {
+            f.totalExpression = TotalExpressionNode.raw(f.sql);
         }
 
         return f;
@@ -186,6 +204,7 @@ public class SqlFragment {
     public static SqlFragment windowFunction(String baseSql, String overClause, Set<DbQueryColumn> refs, DbColumnType type) {
         SqlFragment f = new SqlFragment();
         f.sql = baseSql + " OVER (" + overClause + ")";
+        f.totalExpression = TotalExpressionNode.raw(f.sql);
         f.hasWindow = true;
         f.hasAggregate = false;
         f.inferredType = type != null ? type : DbColumnType.NUMBER;
@@ -218,9 +237,19 @@ public class SqlFragment {
         } else if (AllowedFunctions.isAggregateFunction(upperFuncName)) {
             f.hasAggregate = true;
             f.aggregationType = upperFuncName;
+            String argumentSql = args.isEmpty() ? "*" : args.stream()
+                    .map(SqlFragment::getSql).collect(Collectors.joining(", "));
+            f.totalExpression = TotalExpressionNode.aggregate(
+                    upperFuncName, BoundSqlExpression.of(argumentSql));
         } else {
             f.hasAggregate = args.stream().anyMatch(SqlFragment::isHasAggregate);
             f.hasWindow = args.stream().anyMatch(SqlFragment::isHasWindow);
+            f.totalExpression = TotalExpressionNode.customFunction(origFuncName,
+                    args.stream().map(SqlFragment::getTotalExpression).toList());
+        }
+
+        if (f.totalExpression == null) {
+            f.totalExpression = TotalExpressionNode.raw(f.sql);
         }
 
         return f;
@@ -239,6 +268,8 @@ public class SqlFragment {
             result = result.replace("{" + i + "}", args.get(i).getSql());
         }
         f.sql = result;
+        f.totalExpression = TotalExpressionNode.template(template,
+                args.stream().map(SqlFragment::getTotalExpression).toList());
         args.forEach(arg -> f.referencedColumns.addAll(arg.referencedColumns));
         // 模板类型默认继承第一个参数的类型
         f.inferredType = args.isEmpty() ? DbColumnType.UNKNOWN : args.get(0).inferredType;

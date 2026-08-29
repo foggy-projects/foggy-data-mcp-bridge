@@ -3,6 +3,8 @@ package com.foggyframework.dataset.model.engine.expression.sql;
 import com.foggyframework.dataset.model.engine.expression.AllowedFunctions;
 import com.foggyframework.dataset.model.engine.expression.SqlExpContext;
 import com.foggyframework.dataset.model.engine.expression.SqlFragment;
+import com.foggyframework.dataset.model.engine.expression.BoundSqlExpression;
+import com.foggyframework.dataset.model.engine.expression.TotalExpressionNode;
 import com.foggyframework.dataset.model.spi.DbColumnType;
 import com.foggyframework.fsscript.exp.AbstractExp;
 import com.foggyframework.fsscript.exp.EmptyExp;
@@ -133,6 +135,8 @@ public class SqlFunctionExp extends AbstractExp<String> {
             f.setHasAggregate(true);
             f.setAggregationType("COUNT_DISTINCT");
             f.setInferredType(DbColumnType.INTEGER);
+            f.setTotalExpression(TotalExpressionNode.aggregate(
+                    "COUNT_DISTINCT", BoundSqlExpression.of(argsStr)));
             argFragments.forEach(arg -> f.getReferencedColumns().addAll(arg.getReferencedColumns()));
             return f;
         }
@@ -147,6 +151,8 @@ public class SqlFunctionExp extends AbstractExp<String> {
             f.setHasAggregate(true);
             f.setAggregationType(upper);
             f.setInferredType(DbColumnType.NUMBER);
+            f.setTotalExpression(TotalExpressionNode.aggregate(
+                    upper, BoundSqlExpression.of(argsStr)));
             argFragments.forEach(arg -> f.getReferencedColumns().addAll(arg.getReferencedColumns()));
             return f;
         }
