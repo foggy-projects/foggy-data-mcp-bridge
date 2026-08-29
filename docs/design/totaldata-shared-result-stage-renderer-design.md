@@ -568,3 +568,9 @@ postAggregate/postSlice 及不可合并聚合 fail-closed 回归通过。全量�
 CTE 核心最终回归 14/14，通过；最终 review 修复后的 engine 组合回归 37/37、预聚合 SQL Builder 与
 SQLite AVG 生命周期回归 31/31，通过。新的 reactor 全量测试额度为 3 次，目前使用 0/3；最终独立
 review 已 GO，下一步开始使用该额度，结果将在本节继续追加，不复用 18.1 的历史结论。
+
+2026-08-29：本轮第 1/3 次执行 `mvn -o -B -ntp test -DskipITs` 即通过，44/44 reactor 模块全部
+SUCCESS，BUILD SUCCESS，总耗时 29:08。engine 3284 项为 0 failures / 0 errors / 2 skipped；
+预聚合模块 48/48 通过（包含 AVG 状态 SQLite 生命周期测试）；runtime-api 271 项为
+0 failures / 0 errors / 7 skipped；analytics console 与 runtime console 的 typecheck、unit test、
+production build 均通过。因首轮已完成门禁，不再重复运行；本轮全量额度最终使用 1/3，余 2 次未使用。
