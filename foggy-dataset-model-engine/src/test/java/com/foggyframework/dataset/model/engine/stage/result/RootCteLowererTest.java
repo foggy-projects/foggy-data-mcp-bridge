@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@DisplayName("方案 B：domain root CTE 方言 lowering 契约")
+@DisplayName("方案 A：domain root CTE 方言 lowering 契约")
 class RootCteLowererTest {
 
     private final RootCteLowerer lowerer = new RootCteLowerer();

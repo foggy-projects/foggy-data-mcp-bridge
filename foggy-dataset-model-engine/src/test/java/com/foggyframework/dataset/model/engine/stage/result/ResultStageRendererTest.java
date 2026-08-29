@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@DisplayName("方案 B：共享 ResultStageRenderer SQL/参数契约")
+@DisplayName("方案 A：共享 ResultStageRenderer SQL/参数契约")
 class ResultStageRendererTest {
 
     private final ResultStageRenderer renderer = new ResultStageRenderer();

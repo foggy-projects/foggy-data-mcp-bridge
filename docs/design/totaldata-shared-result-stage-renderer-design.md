@@ -2,16 +2,19 @@
 doc_role: architecture-decision
 status: accepted
 implementation_status: implemented
-baseline_commit: 267dd887
+baseline_commits: 267dd887, 562e469e, 7944cfe3
 last_reviewed: 2026-08-29
 review_status: passed-independent-implementation-review
-affected_module: foggy-dataset-model-engine
+affected_modules: foggy-dataset-model-engine, foggy-dataset-model-preagg
 depends_on: totaldata-algebraic-aggregate-state-design.md
 ---
 
-# `totalData` 共享结果阶段 Renderer 设计（方案 B）
+# `totalData` 共享结果阶段 Renderer 设计（方案 A：请求级准备 + 单一 Renderer）
 
 ## 1. 决策
+
+本文记录最终采用的方案 A。早期“仅抽取共享 renderer”的候选方案 B 没有保证 MAIN/TOTAL 在 visitor
+之前共享同一请求级事实源，已在实现 review 中被否决；其 review 过程仅保留在第 17 节作为历史记录。
 
 Foggy 为每个请求只构建一次 `NormalizedResultStageGraph`，MAIN 与 TOTAL 都引用这个同一实例。
 graph 在 aggregate base visitor 之前确定阶段拓扑、隐藏依赖和列生命周期；base visitor 完成后，
@@ -57,7 +60,8 @@ MAIN/TOTAL 分别把自己的 base SQL 与最终投影绑定到 graph，再交�
 
 - 不改变 `dataset.query_model` 请求或响应 DTO；
 - 不修改公开 Model SPI、`DbColumn`/`CalculatedDbColumn` 契约；
-- 不实现预聚合 AVG 的 SUM/COUNT 物化状态；
+- 共享 renderer 本身不负责创建预聚合 AVG 物化状态；该状态契约已由父 ADR 与
+  [`AVG 预聚合状态迁移手册`](preagg-avg-state-migration-runbook.md) 独立实现和约束；
 - 不新增 `COUNT_DISTINCT`、VAR、STDDEV 的可合并状态；
 - 不解除 planner 当前拒绝的 window + postAggregate 混用；
 - 不解除不支持 CTE 的 window derived renderer 限制；
@@ -294,14 +298,17 @@ CTE 名称保持基线稳定（例如 `stage1`、`post_stage`、`__POST_RESULT_S
 
 domain transport CTE 作为 `RootSqlUnit.prerequisiteCtes` 传入；renderer 在 CTE 策略下把它降低为
 根级 sibling `CteStage`，并排在自身结果 stages 之前，禁止嵌入其他 stage body。derived + domain
-CTE 保持拒绝。renderer 内部输出遵循 outer/assembled 双视图，
-但映射到现有对象时必须保持基线字段语义：
+CTE 保持拒绝。renderer 内部输出遵循 outer/assembled 双视图，但只保存一个不可变
+`ResultStagePlan.RenderResult` 作为事实源：
 
 - `JdbcModelQueryEngine.sql/values/innerSql/innerSqlWithoutOrder`：assembled SQL/参数，供 MAIN 分页
   直接执行；
-- `cteOuterSelectSql/cteOuterSelectParams`：outer SQL/参数；
-- `cteStages`：映射后的结构化结果 stage；
-- `SqlGenerationResult`：有 CTE 时接收 outer SQL/参数与 `cteStages`；
+- `ResultStagePlan.RenderResult`：唯一保存 outer SQL/参数与结构化 `cteStages`；不暴露公共 bean
+  getter/setter；
+- `JdbcModelQueryEngine.toSqlGenerationResult(...)`：从同一个 render result 生成 Compose/semantic 使用的
+  outer SQL/参数与 `cteStages`；
+- `getCteStage1*`、`getCteOuterSelect*`：仅保留为 deprecated 只读派生视图，不再对应独立字段，也没有
+  setter；
 - `aggSql/aggValues`：assembled SQL/参数；
 - single/derived：outer 与 assembled 相同。
 
@@ -479,7 +486,8 @@ CTE placement 的 `DomainRelationRenderer` 必须从生成源直接返回结构�
 整体仍为中等风险；业务 API、模型定义和普通单阶段查询应保持无感。若 domain 调整无法保持为
 “同模块内结构化返回 + SQL 形状 parity”，即视为复杂度扩散并停止。
 
-方案 B 的收益是后续新增 aggregate state、结果阶段过滤或方言策略时只修改一个 renderer，不再要求
+最终方案 A 的收益是后续新增 aggregate state、结果阶段过滤或方言策略时只修改一个请求级准备计划和
+一个 renderer，不再要求
 MAIN/TOTAL 手工同步。
 
 ## 16. 验收标准
@@ -494,7 +502,7 @@ MAIN/TOTAL 手工同步。
 
 ## 17. Review 记录
 
-2026-08-29：方案 B 初稿首轮独立 review 为 NO-GO；无 P0，7 类 P1 已修订。
+2026-08-29：早期候选方案 B 初稿首轮独立 review 为 NO-GO；无 P0，7 类 P1 已修订。
 
 2026-08-29：第二轮独立 review 为 NO-GO；6 类已关闭，剩余 assembled/outer 字段映射和 domain CTE
 结构化生产端契约已修订，等待最终门禁 review。未通过前不得修改生产 renderer。
@@ -521,6 +529,8 @@ MAIN/TOTAL 引用同一 graph，AVG 仍以 `SUM(group_sum) / SUM(group_count)` f
 
 ## 18. 验证与全量测试记录
 
+### 18.1 既有基线验证（方案 A 首次交付）
+
 2026-08-29：tests-first 与迁移门定向测试完成。renderer/AVG 场景矩阵 159/159 通过；内部 API 暴露
 约束补测后相关类 48/48 通过；首轮全量问题修正后的 AVG、COUNT_DISTINCT、analytics、pivot、Odoo
 组合回归 55/55 通过。`HistoricalFullTruckWaybillQuery` 对应的不均衡年度样本验证 TOTAL AVG 为
@@ -537,5 +547,17 @@ MAIN/TOTAL 引用同一 graph，AVG 仍以 `SUM(group_sum) / SUM(group_count)` f
 3. 第 3/3 次 44/44 reactor 模块全部通过，BUILD SUCCESS，总耗时 15:47；engine 3276 项为
    0 failures / 0 errors / 2 skipped，runtime-api 与两个前端 console 的 typecheck、unit test、build 均通过。
 
-最终结论：验收门全部关闭；SUM、COUNT、MIN、MAX、无 groupBy、过滤、分页、多层分组、window、
+该轮基线结论：验收门全部关闭；SUM、COUNT、MIN、MAX、无 groupBy、过滤、分页、多层分组、window、
 postAggregate/postSlice 及不可合并聚合 fail-closed 回归通过。全量额度已用完，不再追加全量运行。
+
+### 18.2 本轮加固验证（预聚合状态、测试拆分与 CTE 单一表示）
+
+本轮在上述基线之后增加以下提交：
+
+- `562e469e`：AVG 预聚合物化为 `SUM/COUNT` 双状态；
+- `3fa091fe`：增加 `HistoricalFullTruckWaybillQuery` 直接回归并拆分大型测试；
+- `7944cfe3`：`ResultStagePlan.RenderResult` 成为 CTE outer/assembled 的唯一事实源。
+
+当前定向结果：AVG/结果阶段联合回归 50/50，通过；CTE/Compose/renderer 组合回归 45/45，通过；
+CTE 核心最终回归 14/14，通过。新的 reactor 全量测试额度为 3 次，目前使用 0/3；只有完成最终独立
+review 后才开始使用，结果将在本节继续追加，不复用 18.1 的历史结论。

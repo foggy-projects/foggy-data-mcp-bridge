@@ -1,11 +1,11 @@
 ---
 doc_role: architecture-decision
 status: accepted
-implementation_status: in-progress
+implementation_status: implemented
 baseline: main-after-9.5.2-runtime-console
-last_reviewed: 2026-08-28
+last_reviewed: 2026-08-29
 review_status: passed-independent-review
-affected_module: foggy-dataset-model-engine
+affected_modules: foggy-dataset-model-engine, foggy-dataset-model-preagg
 ---
 
 # `totalData` 代数聚合状态设计
@@ -24,8 +24,9 @@ post-aggregate 和 postSlice 阶段；只有在用户结果投影或 `totalData`
 主结果继续返回每个分组的原始 AVG；`totalData` 返回完整有效范围或 postSlice 后幸存分组对应的
 事实总体 AVG。
 
-这项决策同时约束预聚合：物化表只有提供所需的独立状态列时才能承载 AVG 上卷；只有一个物化
-AVG 标量时必须 fail closed 并回退事实范围。
+这项决策同时约束预聚合：新版物化表必须提供独立 SUM/COUNT 状态列才能承载 AVG 上卷；旧版只有
+单 AVG 标量的物理表与新版运行时不兼容，必须在接入新版节点前按迁移手册停机重建并 FULL refresh。
+HYBRID 与无法证明 lineage 的 advanced AVG 路径继续 fail closed 并回退事实范围。
 
 ## 2. 问题与根因
 
@@ -399,16 +400,32 @@ leaf expression 重新求值完整标量 AST。表达式引用图必须拓扑排
 
 ## 8. 预聚合契约
 
-当前物化 measure 只有一个物理值时，AVG 不具备安全上卷能力。匹配规则必须满足：
+AVG 预聚合使用与查询 total 相同的代数状态。`measureColumnNames[measure]` 对 AVG 表示物理列前缀，
+`PreAggMeasureStateContract` 从此前缀唯一派生：
+
+```text
+<prefix>__sum   = SUM(source_expr)
+<prefix>__count = COUNT(source_expr)
+```
+
+DDL、FULL refresh 和 INCREMENTAL refresh 都必须写入这两列，不再创建或写入单一 `AVG(source_expr)`
+物理值。MAIN 从更细粒度预聚合上卷时计算
+`SUM(<prefix>__sum) / NULLIF(SUM(<prefix>__count), 0)`；algebraic TOTAL 直接把这两列绑定为内部
+state 后再 finalize。safe divide 仍由方言适配器负责，SQLite 等方言不能发生整数除法。
+
+匹配规则必须满足：
 
 ```text
 query required states ⊆ pre-aggregation materialized states
 ```
 
-本次修复采用两级策略：
+当前支持边界：
 
-1. 当前预聚合 schema 未提供独立 SUM/COUNT 状态时，跳过该候选，保留 LOWERED 的事实表计划；
-2. 后续若扩展 `PreAggMeasureDef` 支持多状态物化，再允许 AVG 从物化状态 merge。
+1. FULL 预聚合查询允许 predefined AVG measure 使用双状态做等粒度读取和粗粒度 rollup；
+2. HYBRID（预聚合表与原始事实 `UNION`）仍 fail closed，因为两个分支尚未统一暴露同构 state；
+3. advanced final-stage/calculated AVG 在无法证明完整 leaf/state lineage 时仍回退事实计划；
+4. 旧版只有单 AVG 列的物理表与新版运行时不兼容。运行时不会猜测、反射或在线迁移旧 schema，必须
+   按 [`AVG 预聚合状态迁移手册`](preagg-avg-state-migration-runbook.md) 停机重建并执行 FULL refresh。
 
 预聚合主分组结果与 totalData 路由可以独立决定，但不能用一个候选的证明替代另一个计划的证明。
 预聚合拦截器只能在证明状态集合完备时替换 `AggregateSqlPlan` 的 SQL 与参数；否则不能覆盖它。
@@ -460,7 +477,8 @@ renderer 接收 MAIN/TOTAL 模式，而不是复制 window/postAggregate 拼装�
 4. 抽取共享投影构造器与根级 CTE composer，让现有 stage renderer 接收 MAIN/TOTAL 模式；
 5. TOTAL 模式让 aggregate、window、post-aggregate renderer 透传内部状态；
 6. 改造 total final projection 为 merge/finalize，并使用独立 agg params；
-7. 保留/完善 pre-aggregation state capability fail-closed；
+7. 实现 pre-aggregation AVG 的 `<prefix>__sum/<prefix>__count` 物化、FULL rollup 与 HYBRID/advanced
+   path fail-closed；
 8. 删除临时 AVG SQL 分支以及对通用 support column 聚合语义的全局修改；
 9. 完成定向、模块和 reactor 全量测试。
 
@@ -490,7 +508,10 @@ renderer 接收 MAIN/TOTAL 模式，而不是复制 window/postAggregate 拼装�
 - start/limit/orderBy 不改变 totalData；
 - optimizeAggSql 开启和关闭；
 - SUM、COUNT、MIN、MAX 不回归；
-- 预聚合缺少 AVG states 时回退事实计划；
+- 预聚合 AVG DDL、FULL/INCREMENTAL refresh 只生成 SUM/COUNT states；
+- FULL 预聚合 AVG 等粒度和 rollup 使用加权状态；
+- HYBRID 与无法证明 lineage 的 advanced AVG 回退事实计划；
+- 旧单值 AVG schema 迁移前不得接入新运行时；
 - 当前支持的 CTE 与 derived-table fallback 组合；
 - domain transport + WHERE + HAVING + postSlice 参数顺序；
 - `BoundSqlExpression` 在 SUM/COUNT 两次渲染时复制参数并保持占位符顺序；
@@ -503,7 +524,8 @@ renderer 接收 MAIN/TOTAL 模式，而不是复制 window/postAggregate 拼装�
 
 - `AVG(DISTINCT expr)` 在没有精确集合状态时；
 - 无法从 AST/engine 分析结果取得 aggregate argument；
-- 预聚合只有 AVG 标量，没有 SUM/COUNT；
+- 预聚合 HYBRID 的两个分支无法提供同构 SUM/COUNT state；
+- advanced/calculated AVG 无法证明物化 state lineage；
 - 自定义或 holistic aggregate 没有声明 merge/finalize contract；
 - 公开别名命中 engine 保留前缀；
 - lowering 依赖缺失或成环。
@@ -518,7 +540,9 @@ renderer 接收 MAIN/TOTAL 模式，而不是复制 window/postAggregate 拼装�
 - 无 groupBy、WHERE、HAVING 和计算型平均通过；
 - 内部状态不出现在公开结果；
 - 不生成 `AVG(tx.<group average alias>)`；
-- 预聚合无法证明状态完备时安全回源；
+- FULL 预聚合 AVG 只从 SUM/COUNT states 读取并与事实 AVG 等价；
+- HYBRID/advanced AVG 无法证明状态完备时安全回源；
+- 旧单 AVG 物化表按迁移手册完成停机重建和 FULL refresh；
 - 定向测试通过后，最多执行三次 reactor 全量测试。
 
 ## 14. 可观测性
