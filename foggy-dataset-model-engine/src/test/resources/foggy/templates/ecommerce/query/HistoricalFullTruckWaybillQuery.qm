@@ -1,0 +1,26 @@
+/** Direct query-model fixture matching the production reproduction name. */
+const waybill = loadTableModel('HistoricalFullTruckWaybillModel');
+
+export const queryModel = {
+    name: 'HistoricalFullTruckWaybillQuery',
+    caption: '历史整车运单查询',
+    model: waybill,
+    columnGroups: [
+        {
+            caption: '开单时间',
+            items: [
+                { ref: waybill.openingTime },
+                { ref: waybill.openingTime$year }
+            ]
+        },
+        {
+            caption: '度量',
+            items: [
+                { ref: waybill.waybillCount },
+                { ref: waybill.receivableTransportAmount },
+                { ref: waybill.averageTransportAmountPerWaybill }
+            ]
+        }
+    ],
+    accesses: []
+};

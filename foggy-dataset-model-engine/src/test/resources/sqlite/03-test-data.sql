@@ -344,3 +344,32 @@ INSERT INTO fact_sales_nested (date_key, product_key, store_key, quantity, sales
 (20240103, 5, 5, 8, 2392.00, 1200.00),     -- 不锈钢炒锅 @ 广州天河店
 (20240103, 7, 6, 15, 1485.00, 600.00),     -- 休闲T恤 @ 深圳华强北店
 (20240103, 9, 2, 4, 1596.00, 800.00);      -- 连衣裙 @ 杭州滨江店
+
+-- HistoricalFullTruckWaybillQuery: deliberately unbalanced annual groups.
+-- 2026: count=7189, sum=65570288.70; 2025: count=2714, sum=22452062.24.
+INSERT INTO dim_historical_waybill_date (date_key, full_date, year) VALUES
+(20260101, '2026-01-01', 2026),
+(20250101, '2025-01-01', 2025);
+
+WITH digits(d) AS (
+    VALUES (0), (1), (2), (3), (4), (5), (6), (7), (8), (9)
+), numbers(n) AS (
+    SELECT ones.d + tens.d * 10 + hundreds.d * 100 + thousands.d * 1000 + 1
+    FROM digits ones
+    CROSS JOIN digits tens
+    CROSS JOIN digits hundreds
+    CROSS JOIN digits thousands
+)
+INSERT INTO historical_full_truck_waybill
+    (waybill_id, opening_date_key, receivable_transport_amount)
+SELECT n,
+       20260101,
+       CASE WHEN n = 7189 THEN 15728.70 ELSE 9120 END
+FROM numbers
+WHERE n <= 7189
+UNION ALL
+SELECT 10000 + n,
+       20250101,
+       CASE WHEN n = 2714 THEN 10126.24 ELSE 8272 END
+FROM numbers
+WHERE n <= 2714;

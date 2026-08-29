@@ -467,3 +467,22 @@ CREATE TABLE fact_sales_nested
 CREATE INDEX idx_fact_sales_nested_date_key ON fact_sales_nested (date_key);
 CREATE INDEX idx_fact_sales_nested_product_key ON fact_sales_nested (product_key);
 CREATE INDEX idx_fact_sales_nested_store_key ON fact_sales_nested (store_key);
+
+-- HistoricalFullTruckWaybillQuery direct AVG totalData regression fixture
+DROP TABLE IF EXISTS dim_historical_waybill_date;
+CREATE TABLE dim_historical_waybill_date
+(
+    date_key  INTEGER PRIMARY KEY,
+    full_date TEXT NOT NULL,
+    year      INTEGER NOT NULL
+);
+
+DROP TABLE IF EXISTS historical_full_truck_waybill;
+CREATE TABLE historical_full_truck_waybill
+(
+    waybill_id                  INTEGER PRIMARY KEY,
+    opening_date_key            INTEGER NOT NULL,
+    receivable_transport_amount DECIMAL(20, 2)
+);
+CREATE INDEX idx_historical_waybill_opening_date
+    ON historical_full_truck_waybill (opening_date_key);
