@@ -10,6 +10,9 @@ affected_module: foggy-dataset-model-engine
 
 # `totalData` 代数聚合状态设计
 
+> 后续结构性收敛见 [`totalData` 共享结果阶段 Renderer 设计](totaldata-shared-result-stage-renderer-design.md)。
+> 该 ADR 以提交 `267dd887` 为功能基线，落实本文关于 MAIN/TOTAL 共用结果阶段 renderer 的要求。
+
 ## 1. 决策摘要
 
 Foggy 不再把已经分组后的 `AVG` 标量当作可再次聚合的输入。`AVG(expr)` 在逻辑计划中降低为
@@ -389,7 +392,9 @@ leaf expression 重新求值完整标量 AST。表达式引用图必须拓扑排
 - MAIN：仅公开列；
 - TOTAL：merge state、按依赖拓扑 finalize 度量并生成 `total`；
 - TOTAL 不生成 ORDER BY、LIMIT 或 OFFSET；
-- TOTAL 不输出 rank/share/running 等结果阶段别名，但这些字段仍可决定 postSlice 幸存集合；
+- TOTAL 的 rank/share/running 等结果阶段别名不参与 merge/finalize，但为保持提交 `267dd887` 的响应
+  key-set 兼容，若用户公开选择则输出同名 NULL；这些字段仍可决定 postSlice 幸存集合。该兼容规则
+  由后续共享 renderer ADR 覆盖并固定测试；
 - 返回 `AggregateSqlPlan(sql, params)`，不修改主查询参数列表。
 
 ## 8. 预聚合契约
@@ -413,8 +418,8 @@ query required states ⊆ pre-aggregation materialized states
 - AVG 分母使用 `COUNT(expr)`；
 - 空有效集合或全部 expr 为 NULL 时返回 NULL；
 - 使用 `NULLIF(merged_count, 0)` 避免除零；
-- 在 `FDialect` 增加 engine 可调用的安全比率 renderer，例如
-  `renderAggregateRatio(numerator, denominator, DbColumnType resultType)`；
+- 不修改公开 `FDialect` SPI；在 engine 内部提供类型化安全比率 adapter，例如
+  `renderRatio(FDialect, numerator, denominator, DbColumnType resultType)`；
 - SQLite/SQL Server 必须显式避免整数除法；MySQL/PostgreSQL 仍由方言实现决定必要 cast；
 - `DbColumnType.NUMBER/MONEY` 是当前可获得的结果类型边界。本次不虚构缺失的 precision/scale；
   方言实现使用安全 widening，并通过与原生 `AVG(expr)` 的集成测试证明数值等价；

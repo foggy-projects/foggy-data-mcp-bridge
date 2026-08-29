@@ -25,6 +25,8 @@ last_reviewed: 2026-07-29
   信息架构、视觉原则和跨迭代能力边界。
 - [`totalData` 代数聚合状态设计](../design/totaldata-algebraic-aggregate-state-design.md)：AVG 的
   SUM/COUNT 状态 lowering、结果阶段透传、total merge/finalize 与预聚合安全回退契约。
+- [`totalData` 共享结果阶段 Renderer 设计](../design/totaldata-shared-result-stage-renderer-design.md)：
+  统一 MAIN/TOTAL 的 window、postAggregate、postSlice、CTE/derived SQL 组装和参数拓扑。
 
 专题设计仍可保留在 `docs/design/` 或对应版本目录，但必须明确它是专题说明还是历史决策，
 不能替代这里的整体架构。
