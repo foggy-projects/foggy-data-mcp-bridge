@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @DisplayName("totalData 代数聚合计划安全边界")
 class TotalDataAggregatePlanTest {
@@ -52,11 +53,30 @@ class TotalDataAggregatePlanTest {
         assertEquals(TotalDataAggregatePlan.LoweringStatus.LOWERED, plan.getStatus());
     }
 
+    @Test
+    @DisplayName("AVG finalize 必须把 state 的实际类型传入 safe-ratio 方言边界")
+    void averageFinalizeShouldPreserveStateTypeAtDialectBoundary() {
+        TotalDataAggregatePlan plan = planFor(
+                BoundSqlExpression.of("t.text_value"), DbColumnType.TEXT);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> plan.renderPublicExpression(
+                        "averagePrice",
+                        com.foggyframework.dataset.db.dialect.FDialect.SQLITE_DIALECT,
+                        "tx"));
+    }
+
     private TotalDataAggregatePlan planFor(BoundSqlExpression source) {
+        return planFor(source, DbColumnType.NUMBER);
+    }
+
+    private TotalDataAggregatePlan planFor(
+            BoundSqlExpression source,
+            DbColumnType type) {
         TotalExpressionNode expression = TotalExpressionNode.aggregate("AVG", source);
         TotalDataAggregatePlan.Builder builder = new TotalDataAggregatePlan.Builder();
         builder.addPublicExpression("averagePrice", expression);
-        builder.bindLeaves("averagePrice", expression, DbColumnType.NUMBER);
+        builder.bindLeaves("averagePrice", expression, type);
         return builder.build();
     }
 }

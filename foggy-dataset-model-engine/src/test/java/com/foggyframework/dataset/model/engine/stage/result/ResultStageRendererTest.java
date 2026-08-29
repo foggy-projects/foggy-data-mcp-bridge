@@ -79,6 +79,49 @@ class ResultStageRendererTest {
     }
 
     @Test
+    @DisplayName("无 filter window 的 MAIN collapse 仅是物理优化，TOTAL 仍执行同一 graph expression")
+    void unfilteredMainWindowCollapseKeepsLogicalParityWithTotal() {
+        List<ResultStagePlan.Stage> stages =
+                new java.util.ArrayList<>(ResultStagePlanContractTest.windowSpecs());
+        ResultStagePlan.Stage window = stages.get(2);
+        stages.set(2, new ResultStagePlan.Stage(
+                window.stageId(),
+                window.type(),
+                window.renderAlias(),
+                window.computedColumns(),
+                List.of(),
+                window.orders()));
+        ResultStagePlan.Graph graph = ResultStagePlan.Graph.create(
+                ResultStagePlanContractTest.ctePlan(List.of()), stages);
+
+        ResultStagePlan.RenderResult main = renderer.render(
+                ResultStagePlan.Executable.bind(
+                        graph,
+                        ResultStagePlan.Mode.MAIN,
+                        ResultStagePlanContractTest.root(),
+                        ResultStagePlanContractTest.publicProjection()),
+                FDialect.SQLITE_DIALECT);
+        ResultStagePlan.RenderResult total = renderer.render(
+                ResultStagePlan.Executable.bind(
+                        graph,
+                        ResultStagePlan.Mode.TOTAL,
+                        ResultStagePlanContractTest.root(),
+                        ResultStagePlanContractTest.totalProjection()),
+                FDialect.SQLITE_DIALECT);
+
+        assertEquals(List.of("stage1"),
+                main.cteStages().stream().map(SqlGenerationResult.CteStage::alias).toList());
+        assertEquals(List.of("stage1", "__POST_RESULT_STAGE__"),
+                total.cteStages().stream().map(SqlGenerationResult.CteStage::alias).toList());
+        String expression = window.computedColumns().get(0).expression().sql();
+        assertTrue(main.outerSql().contains(expression), main.outerSql());
+        assertTrue(total.cteStages().get(1).sql().contains(expression),
+                total.cteStages().get(1).sql());
+        assertTrue(main.outerValues().isEmpty());
+        assertTrue(total.outerValues().isEmpty());
+    }
+
+    @Test
     @DisplayName("CTE 参数严格按 sibling CTE 后 outer SELECT 的词法顺序")
     void cteParameterOrderFollowsSerializedSql() {
         ResultStagePlan.Graph graph = postAggregateGraph("cte");

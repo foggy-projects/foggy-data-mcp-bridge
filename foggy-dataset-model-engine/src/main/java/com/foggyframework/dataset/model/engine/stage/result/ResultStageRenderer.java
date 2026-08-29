@@ -63,6 +63,7 @@ public final class ResultStageRenderer {
                     collapsed.sql(), collapsed.sqlWithoutOrder(), collapsed.values(), ctes);
         }
         String currentAlias = rootStage.renderAlias();
+        List<ResultStagePlan.Column> currentColumns = new ArrayList<>(root.columns());
         List<BoundSqlExpression> finalFilters = new ArrayList<>();
         ResultStagePlan.Stage finalStage = null;
 
@@ -75,9 +76,11 @@ public final class ResultStageRenderer {
             if (!isResultStage(stage.type())) {
                 continue;
             }
-            BoundSqlExpression stageBody = renderCteStage(stage, currentAlias, dialect);
+            BoundSqlExpression stageBody = renderCteStage(
+                    graph, stage, currentAlias, currentColumns, dialect);
             ctes.add(new SqlGenerationResult.CteStage(
                     stage.renderAlias(), stageBody.sql(), stageBody.values()));
+            currentColumns = columnsAfterStage(graph, stage, currentColumns);
             currentAlias = stage.renderAlias();
             finalFilters.addAll(stage.filters());
         }
@@ -90,15 +93,22 @@ public final class ResultStageRenderer {
     }
 
     private BoundSqlExpression renderCteStage(
+            ResultStagePlan.Graph graph,
             ResultStagePlan.Stage stage,
             String sourceAlias,
+            List<ResultStagePlan.Column> sourceColumns,
             FDialect dialect) {
         List<String> projections = new ArrayList<>();
         List<Object> values = new ArrayList<>();
-        projections.add(sourceAlias + ".*");
+        appendSurvivingSourceColumns(
+                projections, graph, stage, sourceAlias, sourceColumns, dialect);
         for (ResultStagePlan.Column column : stage.computedColumns()) {
             projections.add(column.expression().sql() + " AS " + dialect.quoteIdentifier(column.alias()));
             values.addAll(column.expression().values());
+        }
+        if (projections.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Result stage '" + stage.stageId() + "' has no surviving projection");
         }
         String sql = "SELECT " + String.join(",\n       ", projections)
                 + "\nFROM " + sourceAlias;
@@ -108,6 +118,8 @@ public final class ResultStageRenderer {
     private ResultStagePlan.Stage collapsibleMainWindow(
             ResultStagePlan.Executable executable,
             int rootIndex) {
+        // Compatibility-only physical lowering: the logical graph is unchanged
+        // and TOTAL still renders the same window expression as a separate stage.
         if (executable.mode() != ResultStagePlan.Mode.MAIN) {
             return null;
         }
@@ -171,6 +183,8 @@ public final class ResultStageRenderer {
         ResultStagePlan.Stage rootStage = graph.stages().get(rootIndex);
         BoundSqlExpression current = executable.root().body();
         String currentAlias = rootStage.renderAlias();
+        List<ResultStagePlan.Column> currentColumns =
+                new ArrayList<>(executable.root().columns());
         List<BoundSqlExpression> finalFilters = new ArrayList<>();
         ResultStagePlan.Stage finalStage = null;
 
@@ -185,16 +199,22 @@ public final class ResultStageRenderer {
             }
             List<String> projections = new ArrayList<>();
             List<Object> values = new ArrayList<>();
-            projections.add(currentAlias + ".*");
+            appendSurvivingSourceColumns(
+                    projections, graph, stage, currentAlias, currentColumns, dialect);
             for (ResultStagePlan.Column column : stage.computedColumns()) {
                 projections.add(column.expression().sql() + " AS "
                         + dialect.quoteIdentifier(column.alias()));
                 values.addAll(column.expression().values());
             }
+            if (projections.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "Result stage '" + stage.stageId() + "' has no surviving projection");
+            }
             String sql = "SELECT " + String.join(",\n       ", projections)
                     + "\nFROM (\n" + current.sql() + "\n) " + currentAlias;
             values.addAll(current.values());
             current = new BoundSqlExpression(sql, values);
+            currentColumns = columnsAfterStage(graph, stage, currentColumns);
             currentAlias = stage.renderAlias();
             finalFilters.addAll(stage.filters());
         }
@@ -284,6 +304,40 @@ public final class ResultStageRenderer {
     private boolean isResultStage(QueryStageType type) {
         return type == QueryStageType.WINDOW_RESULT_STAGE
                 || type == QueryStageType.POST_AGGREGATE_STAGE;
+    }
+
+    private void appendSurvivingSourceColumns(
+            List<String> projections,
+            ResultStagePlan.Graph graph,
+            ResultStagePlan.Stage stage,
+            String sourceAlias,
+            List<ResultStagePlan.Column> sourceColumns,
+            FDialect dialect) {
+        int currentIndex = graph.indexOf(stage.stageId());
+        for (ResultStagePlan.Column column : sourceColumns) {
+            if (graph.indexOf(column.lastConsumerStageId()) > currentIndex) {
+                projections.add(sourceAlias + "." + dialect.quoteIdentifier(column.alias()));
+            }
+        }
+    }
+
+    private List<ResultStagePlan.Column> columnsAfterStage(
+            ResultStagePlan.Graph graph,
+            ResultStagePlan.Stage stage,
+            List<ResultStagePlan.Column> sourceColumns) {
+        int currentIndex = graph.indexOf(stage.stageId());
+        List<ResultStagePlan.Column> result = new ArrayList<>();
+        for (ResultStagePlan.Column column : sourceColumns) {
+            if (graph.indexOf(column.lastConsumerStageId()) > currentIndex) {
+                result.add(column);
+            }
+        }
+        for (ResultStagePlan.Column column : stage.computedColumns()) {
+            if (graph.indexOf(column.lastConsumerStageId()) > currentIndex) {
+                result.add(column);
+            }
+        }
+        return result;
     }
 
     private record FinalSql(String sql, String sqlWithoutOrder, List<Object> values) {

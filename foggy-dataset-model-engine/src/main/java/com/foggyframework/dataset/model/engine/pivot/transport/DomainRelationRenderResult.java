@@ -4,6 +4,10 @@ import lombok.Builder;
 import lombok.Getter;
 import java.util.List;
 
+/**
+ * Engine-internal domain transport result. This is not a public model SPI;
+ * structured CTE metadata exists only for root-level result-stage lowering.
+ */
 @Getter
 @Builder
 public class DomainRelationRenderResult {

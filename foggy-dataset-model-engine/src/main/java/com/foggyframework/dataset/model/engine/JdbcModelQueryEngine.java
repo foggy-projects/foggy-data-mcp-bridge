@@ -43,6 +43,7 @@ import com.foggyframework.dataset.model.engine.stage.QueryStagePlan;
 import com.foggyframework.dataset.model.engine.stage.QueryStagePlanner;
 import com.foggyframework.dataset.model.engine.stage.QueryStageType;
 import com.foggyframework.dataset.model.engine.stage.result.ResultStagePlan;
+import com.foggyframework.dataset.model.engine.stage.result.ResultStagePreparation;
 import com.foggyframework.dataset.model.engine.stage.result.ResultStageRenderer;
 import com.foggyframework.dataset.model.engine.total.TotalDataAggregatePlan;
 import com.foggyframework.dataset.model.i18n.DatasetMessages;
@@ -216,7 +217,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
     List values;
     QueryStagePlanner queryStagePlanner = new QueryStagePlanner();
     ResultStageRenderer resultStageRenderer = new ResultStageRenderer();
-    ResultStagePlan.Graph resultStageGraph;
+    ResultStagePreparation resultStagePreparation;
     private static final String PATTERN = "^[a-zA-Z\\s]+$";
     private static final Pattern PATTERN_OBJECT = Pattern.compile(PATTERN);
     private static final Pattern SAFE_INTERNAL_IDENTIFIER = Pattern.compile("^[A-Za-z_][A-Za-z0-9_]*$");
@@ -507,11 +508,26 @@ public class JdbcModelQueryEngine implements QueryEngine {
         //   Stage 2 (outer): SELECT stage1.*, windowCF1, windowCF2 FROM stage1 ORDER BY ... LIMIT ...
         QueryStagePlan stagePlan = attachQueryStagePlan(context, queryRequest, jdbcQuery);
         validateStagePlan(stagePlan);
-        this.resultStageGraph = null;
+        this.resultStagePreparation = null;
 
         AggregateJoinTableModel.setRuntimeFilterContext(context);
         try {
             prepareAggregateRelationProjection(jdbcQuery);
+            boolean countToSum = queryRequest.hasGroupBy();
+            this.totalDataAggregatePlan = buildTotalDataAggregatePlan(
+                    queryRequest, jdbcQuery, countToSum);
+            if (totalDataAggregatePlan.getStatus()
+                    == TotalDataAggregatePlan.LoweringStatus.REFUSED) {
+                throw RX.throwAUserTip(
+                        "TOTAL_DATA_AGGREGATE_NOT_MERGEABLE: "
+                                + totalDataAggregatePlan.getRefusalReason());
+            }
+            this.resultStagePreparation = prepareResultStagePreparation(
+                    systemBundlesContext,
+                    queryRequest,
+                    jdbcQuery,
+                    stagePlan,
+                    totalDataAggregatePlan);
             if (stagePlan.requiresPostAggregateRenderer()) {
                 generateWithPostAggregateWrapping(systemBundlesContext, queryRequest, jdbcQuery, domainTransportInjection, stagePlan);
             } else if (stagePlan.requiresWindowResultRenderer()) {
@@ -943,20 +959,16 @@ public class JdbcModelQueryEngine implements QueryEngine {
         // Snapshot columns and indices before mutation
         List<DbColumn> originalSelectCols = new ArrayList<>(jdbcQuery.getSelect().getColumns());
         List<WindowColumnInfo> windowColumns = new ArrayList<>();
-        List<DbColumn> stage1SelectCols = new ArrayList<>();
-
+        ResultStagePreparation preparation = requireResultStagePreparation();
+        Set<String> preparedWindowAliases = preparation.graph().stages().stream()
+                .filter(stage -> stage.type() == QueryStageType.WINDOW_RESULT_STAGE)
+                .flatMap(stage -> stage.computedColumns().stream())
+                .map(ResultStagePlan.Column::alias)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
         for (int i = 0; i < originalSelectCols.size(); i++) {
             DbColumn col = originalSelectCols.get(i);
-            boolean isWindowCf = false;
-            if (col instanceof AggregationDbColumn agg && agg.getAggregation() == DbAggregation.WINDOW) {
-                isWindowCf = true;
-            } else if (col instanceof CalculatedDbColumn calc && calc.hasWindow()) {
-                isWindowCf = true;
-            }
-            if (isWindowCf) {
+            if (preparedWindowAliases.contains(col.getAlias())) {
                 windowColumns.add(new WindowColumnInfo(i, col));
-            } else {
-                stage1SelectCols.add(col);
             }
         }
 
@@ -973,21 +985,10 @@ public class JdbcModelQueryEngine implements QueryEngine {
             }
         }
 
-        for (WindowColumnInfo wci : windowColumns) {
-            CalculatedDbColumn calc = sourceCalculatedColumn(wci.column);
-            if (calc != null && calc.getReferencedColumns() != null) {
-                for (DbQueryColumn ref : calc.getReferencedColumns()) {
-                    if (!containsCteProjectionAlias(stage1SelectCols, ref)) {
-                        stage1SelectCols.add(windowDependencyProjection(systemBundlesContext, ref));
-                    }
-                }
-            }
-        }
-
         // ── Stage 1: Generate inner SQL WITHOUT window CFs and WITHOUT ORDER BY ──
         // Temporarily replace SELECT columns with stage1-only columns wrapped to ensure correct alias
         List<DbColumn> stage1WrappedCols = new ArrayList<>();
-        for (DbColumn col : stage1SelectCols) {
+        for (DbColumn col : preparation.sourceColumns(ResultStagePlan.Mode.MAIN)) {
             stage1WrappedCols.add(new CteProjectedColumn(col));
         }
         jdbcQuery.getSelect().setColumns(stage1WrappedCols);
@@ -1006,18 +1007,12 @@ public class JdbcModelQueryEngine implements QueryEngine {
         jdbcQuery.getSelect().setColumns(new ArrayList<>(originalSelectCols));
         jdbcQuery.setOrder(savedOrder);
 
-        this.resultStageGraph = prepareWindowResultStageGraph(
-                stagePlan, queryRequest, originalSelectCols, windowColumns, savedOrder, dialect);
-        String boundThroughStageId = lastBaseStageId(resultStageGraph);
-        ResultStagePlan.RootSql root = new ResultStagePlan.RootSql(
+        String boundThroughStageId = lastBaseStageId(preparation.graph());
+        ResultStagePlan.Executable executable = preparation.bind(
+                ResultStagePlan.Mode.MAIN,
                 domainTransportInjection.structuredCtes(),
                 boundThroughStageId,
                 new BoundSqlExpression(stage1Sql, stage1Params),
-                List.of());
-        ResultStagePlan.Executable executable = ResultStagePlan.Executable.bind(
-                resultStageGraph,
-                ResultStagePlan.Mode.MAIN,
-                root,
                 buildMainFinalProjection(originalSelectCols, windowColumns, dialect));
         ResultStagePlan.RenderResult rendered = resultStageRenderer.render(executable, dialect);
 
@@ -1127,6 +1122,14 @@ public class JdbcModelQueryEngine implements QueryEngine {
         return stageId;
     }
 
+    private ResultStagePreparation requireResultStagePreparation() {
+        if (resultStagePreparation == null) {
+            throw new IllegalStateException(
+                    "Result-stage SQL visitor started before request preparation");
+        }
+        return resultStagePreparation;
+    }
+
     private String resultOutputAlias(DbColumn column, List<WindowColumnInfo> windowColumns) {
         return isWindowResultColumn(column, windowColumns)
                 ? column.getAlias() : getCteProjectionAlias(column);
@@ -1141,6 +1144,158 @@ public class JdbcModelQueryEngine implements QueryEngine {
             }
         }
         return false;
+    }
+
+    private ResultStagePreparation prepareResultStagePreparation(
+            SystemBundlesContext systemBundlesContext,
+            DbQueryRequestDef queryRequest,
+            JdbcQuery jdbcQuery,
+            QueryStagePlan stagePlan,
+            TotalDataAggregatePlan totalPlan) {
+        if (!stagePlan.requiresPostAggregateRenderer()
+                && !stagePlan.requiresWindowResultRenderer()) {
+            return null;
+        }
+        FDialect dialect = jdbcQueryModel != null
+                ? jdbcQueryModel.getDialect() : FDialect.MYSQL_DIALECT;
+        List<DbColumn> originalColumns =
+                new ArrayList<>(jdbcQuery.getSelect().getColumns());
+        List<DbColumn> mainBaseColumns;
+        ResultStagePlan.Graph graph;
+        String hiddenLastConsumerStageId = null;
+
+        if (stagePlan.requiresPostAggregateRenderer()) {
+            mainBaseColumns = new ArrayList<>(originalColumns);
+            graph = preparePostAggregateResultStageGraph(
+                    stagePlan, queryRequest, originalColumns, dialect);
+        } else {
+            List<WindowColumnInfo> windowColumns =
+                    identifyWindowColumns(originalColumns);
+            if (windowColumns.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "Window result-stage plan has no window output column");
+            }
+            mainBaseColumns = new ArrayList<>();
+            for (DbColumn column : originalColumns) {
+                if (!isWindowResultColumn(column, windowColumns)) {
+                    mainBaseColumns.add(column);
+                }
+            }
+            for (WindowColumnInfo window : windowColumns) {
+                CalculatedDbColumn calculated = sourceCalculatedColumn(window.column);
+                if (calculated == null || calculated.getReferencedColumns() == null) {
+                    continue;
+                }
+                for (DbQueryColumn reference : calculated.getReferencedColumns()) {
+                    if (!containsCteProjectionAlias(mainBaseColumns, reference)) {
+                        mainBaseColumns.add(windowDependencyProjection(
+                                systemBundlesContext, reference));
+                    }
+                }
+            }
+            graph = prepareWindowResultStageGraph(
+                    stagePlan,
+                    queryRequest,
+                    originalColumns,
+                    windowColumns,
+                    jdbcQuery.getOrder(),
+                    dialect);
+            hiddenLastConsumerStageId =
+                    stageId(stagePlan, QueryStageType.WINDOW_RESULT_STAGE);
+        }
+
+        Set<String> publicBaseAliases = originalColumns.stream()
+                .filter(column -> graph.stages().stream()
+                        .flatMap(stage -> stage.computedColumns().stream())
+                        .noneMatch(computed -> computed.alias().equals(column.getAlias())))
+                .map(JdbcModelQueryEngine::getCteProjectionAlias)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        List<DbColumn> totalBaseColumns = new ArrayList<>(mainBaseColumns);
+        List<Object> stateExpressionValues = new ArrayList<>();
+        if (totalPlan.getStatus() == TotalDataAggregatePlan.LoweringStatus.LOWERED) {
+            for (TotalDataAggregatePlan.AggregateStateSpec state : totalPlan.getStates()) {
+                addStateColumns(totalBaseColumns, state, stateExpressionValues);
+            }
+        }
+
+        ResultStagePreparation.BaseProjection mainProjection =
+                buildPreparedBaseProjection(
+                        graph,
+                        mainBaseColumns,
+                        publicBaseAliases,
+                        hiddenLastConsumerStageId,
+                        List.of(),
+                        dialect);
+        ResultStagePreparation.BaseProjection totalProjection =
+                buildPreparedBaseProjection(
+                        graph,
+                        totalBaseColumns,
+                        publicBaseAliases,
+                        hiddenLastConsumerStageId,
+                        stateExpressionValues,
+                        dialect);
+        return new ResultStagePreparation(
+                graph,
+                new ResultStagePreparation.BaseProjectionPlan(
+                        mainProjection, totalProjection));
+    }
+
+    private ResultStagePreparation.BaseProjection buildPreparedBaseProjection(
+            ResultStagePlan.Graph graph,
+            List<DbColumn> sourceColumns,
+            Set<String> publicAliases,
+            String hiddenLastConsumerStageId,
+            List<Object> expressionValues,
+            FDialect dialect) {
+        String producerStageId = lastBaseStageId(graph);
+        String finalStageId =
+                stageId(graph.diagnostics(), QueryStageType.FINAL_STAGE);
+        List<ResultStagePreparation.Projection> projections = new ArrayList<>();
+        for (DbColumn source : sourceColumns) {
+            String alias = getCteProjectionAlias(source);
+            boolean aggregateState =
+                    alias.toLowerCase(Locale.ROOT).startsWith("__foggy_");
+            boolean publicResult = publicAliases.contains(alias);
+            ResultStagePlan.ColumnRole role = aggregateState
+                    ? ResultStagePlan.ColumnRole.INTERNAL_AGGREGATE_STATE
+                    : publicResult
+                    ? ResultStagePlan.ColumnRole.PUBLIC_RESULT
+                    : ResultStagePlan.ColumnRole.HIDDEN_DEPENDENCY;
+            String lastConsumerStageId =
+                    role == ResultStagePlan.ColumnRole.HIDDEN_DEPENDENCY
+                            && hiddenLastConsumerStageId != null
+                            ? hiddenLastConsumerStageId : finalStageId;
+            String lineage = StringUtils.isNotEmpty(source.getAlias())
+                    ? source.getAlias() : alias;
+            ResultStagePlan.Column column = new ResultStagePlan.Column(
+                    alias,
+                    role,
+                    producerStageId,
+                    lastConsumerStageId,
+                    source.getType(),
+                    lineage,
+                    BoundSqlExpression.of(dialect.quoteIdentifier(alias)));
+            projections.add(new ResultStagePreparation.Projection(source, column));
+        }
+        return new ResultStagePreparation.BaseProjection(
+                projections, expressionValues);
+    }
+
+    private List<WindowColumnInfo> identifyWindowColumns(
+            List<DbColumn> columns) {
+        List<WindowColumnInfo> result = new ArrayList<>();
+        for (int i = 0; i < columns.size(); i++) {
+            DbColumn column = columns.get(i);
+            if (column instanceof AggregationDbColumn aggregation
+                    && aggregation.getAggregation() == DbAggregation.WINDOW) {
+                result.add(new WindowColumnInfo(i, column));
+            } else if (column instanceof CalculatedDbColumn calculated
+                    && calculated.hasWindow()) {
+                result.add(new WindowColumnInfo(i, column));
+            }
+        }
+        return result;
     }
 
     private List<String> buildWindowResultOrderExprs(
@@ -1193,7 +1348,10 @@ public class JdbcModelQueryEngine implements QueryEngine {
         }
 
         List<DbColumn> originalSelectCols = new ArrayList<>(jdbcQuery.getSelect().getColumns());
+        ResultStagePreparation preparation = requireResultStagePreparation();
         JdbcQuery.JdbcOrder savedOrder = jdbcQuery.getOrder();
+        jdbcQuery.getSelect().setColumns(
+                new ArrayList<>(preparation.sourceColumns(ResultStagePlan.Mode.MAIN)));
         jdbcQuery.setOrder(null);
 
         SimpleSqlJdbcQueryVisitor v1 = new SimpleSqlJdbcQueryVisitor(
@@ -1205,17 +1363,11 @@ public class JdbcModelQueryEngine implements QueryEngine {
         jdbcQuery.getSelect().setColumns(new ArrayList<>(originalSelectCols));
         jdbcQuery.setOrder(savedOrder);
 
-        this.resultStageGraph = preparePostAggregateResultStageGraph(
-                stagePlan, queryRequest, originalSelectCols, dialect);
-        ResultStagePlan.RootSql root = new ResultStagePlan.RootSql(
-                domainTransportInjection.structuredCtes(),
-                lastBaseStageId(resultStageGraph),
-                new BoundSqlExpression(stage1Sql, stage1Params),
-                List.of());
-        ResultStagePlan.Executable executable = ResultStagePlan.Executable.bind(
-                resultStageGraph,
+        ResultStagePlan.Executable executable = preparation.bind(
                 ResultStagePlan.Mode.MAIN,
-                root,
+                domainTransportInjection.structuredCtes(),
+                lastBaseStageId(preparation.graph()),
+                new BoundSqlExpression(stage1Sql, stage1Params),
                 buildPostAggregateMainFinalProjection(queryRequest, originalSelectCols, dialect));
         ResultStagePlan.RenderResult rendered = resultStageRenderer.render(executable, dialect);
         applySharedResultStageRender(rendered, stage1Sql, stage1Params);
@@ -1364,11 +1516,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
                                          DomainTransportSqlInjection domainTransportInjection,
                                          QueryStagePlan stagePlan,
                                          boolean countToSum) {
-        TotalDataAggregatePlan plan = buildTotalDataAggregatePlan(queryRequest, jdbcQuery, countToSum);
-        this.totalDataAggregatePlan = plan;
-        if (plan.getStatus() == TotalDataAggregatePlan.LoweringStatus.REFUSED) {
-            throw RX.throwAUserTip("TOTAL_DATA_AGGREGATE_NOT_MERGEABLE: " + plan.getRefusalReason());
-        }
+        TotalDataAggregatePlan plan = this.totalDataAggregatePlan;
         if (plan.getStatus() == TotalDataAggregatePlan.LoweringStatus.LOWERED) {
             BoundSqlExpression rendered = renderAlgebraicTotalData(
                     systemBundlesContext, queryRequest, jdbcQuery,
@@ -1688,31 +1836,19 @@ public class JdbcModelQueryEngine implements QueryEngine {
         FDialect dialect = jdbcQueryModel != null
                 ? jdbcQueryModel.getDialect() : FDialect.MYSQL_DIALECT;
         List<DbColumn> originalColumns = new ArrayList<>(jdbcQuery.getSelect().getColumns());
-        List<DbColumn> baseColumns = new ArrayList<>();
-        List<DbColumn> windowColumns = new ArrayList<>();
-        for (DbColumn column : originalColumns) {
-            if (resolveAggregation(column) == DbAggregation.WINDOW
-                    || (column instanceof CalculatedDbColumn calculated && calculated.hasWindow())) {
-                windowColumns.add(column);
-            } else {
-                baseColumns.add(column);
+        List<DbColumn> baseColumns;
+        List<Object> stateExpressionParams;
+        if (resultStagePreparation != null) {
+            baseColumns = new ArrayList<>(
+                    resultStagePreparation.sourceColumns(ResultStagePlan.Mode.TOTAL));
+            stateExpressionParams = new ArrayList<>(
+                    resultStagePreparation.expressionValues(ResultStagePlan.Mode.TOTAL));
+        } else {
+            baseColumns = new ArrayList<>(originalColumns);
+            stateExpressionParams = new ArrayList<>();
+            for (TotalDataAggregatePlan.AggregateStateSpec state : plan.getStates()) {
+                addStateColumns(baseColumns, state, stateExpressionParams);
             }
-        }
-
-        for (DbColumn window : windowColumns) {
-            CalculatedDbColumn calculated = sourceCalculatedColumn(window);
-            if (calculated != null && calculated.getReferencedColumns() != null) {
-                for (DbQueryColumn reference : calculated.getReferencedColumns()) {
-                    if (!containsCteProjectionAlias(baseColumns, reference)) {
-                        baseColumns.add(windowDependencyProjection(systemBundlesContext, reference));
-                    }
-                }
-            }
-        }
-
-        List<Object> stateExpressionParams = new ArrayList<>();
-        for (TotalDataAggregatePlan.AggregateStateSpec state : plan.getStates()) {
-            addStateColumns(baseColumns, state, stateExpressionParams);
         }
 
         List<DbColumn> savedColumns = jdbcQuery.getSelect().getColumns();
@@ -1734,11 +1870,10 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
         List<Object> baseParams = new ArrayList<>(stateExpressionParams);
         baseParams.addAll(baseVisitorParams);
-        if (resultStageGraph != null) {
+        if (resultStagePreparation != null) {
             return renderSharedResultStageTotal(
                     plan,
                     originalColumns,
-                    baseColumns,
                     baseSql,
                     baseParams,
                     domainTransportSqlInjection,
@@ -1751,75 +1886,37 @@ public class JdbcModelQueryEngine implements QueryEngine {
     private BoundSqlExpression renderSharedResultStageTotal(
             TotalDataAggregatePlan plan,
             List<DbColumn> originalColumns,
-            List<DbColumn> baseColumns,
             String baseSql,
             List<Object> baseParams,
             DomainTransportSqlInjection domainTransportSqlInjection,
             FDialect dialect) {
-        String boundThroughStageId = lastBaseStageId(resultStageGraph);
-        String totalSourceAlias = lastResultStageAlias(resultStageGraph);
-        ResultStagePlan.RootSql root = new ResultStagePlan.RootSql(
+        ResultStagePreparation preparation = requireResultStagePreparation();
+        ResultStagePlan.Graph graph = preparation.graph();
+        String boundThroughStageId = lastBaseStageId(graph);
+        String totalSourceAlias = lastResultStageAlias(graph);
+        ResultStagePlan.Executable executable = preparation.bind(
+                ResultStagePlan.Mode.TOTAL,
                 domainTransportSqlInjection == null
                         ? List.of() : domainTransportSqlInjection.structuredCtes(),
                 boundThroughStageId,
                 new BoundSqlExpression(baseSql, baseParams),
-                buildTotalRootColumns(
-                        plan, baseColumns, boundThroughStageId,
-                        stageId(resultStageGraph.diagnostics(), QueryStageType.FINAL_STAGE),
-                        dialect));
-        ResultStagePlan.Executable executable = ResultStagePlan.Executable.bind(
-                resultStageGraph,
-                ResultStagePlan.Mode.TOTAL,
-                root,
-                buildTotalFinalProjection(plan, originalColumns, totalSourceAlias, dialect));
+                buildTotalFinalProjection(
+                        plan, originalColumns, totalSourceAlias, graph, dialect));
         ResultStagePlan.RenderResult rendered = resultStageRenderer.render(executable, dialect);
         return new BoundSqlExpression(rendered.assembledSql(), rendered.assembledValues());
-    }
-
-    private List<ResultStagePlan.Column> buildTotalRootColumns(
-            TotalDataAggregatePlan plan,
-            List<DbColumn> baseColumns,
-            String producerStageId,
-            String lastConsumerStageId,
-            FDialect dialect) {
-        Set<String> publicAliases = new LinkedHashSet<>(plan.getPublicAliases());
-        List<ResultStagePlan.Column> columns = new ArrayList<>();
-        Set<String> seen = new LinkedHashSet<>();
-        for (DbColumn column : baseColumns) {
-            String alias = getCteProjectionAlias(column);
-            if (StringUtils.isEmpty(alias) || !seen.add(alias)) {
-                continue;
-            }
-            ResultStagePlan.ColumnRole role;
-            if (alias.toLowerCase(Locale.ROOT).startsWith("__foggy_")) {
-                role = ResultStagePlan.ColumnRole.INTERNAL_AGGREGATE_STATE;
-            } else if (publicAliases.contains(alias)) {
-                role = ResultStagePlan.ColumnRole.PUBLIC_RESULT;
-            } else {
-                role = ResultStagePlan.ColumnRole.HIDDEN_DEPENDENCY;
-            }
-            columns.add(new ResultStagePlan.Column(
-                    alias,
-                    role,
-                    producerStageId,
-                    lastConsumerStageId,
-                    column.getType(),
-                    column.getAlias(),
-                    BoundSqlExpression.of(dialect.quoteIdentifier(alias))));
-        }
-        return columns;
     }
 
     private List<ResultStagePlan.FinalProjection> buildTotalFinalProjection(
             TotalDataAggregatePlan plan,
             List<DbColumn> originalColumns,
             String totalSourceAlias,
+            ResultStagePlan.Graph graph,
             FDialect dialect) {
         Map<String, DbColumn> originalByAlias = new LinkedHashMap<>();
         for (DbColumn column : originalColumns) {
             originalByAlias.put(column.getAlias(), column);
         }
-        Set<String> resultStageAliases = resultStageGraph.stages().stream()
+        Set<String> resultStageAliases = graph.stages().stream()
                 .flatMap(stage -> stage.computedColumns().stream())
                 .map(ResultStagePlan.Column::alias)
                 .collect(Collectors.toCollection(LinkedHashSet::new));

@@ -139,7 +139,10 @@ public final class TotalDataAggregatePlan {
         if (state.aggregation() == DbAggregation.AVG) {
             String numerator = "SUM(" + qualified(sourceAlias, state.sumAlias(), dialect) + ")";
             String denominator = "SUM(" + qualified(sourceAlias, state.countAlias(), dialect) + ")";
-            return TotalDataSqlDialect.safeRatio(dialect, numerator, denominator);
+            DbColumnType resultType =
+                    state.type() == null ? DbColumnType.NUMBER : state.type();
+            return TotalDataSqlDialect.renderRatio(
+                    dialect, numerator, denominator, resultType);
         }
         String value = qualified(sourceAlias, state.valueAlias(), dialect);
         return switch (state.aggregation()) {
