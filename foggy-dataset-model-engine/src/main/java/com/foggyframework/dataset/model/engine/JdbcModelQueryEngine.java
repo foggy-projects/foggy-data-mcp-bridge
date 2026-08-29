@@ -1021,21 +1021,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
         ResultStagePlan.RenderResult rendered = resultStageRenderer.render(executable, dialect);
 
         // Note: LIMIT/OFFSET remains owned by the upper-layer pagination framework.
-        this.cteWrapped = !rendered.cteStages().isEmpty();
-        this.cteStages = rendered.cteStages();
-        this.cteStage1Alias = "stage1";
-        SqlGenerationResult.CteStage baseStage = rendered.cteStages().stream()
-                .filter(stage -> "stage1".equals(stage.alias()))
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("Missing shared result-stage base CTE 'stage1'"));
-        this.cteStage1Sql = baseStage.sql();
-        this.cteStage1Params = baseStage.params();
-        this.cteOuterSelectSql = rendered.outerSql();
-        this.cteOuterSelectParams = rendered.outerValues();
-        this.innerSql = rendered.assembledSql();
-        this.innerSqlWithoutOrder = rendered.assembledSqlWithoutOrder();
-        this.sql = this.innerSql;
-        this.values = rendered.assembledValues();
+        applySharedResultStageRender(rendered, stage1Sql, stage1Params);
 
         boolean countToSum = queryRequest.hasGroupBy();
         buildAggSqlForStagePlan(systemBundlesContext, queryRequest, jdbcQuery,
@@ -1201,8 +1187,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
                                                    DomainTransportSqlInjection domainTransportInjection,
                                                    QueryStagePlan stagePlan) {
         FDialect dialect = jdbcQueryModel != null ? jdbcQueryModel.getDialect() : FDialect.MYSQL_DIALECT;
-        boolean useDerivedTables = stagePlan != null && stagePlan.usesDerivedTableRendering();
-        if (useDerivedTables && domainTransportInjection.hasCte()) {
+        if (stagePlan.usesDerivedTableRendering() && domainTransportInjection.hasCte()) {
             throw RX.throwAUserTip("DERIVED_STAGE_CTE_TRANSPORT_UNSUPPORTED: the current dialect cannot combine derived-table stage fallback with CTE-based domain transport.");
         }
 
@@ -1219,117 +1204,157 @@ public class JdbcModelQueryEngine implements QueryEngine {
         jdbcQuery.getSelect().setColumns(new ArrayList<>(originalSelectCols));
         jdbcQuery.setOrder(savedOrder);
 
-        if (domainTransportInjection.hasCte()) {
-            stage1Sql = "with " + String.join(",\n", domainTransportInjection.cteFragments()) + "\n" + stage1Sql;
-            List<Object> mergedParams = new ArrayList<>();
-            mergedParams.addAll(domainTransportInjection.cteParams());
-            mergedParams.addAll(stage1Params);
-            stage1Params = mergedParams;
-        }
-
-        String stage1Alias = "stage1";
-        String postAlias = "post_stage";
-        List<String> postSelects = new ArrayList<>();
-        Set<String> finalAliases = new LinkedHashSet<>();
-
-        for (DbColumn col : originalSelectCols) {
-            String alias = col.getAlias();
-            finalAliases.add(alias);
-            String quoted = dialect.quoteIdentifier(alias);
-            postSelects.add(stage1Alias + "." + quoted);
-        }
-
-        for (PostAggregateCalculationDef calc : queryRequest.getPostAggregateCalculations()) {
-            String measureRef = stage1Alias + "." + dialect.quoteIdentifier(calc.getMeasure());
-            String expr = buildPostAggregateCalculationSql(calc, measureRef);
-            postSelects.add(expr + " AS " + dialect.quoteIdentifier(calc.getName()));
-            finalAliases.add(calc.getName());
-        }
-
-        String stage1Source = useDerivedTables
-                ? "(\n" + stage1Sql + "\n) " + stage1Alias
-                : stage1Alias;
-        String postStageSql = "SELECT " + String.join(",\n\t", postSelects)
-                + "\nFROM " + stage1Source;
-        String finalStageSource = useDerivedTables
-                ? "(\n" + postStageSql + "\n) " + postAlias
-                : postAlias;
-
-        StringBuilder finalSelect = new StringBuilder();
-        finalSelect.append("SELECT ");
-        List<String> finalSelects = finalAliases.stream()
-                .map(dialect::quoteIdentifier)
-                .collect(Collectors.toList());
-        finalSelect.append(String.join(",\n\t", finalSelects));
-        finalSelect.append("\nFROM ").append(finalStageSource);
-
-        List<Object> finalParams = new ArrayList<>();
-        List<SliceRequestDef> resultStageSlice = new ArrayList<>();
-        if (postAggregateSlice != null && !postAggregateSlice.isEmpty()) {
-            resultStageSlice.addAll(postAggregateSlice);
-        }
-        if (queryRequest.getPostSlice() != null && !queryRequest.getPostSlice().isEmpty()) {
-            resultStageSlice.addAll(queryRequest.getPostSlice());
-        }
-        if (!resultStageSlice.isEmpty()) {
-            List<String> filters = new ArrayList<>();
-            for (SliceRequestDef slice : resultStageSlice) {
-                filters.add(buildPostAggregateFilterSql(slice, dialect, finalAliases, finalParams));
-            }
-            finalSelect.append("\nWHERE ").append(String.join(" AND ", filters));
-        }
-
-        String finalSelectWithoutOrder = finalSelect.toString();
-        if (queryRequest.getOrderBy() != null && !queryRequest.getOrderBy().isEmpty()) {
-            List<String> orderExprs = new ArrayList<>();
-            for (OrderRequestDef order : queryRequest.getOrderBy()) {
-                if (!finalAliases.contains(order.getField())) {
-                    continue;
-                }
-                String orderRef = dialect.quoteIdentifier(order.getField());
-                if (StringUtils.isNotEmpty(order.getDir())) {
-                    orderRef += " " + order.getDir().toUpperCase();
-                }
-                orderExprs.add(orderRef);
-            }
-            if (!orderExprs.isEmpty()) {
-                finalSelect.append("\nORDER BY ").append(String.join(", ", orderExprs));
-            }
-        }
-
-        this.cteStage1Alias = stage1Alias;
-        this.cteStage1Sql = stage1Sql;
-        this.cteStage1Params = stage1Params;
-        this.cteOuterSelectSql = finalSelect.toString();
-        this.cteOuterSelectParams = finalParams;
-        if (useDerivedTables) {
-            this.cteWrapped = false;
-            this.cteStages = List.of();
-            this.innerSql = finalSelect.toString();
-            this.innerSqlWithoutOrder = finalSelectWithoutOrder;
-        } else {
-            this.cteWrapped = true;
-            this.cteStages = List.of(
-                    new SqlGenerationResult.CteStage(stage1Alias, stage1Sql, stage1Params),
-                    new SqlGenerationResult.CteStage(postAlias, postStageSql, List.of())
-            );
-
-            this.innerSql = "WITH " + stage1Alias + " AS (\n" + stage1Sql + "\n),\n"
-                    + postAlias + " AS (\n" + postStageSql + "\n)\n"
-                    + finalSelect;
-            this.innerSqlWithoutOrder = "WITH " + stage1Alias + " AS (\n" + stage1Sql + "\n),\n"
-                    + postAlias + " AS (\n" + postStageSql + "\n)\n"
-                    + finalSelectWithoutOrder;
-        }
-        this.sql = this.innerSql;
-        List<Object> mergedValues = new ArrayList<>();
-        mergedValues.addAll(stage1Params);
-        mergedValues.addAll(finalParams);
-        this.values = mergedValues;
+        this.resultStageGraph = preparePostAggregateResultStageGraph(
+                stagePlan, queryRequest, originalSelectCols, dialect);
+        ResultStagePlan.RootSql root = new ResultStagePlan.RootSql(
+                domainTransportInjection.structuredCtes(),
+                lastBaseStageId(resultStageGraph),
+                new BoundSqlExpression(stage1Sql, stage1Params),
+                List.of());
+        ResultStagePlan.Executable executable = ResultStagePlan.Executable.bind(
+                resultStageGraph,
+                ResultStagePlan.Mode.MAIN,
+                root,
+                buildPostAggregateMainFinalProjection(queryRequest, originalSelectCols, dialect));
+        ResultStagePlan.RenderResult rendered = resultStageRenderer.render(executable, dialect);
+        applySharedResultStageRender(rendered, stage1Sql, stage1Params);
 
         boolean countToSum = queryRequest.hasGroupBy();
         buildAggSqlForStagePlan(systemBundlesContext, queryRequest, jdbcQuery,
                 domainTransportInjection, stagePlan, countToSum);
+    }
+
+    private ResultStagePlan.Graph preparePostAggregateResultStageGraph(
+            QueryStagePlan stagePlan,
+            DbQueryRequestDef queryRequest,
+            List<DbColumn> originalSelectCols,
+            FDialect dialect) {
+        String postAggregateStageId = stageId(stagePlan, QueryStageType.POST_AGGREGATE_STAGE);
+        String finalStageId = stageId(stagePlan, QueryStageType.FINAL_STAGE);
+        Set<String> finalAliases = new LinkedHashSet<>();
+        for (DbColumn column : originalSelectCols) {
+            finalAliases.add(column.getAlias());
+        }
+
+        List<ResultStagePlan.Column> postAggregateColumns = new ArrayList<>();
+        for (PostAggregateCalculationDef calc : queryRequest.getPostAggregateCalculations()) {
+            String measureRef = "stage1." + dialect.quoteIdentifier(calc.getMeasure());
+            postAggregateColumns.add(new ResultStagePlan.Column(
+                    calc.getName(),
+                    ResultStagePlan.ColumnRole.RESULT_STAGE_ONLY,
+                    postAggregateStageId,
+                    finalStageId,
+                    DbColumnType.NUMBER,
+                    calc.getMeasure(),
+                    BoundSqlExpression.of(buildPostAggregateCalculationSql(calc, measureRef))));
+            finalAliases.add(calc.getName());
+        }
+
+        List<BoundSqlExpression> resultFilters = new ArrayList<>();
+        List<SliceRequestDef> resultStageSlice = new ArrayList<>();
+        if (postAggregateSlice != null) {
+            resultStageSlice.addAll(postAggregateSlice);
+        }
+        if (queryRequest.getPostSlice() != null) {
+            resultStageSlice.addAll(queryRequest.getPostSlice());
+        }
+        for (SliceRequestDef slice : resultStageSlice) {
+            List<Object> params = new ArrayList<>();
+            resultFilters.add(new BoundSqlExpression(
+                    buildPostAggregateFilterSql(slice, dialect, finalAliases, params),
+                    params));
+        }
+
+        List<BoundSqlExpression> finalOrders = new ArrayList<>();
+        if (queryRequest.getOrderBy() != null) {
+            for (OrderRequestDef order : queryRequest.getOrderBy()) {
+                if (!finalAliases.contains(order.getField())) {
+                    continue;
+                }
+                String orderSql = dialect.quoteIdentifier(order.getField());
+                if (StringUtils.isNotEmpty(order.getDir())) {
+                    orderSql += " " + order.getDir().toUpperCase();
+                }
+                finalOrders.add(BoundSqlExpression.of(orderSql));
+            }
+        }
+
+        boolean hasWindowResultStage = stagePlan.hasStage(QueryStageType.WINDOW_RESULT_STAGE);
+        List<ResultStagePlan.Stage> stages = new ArrayList<>();
+        for (QueryStagePlan.Stage diagnostic : stagePlan.getStages()) {
+            QueryStageType type = diagnostic.getType();
+            if (type == QueryStageType.POST_AGGREGATE_STAGE) {
+                stages.add(new ResultStagePlan.Stage(
+                        diagnostic.getId(), type, "post_stage",
+                        postAggregateColumns,
+                        hasWindowResultStage ? List.of() : resultFilters,
+                        List.of()));
+            } else if (type == QueryStageType.WINDOW_RESULT_STAGE) {
+                stages.add(new ResultStagePlan.Stage(
+                        diagnostic.getId(), type, "__POST_RESULT_STAGE__",
+                        List.of(), resultFilters, List.of()));
+            } else if (type == QueryStageType.FINAL_STAGE) {
+                stages.add(new ResultStagePlan.Stage(
+                        diagnostic.getId(), type, "final",
+                        List.of(), List.of(), finalOrders));
+            } else {
+                stages.add(ResultStagePlan.Stage.metadata(
+                        diagnostic.getId(), type, "stage1"));
+            }
+        }
+        return ResultStagePlan.Graph.create(stagePlan, stages);
+    }
+
+    private List<ResultStagePlan.FinalProjection> buildPostAggregateMainFinalProjection(
+            DbQueryRequestDef queryRequest,
+            List<DbColumn> originalSelectCols,
+            FDialect dialect) {
+        List<ResultStagePlan.FinalProjection> projections = new ArrayList<>();
+        for (DbColumn column : originalSelectCols) {
+            projections.add(new ResultStagePlan.FinalProjection(
+                    column.getAlias(),
+                    ResultStagePlan.ColumnRole.PUBLIC_RESULT,
+                    column.getType(),
+                    BoundSqlExpression.of(dialect.quoteIdentifier(column.getAlias()))));
+        }
+        for (PostAggregateCalculationDef calc : queryRequest.getPostAggregateCalculations()) {
+            projections.add(new ResultStagePlan.FinalProjection(
+                    calc.getName(),
+                    ResultStagePlan.ColumnRole.RESULT_STAGE_ONLY,
+                    DbColumnType.NUMBER,
+                    BoundSqlExpression.of(dialect.quoteIdentifier(calc.getName()))));
+        }
+        return projections;
+    }
+
+    private String stageId(QueryStagePlan stagePlan, QueryStageType type) {
+        return stagePlan.getStages().stream()
+                .filter(stage -> stage.getType() == type)
+                .map(QueryStagePlan.Stage::getId)
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Result-stage diagnostics missing " + type));
+    }
+
+    private void applySharedResultStageRender(
+            ResultStagePlan.RenderResult rendered,
+            String rootSql,
+            List<Object> rootParams) {
+        this.cteWrapped = !rendered.cteStages().isEmpty();
+        this.cteStages = rendered.cteStages();
+        this.cteStage1Alias = "stage1";
+        SqlGenerationResult.CteStage baseStage = rendered.cteStages().stream()
+                .filter(stage -> "stage1".equals(stage.alias()))
+                .findFirst()
+                .orElse(null);
+        this.cteStage1Sql = baseStage == null ? rootSql : baseStage.sql();
+        this.cteStage1Params = baseStage == null ? List.copyOf(rootParams) : baseStage.params();
+        this.cteOuterSelectSql = rendered.outerSql();
+        this.cteOuterSelectParams = rendered.outerValues();
+        this.innerSql = rendered.assembledSql();
+        this.innerSqlWithoutOrder = rendered.assembledSqlWithoutOrder();
+        this.sql = this.innerSql;
+        this.values = rendered.assembledValues();
     }
 
     private void buildAggSqlForStagePlan(SystemBundlesContext systemBundlesContext,
