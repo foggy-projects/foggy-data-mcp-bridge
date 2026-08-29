@@ -52,6 +52,9 @@ class DomainRelationRendererTest {
         DomainRelationRenderResult result = renderer.render(dialect, null, createSingleFieldPlan());
 
         assertEquals(DomainTransportPlacement.CTE, result.getPlacement());
+        assertEquals("_pivot_domain_transport", result.getCteAlias());
+        assertEquals(Collections.singletonList("category"), result.getCteColumnAliases());
+        assertTrue(result.getCteBody().startsWith("VALUES (?)"), result.getCteBody());
         assertTrue(result.getSqlFragment().contains("_pivot_domain_transport(\"category\") AS (\n  VALUES (?),\n         (?),\n         (?)"));
         assertTrue(result.getJoinPredicate().contains("_base.\"category\" IS NOT DISTINCT FROM _d.\"category\""));
         assertEquals(3, result.getParams().size());
@@ -65,6 +68,9 @@ class DomainRelationRendererTest {
         DomainRelationRenderResult result = renderer.render(dialect, null, createTupleFieldPlan());
 
         assertEquals(DomainTransportPlacement.CTE, result.getPlacement());
+        assertEquals("_pivot_domain_transport", result.getCteAlias());
+        assertEquals(Arrays.asList("category", "product"), result.getCteColumnAliases());
+        assertTrue(result.getCteBody().startsWith("VALUES (?, ?)"), result.getCteBody());
         assertTrue(result.getSqlFragment().contains("VALUES (?, ?),\n         (?, ?),\n         (?, ?)"));
         assertTrue(result.getJoinPredicate().contains("_base.\"category\" IS _d.\"category\""));
         assertTrue(result.getJoinPredicate().contains("_base.\"product\" IS _d.\"product\""));
@@ -81,6 +87,9 @@ class DomainRelationRendererTest {
 
         DomainRelationRenderResult result = renderer.render(dialect, "8.0.19-commercial", createSingleFieldPlan());
         assertEquals(DomainTransportPlacement.CTE, result.getPlacement());
+        assertEquals("_pivot_domain_transport", result.getCteAlias());
+        assertEquals(Collections.singletonList("category"), result.getCteColumnAliases());
+        assertTrue(result.getCteBody().startsWith("VALUES ROW(?)"), result.getCteBody());
         assertTrue(result.getSqlFragment().contains("VALUES ROW(?),\n         ROW(?),\n         ROW(?)"));
         assertTrue(result.getJoinPredicate().contains("_base.`category` <=> _d.`category`"));
     }
@@ -115,6 +124,9 @@ class DomainRelationRendererTest {
         DomainRelationRenderResult result = renderer.render(dialect, null, createTupleFieldPlan());
 
         assertEquals(DomainTransportPlacement.CTE, result.getPlacement());
+        assertEquals("_pivot_domain_transport", result.getCteAlias());
+        assertEquals(Arrays.asList("category", "product"), result.getCteColumnAliases());
+        assertTrue(result.getCteBody().startsWith("SELECT CAST"), result.getCteBody());
         assertTrue(result.getSqlFragment().contains("_pivot_domain_transport([category], [product]) AS ("));
         assertTrue(result.getSqlFragment().contains("CAST(? AS NVARCHAR(4000)) AS [category]"));
         assertTrue(result.getSqlFragment().contains("UNION ALL\n  SELECT CAST(? AS NVARCHAR(4000)), CAST(? AS NVARCHAR(4000))"));

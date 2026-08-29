@@ -12,6 +12,15 @@ public class DomainRelationRenderResult {
      */
     private final String sqlFragment;
 
+    /** Pure CTE alias for CTE placement; null for derived placement. */
+    private final String cteAlias;
+
+    /** Unquoted CTE output columns produced from the structured domain plan. */
+    private final List<String> cteColumnAliases;
+
+    /** CTE body without the {@code alias(columns) AS (...)} wrapper. */
+    private final String cteBody;
+
     /**
      * Flattened parameters.
      */

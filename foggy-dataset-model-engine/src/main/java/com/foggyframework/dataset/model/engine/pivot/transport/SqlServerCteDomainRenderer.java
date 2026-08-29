@@ -20,18 +20,21 @@ public class SqlServerCteDomainRenderer implements DomainRelationRenderer {
         }
 
         List<String> fieldNames = new ArrayList<>();
+        List<String> columnAliases = new ArrayList<>();
         for (DomainTransportField field : plan.getFields()) {
+            columnAliases.add(field.getName());
             fieldNames.add(dialect.quoteIdentifier(field.getName()));
         }
 
         StringBuilder sql = new StringBuilder();
+        StringBuilder body = new StringBuilder();
         List<Object> params = new ArrayList<>();
         sql.append(plan.getRelationName()).append("(").append(String.join(", ", fieldNames)).append(") AS (\n");
         for (int i = 0; i < plan.getTuples().size(); i++) {
             if (i > 0) {
-                sql.append("\n  UNION ALL\n");
+                body.append("\nUNION ALL\n");
             }
-            sql.append("  SELECT ");
+            body.append("SELECT ");
             DomainTransportTuple tuple = plan.getTuples().get(i);
             List<String> columns = new ArrayList<>();
             for (int j = 0; j < tuple.getValues().size(); j++) {
@@ -42,8 +45,10 @@ public class SqlServerCteDomainRenderer implements DomainRelationRenderer {
                 }
                 columns.add(expression);
             }
-            sql.append(String.join(", ", columns));
+            body.append(String.join(", ", columns));
         }
+        String cteBody = body.toString();
+        sql.append("  ").append(cteBody.replace("\n", "\n  "));
         sql.append("\n)");
 
         List<String> joinParts = new ArrayList<>();
@@ -53,6 +58,9 @@ public class SqlServerCteDomainRenderer implements DomainRelationRenderer {
 
         return DomainRelationRenderResult.builder()
                 .sqlFragment(sql.toString())
+                .cteAlias(plan.getRelationName())
+                .cteColumnAliases(columnAliases)
+                .cteBody(cteBody)
                 .params(params)
                 .joinPredicate(String.join(" AND ", joinParts))
                 .placement(DomainTransportPlacement.CTE)

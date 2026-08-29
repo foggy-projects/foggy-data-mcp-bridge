@@ -55,6 +55,13 @@ public final class ResultStageRenderer {
         ResultStagePlan.Stage rootStage = graph.stages().get(rootIndex);
         ctes.add(new SqlGenerationResult.CteStage(
                 rootStage.renderAlias(), root.body().sql(), root.body().values()));
+        ResultStagePlan.Stage collapsibleWindow = collapsibleMainWindow(executable, rootIndex);
+        if (collapsibleWindow != null) {
+            FinalSql collapsed = renderCollapsedMainWindow(
+                    executable, rootStage.renderAlias(), collapsibleWindow, dialect);
+            return new ResultStagePlan.RenderResult(
+                    collapsed.sql(), collapsed.sqlWithoutOrder(), collapsed.values(), ctes);
+        }
         String currentAlias = rootStage.renderAlias();
         List<BoundSqlExpression> finalFilters = new ArrayList<>();
         ResultStagePlan.Stage finalStage = null;
@@ -96,6 +103,60 @@ public final class ResultStageRenderer {
         String sql = "SELECT " + String.join(",\n       ", projections)
                 + "\nFROM " + sourceAlias;
         return new BoundSqlExpression(sql, values);
+    }
+
+    private ResultStagePlan.Stage collapsibleMainWindow(
+            ResultStagePlan.Executable executable,
+            int rootIndex) {
+        if (executable.mode() != ResultStagePlan.Mode.MAIN) {
+            return null;
+        }
+        ResultStagePlan.Stage candidate = null;
+        for (int i = rootIndex + 1; i < executable.graph().stages().size(); i++) {
+            ResultStagePlan.Stage stage = executable.graph().stages().get(i);
+            if (stage.type() == QueryStageType.FINAL_STAGE) {
+                continue;
+            }
+            if (!isResultStage(stage.type())) {
+                continue;
+            }
+            if (candidate != null
+                    || stage.type() != QueryStageType.WINDOW_RESULT_STAGE
+                    || !stage.filters().isEmpty()) {
+                return null;
+            }
+            candidate = stage;
+        }
+        return candidate;
+    }
+
+    private FinalSql renderCollapsedMainWindow(
+            ResultStagePlan.Executable executable,
+            String sourceAlias,
+            ResultStagePlan.Stage window,
+            FDialect dialect) {
+        List<Object> values = new ArrayList<>();
+        List<String> projections = new ArrayList<>();
+        for (ResultStagePlan.FinalProjection projection : executable.finalProjection()) {
+            ResultStagePlan.Column computed = window.computedColumns().stream()
+                    .filter(column -> column.alias().equals(projection.alias()))
+                    .findFirst()
+                    .orElse(null);
+            BoundSqlExpression expression = computed == null
+                    ? projection.expression() : computed.expression();
+            projections.add(expression.sql() + " AS " + dialect.quoteIdentifier(projection.alias()));
+            values.addAll(expression.values());
+        }
+        StringBuilder sql = new StringBuilder("SELECT ")
+                .append(String.join(",\n       ", projections))
+                .append("\nFROM ").append(sourceAlias);
+        String withoutOrder = sql.toString();
+        ResultStagePlan.Stage finalStage = executable.graph().stages().stream()
+                .filter(stage -> stage.type() == QueryStageType.FINAL_STAGE)
+                .findFirst()
+                .orElse(null);
+        appendOrder(sql, executable.mode(), finalStage == null ? List.of() : finalStage.orders());
+        return new FinalSql(sql.toString(), withoutOrder, values);
     }
 
     private ResultStagePlan.RenderResult renderDerived(

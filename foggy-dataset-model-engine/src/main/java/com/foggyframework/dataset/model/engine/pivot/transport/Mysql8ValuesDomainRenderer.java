@@ -58,11 +58,13 @@ public class Mysql8ValuesDomainRenderer implements DomainRelationRenderer {
         StringBuilder sql = new StringBuilder();
         sql.append(plan.getRelationName()).append("(");
         List<String> fieldNames = new ArrayList<>();
+        List<String> columnAliases = new ArrayList<>();
         for (DomainTransportField field : plan.getFields()) {
+            columnAliases.add(field.getName());
             fieldNames.add(dialect.quoteIdentifier(field.getName()));
         }
         sql.append(String.join(", ", fieldNames));
-        sql.append(") AS (\n  VALUES ");
+        sql.append(") AS (\n  ");
 
         List<Object> params = new ArrayList<>();
         List<String> tupleStrings = new ArrayList<>();
@@ -74,7 +76,8 @@ public class Mysql8ValuesDomainRenderer implements DomainRelationRenderer {
             }
             tupleStrings.add("ROW(" + String.join(", ", placeholders) + ")");
         }
-        sql.append(String.join(",\n         ", tupleStrings));
+        String cteBody = "VALUES " + String.join(",\n       ", tupleStrings);
+        sql.append(cteBody.replace("\n", "\n  "));
         sql.append("\n)");
 
         StringBuilder joinPredicate = new StringBuilder();
@@ -87,6 +90,9 @@ public class Mysql8ValuesDomainRenderer implements DomainRelationRenderer {
 
         return DomainRelationRenderResult.builder()
                 .sqlFragment(sql.toString())
+                .cteAlias(plan.getRelationName())
+                .cteColumnAliases(columnAliases)
+                .cteBody(cteBody)
                 .params(params)
                 .joinPredicate(joinPredicate.toString())
                 .placement(DomainTransportPlacement.CTE)

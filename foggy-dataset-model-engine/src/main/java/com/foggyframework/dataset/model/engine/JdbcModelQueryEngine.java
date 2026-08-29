@@ -41,6 +41,9 @@ import com.foggyframework.dataset.model.engine.query.SimpleSqlJdbcQueryVisitor;
 import com.foggyframework.dataset.model.engine.query_model.PredefinedCalculatedFieldInjector;
 import com.foggyframework.dataset.model.engine.stage.QueryStagePlan;
 import com.foggyframework.dataset.model.engine.stage.QueryStagePlanner;
+import com.foggyframework.dataset.model.engine.stage.QueryStageType;
+import com.foggyframework.dataset.model.engine.stage.result.ResultStagePlan;
+import com.foggyframework.dataset.model.engine.stage.result.ResultStageRenderer;
 import com.foggyframework.dataset.model.engine.total.TotalDataAggregatePlan;
 import com.foggyframework.dataset.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.model.impl.AiObject;
@@ -212,6 +215,8 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
     List values;
     QueryStagePlanner queryStagePlanner = new QueryStagePlanner();
+    ResultStageRenderer resultStageRenderer = new ResultStageRenderer();
+    ResultStagePlan.Graph resultStageGraph;
     private static final String PATTERN = "^[a-zA-Z\\s]+$";
     private static final Pattern PATTERN_OBJECT = Pattern.compile(PATTERN);
     private static final Pattern SAFE_INTERNAL_IDENTIFIER = Pattern.compile("^[A-Za-z_][A-Za-z0-9_]*$");
@@ -938,7 +943,6 @@ public class JdbcModelQueryEngine implements QueryEngine {
         List<DbColumn> originalSelectCols = new ArrayList<>(jdbcQuery.getSelect().getColumns());
         List<WindowColumnInfo> windowColumns = new ArrayList<>();
         List<DbColumn> stage1SelectCols = new ArrayList<>();
-        List<DbColumn> outerStage1OutputCols = new ArrayList<>();
 
         for (int i = 0; i < originalSelectCols.size(); i++) {
             DbColumn col = originalSelectCols.get(i);
@@ -952,7 +956,6 @@ public class JdbcModelQueryEngine implements QueryEngine {
                 windowColumns.add(new WindowColumnInfo(i, col));
             } else {
                 stage1SelectCols.add(col);
-                outerStage1OutputCols.add(col);
             }
         }
 
@@ -1002,117 +1005,155 @@ public class JdbcModelQueryEngine implements QueryEngine {
         jdbcQuery.getSelect().setColumns(new ArrayList<>(originalSelectCols));
         jdbcQuery.setOrder(savedOrder);
 
-        // ── Apply domain transport CTE prefix if present ──
-        if (domainTransportInjection.hasCte()) {
-            stage1Sql = "with " + String.join(",\n", domainTransportInjection.cteFragments()) + "\n" + stage1Sql;
-            List<Object> mergedParams = new ArrayList<>();
-            mergedParams.addAll(domainTransportInjection.cteParams());
-            mergedParams.addAll(stage1Params);
-            stage1Params = mergedParams;
-        }
+        this.resultStageGraph = prepareWindowResultStageGraph(
+                stagePlan, queryRequest, originalSelectCols, windowColumns, savedOrder, dialect);
+        String boundThroughStageId = lastBaseStageId(resultStageGraph);
+        ResultStagePlan.RootSql root = new ResultStagePlan.RootSql(
+                domainTransportInjection.structuredCtes(),
+                boundThroughStageId,
+                new BoundSqlExpression(stage1Sql, stage1Params),
+                List.of());
+        ResultStagePlan.Executable executable = ResultStagePlan.Executable.bind(
+                resultStageGraph,
+                ResultStagePlan.Mode.MAIN,
+                root,
+                buildMainFinalProjection(originalSelectCols, windowColumns, dialect));
+        ResultStagePlan.RenderResult rendered = resultStageRenderer.render(executable, dialect);
 
-        // ── Stage 2: Build outer SELECT referencing Stage 1 CTE ──
-        String cteAlias = "stage1";
-        StringBuilder outerSelect = new StringBuilder();
-
-        // Outer SELECT: reference all Stage 1 columns by alias, then add window CFs
-        outerSelect.append("SELECT ");
-        List<String> outerColumnExprs = new ArrayList<>();
-
-        // Stage 1 columns: reference by unified CTE alias
-        for (DbColumn col : outerStage1OutputCols) {
-            String colAlias = getCteProjectionAlias(col);
-            String quotedAlias = dialect.quoteIdentifier(colAlias);
-            outerColumnExprs.add(cteAlias + "." + quotedAlias);
-        }
-
-        // Window CF columns: use the full window expression (which now references aliases)
-        for (WindowColumnInfo wci : windowColumns) {
-            String windowExpr = wci.column.getDeclare();
-            String windowAlias = dialect.quoteIdentifier(wci.column.getAlias());
-            outerColumnExprs.add(windowExpr + " " + windowAlias);
-        }
-
-        outerSelect.append(String.join(",\n\t", outerColumnExprs));
-        outerSelect.append("\nFROM ").append(cteAlias);
-
-        // ── Elevate ORDER BY to Stage 2 ──
-        String outerSelectWithoutOrder = outerSelect.toString();
-        Set<String> finalAliases = new LinkedHashSet<>();
-        for (DbColumn col : outerStage1OutputCols) {
-            finalAliases.add(getCteProjectionAlias(col));
-        }
-        for (WindowColumnInfo wci : windowColumns) {
-            finalAliases.add(wci.column.getAlias());
-        }
-
-        List<String> unqualifiedOrderExprs = buildWindowResultOrderExprs(savedOrder, windowColumns, dialect, null);
-        List<String> cteQualifiedOrderExprs = buildWindowResultOrderExprs(savedOrder, windowColumns, dialect, cteAlias);
-
-        List<Object> finalParams = new ArrayList<>();
-        String finalSelectWithoutOrder;
-        String finalSelectSql;
-        String ctePrefix;
-
-        if (queryRequest.getPostSlice() != null && !queryRequest.getPostSlice().isEmpty()) {
-            String postResultAlias = "__POST_RESULT_STAGE__";
-            StringBuilder finalSelect = new StringBuilder();
-            finalSelect.append("SELECT ");
-            finalSelect.append(finalAliases.stream()
-                    .map(dialect::quoteIdentifier)
-                    .collect(Collectors.joining(",\n\t")));
-            finalSelect.append("\nFROM ").append(postResultAlias);
-
-            List<String> filters = new ArrayList<>();
-            for (SliceRequestDef slice : queryRequest.getPostSlice()) {
-                filters.add(buildPostAggregateFilterSql(slice, dialect, finalAliases, finalParams));
-            }
-            finalSelect.append("\nWHERE ").append(String.join(" AND ", filters));
-            finalSelectWithoutOrder = finalSelect.toString();
-            if (!unqualifiedOrderExprs.isEmpty()) {
-                finalSelect.append("\nORDER BY ").append(String.join(", ", unqualifiedOrderExprs));
-            }
-            finalSelectSql = finalSelect.toString();
-
-            this.cteStages = List.of(
-                    new SqlGenerationResult.CteStage(cteAlias, stage1Sql, stage1Params),
-                    new SqlGenerationResult.CteStage(postResultAlias, outerSelectWithoutOrder, List.of())
-            );
-            ctePrefix = "WITH " + cteAlias + " AS (\n" + stage1Sql + "\n),\n"
-                    + postResultAlias + " AS (\n" + outerSelectWithoutOrder + "\n)\n";
-        } else {
-            if (!cteQualifiedOrderExprs.isEmpty()) {
-                outerSelect.append("\nORDER BY ").append(String.join(", ", cteQualifiedOrderExprs));
-            }
-            finalSelectWithoutOrder = outerSelectWithoutOrder;
-            finalSelectSql = outerSelect.toString();
-            this.cteStages = List.of(new SqlGenerationResult.CteStage(cteAlias, stage1Sql, stage1Params));
-            ctePrefix = "WITH " + cteAlias + " AS (\n" + stage1Sql + "\n)\n";
-        }
-
-        // Note: LIMIT/OFFSET is handled by the upper-layer pagination framework
-        // (Spring JDBC PagingQuery), not in the engine's SQL string generation.
-
-        // ── Populate structured CTE fields for ComposePlanner flattening ──
-        this.cteWrapped = true;
-        this.cteStage1Alias = cteAlias;
-        this.cteStage1Sql = stage1Sql;
-        this.cteStage1Params = stage1Params;
-        this.cteOuterSelectSql = finalSelectSql;
-        this.cteOuterSelectParams = finalParams;
-
-        // ── Set engine SQL fields (assembled for direct execution) ──
-        this.innerSql = ctePrefix + finalSelectSql;
-        this.innerSqlWithoutOrder = ctePrefix + finalSelectWithoutOrder;
+        // Note: LIMIT/OFFSET remains owned by the upper-layer pagination framework.
+        this.cteWrapped = !rendered.cteStages().isEmpty();
+        this.cteStages = rendered.cteStages();
+        this.cteStage1Alias = "stage1";
+        SqlGenerationResult.CteStage baseStage = rendered.cteStages().stream()
+                .filter(stage -> "stage1".equals(stage.alias()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Missing shared result-stage base CTE 'stage1'"));
+        this.cteStage1Sql = baseStage.sql();
+        this.cteStage1Params = baseStage.params();
+        this.cteOuterSelectSql = rendered.outerSql();
+        this.cteOuterSelectParams = rendered.outerValues();
+        this.innerSql = rendered.assembledSql();
+        this.innerSqlWithoutOrder = rendered.assembledSqlWithoutOrder();
         this.sql = this.innerSql;
-        List<Object> mergedValues = new ArrayList<>();
-        mergedValues.addAll(stage1Params);
-        mergedValues.addAll(finalParams);
-        this.values = mergedValues;
+        this.values = rendered.assembledValues();
 
         boolean countToSum = queryRequest.hasGroupBy();
         buildAggSqlForStagePlan(systemBundlesContext, queryRequest, jdbcQuery,
                 domainTransportInjection, stagePlan, countToSum);
+    }
+
+    private ResultStagePlan.Graph prepareWindowResultStageGraph(
+            QueryStagePlan stagePlan,
+            DbQueryRequestDef queryRequest,
+            List<DbColumn> originalSelectCols,
+            List<WindowColumnInfo> windowColumns,
+            JdbcQuery.JdbcOrder savedOrder,
+            FDialect dialect) {
+        Set<String> availableAliases = new LinkedHashSet<>();
+        for (DbColumn column : originalSelectCols) {
+            availableAliases.add(resultOutputAlias(column, windowColumns));
+        }
+
+        List<ResultStagePlan.Column> computedWindowColumns = new ArrayList<>();
+        for (WindowColumnInfo window : windowColumns) {
+            String alias = window.column.getAlias();
+            computedWindowColumns.add(new ResultStagePlan.Column(
+                    alias,
+                    ResultStagePlan.ColumnRole.RESULT_STAGE_ONLY,
+                    "window_result",
+                    "final",
+                    window.column.getType(),
+                    alias,
+                    BoundSqlExpression.of(window.column.getDeclare())));
+        }
+
+        List<BoundSqlExpression> resultFilters = new ArrayList<>();
+        if (queryRequest.getPostSlice() != null) {
+            for (SliceRequestDef slice : queryRequest.getPostSlice()) {
+                List<Object> params = new ArrayList<>();
+                String filterSql = buildPostAggregateFilterSql(
+                        slice, dialect, availableAliases, params);
+                resultFilters.add(new BoundSqlExpression(filterSql, params));
+            }
+        }
+
+        List<BoundSqlExpression> finalOrders = buildWindowResultOrderExprs(
+                savedOrder, windowColumns, dialect, null).stream()
+                .map(BoundSqlExpression::of)
+                .collect(Collectors.toList());
+
+        List<ResultStagePlan.Stage> stages = new ArrayList<>();
+        for (QueryStagePlan.Stage diagnostic : stagePlan.getStages()) {
+            QueryStageType type = diagnostic.getType();
+            if (type == QueryStageType.WINDOW_RESULT_STAGE) {
+                stages.add(new ResultStagePlan.Stage(
+                        diagnostic.getId(),
+                        type,
+                        "__POST_RESULT_STAGE__",
+                        computedWindowColumns,
+                        resultFilters,
+                        List.of()));
+            } else if (type == QueryStageType.FINAL_STAGE) {
+                stages.add(new ResultStagePlan.Stage(
+                        diagnostic.getId(), type, "final",
+                        List.of(), List.of(), finalOrders));
+            } else {
+                stages.add(ResultStagePlan.Stage.metadata(
+                        diagnostic.getId(), type, "stage1"));
+            }
+        }
+        return ResultStagePlan.Graph.create(stagePlan, stages);
+    }
+
+    private List<ResultStagePlan.FinalProjection> buildMainFinalProjection(
+            List<DbColumn> originalSelectCols,
+            List<WindowColumnInfo> windowColumns,
+            FDialect dialect) {
+        List<ResultStagePlan.FinalProjection> projections = new ArrayList<>();
+        for (DbColumn column : originalSelectCols) {
+            boolean window = isWindowResultColumn(column, windowColumns);
+            String alias = resultOutputAlias(column, windowColumns);
+            projections.add(new ResultStagePlan.FinalProjection(
+                    alias,
+                    window
+                            ? ResultStagePlan.ColumnRole.RESULT_STAGE_ONLY
+                            : ResultStagePlan.ColumnRole.PUBLIC_RESULT,
+                    column.getType(),
+                    BoundSqlExpression.of(dialect.quoteIdentifier(alias))));
+        }
+        return projections;
+    }
+
+    private String lastBaseStageId(ResultStagePlan.Graph graph) {
+        String stageId = null;
+        for (ResultStagePlan.Stage stage : graph.stages()) {
+            if (stage.type() == QueryStageType.WINDOW_RESULT_STAGE
+                    || stage.type() == QueryStageType.POST_AGGREGATE_STAGE
+                    || stage.type() == QueryStageType.FINAL_STAGE) {
+                break;
+            }
+            stageId = stage.stageId();
+        }
+        if (stageId == null) {
+            throw new IllegalArgumentException("Result-stage graph has no base stage");
+        }
+        return stageId;
+    }
+
+    private String resultOutputAlias(DbColumn column, List<WindowColumnInfo> windowColumns) {
+        return isWindowResultColumn(column, windowColumns)
+                ? column.getAlias() : getCteProjectionAlias(column);
+    }
+
+    private boolean isWindowResultColumn(
+            DbColumn column,
+            List<WindowColumnInfo> windowColumns) {
+        for (WindowColumnInfo window : windowColumns) {
+            if (window.column == column) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private List<String> buildWindowResultOrderExprs(
@@ -1848,16 +1889,30 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
         List<String> cteFragments = new ArrayList<>();
         List<Object> cteParams = new ArrayList<>();
+        List<ResultStagePlan.StructuredCte> structuredCtes = new ArrayList<>();
         for (DomainTransportPlan plan : plans) {
             try {
                 validateInternalRelationName(plan.getRelationName());
                 DomainRelationRenderResult rendered = renderer.render(dialect, databaseVersion, plan);
                 String predicate = buildDomainTransportPredicate(jdbcQuery, plan, dialect);
                 if (rendered.getPlacement() == DomainTransportPlacement.CTE) {
-                    cteFragments.add(rendered.getSqlFragment());
-                    for (Object param : rendered.getParams()) {
-                        cteParams.add(dialect.convertParameterValue(param));
+                    if (StringUtils.isEmpty(rendered.getCteAlias())
+                            || rendered.getCteColumnAliases() == null
+                            || StringUtils.isEmpty(rendered.getCteBody())) {
+                        throw new DomainTransportRefusalException(
+                                "CTE domain renderer did not provide structured alias/columns/body");
                     }
+                    cteFragments.add(rendered.getSqlFragment());
+                    List<Object> convertedParams = new ArrayList<>();
+                    for (Object param : rendered.getParams()) {
+                        Object converted = dialect.convertParameterValue(param);
+                        cteParams.add(converted);
+                        convertedParams.add(converted);
+                    }
+                    structuredCtes.add(new ResultStagePlan.StructuredCte(
+                            rendered.getCteAlias(),
+                            rendered.getCteColumnAliases(),
+                            new BoundSqlExpression(rendered.getCteBody(), convertedParams)));
                     jdbcQuery.getWhere().addRawSql("AND",
                             "exists (select 1 from " + plan.getRelationName() + " _d where " + predicate + ")");
                     jdbcQuery.setNonSliceWhereConditionAdded(true);
@@ -1879,7 +1934,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
             }
         }
 
-        return new DomainTransportSqlInjection(cteFragments, cteParams);
+        return new DomainTransportSqlInjection(cteFragments, cteParams, structuredCtes);
     }
 
     private DomainRelationRenderer selectDomainRelationRenderer(FDialect dialect, String databaseVersion) {
@@ -2002,9 +2057,12 @@ public class JdbcModelQueryEngine implements QueryEngine {
         }
     }
 
-    private record DomainTransportSqlInjection(List<String> cteFragments, List<Object> cteParams) {
+    private record DomainTransportSqlInjection(
+            List<String> cteFragments,
+            List<Object> cteParams,
+            List<ResultStagePlan.StructuredCte> structuredCtes) {
         private static DomainTransportSqlInjection empty() {
-            return new DomainTransportSqlInjection(List.of(), List.of());
+            return new DomainTransportSqlInjection(List.of(), List.of(), List.of());
         }
 
         private boolean hasCte() {
