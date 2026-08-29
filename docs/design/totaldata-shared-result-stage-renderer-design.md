@@ -1,10 +1,10 @@
 ---
 doc_role: architecture-decision
 status: accepted
-implementation_status: not-started
+implementation_status: implemented
 baseline_commit: 267dd887
 last_reviewed: 2026-08-29
-review_status: passed-independent-review
+review_status: passed-independent-implementation-review
 affected_module: foggy-dataset-model-engine
 depends_on: totaldata-algebraic-aggregate-state-design.md
 ---
@@ -508,3 +508,13 @@ MAIN/TOTAL 手工同步。
 SQL unit 结构和占位符词法顺序收集，等待独立快速复核。
 
 2026-08-29：参数拓扑快速独立复核为 GO；无 P0/P1，设计继续保持 accepted。
+
+2026-08-29：首轮实现独立 review 为 NO-GO；发现 graph/base projection 尚未在 visitor 前形成唯一事实源，
+以及缺少 `domain CTE + AVG state params + visitor params + result stage + postSlice/final` 组合拓扑测试。
+经授权按严格方案 A 收口：新增请求级 `ResultStagePreparation`，在任一 SQL visitor 前一次构造 graph 与
+MAIN/TOTAL `BaseProjectionPlan`，TOTAL 不再重新推导 window 隐藏依赖；renderer 改为按列生命周期显式投影。
+
+2026-08-29：严格方案 A 最终独立实现 review 为 GO；无 P0/P1，可以进入全量测试门禁。复审确认：
+MAIN/TOTAL 引用同一 graph，AVG 仍以 `SUM(group_sum) / SUM(group_count)` finalize，TOTAL 排除最终排序与分页，
+四方言参数拓扑和 SQLite 组合执行测试已覆盖。非阻断残余风险为数值 aggregate leaf 当前统一按
+`DbColumnType.NUMBER` 绑定；现有支持方言 widening 语义一致，待未来引入 MONEY/自定义数值类型时再细化。

@@ -66,7 +66,10 @@ import com.foggyframework.dataset.model.spi.support.CalculatedDbColumn;
 import com.foggyframework.fsscript.DefaultExpEvaluator;
 import com.foggyframework.fsscript.exp.FsscriptFunction;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
+import lombok.AccessLevel;
 import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 
@@ -216,7 +219,11 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
     List values;
     QueryStagePlanner queryStagePlanner = new QueryStagePlanner();
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
     ResultStageRenderer resultStageRenderer = new ResultStageRenderer();
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
     ResultStagePreparation resultStagePreparation;
     private static final String PATTERN = "^[a-zA-Z\\s]+$";
     private static final Pattern PATTERN_OBJECT = Pattern.compile(PATTERN);
@@ -505,7 +512,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
         // cannot safely reference aliases defined at the same SELECT level in standard SQL.
         // When detected, we generate a two-stage SQL:
         //   Stage 1 (CTE): base aggregations + dimensions (no window CFs, no ORDER BY)
-        //   Stage 2 (outer): SELECT stage1.*, windowCF1, windowCF2 FROM stage1 ORDER BY ... LIMIT ...
+        //   Stage 2 (outer): explicitly project surviving base columns and window CFs from stage1.
         QueryStagePlan stagePlan = attachQueryStagePlan(context, queryRequest, jdbcQuery);
         validateStagePlan(stagePlan);
         this.resultStagePreparation = null;
@@ -896,7 +903,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
      *   GROUP BY ...
      *   HAVING ...
      * )
-     * SELECT stage1.*, window_cf_1 AS alias1, window_cf_2 AS alias2
+     * SELECT surviving_base_cols, window_cf_1 AS alias1, window_cf_2 AS alias2
      * FROM stage1
      * ORDER BY ...
      * LIMIT ... OFFSET ...

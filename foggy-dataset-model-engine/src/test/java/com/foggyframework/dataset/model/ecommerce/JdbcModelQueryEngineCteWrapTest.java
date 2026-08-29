@@ -12,6 +12,7 @@ import com.foggyframework.dataset.model.engine.query_model.JdbcQueryModelImpl;
 import com.foggyframework.dataset.model.engine.stage.QueryStagePlan;
 import com.foggyframework.dataset.model.engine.stage.result.ResultStagePlan;
 import com.foggyframework.dataset.model.engine.stage.result.ResultStagePreparation;
+import com.foggyframework.dataset.model.engine.stage.result.ResultStageRenderer;
 import com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.model.spi.JdbcQueryModel;
 import jakarta.annotation.Resource;
@@ -1112,5 +1113,21 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
                 "Stage 1 must project the hidden dependency. Actual SQL:\n" + sql);
         assertFalse(sql.contains("stage1.\"product$categoryName\"") || sql.contains("stage1.`product$categoryName`"),
                 "Hidden dependency must not be exposed as a final output column. Actual SQL:\n" + sql);
+    }
+
+    @Test
+    @Order(101)
+    @DisplayName("结果阶段运行时对象不暴露为 JdbcModelQueryEngine 公共 Bean 属性")
+    void resultStageRuntimeObjectsShouldNotHavePublicAccessors() {
+        assertThrows(NoSuchMethodException.class,
+                () -> JdbcModelQueryEngine.class.getMethod("getResultStageRenderer"));
+        assertThrows(NoSuchMethodException.class,
+                () -> JdbcModelQueryEngine.class.getMethod(
+                        "setResultStageRenderer", ResultStageRenderer.class));
+        assertThrows(NoSuchMethodException.class,
+                () -> JdbcModelQueryEngine.class.getMethod("getResultStagePreparation"));
+        assertThrows(NoSuchMethodException.class,
+                () -> JdbcModelQueryEngine.class.getMethod(
+                        "setResultStagePreparation", ResultStagePreparation.class));
     }
 }

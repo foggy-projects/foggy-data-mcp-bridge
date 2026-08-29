@@ -26,6 +26,7 @@ import com.foggyframework.dataset.model.spi.TableModel;
 import jakarta.annotation.Resource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.util.Collections;
@@ -725,7 +726,8 @@ class AverageTotalDataRegressionTest extends EcommerceTestSupport {
             DbQueryResult queryResult,
             String alias) {
         JdbcModelQueryEngine engine = (JdbcModelQueryEngine) queryResult.getQueryEngine();
-        ResultStagePreparation preparation = engine.getResultStagePreparation();
+        ResultStagePreparation preparation = (ResultStagePreparation)
+                ReflectionTestUtils.getField(engine, "resultStagePreparation");
         assertNotNull(preparation, "window 请求必须在 visitor 前生成 request preparation");
         ResultStagePreparation.Projection main = preparation.baseProjectionPlan().main().projections()
                 .stream()
