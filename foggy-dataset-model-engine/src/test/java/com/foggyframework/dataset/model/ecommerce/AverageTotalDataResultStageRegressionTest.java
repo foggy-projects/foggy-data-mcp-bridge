@@ -7,6 +7,7 @@ import com.foggyframework.dataset.model.def.query.request.PostAggregateCalculati
 import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.model.def.query.request.WindowOrderDef;
 import com.foggyframework.dataset.model.engine.JdbcModelQueryEngine;
+import com.foggyframework.dataset.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.model.engine.pivot.transport.DomainTransportField;
 import com.foggyframework.dataset.model.engine.pivot.transport.DomainTransportPlan;
 import com.foggyframework.dataset.model.engine.pivot.transport.DomainTransportTuple;
@@ -129,6 +130,7 @@ class AverageTotalDataResultStageRegressionTest extends AverageTotalDataTestSupp
     }
 
     @Test
+    @SuppressWarnings("removal")
     @DisplayName("SQLite 组合：domain CTE + AVG state + window/postSlice 必须执行并保持参数拓扑")
     void domainCteAverageWindowPostSliceShouldExecuteWithWeightedTotal() {
         List<String> categories = jdbcTemplate.queryForList(
@@ -187,6 +189,14 @@ class AverageTotalDataResultStageRegressionTest extends AverageTotalDataTestSupp
         assertEquals(totalSql.toUpperCase().indexOf("WITH "),
                 totalSql.toUpperCase().lastIndexOf("WITH "), totalSql);
         assertEquals(categories, engine.getAggValues().subList(0, categories.size()));
+        assertEquals("_avg_domain", engine.getCteStages().get(0).alias());
+        SqlGenerationResult.CteStage stage1 = engine.getCteStages().stream()
+                .filter(stage -> "stage1".equals(stage.alias()))
+                .findFirst()
+                .orElseThrow();
+        assertEquals("stage1", engine.getCteStage1Alias());
+        assertEquals(stage1.sql(), engine.getCteStage1Sql());
+        assertEquals(stage1.params(), engine.getCteStage1Params());
     }
 
     @Test

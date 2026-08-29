@@ -1178,21 +1178,21 @@ public class JdbcModelQueryEngine implements QueryEngine {
     /** @deprecated use {@link #getCteStages()} as the canonical representation. */
     @Deprecated(since = "9.3.0", forRemoval = true)
     public String getCteStage1Sql() {
-        SqlGenerationResult.CteStage stage = firstCteStage();
+        SqlGenerationResult.CteStage stage = stage1Cte();
         return stage == null ? null : stage.sql();
     }
 
     /** @deprecated use {@link #getCteStages()} as the canonical representation. */
     @Deprecated(since = "9.3.0", forRemoval = true)
     public List<Object> getCteStage1Params() {
-        SqlGenerationResult.CteStage stage = firstCteStage();
+        SqlGenerationResult.CteStage stage = stage1Cte();
         return stage == null ? null : stage.params();
     }
 
     /** @deprecated use {@link #getCteStages()} as the canonical representation. */
     @Deprecated(since = "9.3.0", forRemoval = true)
     public String getCteStage1Alias() {
-        SqlGenerationResult.CteStage stage = firstCteStage();
+        SqlGenerationResult.CteStage stage = stage1Cte();
         return stage == null ? null : stage.alias();
     }
 
@@ -1208,9 +1208,11 @@ public class JdbcModelQueryEngine implements QueryEngine {
         return isCteWrapped() ? resultStageRenderResult.outerValues() : List.of();
     }
 
-    private SqlGenerationResult.CteStage firstCteStage() {
-        List<SqlGenerationResult.CteStage> stages = getCteStages();
-        return stages.isEmpty() ? null : stages.get(0);
+    private SqlGenerationResult.CteStage stage1Cte() {
+        return getCteStages().stream()
+                .filter(stage -> "stage1".equals(stage.alias()))
+                .findFirst()
+                .orElse(null);
     }
 
     private void buildAggSqlForStagePlan(SystemBundlesContext systemBundlesContext,
