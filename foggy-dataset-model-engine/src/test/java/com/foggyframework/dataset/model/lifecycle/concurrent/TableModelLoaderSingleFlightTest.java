@@ -48,6 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -127,7 +128,7 @@ class TableModelLoaderSingleFlightTest {
     }
 
     @Test
-    void distinctModelsInSameNamespaceOverlapAndBothPublish() {
+    void distinctColdModelsRebaseDisjointPublicationsWithoutRebuild() {
         CountDownLatch bothBuildersEntered = new CountDownLatch(2);
         CountDownLatch releaseBuilders = new CountDownLatch(1);
         AtomicInteger builds = new AtomicInteger();
@@ -160,8 +161,8 @@ class TableModelLoaderSingleFlightTest {
 
             assertNotNull(get(futures.get(0), "DimChannelModel result"));
             assertNotNull(get(futures.get(1), "DimCustomerModel result"));
-            assertEquals(3, builds.get(),
-                    "the stale loser must rebuild against the winner's generation");
+            assertEquals(2, builds.get(),
+                    "disjoint cold additions must publish without rebuilding");
             assertEquals(2, manager.getCatalogSnapshotStore().current("")
                     .orElseThrow().tableModels().size());
             assertEquals(0, singleFlight.inFlightCount());
@@ -272,6 +273,29 @@ class TableModelLoaderSingleFlightTest {
                 .datasourceBindings()
                 .containsValue(resolver.firstIdentity));
         assertEquals(0, singleFlight.inFlightCount());
+    }
+
+    @Test
+    void exhaustedStaleBuildReportsReasonGenerationsAndRefreshOverlap() {
+        AtomicInteger builds = new AtomicInteger();
+        TableModelLoader controlledLoader = controlled((fsscript, definition, bundle) -> {
+            builds.incrementAndGet();
+            return jdbcTableModelLoader.load(fsscript, definition, bundle);
+        });
+        AlwaysStaleTrackedDefaultResolver resolver =
+                new AlwaysStaleTrackedDefaultResolver(dataSource);
+        TableModelLoaderManagerImpl manager = manager(
+                controlledLoader, new ModelBuildSingleFlight(), resolver);
+
+        IllegalStateException failure = assertThrows(
+                IllegalStateException.class,
+                () -> manager.load("DimChannelModel", null));
+
+        assertEquals(3, builds.get());
+        assertTrue(failure.getMessage().contains(
+                "staleReason=DATASOURCE_BINDING_CHANGED"));
+        assertTrue(failure.getMessage().contains("diagnostic-generation"));
+        assertTrue(failure.getMessage().contains("concurrentRefresh=false"));
     }
 
     private TableModelLoaderManagerImpl manager(
@@ -441,6 +465,47 @@ class TableModelLoaderSingleFlightTest {
                     "test:namespace-default",
                     "test:sqlite",
                     new DatasourceBindingGeneration(generation));
+        }
+    }
+
+    private static final class AlwaysStaleTrackedDefaultResolver
+            implements NamedDataSourceResolver, ProcessLocalDefaultDataSourceResolver {
+        private final DataSource dataSource;
+        private final DatasourceBindingIdentity identity = new DatasourceBindingIdentity(
+                "test:diagnostic-default",
+                "test:sqlite",
+                new DatasourceBindingGeneration("diagnostic-generation"));
+
+        private AlwaysStaleTrackedDefaultResolver(DataSource dataSource) {
+            this.dataSource = dataSource;
+        }
+
+        @Override
+        public DataSource resolve(String name) {
+            return null;
+        }
+
+        @Override
+        public ResolvedDatasourceBinding resolveProcessLocalDefaultBinding() {
+            return ResolvedDatasourceBinding.tracked(dataSource, identity);
+        }
+
+        @Override
+        public BindingCurrentness currentness(DatasourceBindingIdentity expected) {
+            return BindingCurrentness.STALE;
+        }
+
+        @Override
+        public <T> T publishIfCurrent(
+                Collection<DatasourceBindingIdentity> identities,
+                Supplier<T> publication
+        ) {
+            throw new StaleDatasourceBindingException(identity.bindingKey());
+        }
+
+        @Override
+        public boolean isConfigured(String name) {
+            return false;
         }
     }
 }

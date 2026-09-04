@@ -26,6 +26,7 @@ import com.foggyframework.dataset.model.lifecycle.catalog.ModelProvenance;
 import com.foggyframework.dataset.model.lifecycle.catalog.StaleCatalogBuildException;
 import com.foggyframework.dataset.model.lifecycle.concurrent.ModelBuildKey;
 import com.foggyframework.dataset.model.lifecycle.concurrent.ModelBuildSingleFlight;
+import com.foggyframework.dataset.model.lifecycle.concurrent.ModelBuildStaleDiagnostics;
 import com.foggyframework.dataset.model.lifecycle.port.BindingCurrentness;
 import com.foggyframework.dataset.model.lifecycle.port.ResolvedDatasourceBinding;
 import com.foggyframework.dataset.model.lifecycle.port.StaleDatasourceBindingException;
@@ -175,6 +176,7 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
         }
 
         RuntimeException lastStaleFailure = null;
+        String lastStaleDiagnostic = null;
         for (int attempt = 1; attempt <= MAX_STALE_BUILD_ATTEMPTS; attempt++) {
             TableModel current = findCurrentTableModel(normalizedNamespace, canonicalModelName);
             if (current != null) {
@@ -182,6 +184,8 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
             }
 
             CatalogBuildView buildView = catalogSnapshotStore.capture(normalizedNamespace);
+            CatalogSnapshotStore.RefreshObservation refreshBefore =
+                    catalogSnapshotStore.refreshObservation(normalizedNamespace);
             TableModel captured = findTableModel(buildView.baseSnapshot(), canonicalModelName);
             if (captured != null) {
                 return captured;
@@ -194,11 +198,27 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
                         () -> buildAndPublish(prepared));
             } catch (StaleCatalogBuildException | StaleDatasourceBindingException stale) {
                 lastStaleFailure = stale;
+                lastStaleDiagnostic = ModelBuildStaleDiagnostics.describe(
+                        "table",
+                        normalizedNamespace,
+                        canonicalModelName,
+                        attempt,
+                        MAX_STALE_BUILD_ATTEMPTS,
+                        buildView,
+                        buildView.baseSnapshot(),
+                        buildView.sourceRevision(),
+                        prepared.buildKey().datasourceBindings(),
+                        namedDataSourceResolver,
+                        catalogSnapshotStore,
+                        refreshBefore,
+                        stale);
+                log.warn("MODEL_BUILD_STALE {}", lastStaleDiagnostic);
             }
         }
         throw new IllegalStateException(
                 "MODEL_BUILD_STALE_RETRY_EXHAUSTED: table model "
-                        + canonicalModelName + " in namespace '" + normalizedNamespace + "'",
+                        + canonicalModelName + " in namespace '" + normalizedNamespace + "'"
+                        + "; lastStale={" + lastStaleDiagnostic + "}",
                 lastStaleFailure);
     }
 
@@ -382,14 +402,14 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
             CatalogSnapshotStore.CandidateScope scope
     ) {
         if (binding.identity() == null) {
-            return scope.commit();
+            return scope.commitAdditive();
         }
         if (namedDataSourceResolver == null) {
             throw new IllegalStateException(
                     "DATASOURCE_BINDING_PUBLICATION_GUARD_UNAVAILABLE");
         }
         return namedDataSourceResolver.publishIfCurrent(
-                List.of(binding.identity()), scope::commit);
+                List.of(binding.identity()), scope::commitAdditive);
     }
 
     private TableModel findCurrentTableModel(String namespace, String modelName) {

@@ -152,6 +152,61 @@ class QueryModelLoaderSingleFlightTest {
     }
 
     @Test
+    void distinctColdQueriesRebaseDisjointPublicationsWithoutRetryExhaustion() {
+        CountDownLatch bothBuildersEntered = new CountDownLatch(2);
+        CountDownLatch releaseBuilders = new CountDownLatch(1);
+        AtomicInteger queryBuilds = new AtomicInteger();
+        ModelBuildSingleFlight flight = new ModelBuildSingleFlight();
+        tableModelLoaderManager.setModelBuildSingleFlight(flight);
+        queryModelLoader.setModelBuildSingleFlight(flight);
+
+        QueryModelBuilder delegate = originalBuilders.get(0);
+        QueryModelBuilder controlled = (definition, fsscript) -> {
+            queryBuilds.incrementAndGet();
+            bothBuildersEntered.countDown();
+            await(releaseBuilders, "distinct QM builders release");
+            return delegate.build(definition, fsscript);
+        };
+        ArrayList<QueryModelBuilder> builders = new ArrayList<>(originalBuilders);
+        builders.set(0, controlled);
+        queryModelLoader.setQueryModelBuilders(List.copyOf(builders));
+
+        Phaser simultaneousStart = new Phaser(3);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        List<Future<QueryModel>> futures = List.of(
+                executor.submit(() -> {
+                    rendezvous(simultaneousStart, "DimChannelQueryModel caller start");
+                    return queryModelLoader.getJdbcQueryModel(
+                            "DimChannelQueryModel", null);
+                }),
+                executor.submit(() -> {
+                    rendezvous(simultaneousStart, "DimCustomerQueryModel caller start");
+                    return queryModelLoader.getJdbcQueryModel(
+                            "DimCustomerQueryModel", null);
+                }));
+
+        try {
+            rendezvous(simultaneousStart, "distinct QM callers start");
+            await(bothBuildersEntered, "both distinct QM builders entered");
+            releaseBuilders.countDown();
+
+            get(futures.get(0), "DimChannelQueryModel result");
+            get(futures.get(1), "DimCustomerQueryModel result");
+            assertEquals(2, queryBuilds.get(),
+                    "disjoint cold query additions must publish without rebuilding");
+            CatalogSnapshot published = queryModelLoader.getCatalogSnapshotStore()
+                    .current("").orElseThrow();
+            assertTrue(published.queryModels().containsKey("DimChannelQueryModel"));
+            assertTrue(published.queryModels().containsKey("DimCustomerQueryModel"));
+            assertEquals(0, flight.inFlightCount());
+        } finally {
+            releaseBuilders.countDown();
+            cancelIncomplete(futures);
+            shutdownAndAssertTerminated(executor, "distinct QM executor");
+        }
+    }
+
+    @Test
     void syntheticCallersShareOneFactoryBuildAndPublication() {
         QueryModel source = queryModelLoader.getJdbcQueryModel(
                 "FactSalesNestedDimQueryModel", null);

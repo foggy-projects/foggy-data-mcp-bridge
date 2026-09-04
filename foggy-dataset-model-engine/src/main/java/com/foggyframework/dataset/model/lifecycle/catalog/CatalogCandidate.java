@@ -439,6 +439,138 @@ public final class CatalogCandidate {
         return changed;
     }
 
+    /**
+     * Replays only additive lazy-load changes onto a newer catalog snapshot.
+     *
+     * <p>This is deliberately narrower than refresh rebasing.  The captured
+     * base must still be present by object identity, no captured slot may have
+     * been removed or replaced, and every datasource binding introduced by
+     * the newer snapshot must already be covered by this candidate's final
+     * publication guard.  A namespace/model refresh therefore remains a
+     * strict stale boundary, while disjoint cold lazy loads may commute.</p>
+     *
+     * @return a rebased candidate, or {@code null} when the newer snapshot is
+     * not a safe additive extension of the captured base
+     */
+    CatalogCandidate rebaseAdditionsOnto(CatalogSnapshot latest) {
+        ensureMutable();
+        validateBuildSucceeded();
+        if (latest == null
+                || !namespace.equals(latest.identity().namespace())
+                || !sourceRevision.equals(latest.identity().sourceRevision())
+                || !preservesCapturedBase(latest)
+                || !latestBindingsCoveredByCandidate(latest)) {
+            return null;
+        }
+
+        CatalogCandidate rebased = new CatalogCandidate(
+                namespace, sourceRevision, latest);
+        rebased.discoverQueryModels(discoveredQueryModelNames);
+        if (!rebased.aliasesRemainCompatible(latest)) {
+            return null;
+        }
+
+        for (Map.Entry<String, TableModel> entry : tableModels.entrySet()) {
+            if (isCapturedTable(entry.getKey(), entry.getValue())
+                    || latest.tableModels().containsKey(entry.getKey())) {
+                continue;
+            }
+            rebased.putTableModel(
+                    entry.getKey(),
+                    entry.getValue(),
+                    provenance.get(CatalogModelKey.table(entry.getKey())));
+        }
+        for (Map.Entry<String, QueryModel> entry : queryModels.entrySet()) {
+            if (isCapturedQuery(entry.getKey(), entry.getValue(), false)
+                    || latest.queryModels().containsKey(entry.getKey())) {
+                continue;
+            }
+            rebased.putQueryModel(
+                    entry.getKey(),
+                    entry.getValue(),
+                    provenance.get(CatalogModelKey.query(entry.getKey())));
+        }
+        for (Map.Entry<String, QueryModel> entry : syntheticQueryModels.entrySet()) {
+            if (isCapturedQuery(entry.getKey(), entry.getValue(), true)
+                    || latest.syntheticQueryModels().containsKey(entry.getKey())) {
+                continue;
+            }
+            rebased.putSyntheticQueryModel(
+                    entry.getKey(),
+                    entry.getValue(),
+                    provenance.get(CatalogModelKey.syntheticQuery(entry.getKey())));
+        }
+        return rebased;
+    }
+
+    private boolean aliasesRemainCompatible(CatalogSnapshot latest) {
+        return latest.queryModels().entrySet().stream().allMatch(entry ->
+                Objects.equals(canonicalToAlias.get(entry.getKey()),
+                        entry.getValue().getShortAlias()))
+                && latest.syntheticQueryModels().entrySet().stream().allMatch(entry ->
+                Objects.equals(canonicalToAlias.get(entry.getKey()),
+                        entry.getValue().getShortAlias()));
+    }
+
+    private boolean preservesCapturedBase(CatalogSnapshot latest) {
+        if (base == null) {
+            return true;
+        }
+        if (!sameEntriesByIdentity(base.tableModels(), tableModels)
+                || !sameEntriesByIdentity(base.queryModels(), queryModels)
+                || !sameEntriesByIdentity(
+                base.syntheticQueryModels(), syntheticQueryModels)
+                || !base.provenance().entrySet().stream().allMatch(entry ->
+                Objects.equals(provenance.get(entry.getKey()), entry.getValue()))) {
+            return false;
+        }
+        return sameEntriesByIdentity(base.tableModels(), latest.tableModels())
+                && sameEntriesByIdentity(base.queryModels(), latest.queryModels())
+                && sameEntriesByIdentity(
+                base.syntheticQueryModels(), latest.syntheticQueryModels())
+                && base.provenance().entrySet().stream().allMatch(entry ->
+                Objects.equals(latest.provenance().get(entry.getKey()), entry.getValue()));
+    }
+
+    private boolean latestBindingsCoveredByCandidate(CatalogSnapshot latest) {
+        Map<String, DatasourceBindingIdentity> guarded = effectiveDatasourceBindings();
+        for (ModelProvenance latestProvenance : latest.provenance().values()) {
+            for (Map.Entry<String, DatasourceBindingIdentity> binding
+                    : latestProvenance.datasourceBindings().entrySet()) {
+                if (!binding.getValue().equals(guarded.get(binding.getKey()))) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private boolean isCapturedTable(String name, TableModel model) {
+        return base != null && base.tableModels().get(name) == model;
+    }
+
+    private boolean isCapturedQuery(String name, QueryModel model, boolean synthetic) {
+        if (base == null) {
+            return false;
+        }
+        Map<String, QueryModel> captured = synthetic
+                ? base.syntheticQueryModels()
+                : base.queryModels();
+        return captured.get(name) == model;
+    }
+
+    private static <T> boolean sameEntriesByIdentity(
+            Map<String, T> expected,
+            Map<String, T> actual
+    ) {
+        for (Map.Entry<String, T> entry : expected.entrySet()) {
+            if (actual.get(entry.getKey()) != entry.getValue()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     CatalogSnapshot freeze(CatalogIdentity identity) {
         validateBuildSucceeded();
         if (!namespace.equals(identity.namespace()) || !sourceRevision.equals(identity.sourceRevision())) {

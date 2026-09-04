@@ -359,6 +359,8 @@ class CatalogRefreshCoordinatorBehaviorTest {
         CatalogRefreshRequest request = CatalogRefreshRequest.namespace(
                 NAMESPACE, CatalogRefreshTrigger.EXPLICIT_RECOVERY);
         CatalogRefreshPlan plan = CatalogRefreshPlan.namespace(Set.of());
+        CatalogSnapshotStore.RefreshObservation beforeRefresh =
+                store.refreshObservation(NAMESPACE);
         CountDownLatch firstEntered = new CountDownLatch(1);
         CountDownLatch releaseFirst = new CountDownLatch(1);
         CountDownLatch secondReady = new CountDownLatch(1);
@@ -371,6 +373,10 @@ class CatalogRefreshCoordinatorBehaviorTest {
                         assertTrue(releaseFirst.await(5, TimeUnit.SECONDS));
                     }));
             assertTrue(firstEntered.await(5, TimeUnit.SECONDS));
+            CatalogSnapshotStore.RefreshObservation duringRefresh =
+                    store.refreshObservation(NAMESPACE);
+            assertTrue(duringRefresh.inProgress());
+            assertTrue(duringRefresh.sequence() > beforeRefresh.sequence());
             Future<CatalogRefreshResult> second = executor.submit(() -> {
                 secondReady.countDown();
                 return coordinator.refresh(request, plan,
@@ -383,6 +389,10 @@ class CatalogRefreshCoordinatorBehaviorTest {
             first.get(5, TimeUnit.SECONDS);
             second.get(5, TimeUnit.SECONDS);
             assertEquals(0L, secondEntered.getCount());
+            CatalogSnapshotStore.RefreshObservation afterRefresh =
+                    store.refreshObservation(NAMESPACE);
+            assertFalse(afterRefresh.inProgress());
+            assertTrue(afterRefresh.sequence() > duringRefresh.sequence());
         } finally {
             releaseFirst.countDown();
             executor.shutdownNow();

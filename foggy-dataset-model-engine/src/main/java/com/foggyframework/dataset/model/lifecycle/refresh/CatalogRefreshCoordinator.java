@@ -120,7 +120,8 @@ public final class CatalogRefreshCoordinator {
         }
 
         NamespaceMutex mutex = acquireNamespace(validated.namespace());
-        try {
+        try (CatalogSnapshotStore.RefreshActivity ignored =
+                     snapshotStore.beginRefresh(validated.namespace())) {
             int attempts = retrySourceStale
                     ? MAX_STABLE_DISCOVERY_ATTEMPTS
                     : 1;
@@ -204,7 +205,8 @@ public final class CatalogRefreshCoordinator {
         validatePlanMatchesRequest(validated, exactPlan);
 
         NamespaceMutex mutex = acquireNamespace(validated.namespace());
-        try {
+        try (CatalogSnapshotStore.RefreshActivity ignored =
+                     snapshotStore.beginRefresh(validated.namespace())) {
             CatalogAdmissionState admissionBefore =
                     snapshotStore.admissionState(validated.namespace());
             CatalogBuildView buildView = snapshotStore.capture(validated.namespace());

@@ -32,6 +32,7 @@ import com.foggyframework.dataset.model.lifecycle.catalog.ModelProvenance;
 import com.foggyframework.dataset.model.lifecycle.catalog.StaleCatalogBuildException;
 import com.foggyframework.dataset.model.lifecycle.concurrent.ModelBuildKey;
 import com.foggyframework.dataset.model.lifecycle.concurrent.ModelBuildSingleFlight;
+import com.foggyframework.dataset.model.lifecycle.concurrent.ModelBuildStaleDiagnostics;
 import com.foggyframework.dataset.model.lifecycle.identity.DatasourceBindingIdentity;
 import com.foggyframework.dataset.model.lifecycle.identity.SourceRevision;
 import com.foggyframework.dataset.model.lifecycle.port.BindingCurrentness;
@@ -164,6 +165,7 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
     ) {
         String requested = requireQueryModelName(requestedNameOrAlias);
         RuntimeException lastStaleFailure = null;
+        String lastStaleDiagnostic = null;
         for (int attempt = 1; attempt <= MAX_STALE_BUILD_ATTEMPTS; attempt++) {
             CatalogSnapshot active = catalogSnapshotStore.readCurrent(namespace).orElse(null);
             if (active != null && active.resolveQueryModel(requested).isPresent()) {
@@ -172,6 +174,8 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
 
             SourceRevision sourceAtPrepareStart =
                     catalogSnapshotStore.currentSourceRevision(namespace);
+            CatalogSnapshotStore.RefreshObservation refreshBefore =
+                    catalogSnapshotStore.refreshObservation(namespace);
             Set<String> discovery = discoverQueryModelNames(namespace);
             Fsscript explicitFsscript = null;
             String canonicalName;
@@ -184,8 +188,8 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                 explicitFsscript = fileFsscriptLoader.findLoadFsscript(explicitResource);
                 canonicalName = canonicalResourceModelName(explicitResource);
             }
+            PreparedQueryModel prepared = null;
             try {
-                PreparedQueryModel prepared;
                 if (isSyntheticName(canonicalName)) {
                     prepared = prepareSyntheticQueryModel(
                             canonicalName, namespace, discovery, sourceAtPrepareStart);
@@ -197,16 +201,39 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                             sourceAtPrepareStart,
                             explicitFsscript);
                 }
+                PreparedQueryModel preparedForBuild = prepared;
                 return modelBuildSingleFlight.execute(
-                        prepared.buildKey(),
-                        () -> buildAndPublish(prepared));
+                        preparedForBuild.buildKey(),
+                        () -> buildAndPublish(preparedForBuild));
             } catch (StaleCatalogBuildException | StaleDatasourceBindingException stale) {
                 lastStaleFailure = stale;
+                CatalogBuildView buildView = prepared == null
+                        ? null
+                        : prepared.buildView();
+                Collection<DatasourceBindingIdentity> bindings = prepared == null
+                        ? List.of()
+                        : prepared.buildKey().datasourceBindings();
+                lastStaleDiagnostic = ModelBuildStaleDiagnostics.describe(
+                        "query",
+                        namespace,
+                        canonicalName,
+                        attempt,
+                        MAX_STALE_BUILD_ATTEMPTS,
+                        buildView,
+                        active,
+                        sourceAtPrepareStart,
+                        bindings,
+                        bindingResolver(),
+                        catalogSnapshotStore,
+                        refreshBefore,
+                        stale);
+                log.warn("MODEL_BUILD_STALE {}", lastStaleDiagnostic);
             }
         }
         throw new IllegalStateException(
                 "MODEL_BUILD_STALE_RETRY_EXHAUSTED: query model " + requested
-                        + " in namespace '" + namespace + "'",
+                        + " in namespace '" + namespace + "'"
+                        + "; lastStale={" + lastStaleDiagnostic + "}",
                 lastStaleFailure);
     }
 
@@ -498,14 +525,14 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
             Collection<DatasourceBindingIdentity> bindings
     ) {
         if (bindings.isEmpty()) {
-            return scope.commit();
+            return scope.commitAdditive();
         }
         DatasourceBindingResolver resolver = bindingResolver();
         if (resolver == null) {
             throw new IllegalStateException(
                     "DATASOURCE_BINDING_PUBLICATION_GUARD_UNAVAILABLE");
         }
-        return resolver.publishIfCurrent(bindings, scope::commit);
+        return resolver.publishIfCurrent(bindings, scope::commitAdditive);
     }
 
     private void verifyPreparedProvenance(

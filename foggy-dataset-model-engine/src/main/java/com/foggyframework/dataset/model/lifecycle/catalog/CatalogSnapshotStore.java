@@ -14,6 +14,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -406,6 +407,64 @@ public final class CatalogSnapshotStore implements SourceRevisionProvider {
         });
     }
 
+    /** Snapshot used by stale-build diagnostics to identify refresh overlap. */
+    public RefreshObservation refreshObservation(String namespace) {
+        NamespaceEntry entry = namespaceEntry(
+                CatalogIdentity.canonicalNamespace(namespace));
+        return new RefreshObservation(
+                entry.refreshSequence.get(),
+                entry.activeRefreshes.get() > 0);
+    }
+
+    /** Marks the exact lifetime of a coordinated explicit refresh attempt. */
+    public RefreshActivity beginRefresh(String namespace) {
+        NamespaceEntry entry = namespaceEntry(
+                CatalogIdentity.canonicalNamespace(namespace));
+        entry.activeRefreshes.incrementAndGet();
+        entry.refreshSequence.incrementAndGet();
+        return new RefreshActivity(entry);
+    }
+
+    /**
+     * Publishes a lazy-load candidate, rebasing disjoint additive changes when
+     * another lazy loader advanced the namespace generation first.
+     */
+    private CatalogSnapshot publishAdditive(ActiveCandidate active) {
+        return publishIfSourceCurrent(active, () -> {
+            active.entry.publicationLock.lock();
+            try {
+                CatalogCandidate publicationCandidate = active.candidate;
+                if (!matches(active.entry, active.buildView)) {
+                    publicationCandidate = active.candidate.rebaseAdditionsOnto(
+                            active.entry.snapshot);
+                    if (publicationCandidate == null) {
+                        throw new StaleCatalogBuildException(
+                                active.namespace,
+                                StaleCatalogBuildException.Reason.BASE_CATALOG_CHANGED);
+                    }
+                }
+                publicationCandidate.validateBuildSucceeded();
+                if (!publicationCandidate.hasObservableChanges()) {
+                    publicationCandidate.seal();
+                    return active.entry.snapshot;
+                }
+                CatalogIdentity identity = new CatalogIdentity(
+                        active.namespace,
+                        new CatalogGeneration("catalog:" + bootEpoch + ":"
+                                + nextCatalogSequence.incrementAndGet()),
+                        publicationCandidate.sourceRevision());
+                CatalogSnapshot snapshot = publicationCandidate.freeze(identity);
+                publicationCandidate.seal();
+                active.entry.snapshot = snapshot;
+                active.entry.storeRevision++;
+                activate(active.entry);
+                return snapshot;
+            } finally {
+                active.entry.publicationLock.unlock();
+            }
+        });
+    }
+
     private void ensureBuildViewIsCurrent(ActiveCandidate active) {
         SourceRevision current = sourceRevisionGuard.currentSourceRevision(active.namespace);
         if (!current.equals(active.buildView.sourceRevision())) {
@@ -544,6 +603,30 @@ public final class CatalogSnapshotStore implements SourceRevisionProvider {
             return published;
         }
 
+        /**
+         * Commits an additive lazy model load.  Unlike explicit refresh, a
+         * disjoint concurrent lazy publication may be rebased atomically.
+         */
+        public CatalogSnapshot commitAdditive() {
+            ensureOpen();
+            ensureOwnerThread();
+            if (!owner) {
+                return active.buildView.baseSnapshot();
+            }
+            if (active.depth != 1) {
+                throw new IllegalStateException(
+                        "cannot publish while nested candidate scopes remain open");
+            }
+            if (prepared != null) {
+                throw new IllegalStateException(
+                        "cannot switch a prepared strict publication to additive mode");
+            }
+            if (published == null) {
+                published = publishAdditive(active);
+            }
+            return published;
+        }
+
         @Override
         public void close() {
             if (closed) {
@@ -585,8 +668,36 @@ public final class CatalogSnapshotStore implements SourceRevisionProvider {
         }
     }
 
+    public record RefreshObservation(long sequence, boolean inProgress) {
+    }
+
+    public final class RefreshActivity implements AutoCloseable {
+        private final NamespaceEntry entry;
+        private boolean closed;
+
+        private RefreshActivity(NamespaceEntry entry) {
+            this.entry = entry;
+        }
+
+        @Override
+        public void close() {
+            if (closed) {
+                return;
+            }
+            closed = true;
+            int remaining = entry.activeRefreshes.decrementAndGet();
+            if (remaining < 0) {
+                throw new IllegalStateException(
+                        "CATALOG_REFRESH_ACTIVITY_UNDERFLOW");
+            }
+            entry.refreshSequence.incrementAndGet();
+        }
+    }
+
     private static final class NamespaceEntry {
         private final ReentrantLock publicationLock = new ReentrantLock();
+        private final AtomicLong refreshSequence = new AtomicLong();
+        private final AtomicInteger activeRefreshes = new AtomicInteger();
         private volatile CatalogSnapshot snapshot;
         private volatile long storeRevision;
         private volatile CatalogAdmissionState admissionState = CatalogAdmissionState.ABSENT;
