@@ -1,5 +1,6 @@
 import { ref, computed, type Ref } from 'vue'
 import type { ColumnSchema } from '@/types'
+import { formatViewerValue } from '@/utils/viewer'
 
 /** 度量类型列表 */
 const MEASURE_TYPES = ['NUMBER', 'MONEY', 'BIGDECIMAL', 'INTEGER', 'BIGINT', 'LONG']
@@ -64,10 +65,16 @@ export function useTableSummary(columns: Ref<ColumnSchema[]>) {
   /**
    * 格式化数值用于显示
    */
-  function formatValue(value: unknown, type?: string): string {
+  function formatValue(value: unknown, typeOrColumn?: string | ColumnSchema): string {
     if (value == null) return ''
+
+    const column = typeof typeOrColumn === 'string' ? undefined : typeOrColumn
+    const viewerValue = formatViewerValue(value, column)
+    if (viewerValue !== null) return viewerValue
+
     if (typeof value !== 'number') return String(value)
 
+    const type = typeof typeOrColumn === 'string' ? typeOrColumn : typeOrColumn?.type
     const upperType = type?.toUpperCase()
     if (upperType === 'MONEY' || upperType === 'NUMBER' || upperType === 'BIGDECIMAL') {
       return value.toLocaleString('zh-CN', {
@@ -121,8 +128,8 @@ export function useTableSummary(columns: Ref<ColumnSchema[]>) {
         if (isSummaryColumn(colSchema)) {
           const selectedVal = selectedSummary[field]
           const serverVal = serverSummary.value?.[field]
-          row1.push(formatValue(selectedVal, colSchema?.type))
-          row2.push(formatValue(serverVal, colSchema?.type))
+          row1.push(formatValue(selectedVal, colSchema))
+          row2.push(formatValue(serverVal, colSchema))
         } else {
           row1.push(null)
           row2.push(null)

@@ -105,7 +105,11 @@ private MapToObjectConverter mapToObjectConverter = new MapToObjectConverter(thi
 
     @Override
     protected GenericConverter getDefaultConverter(TypeDescriptor sourceType, TypeDescriptor targetType) {
-        if(sourceType.isMap()){
+        // A Map stored in an Object-typed map value is already assignable to
+        // Object and must remain a Map. Forcing MapToObjectConverter here would
+        // instantiate a plain Object and discard every nested entry.
+        if (sourceType.isMap() && !targetType.isMap()
+                && targetType.getType() != Object.class) {
 //            this.get
             return  mapToObjectConverter;
         }

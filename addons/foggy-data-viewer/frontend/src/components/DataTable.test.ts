@@ -5,6 +5,7 @@ import type { PropType } from 'vue'
 import DataTable from './DataTable.vue'
 import type { CellRenderContext, EnhancedColumnSchema, SliceRequestDef } from '@/types'
 import { globalColumnRenderers } from './composables/globalColumnRenderers'
+import { MONEY_VIEWER } from '@/utils/viewer'
 
 const elMessageWarning = vi.hoisted(() => vi.fn())
 const clearCheckboxRowSpy = vi.hoisted(() => vi.fn())
@@ -28,6 +29,7 @@ interface TestGridColumn {
   className?: string
   width?: number | string
   minWidth?: number
+  formatter?: (params: { cellValue: unknown }) => string
   slots?: {
     header?: () => unknown
     default?: (params: { row: Record<string, unknown>; column: TestGridColumn; cellValue: unknown }) => unknown
@@ -160,6 +162,47 @@ describe('DataTable', () => {
 
       expect(wrapper.exists()).toBe(true)
       // 组件已成功挂载
+    })
+
+    it('formats MONEY_VIEWER cells while keeping row data and export formatter values isolated', () => {
+      const row = { totalTransportFee: 3400 }
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: [{
+            name: 'totalTransportFee',
+            type: 'MONEY',
+            title: '运输费',
+            extData: { viewer: MONEY_VIEWER }
+          }],
+          data: [row],
+          total: 1,
+          loading: false
+        },
+        ...renderGridConfig
+      })
+
+      expect(wrapper.find('.stub-cell-totalTransportFee').text()).toBe('34.00')
+      expect(row.totalTransportFee).toBe(3400)
+
+      const grid = wrapper.findComponent(VxeGridRenderStub)
+      const amountColumn = (grid.props('columns') as TestGridColumn[])
+        .find(column => column.field === 'totalTransportFee')
+      expect(amountColumn?.formatter?.({ cellValue: 3400 })).toBe('34.00')
+      expect(row.totalTransportFee).toBe(3400)
+    })
+
+    it('leaves tms-ai yuan values unchanged when viewer metadata is absent', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: [{ name: 'amountYuan', type: 'MONEY', title: '金额' }],
+          data: [{ amountYuan: 34 }],
+          total: 1,
+          loading: false
+        },
+        ...renderGridConfig
+      })
+
+      expect(wrapper.find('.stub-cell-amountYuan').text()).toBe('34.00')
     })
 
     it('should use compact density by default', () => {
@@ -480,6 +523,37 @@ describe('DataTable', () => {
         value: 'active',
         column: expect.objectContaining({ name: 'status' })
       }))
+    })
+
+    it('provides custom render with both raw and MONEY_VIEWER display values', () => {
+      const row = { amount: 3400 }
+      const render = vi.fn(({ rawValue, displayValue }: CellRenderContext) =>
+        h('span', { class: 'custom-money' }, `${String(rawValue)}:${displayValue}`))
+
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: [{
+            name: 'amount',
+            type: 'MONEY',
+            title: '金额',
+            extData: { viewer: MONEY_VIEWER },
+            customRender: render
+          }],
+          data: [row],
+          total: 1,
+          loading: false
+        },
+        ...renderGridConfig
+      })
+
+      expect(wrapper.find('.custom-money').text()).toBe('3400:34.00')
+      expect(render).toHaveBeenCalledWith(expect.objectContaining({
+        row,
+        value: 3400,
+        rawValue: 3400,
+        displayValue: '34.00'
+      }))
+      expect(row.amount).toBe(3400)
     })
 
     it('should render a matching global column renderer before default cell rendering', () => {
@@ -810,6 +884,70 @@ describe('DataTable', () => {
       expect(rows).toHaveLength(1)
       expect(rows[0].text()).toContain('Test 2')
       expect(rows[0].text()).not.toContain('Test 1')
+    })
+
+    it('converts MONEY_VIEWER header input to raw minor units for requests and local filtering', async () => {
+      const rows = [
+        { amount: 2200 },
+        { amount: 3400 },
+        { amount: 3500 }
+      ]
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: [{
+            name: 'amount',
+            type: 'MONEY',
+            title: '金额',
+            extData: { viewer: MONEY_VIEWER }
+          }],
+          data: rows,
+          total: rows.length,
+          loading: false,
+          localFilter: true
+        },
+        ...renderGridConfig
+      })
+
+      const minimumInput = wrapper.find('.stub-header-cell-amount .filter-number-range input')
+      await minimumInput.setValue('34')
+      await minimumInput.trigger('change')
+      await flushPromises()
+
+      const filterEvents = wrapper.emitted('filter-change') || []
+      expect(filterEvents[filterEvents.length - 1]?.[0]).toEqual([{
+        field: 'amount',
+        op: '>=',
+        value: 3400
+      }])
+      expect(wrapper.findAll('.stub-row').map(row => row.text())).toEqual(['34.00', '35.00'])
+      expect(rows).toEqual([{ amount: 2200 }, { amount: 3400 }, { amount: 3500 }])
+    })
+
+    it('converts raw initial MONEY_VIEWER slices for the input only and emits raw values again', async () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: [{
+            name: 'amount',
+            type: 'MONEY',
+            title: '金额',
+            extData: { viewer: MONEY_VIEWER }
+          }],
+          data: [{ amount: 3400 }],
+          total: 1,
+          loading: false,
+          initialSlice: [{ field: 'amount', op: '>=', value: 3400 }]
+        },
+        ...renderGridConfig
+      })
+
+      const minimumInput = wrapper.find('.stub-header-cell-amount .filter-number-range input')
+      expect((minimumInput.element as HTMLInputElement).value).toBe('34')
+      const vm = wrapper.vm as unknown as { getFilters: () => SliceRequestDef[] }
+      expect(vm.getFilters()).toEqual([{
+        field: 'amount',
+        op: '>=',
+        value: 3400
+      }])
     })
 
     it('should keep server-filtered rows when local filtering is disabled', async () => {
@@ -1323,6 +1461,36 @@ describe('DataTable', () => {
       await wrapper.find('.cell-copy-button').trigger('click')
 
       expect(writeText).toHaveBeenCalledWith(fullValue)
+    })
+
+    it('copies the MONEY_VIEWER display value while retaining the raw row value', async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined)
+      Object.defineProperty(navigator, 'clipboard', {
+        value: { writeText },
+        configurable: true
+      })
+      const row = { amount: 3400 }
+
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: [{
+            name: 'amount',
+            type: 'MONEY',
+            title: '金额',
+            extData: { viewer: MONEY_VIEWER }
+          }],
+          data: [row],
+          total: 1,
+          loading: false
+        },
+        ...renderGridConfig
+      })
+
+      await wrapper.find('.data-table-copyable-cell').trigger('mouseenter')
+      await wrapper.find('.cell-copy-button').trigger('click')
+
+      expect(writeText).toHaveBeenCalledWith('34.00')
+      expect(row.amount).toBe(3400)
     })
 
     it('should fall back to textarea copy when clipboard api is unavailable', async () => {

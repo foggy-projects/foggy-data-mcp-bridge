@@ -140,6 +140,7 @@ public class FrontendMetaConverter {
 
         // 推导 uiHints
         UiHintsMeta uiHints = deriveUiHints(category, type);
+        Map<String, Object> extData = convertViewerExtData(fieldData);
 
         return FieldMeta.builder()
                 .name(name)
@@ -168,6 +169,7 @@ public class FrontendMetaConverter {
                 .hierarchyOps(hierarchyOps)
                 .memberLookup(memberLookup)
                 .uiHints(uiHints)
+                .extData(extData)
                 .build();
     }
 
@@ -301,6 +303,27 @@ public class FrontendMetaConverter {
             }
         }
         return items.isEmpty() ? null : items;
+    }
+
+    /**
+     * frontend-meta intentionally exposes only extData.viewer and only its
+     * documented scalar properties. Runtime/private extData keys stay hidden.
+     */
+    private Map<String, Object> convertViewerExtData(Map<String, Object> fieldData) {
+        Map<String, Object> rawExtData = getMap(fieldData, "extData");
+        Map<String, Object> rawViewer = rawExtData == null ? null : getMap(rawExtData, "viewer");
+        if (rawViewer == null) {
+            return null;
+        }
+
+        Map<String, Object> viewer = new LinkedHashMap<>();
+        for (String key : List.of("format", "rawUnit", "displayUnit", "scaleFactor", "precision")) {
+            Object value = rawViewer.get(key);
+            if (value instanceof String || value instanceof Number || value instanceof Boolean) {
+                viewer.put(key, value);
+            }
+        }
+        return viewer.isEmpty() ? null : Map.of("viewer", viewer);
     }
 
     // ── 工具方法 ──

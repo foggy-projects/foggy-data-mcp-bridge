@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import type { SliceRequestDef, MemberQueryRequest, MemberQueryResponse } from '@/types'
+import type { ColumnSchema, FieldExtData, SliceRequestDef, MemberQueryRequest, MemberQueryResponse } from '@/types'
 import { TextFilter, NumberRangeFilter, DateRangeFilter, SelectFilter, BoolFilter } from './filters'
+import { viewerSlicesToDisplay, viewerSlicesToRaw } from '@/utils/viewer'
 
 /**
  * QueryPanel - 传统查询区组件
@@ -28,6 +29,7 @@ export interface QueryFieldSchema {
   order?: number
   span?: number
   visible?: boolean
+  extData?: FieldExtData
 }
 
 export interface QueryPanelLayoutSchema {
@@ -92,6 +94,13 @@ const visibleFields = computed(() => {
   return formFields.value
 })
 
+const viewerColumns = computed<ColumnSchema[]>(() => props.schema.fields.map(field => ({
+  name: getSliceField(field),
+  title: field.label,
+  type: field.component === 'numberRange' ? 'NUMBER' : 'TEXT',
+  extData: field.extData
+})))
+
 // ── 从 modelValue 初始化 ──
 watch(() => props.modelValue, (slices) => {
   if (!slices || slices.length === 0) {
@@ -107,7 +116,7 @@ watch(() => props.modelValue, (slices) => {
     )
     if (matchField) {
       if (!grouped[matchField.key]) grouped[matchField.key] = []
-      grouped[matchField.key].push(slice)
+      grouped[matchField.key].push(...viewerSlicesToDisplay([slice], viewerColumns.value))
     }
   }
   fieldValues.value = grouped
@@ -179,12 +188,19 @@ function updateField(key: string, value: SliceRequestDef[] | null) {
 }
 
 function handleSearch() {
-  const allSlices: SliceRequestDef[] = []
-  for (const slices of Object.values(fieldValues.value)) {
-    if (slices && slices.length > 0) allSlices.push(...slices)
-  }
+  const allSlices = getRawSlices()
   emit('update:modelValue', allSlices)
   emit('search')
+}
+
+function getRawSlices(): SliceRequestDef[] {
+  const allSlices: SliceRequestDef[] = []
+  for (const slices of Object.values(fieldValues.value)) {
+    if (slices && slices.length > 0) {
+      allSlices.push(...viewerSlicesToRaw(slices, viewerColumns.value))
+    }
+  }
+  return allSlices
 }
 
 function handleReset() {
@@ -196,13 +212,7 @@ function handleReset() {
 defineExpose({
   search: handleSearch,
   reset: handleReset,
-  getSlices: (): SliceRequestDef[] => {
-    const allSlices: SliceRequestDef[] = []
-    for (const slices of Object.values(fieldValues.value)) {
-      if (slices && slices.length > 0) allSlices.push(...slices)
-    }
-    return allSlices
-  }
+  getSlices: getRawSlices
 })
 </script>
 

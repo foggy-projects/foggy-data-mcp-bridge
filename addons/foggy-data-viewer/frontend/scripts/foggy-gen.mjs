@@ -71,6 +71,27 @@ function toCamelCase(name) {
   return name.replace(/QueryModel$/, '')
 }
 
+function getViewer(field) {
+  const viewer = field?.extData?.viewer
+  return viewer && typeof viewer === 'object' && !Array.isArray(viewer) ? viewer : null
+}
+
+function isStandardMoneyViewer(viewer) {
+  return viewer?.format === 'money' &&
+    viewer?.rawUnit === 'minor' &&
+    viewer?.displayUnit === 'CNY' &&
+    Number(viewer?.scaleFactor) === 100 &&
+    (viewer?.precision == null || Number(viewer.precision) === 2)
+}
+
+function viewerExtDataLiteral(field) {
+  const viewer = getViewer(field)
+  if (!viewer) return null
+  return isStandardMoneyViewer(viewer)
+    ? '{ viewer: MONEY_VIEWER }'
+    : `{ viewer: ${JSON.stringify(viewer)} }`
+}
+
 // ── 生成 types.ts ──
 
 function genTypes(meta) {
@@ -119,6 +140,7 @@ function genTableSchema(meta) {
   const queryMode = ['panel', 'column', 'combined', 'none'].includes(meta.defaults?.queryMode)
     ? meta.defaults.queryMode
     : null
+  const usesMoneyViewer = meta.fields.some(field => isStandardMoneyViewer(getViewer(field)))
 
   const lines = [
     `/**`,
@@ -126,7 +148,7 @@ function genTableSchema(meta) {
     ` * ⚠️ 此文件由 foggy-gen 自动生成，请勿手动修改`,
     ` */`,
     `import type { EnhancedColumnSchema, TableSchema } from 'foggy-data-viewer'`,
-    `import { calculateColumnWidth } from 'foggy-data-viewer'`,
+    `import { calculateColumnWidth${usesMoneyViewer ? ', MONEY_VIEWER' : ''} } from 'foggy-data-viewer'`,
     ``,
     `/** 全量列定义 */`,
     `export const allColumns: EnhancedColumnSchema[] = [`,
@@ -150,6 +172,8 @@ function genTableSchema(meta) {
     if (f.memberLookup?.enabled) {
       props.push(`    memberLookup: { enabled: true, selectionFieldName: '${f.memberLookup.selectionFieldName}', displayFieldName: '${f.memberLookup.displayFieldName}', searchable: true, pageable: true, defaultLimit: ${f.memberLookup.defaultLimit || 20} }`)
     }
+    const extDataLiteral = viewerExtDataLiteral(f)
+    if (extDataLiteral) props.push(`    extData: ${extDataLiteral}`)
     props.push(`    width: calculateColumnWidth('${f.title}', '${f.type}')`)
     lines.push(`  {\n${props.join(',\n')},\n  },`)
   }
@@ -209,12 +233,14 @@ function genQuerySchema(meta) {
     : defaultSearchFields.slice(0, 1)
   const queryFieldNames = new Set(queryFields.map(f => f.name))
   const resolvedDefaultFormFieldKeys = defaultFormFieldKeys.filter(key => queryFieldNames.has(key))
+  const usesMoneyViewer = queryFields.some(field => isStandardMoneyViewer(getViewer(field)))
 
   const lines = [
     `/**`,
     ` * ${meta.model} - 自动生成的查询 Schema`,
     ` * ⚠️ 此文件由 foggy-gen 自动生成，请勿手动修改`,
     ` */`,
+    usesMoneyViewer ? `import { MONEY_VIEWER } from 'foggy-data-viewer'` : ``,
     ``,
     `/** 查询字段定义 */`,
     `export const queryFields = [`,
@@ -250,6 +276,8 @@ function genQuerySchema(meta) {
     ]
     if (isDict && f.dictId) props.push(`    dictId: '${f.dictId}'`)
     if (isMember) props.push(`    lookupRef: '${f.name}'`)
+    const extDataLiteral = viewerExtDataLiteral(f)
+    if (extDataLiteral) props.push(`    extData: ${extDataLiteral}`)
     props.push(`    order: ${order}`)
     props.push(`    span: ${span}`)
 

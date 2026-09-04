@@ -1,0 +1,34 @@
+/**
+ * DataViewer field-extension propagation test query model.
+ */
+const fs = loadTableModel('FactSalesViewerMetadataModel');
+
+export const queryModel = {
+    name: 'FactSalesViewerMetadataQueryModel',
+    caption: 'Viewer metadata query model',
+    model: fs,
+
+    columnGroups: [
+        {
+            caption: 'Fields',
+            items: [
+                { ref: fs.salesKey },
+                {
+                    ref: fs.salesAmountMinor,
+                    extData: {
+                        viewer: {
+                            format: 'money',
+                            rawUnit: 'minor',
+                            displayUnit: 'CNY',
+                            scaleFactor: 100,
+                            precision: 2
+                        },
+                        qmInternalOnly: 'must-not-reach-frontend'
+                    }
+                }
+            ]
+        }
+    ],
+
+    accesses: []
+};

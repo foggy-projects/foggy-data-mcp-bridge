@@ -1515,7 +1515,9 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
          * - alias: 用户定义的别名，用于重命名字段（如 { ref: dc.customerType, alias: 'custType' }）
          */
         String queryColumnName = StringUtils.isNotEmpty(item.getName()) ? item.getName() : columnName;
-        DbQueryColumn dbQueryColumn = new DbQueryColumnImpl(jdbcColumn, queryColumnName, item.getCaption(), item.getAlias());
+        DbQueryColumnImpl dbQueryColumn = new DbQueryColumnImpl(
+                jdbcColumn, queryColumnName, item.getCaption(), item.getAlias());
+        dbQueryColumn.setExtData(item.getExtData());
         dbQueryColumn.setHasRef(hasRef);
 
         qm.addJdbcQueryColumn(dbQueryColumn);

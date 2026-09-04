@@ -104,6 +104,8 @@ public class FrontendMeta {
         private MemberLookupMeta memberLookup;
         /** 前端 UI 提示 */
         private UiHintsMeta uiHints;
+        /** 白名单字段扩展；当前仅允许 viewer。 */
+        private Map<String, Object> extData;
     }
 
     @Data

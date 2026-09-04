@@ -13,6 +13,20 @@ export interface ColumnGroupMeta {
   order?: number
 }
 
+export interface MoneyViewerConfig {
+  readonly format: 'money'
+  readonly rawUnit: 'minor'
+  readonly displayUnit: 'CNY'
+  readonly scaleFactor: number
+  readonly precision?: number
+}
+
+export type ViewerConfig = MoneyViewerConfig | Record<string, unknown>
+
+export interface FieldExtData {
+  viewer?: ViewerConfig
+}
+
 /**
  * 列定义类型
  */
@@ -43,6 +57,8 @@ export interface ColumnSchema {
   format?: string
   measure?: boolean
   uiConfig?: Record<string, unknown>
+  /** 前端展示扩展；DataViewer 只解释显式声明的 viewer。 */
+  extData?: FieldExtData
 }
 
 /**
@@ -164,7 +180,12 @@ export interface ColumnCustomization {
 
 export interface CellRenderContext {
   row: Record<string, unknown>
+  /** 原始字段值；展示扩展不会修改它。 */
   value: unknown
+  /** value 的明确别名，便于自定义 render 区分原始值和展示值。 */
+  rawValue: unknown
+  /** DataViewer 根据 extData.viewer 生成的展示文本。 */
+  displayValue: string
   column: EnhancedColumnSchema
 }
 
@@ -592,6 +613,8 @@ export interface FieldMeta {
   hierarchyOps?: string[]
   memberLookup?: MemberLookupMeta
   uiHints?: UiHintsMeta
+  /** frontend-meta 白名单扩展，目前只包含 viewer。 */
+  extData?: FieldExtData
 }
 
 /** 维度成员远程查询配置 */

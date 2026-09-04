@@ -102,6 +102,27 @@ function handlePageChange(page: number, pageSize: number) {
 </template>
 ```
 
+### 3. 展示“分”为“元”的金额字段
+
+金额单位必须由字段元数据显式声明；组件不会根据字段名、`MONEY` 类型或
+`semanticScaleFactor` 推断。模型定义可直接复用公共导出：
+
+```typescript
+import { MONEY_VIEWER } from 'foggy-data-viewer'
+
+const amountField = {
+  name: 'amount',
+  type: 'MONEY',
+  extData: {
+    viewer: MONEY_VIEWER
+  }
+}
+```
+
+此配置会把原始值 `3400` 展示为 `34.00`，并把筛选输入的 `34` 精确换算为
+提交给查询端的 `3400`。行数据、服务端汇总数据和排序值始终保持原始“分”值；
+已经返回“元”的字段不要配置 `MONEY_VIEWER`。
+
 ## 组件列表
 
 ### 核心组件

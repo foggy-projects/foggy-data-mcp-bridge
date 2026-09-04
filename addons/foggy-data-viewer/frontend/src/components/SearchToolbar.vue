@@ -2,6 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import type { EnhancedColumnSchema, SliceRequestDef, MemberQueryRequest, MemberQueryResponse } from '@/types'
 import { TextFilter, NumberRangeFilter, DateRangeFilter, SelectFilter, BoolFilter } from './filters'
+import { viewerSlicesToDisplay, viewerSlicesToRaw } from '@/utils/viewer'
 
 /**
  * SearchToolbar 组件
@@ -67,7 +68,7 @@ watch(() => props.modelValue, (slices) => {
     if (!grouped[slice.field]) {
       grouped[slice.field] = []
     }
-    grouped[slice.field].push(slice)
+    grouped[slice.field].push(...viewerSlicesToDisplay([slice], props.columns))
   }
 
   filterValues.value = grouped
@@ -211,13 +212,17 @@ function updateFilter(columnName: string, value: SliceRequestDef[] | null) {
 
 // 发送过滤变更事件
 function emitFilterChange() {
+  emit('update:modelValue', getRawFilterSlices())
+}
+
+function getRawFilterSlices(): SliceRequestDef[] {
   const allSlices: SliceRequestDef[] = []
   for (const slices of Object.values(filterValues.value)) {
     if (slices && slices.length > 0) {
-      allSlices.push(...slices)
+      allSlices.push(...viewerSlicesToRaw(slices, props.columns))
     }
   }
-  emit('update:modelValue', allSlices)
+  return allSlices
 }
 
 // 点击搜索按钮
@@ -238,15 +243,7 @@ defineExpose({
   /** 清空所有筛选 */
   clearFilters: handleReset,
   /** 获取当前筛选条件 */
-  getFilters: (): SliceRequestDef[] => {
-    const allSlices: SliceRequestDef[] = []
-    for (const slices of Object.values(filterValues.value)) {
-      if (slices && slices.length > 0) {
-        allSlices.push(...slices)
-      }
-    }
-    return allSlices
-  }
+  getFilters: getRawFilterSlices
 })
 </script>
 

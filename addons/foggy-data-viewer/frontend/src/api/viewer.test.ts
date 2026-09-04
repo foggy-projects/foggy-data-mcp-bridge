@@ -126,6 +126,46 @@ describe('fetchQmSchema', () => {
       })
     ])
   })
+
+  it('passes only extData.viewer into the DataViewer field definition', async () => {
+    axiosMock.get.mockResolvedValue({
+      data: {
+        code: 200,
+        data: {
+          fields: {
+            amount: {
+              name: '金额',
+              type: 'MONEY',
+              extData: {
+                viewer: {
+                  format: 'money',
+                  rawUnit: 'minor',
+                  displayUnit: 'CNY',
+                  scaleFactor: 100,
+                  precision: 2
+                },
+                internalOnly: 'hidden'
+              }
+            }
+          }
+        }
+      }
+    })
+
+    const { fetchQmSchema } = await import('./viewer')
+    const [field] = await fetchQmSchema('TmsBizQuery')
+
+    expect(field.extData).toEqual({
+      viewer: {
+        format: 'money',
+        rawUnit: 'minor',
+        displayUnit: 'CNY',
+        scaleFactor: 100,
+        precision: 2
+      }
+    })
+    expect(field.extData).not.toHaveProperty('internalOnly')
+  })
 })
 
 describe('fetchQueryDataDirect', () => {

@@ -1180,6 +1180,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                     && queryModel.findJdbcQueryColumnByName(baseName, false) != null) {
                 dimensionFieldNames.add(baseName);
                 Map<String, Object> rootFieldInfo = createTimeDimensionRootFieldInfo(dimension, queryModel.getName());
+                addViewerExtension(rootFieldInfo, queryModel.findJdbcQueryColumnByName(baseName, false));
                 mergeFieldInfo(fields, baseName, rootFieldInfo);
             }
 
@@ -1187,11 +1188,13 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             // 1. $id 字段
             dimensionFieldNames.add(idFieldName);
             Map<String, Object> idFieldInfo = createDimensionIdFieldInfo(dimension, queryModel.getName());
+            addViewerExtension(idFieldInfo, queryModel.findJdbcQueryColumnByName(idFieldName, false));
             mergeFieldInfo(fields, idFieldName, idFieldInfo);
 
             // 2. $caption 字段
             dimensionFieldNames.add(captionFieldName);
             Map<String, Object> captionFieldInfo = createDimensionCaptionFieldInfo(dimension, queryModel.getName());
+            addViewerExtension(captionFieldInfo, queryModel.findJdbcQueryColumnByName(captionFieldName, false));
             mergeFieldInfo(fields, captionFieldName, captionFieldInfo);
 
             // 3. 处理维度属性（仅包含QM暴露的属性）
@@ -1214,6 +1217,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                 dimensionFieldNames.add(propFieldName);
                 Map<String, Object> propFieldInfo = createDimensionPropertyFieldInfo(
                         dimension, prop, queryModel.getName(), propFieldName, context);
+                addViewerExtension(propFieldInfo, queryColumn, prop);
                 mergeFieldInfo(fields, propFieldName, propFieldInfo);
             }
         }
@@ -1243,6 +1247,8 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
 
             Map<String, Object> fieldInfo = createPropertyFieldInfo(
                     property, queryModel.getName(), fieldName, context);
+            addViewerExtension(fieldInfo,
+                    queryModel.findJdbcQueryColumnByName(queryProperty.getName(), false), property);
             mergeFieldInfo(fields, fieldName, fieldInfo);
         }
 
@@ -1265,6 +1271,8 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             }
 
             Map<String, Object> fieldInfo = createMeasureFieldInfo(measure, queryModel.getName());
+            addViewerExtension(fieldInfo,
+                    queryModel.findJdbcQueryColumnByName(fieldName, false), measure);
             mergeFieldInfo(fields, fieldName, fieldInfo);
         }
 
@@ -1290,6 +1298,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             }
 
             Map<String, Object> fieldInfo = createQueryMeasureFieldInfo(queryColumn, queryModel.getName());
+            addViewerExtension(fieldInfo, queryColumn);
             mergeFieldInfo(fields, fieldName, fieldInfo);
         }
 
@@ -2226,6 +2235,43 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         if (StringUtils.isNotEmpty(semanticUnitLabel)) {
             fieldInfo.put("semanticUnitLabel", semanticUnitLabel);
         }
+    }
+
+    /**
+     * Propagate only the governed viewer extension. Other field extData remains
+     * internal to the model/runtime and is never exposed through metadata.
+     */
+    private void addViewerExtension(Map<String, Object> fieldInfo, DbObject... sources) {
+        if (sources == null) {
+            return;
+        }
+        for (DbObject source : sources) {
+            Map<String, Object> viewer = extractViewer(source == null ? null : source.getExtData());
+            if (viewer == null && source instanceof DbQueryColumn queryColumn) {
+                viewer = extractViewer(queryColumn.getSelectColumn() == null
+                        ? null : queryColumn.getSelectColumn().getExtData());
+            }
+            if (viewer != null) {
+                fieldInfo.put("extData", Map.of("viewer", viewer));
+                return;
+            }
+        }
+    }
+
+    private Map<String, Object> extractViewer(Object rawExtData) {
+        if (!(rawExtData instanceof Map<?, ?> extData)
+                || !(extData.get("viewer") instanceof Map<?, ?> rawViewer)) {
+            return null;
+        }
+
+        Map<String, Object> viewer = new LinkedHashMap<>();
+        for (String key : List.of("format", "rawUnit", "displayUnit", "scaleFactor", "precision")) {
+            Object value = rawViewer.get(key);
+            if (value instanceof String || value instanceof Number || value instanceof Boolean) {
+                viewer.put(key, value);
+            }
+        }
+        return viewer.isEmpty() ? null : viewer;
     }
 
     private String getDataTypeDescription(DbColumnType dbColumnType) {

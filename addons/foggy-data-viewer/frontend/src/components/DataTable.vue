@@ -6,6 +6,7 @@ import type { EnhancedColumnSchema, PaginationState, SortState, SliceRequestDef,
 import { TextFilter, NumberRangeFilter, DateRangeFilter, SelectFilter, BoolFilter } from './filters'
 import { useDeferredVisibility, useTableSelection, useTableSummary } from './composables'
 import { globalColumnRenderers } from './composables/globalColumnRenderers'
+import { formatViewerValue, viewerSlicesToDisplay, viewerSlicesToRaw } from '@/utils/viewer'
 
 // 禁用自动继承属性，手动控制透传到 vxe-grid
 defineOptions({
@@ -119,7 +120,7 @@ const slots = defineSlots<{
   /** 空数据提示 */
   empty?: () => unknown
   /** 自定义列内容 */
-  [key: `column-${string}`]: (props: { row: Record<string, unknown>; column: EnhancedColumnSchema; value: unknown }) => unknown
+  [key: `column-${string}`]: (props: { row: Record<string, unknown>; column: EnhancedColumnSchema; value: unknown; rawValue: unknown; displayValue: string }) => unknown
   /** 自定义过滤器 */
   [key: `filter-${string}`]: (props: { column: EnhancedColumnSchema; field: string; modelValue: SliceRequestDef[] | null; onChange: (val: SliceRequestDef[] | null) => void; onCommit: (val: SliceRequestDef[] | null) => void }) => unknown
 }>()
@@ -320,7 +321,7 @@ watch(() => props.initialSlice, (slices) => {
     if (!grouped[slice.field]) {
       grouped[slice.field] = []
     }
-    grouped[slice.field].push(slice)
+    grouped[slice.field].push(...viewerSlicesToDisplay([slice], props.columns))
   }
 
   // 设置到 filterValues
@@ -508,7 +509,7 @@ function getAllFilterSlices(): SliceRequestDef[] {
   const allSlices: SliceRequestDef[] = []
   for (const slices of Object.values(filterValues.value)) {
     if (slices && slices.length > 0) {
-      allSlices.push(...slices)
+      allSlices.push(...viewerSlicesToRaw(slices, props.columns))
     }
   }
   return allSlices
@@ -550,6 +551,10 @@ function updateFilter(columnName: string, value: SliceRequestDef[] | null) {
   if (setFilterValue(columnName, value)) {
     emitFilterChange()
   }
+}
+
+function setRawFilter(columnName: string, value: SliceRequestDef[] | null) {
+  updateFilter(columnName, value ? viewerSlicesToDisplay(value, props.columns) : null)
 }
 
 function commitFilter(columnName: string, value: SliceRequestDef[] | null) {
@@ -736,6 +741,11 @@ function formatIntegerDisplayValue(col: EnhancedColumnSchema, cellValue: unknown
 }
 
 function formatCellDisplayValue(col: EnhancedColumnSchema, cellValue: unknown): string {
+  const viewerValue = formatViewerValue(cellValue, col)
+  if (viewerValue !== null) {
+    return viewerValue
+  }
+
   if (col.customFormatter) {
     return col.customFormatter(cellValue)
   }
@@ -859,9 +869,10 @@ async function writeClipboardText(text: string): Promise<void> {
   }
 }
 
-async function copyCellText(event: Event, value: unknown) {
+async function copyCellText(event: Event, value: unknown, column?: EnhancedColumnSchema) {
   stopCopyEvent(event)
-  const text = stringifyCopyValue(value)
+  const viewerValue = column ? formatViewerValue(value, column) : null
+  const text = viewerValue ?? stringifyCopyValue(value)
   if (!text) return
 
   try {
@@ -1085,7 +1096,7 @@ function renderDefaultCell(col: EnhancedColumnSchema, row: Record<string, unknow
       },
       onMousedown: stopCopyEvent,
       onPointerdown: stopCopyEvent,
-      onClick: (event: Event) => copyCellText(event, rawValue)
+      onClick: (event: Event) => copyCellText(event, rawValue, col)
     }, [
       renderCopyIcon()
     ])
@@ -1104,6 +1115,8 @@ function renderGlobalCell(col: EnhancedColumnSchema, row: Record<string, unknown
   return globalColumnRenderers.render({
     row,
     value: row[col.name],
+    rawValue: row[col.name],
+    displayValue: formatCellDisplayValue(col, row[col.name]),
     column: col,
     columns: props.columns,
     tableSchema: props.tableSchema,
@@ -1222,7 +1235,14 @@ const tableColumns = computed<VxeGridProps['columns']>(() => {
       colConfig.slots = {
         ...colConfig.slots as object,
         default: ({ row }: { row: Record<string, unknown> }) => {
-          return slots[slotName]!({ row, column: col, value: row[col.name] })
+          const rawValue = row[col.name]
+          return slots[slotName]!({
+            row,
+            column: col,
+            value: rawValue,
+            rawValue,
+            displayValue: formatCellDisplayValue(col, rawValue)
+          })
         }
       }
     } else if (col.customRender) {
@@ -1230,7 +1250,14 @@ const tableColumns = computed<VxeGridProps['columns']>(() => {
       colConfig.slots = {
         ...colConfig.slots as object,
         default: ({ row }: { row: Record<string, unknown> }) => {
-          return col.customRender!({ row, value: row[col.name], column: col })
+          const rawValue = row[col.name]
+          return col.customRender!({
+            row,
+            value: rawValue,
+            rawValue,
+            displayValue: formatCellDisplayValue(col, rawValue),
+            column: col
+          })
         }
       }
     } else {
@@ -1407,7 +1434,7 @@ defineExpose({
   /** 获取当前过滤状态 (DSL slices) */
   getFilters: getAllFilterSlices,
   /** 设置过滤值 */
-  setFilter: updateFilter,
+  setFilter: setRawFilter,
   /** 获取 vxe-grid 实例 */
   getGridInstance: () => gridRef.value,
   /** 获取当前选中行数组 */

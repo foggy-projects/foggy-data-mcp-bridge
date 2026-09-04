@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import SearchToolbar from './SearchToolbar.vue'
 import type { EnhancedColumnSchema, SliceRequestDef } from '@/types'
+import { MONEY_VIEWER } from '@/utils/viewer'
 
 // Mock filter components
 vi.mock('./filters', () => ({
@@ -251,6 +252,33 @@ describe('SearchToolbar', () => {
   })
 
   describe('ModelValue Sync', () => {
+    it('keeps raw MONEY_VIEWER slices at the public boundary and display values internally', () => {
+      const moneyColumns: EnhancedColumnSchema[] = [{
+        name: 'amount',
+        type: 'MONEY',
+        title: '金额',
+        filterable: true,
+        filterType: 'number',
+        extData: { viewer: MONEY_VIEWER }
+      }]
+      const wrapper = mount(SearchToolbar, {
+        props: {
+          columns: moneyColumns,
+          modelValue: [{ field: 'amount', op: '>=', value: 3400 }]
+        }
+      })
+
+      const vm = wrapper.vm as any
+      expect(vm.filterValues.amount).toEqual([{ field: 'amount', op: '>=', value: 34 }])
+      expect(vm.getFilters()).toEqual([{ field: 'amount', op: '>=', value: 3400 }])
+
+      vm.updateFilter('amount', [{ field: 'amount', op: '>=', value: 34.01 }])
+      const emitted = wrapper.emitted('update:modelValue')!
+      expect(emitted[emitted.length - 1][0]).toEqual([
+        { field: 'amount', op: '>=', value: 3401 }
+      ])
+    })
+
     it('should initialize with modelValue prop', () => {
       const initialSlices: SliceRequestDef[] = [
         { field: 'name', op: '=', value: 'test' }

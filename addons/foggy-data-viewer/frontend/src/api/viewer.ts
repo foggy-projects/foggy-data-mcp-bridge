@@ -61,6 +61,12 @@ function getRecord(value: unknown): Record<string, unknown> | undefined {
     : undefined
 }
 
+function pickViewerExtData(value: unknown): ColumnSchema['extData'] | undefined {
+  const extData = getRecord(value)
+  const viewer = getRecord(extData?.viewer)
+  return viewer ? { viewer } : undefined
+}
+
 function deriveQmFieldCategory(fieldName: string, field: RawQmField): string {
   const explicitCategory = pickText(field.category)
   if (explicitCategory) return explicitCategory
@@ -300,7 +306,8 @@ export async function fetchQmSchema(qmModel: string): Promise<ColumnSchema[]> {
       filterType: field.filterType as ColumnSchema['filterType'],
       dictId: pickText(field.dictId),
       dictItems: field.dictItems as ColumnSchema['dictItems'],
-      format: pickText(field.format)
+      format: pickText(field.format),
+      extData: pickViewerExtData(field.extData)
     })
   }
 

@@ -32,6 +32,14 @@ export * from './components/composables'
 // 导出工具函数
 export { buildTableColumns, calculateColumnWidth } from './utils/schemaHelper'
 export {
+  MONEY_VIEWER,
+  formatViewerValue,
+  getColumnMoneyViewer,
+  resolveMoneyViewer,
+  viewerSlicesToDisplay,
+  viewerSlicesToRaw
+} from './utils/viewer'
+export {
   buildPivotGridColumns,
   flattenPivotLeafNodes,
   validatePivotHeaderTree
@@ -92,6 +100,9 @@ export {
 // 导出类型定义
 export type {
   ColumnSchema,
+  MoneyViewerConfig,
+  ViewerConfig,
+  FieldExtData,
   EnhancedColumnSchema,
   TableConfig,
   TableSchema,

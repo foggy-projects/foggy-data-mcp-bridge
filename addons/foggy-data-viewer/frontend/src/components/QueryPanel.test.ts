@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import QueryPanel from './QueryPanel.vue'
 import type { MemberQueryResponse, SliceRequestDef } from '@/types'
+import { MONEY_VIEWER } from '@/utils/viewer'
 
 vi.mock('./filters', () => ({
   TextFilter: {
@@ -47,6 +48,35 @@ vi.mock('./filters', () => ({
 
 describe('QueryPanel', () => {
   const loader = vi.fn<[], Promise<MemberQueryResponse>>()
+
+  it('keeps MONEY_VIEWER query inputs in display units and emits raw units', async () => {
+    const wrapper = mount(QueryPanel, {
+      props: {
+        modelValue: [{ field: 'amount', op: '>=', value: 3400 }],
+        schema: {
+          fields: [{
+            key: 'amount',
+            label: '金额',
+            placement: 'form',
+            component: 'numberRange',
+            extData: { viewer: MONEY_VIEWER }
+          }],
+          submitMode: 'manual'
+        }
+      }
+    })
+
+    const vm = wrapper.vm as any
+    expect(vm.fieldValues.amount).toEqual([{ field: 'amount', op: '>=', value: 34 }])
+    expect(vm.getSlices()).toEqual([{ field: 'amount', op: '>=', value: 3400 }])
+
+    vm.updateField('amount', [{ field: 'amount', op: '>=', value: 34.01 }])
+    await wrapper.find('.btn-primary').trigger('click')
+    const emitted = wrapper.emitted('update:modelValue')!
+    expect(emitted[emitted.length - 1][0]).toEqual([
+      { field: 'amount', op: '>=', value: 3401 }
+    ])
+  })
 
   it('passes lookup field to member loader and selection field to DSL output', async () => {
     const wrapper = mount(QueryPanel, {

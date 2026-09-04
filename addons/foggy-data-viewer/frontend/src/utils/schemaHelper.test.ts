@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { buildTableColumns } from './schemaHelper'
+import { MONEY_VIEWER } from './viewer'
 import type { ColumnSchema, TableConfig } from '@/types'
 
 describe('schemaHelper', () => {
@@ -44,6 +45,17 @@ describe('schemaHelper', () => {
       expect(result[0].name).toBe('amount')
       expect(result[1].name).toBe('name')
       expect(result[2].name).toBe('id')
+    })
+
+    it('preserves extData.viewer when building DataViewer columns', () => {
+      const result = buildTableColumns([{
+        name: 'amount',
+        type: 'MONEY',
+        title: '金额',
+        extData: { viewer: MONEY_VIEWER }
+      }], {})
+
+      expect(result[0].extData).toEqual({ viewer: MONEY_VIEWER })
     })
 
     it('should apply width customization', () => {

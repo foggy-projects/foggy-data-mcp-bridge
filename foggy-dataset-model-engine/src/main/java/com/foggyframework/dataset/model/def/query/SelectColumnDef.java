@@ -62,6 +62,9 @@ public class SelectColumnDef {
     /** 业务描述（QM formula items 的使用说明，用于 AI/LLM 元数据输出） */
     String description;
 
+    /** 字段扩展元数据；运行时仅由具体消费者解释白名单键。 */
+    Map<String, Object> extData;
+
     /**
      * 获取字符串形式的 ref（别名格式，使用 _ 分隔）
      *

@@ -31,6 +31,7 @@ public abstract class DbDefSupport {
         dbObjectSupport.setName(name);
         dbObjectSupport.setCaption(caption);
         dbObjectSupport.setDescription(description);
+        dbObjectSupport.setExtData(extData);
         if (deprecated) {
             dbObjectSupport.setFlag(NumberUtils.addFlag(dbObjectSupport.getFlag(), DbObject.FLAG_DEPRECATED));
         }

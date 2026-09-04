@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { ref } from 'vue'
 import { useTableSummary } from './useTableSummary'
 import type { ColumnSchema } from '@/types'
+import { MONEY_VIEWER } from '@/utils/viewer'
 
 describe('useTableSummary', () => {
   const mockColumns = ref<ColumnSchema[]>([
@@ -142,6 +143,35 @@ describe('useTableSummary', () => {
   })
 
   describe('generateFooterData', () => {
+    it('formats MONEY_VIEWER selected and total summaries without mutating either source', () => {
+      const moneyColumns = ref<ColumnSchema[]>([{
+        name: 'amount',
+        type: 'MONEY',
+        title: '金额',
+        measure: true,
+        aggregatable: true,
+        extData: { viewer: MONEY_VIEWER }
+      }])
+      const { calculateSelectedSummary, generateFooterData, setServerSummary } = useTableSummary(moneyColumns)
+      const selectedRows = [{ amount: 3400 }, { amount: 2200 }]
+      const totalData = { total: 2, amount: 5600 }
+      setServerSummary(totalData)
+
+      const selectedSummary = calculateSelectedSummary(selectedRows)
+      const footer = generateFooterData(
+        [{ field: undefined }, { field: '_count', type: 'INTEGER' }, { field: 'amount', type: 'MONEY' }],
+        selectedSummary
+      )
+
+      expect(footer).toEqual([
+        ['选中', '2 条', '56.00'],
+        ['合计', '2 条', '56.00']
+      ])
+      expect(selectedSummary.amount).toBe(5600)
+      expect(selectedRows).toEqual([{ amount: 3400 }, { amount: 2200 }])
+      expect(totalData).toEqual({ total: 2, amount: 5600 })
+    })
+
     it('should generate footer data with labels, counts and summary columns', () => {
       const { generateFooterData, setServerSummary } = useTableSummary(mockColumns)
 

@@ -48,6 +48,28 @@ function createFrontendMeta(queryMode: string, visibleColumns = ['orderNo', 'ser
           defaultLimit: 20
         },
         uiHints: { visible: true }
+      },
+      {
+        name: 'totalTransportFee',
+        title: 'Transport Fee',
+        type: 'MONEY',
+        category: 'measure',
+        filterType: 'number',
+        filterable: true,
+        sortable: true,
+        measure: true,
+        aggregatable: true,
+        extData: {
+          viewer: {
+            format: 'money',
+            rawUnit: 'minor',
+            displayUnit: 'CNY',
+            scaleFactor: 100,
+            precision: 2
+          },
+          internalOnly: 'must-not-be-generated'
+        },
+        uiHints: { visible: false }
       }
     ],
     defaults: {
@@ -129,6 +151,9 @@ describe('foggy-gen QueryTable template', () => {
       expect(tableSchema).toContain('groupTitle: "Order Info"')
       expect(tableSchema).toContain('groupOrder: 1')
       expect(tableSchema).toContain("queryMode: 'column'")
+      expect(tableSchema).toContain("import { calculateColumnWidth, MONEY_VIEWER } from 'foggy-data-viewer'")
+      expect(tableSchema).toContain('extData: { viewer: MONEY_VIEWER }')
+      expect(tableSchema).not.toContain('internalOnly')
       expect(tableSchema).toContain('showFilters: true')
       expect(tableSchema).not.toContain('showSearchToolbar')
       expect(querySchema).toContain('export const defaultFormFieldKeys = ["orderNo"]')
