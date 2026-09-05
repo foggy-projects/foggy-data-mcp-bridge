@@ -58,6 +58,33 @@ def run(
     )
 
 
+def run_file_captured(
+    arguments: list[str], *, cwd: Path = REPOSITORY_ROOT
+) -> subprocess.CompletedProcess[str]:
+    """Capture a launcher command without pipes inherited by its runtime child."""
+    with (
+        tempfile.TemporaryFile(mode="w+", encoding="utf-8") as stdout_file,
+        tempfile.TemporaryFile(mode="w+", encoding="utf-8") as stderr_file,
+    ):
+        result = subprocess.run(
+            arguments,
+            cwd=cwd,
+            check=False,
+            text=True,
+            stdout=stdout_file,
+            stderr=stderr_file,
+        )
+        stdout_file.seek(0)
+        stderr_file.seek(0)
+        stdout = stdout_file.read()
+        stderr = stderr_file.read()
+    if result.returncode != 0:
+        raise subprocess.CalledProcessError(
+            result.returncode, arguments, output=stdout, stderr=stderr
+        )
+    return subprocess.CompletedProcess(arguments, result.returncode, stdout, stderr)
+
+
 def command_output(*arguments: str, cwd: Path = REPOSITORY_ROOT) -> str:
     return run(list(arguments), cwd=cwd, capture=True).stdout.strip()
 
@@ -213,6 +240,10 @@ def stop_process(pid: int) -> None:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
+        for _ in range(30):
+            if not process_alive(pid):
+                break
+            time.sleep(0.1)
         return
     os.kill(pid, signal.SIGTERM)
     for _ in range(30):
@@ -220,6 +251,23 @@ def stop_process(pid: int) -> None:
             return
         time.sleep(0.1)
     os.kill(pid, signal.SIGKILL)
+
+
+def remove_temporary_runtime_logs(paths: tuple[Path, ...]) -> None:
+    """Wait for Windows redirect handles, then remove smoke-only log files."""
+    remaining = list(paths)
+    for _ in range(50):
+        locked: list[Path] = []
+        for path in remaining:
+            try:
+                path.unlink(missing_ok=True)
+            except PermissionError:
+                locked.append(path)
+        if not locked:
+            return
+        remaining = locked
+        time.sleep(0.1)
+    raise ReleaseError(f"temporary runtime logs stayed locked: {remaining}")
 
 
 def start_runtime(
@@ -240,7 +288,7 @@ def start_runtime(
         ]
         if console_enabled:
             command.append("-AnalyticsConsole")
-        result = run(command, cwd=package_dir, capture=True)
+        result = run_file_captured(command, cwd=package_dir)
     else:
         environment = os.environ.copy()
         environment.update(
@@ -386,6 +434,10 @@ def smoke_mode(package_dir: Path, port: int, console_enabled: bool) -> dict[str,
             }
         finally:
             stop_process(pid)
+            if os.name == "nt":
+                remove_temporary_runtime_logs(
+                    (Path(start["stdoutLog"]), Path(start["stderrLog"]))
+                )
 
 
 def run_smoke(package_dir: Path, requested_port: int) -> list[dict[str, Any]]:

@@ -18,6 +18,55 @@ SPEC.loader.exec_module(release)
 
 class RuntimeLauncherPublishTest(unittest.TestCase):
 
+    @mock.patch.object(release.subprocess, "run")
+    def test_file_capture_does_not_use_inheritable_pipes(
+        self, subprocess_run: mock.Mock
+    ) -> None:
+        def write_output(arguments: list[str], **kwargs: object) -> object:
+            kwargs["stdout"].write('{"pid": 123}\n')
+            kwargs["stderr"].write("launcher warning\n")
+            return release.subprocess.CompletedProcess(arguments, 0)
+
+        subprocess_run.side_effect = write_output
+
+        result = release.run_file_captured(["powershell", "launcher.ps1"])
+
+        self.assertEqual('{"pid": 123}\n', result.stdout)
+        self.assertEqual("launcher warning\n", result.stderr)
+        call = subprocess_run.call_args
+        self.assertIsNot(call.kwargs["stdout"], release.subprocess.PIPE)
+        self.assertIsNot(call.kwargs["stderr"], release.subprocess.PIPE)
+
+    @mock.patch.object(release.time, "sleep")
+    @mock.patch.object(release, "process_alive", side_effect=[True, False])
+    @mock.patch.object(release.subprocess, "run")
+    def test_windows_stop_waits_for_process_and_log_handle_release(
+        self,
+        subprocess_run: mock.Mock,
+        process_alive: mock.Mock,
+        sleep: mock.Mock,
+    ) -> None:
+        with mock.patch.object(release.os, "name", "nt"):
+            release.stop_process(123)
+
+        subprocess_run.assert_called_once()
+        self.assertEqual(2, process_alive.call_count)
+        sleep.assert_not_called()
+
+    @mock.patch.object(release.time, "sleep")
+    def test_temporary_log_cleanup_retries_windows_handle_release(
+        self, sleep: mock.Mock
+    ) -> None:
+        stdout_log = mock.Mock()
+        stdout_log.unlink.side_effect = [PermissionError(), None]
+        stderr_log = mock.Mock()
+
+        release.remove_temporary_runtime_logs((stdout_log, stderr_log))
+
+        self.assertEqual(2, stdout_log.unlink.call_count)
+        stderr_log.unlink.assert_called_once_with(missing_ok=True)
+        sleep.assert_called_once_with(0.1)
+
     def test_normalizes_supported_release_tags(self) -> None:
         self.assertEqual("0.1.18", release.normalize_version("0.1.18"))
         self.assertEqual(
