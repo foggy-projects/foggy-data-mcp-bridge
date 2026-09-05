@@ -71,6 +71,7 @@ class RuntimeLauncherPackageTest(unittest.TestCase):
             candidate.write_bytes(b"candidate\n")
             report.write_bytes(b"report\n")
             candidate.chmod(0o640)
+            expected_mode = candidate.stat().st_mode & 0o777
 
             with (
                 mock.patch.object(release, "REPOSITORY_ROOT", repository_root),
@@ -89,7 +90,7 @@ class RuntimeLauncherPackageTest(unittest.TestCase):
 
             self.assertEqual(candidate.read_bytes(), b"candidate\n")
             self.assertEqual(report.read_bytes(), b"report\n")
-            self.assertEqual(candidate.stat().st_mode & 0o777, 0o640)
+            self.assertEqual(candidate.stat().st_mode & 0o777, expected_mode)
 
     def test_verifies_nested_console_static_assets_and_fap_delivery(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
