@@ -34,6 +34,10 @@ foggy:
       "message": "Unknown Query DSL property 'grain' was ignored; query results may differ.",
       "suggestedNextAction": "Use a model-defined time grain field; groupBy does not accept grain.",
       "safeToAutoRepair": false,
+      "normalizedFragment": {
+        "field": "orderDate"
+      },
+      "docsRef": "query-dsl/group-by",
       "details": {
         "property": "grain",
         "allowedProperties": ["field", "agg"]
@@ -50,6 +54,8 @@ foggy:
 严格模式和受保护属性违规返回全部 `violations`。Runtime API 将其放在
 `diagnostics.attributes.violations`，以保持冻结的 `RuntimeError` DTO 二进制契约；Dataset REST
 在错误详情中返回 `violations`，MCP 使用 `RX.code=400` 并在错误对象中返回 `violations`。
+MCP `tools/call` 同时在 `structuredContent` 中保留该 RX 错误对象；Analytics Function/HTTP
+在 `error.violations` 中保留同一组结构化违规。其他非结构化业务失败继续保持原有文本兼容行为。
 这些入口都不会调用查询服务。
 
 `groupBy.grain` 仍然不是支持的 DSL。时间分组应直接引用模型中定义的粒度字段，例如 `orderDate$month`，不会自动猜测或改写语义。

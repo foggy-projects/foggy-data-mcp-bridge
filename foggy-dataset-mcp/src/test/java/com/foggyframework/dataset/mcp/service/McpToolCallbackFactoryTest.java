@@ -102,6 +102,35 @@ class McpToolCallbackFactoryTest {
     }
 
     @Test
+    @DisplayName("query_model STRICT 失败应向 AI callback 保留完整 violations")
+    @SuppressWarnings("unchecked")
+    void strictQueryModelFailedRx_shouldPreserveStructuredViolations() throws Exception {
+        Map<String, Object> violation = Map.of(
+                "code", "UNKNOWN_QUERY_PROPERTY",
+                "path", "$.groupBy[0].grain",
+                "normalizedFragment", Map.of("field", "orderDate"),
+                "docsRef", "query-dsl/group-by");
+        RX<Object> failure = RX.builder()
+                .code(400)
+                .message("UNKNOWN_QUERY_PROPERTY: invalid Query DSL input properties")
+                .error(Map.of(
+                        "code", "UNKNOWN_QUERY_PROPERTY",
+                        "violations", List.of(violation)))
+                .build();
+
+        String response = createCallback(mockQueryModelTool(failure)).call("""
+                {"model":"FactOrderQueryModel","payload":{"groupBy":[{"field":"orderDate","grain":"month"}]}}
+                """);
+
+        Map<String, Object> payload = new ObjectMapper().readValue(response, Map.class);
+        assertEquals(400, payload.get("code"));
+        assertEquals("UNKNOWN_QUERY_PROPERTY", payload.get("validationCode"));
+        List<Map<String, Object>> violations =
+                (List<Map<String, Object>>) payload.get("violations");
+        assertEquals(List.of(violation), violations);
+    }
+
+    @Test
     @DisplayName("query_model 缺失字段失败应给出使用现有模型字段的重试建议")
     @SuppressWarnings("unchecked")
     void queryModelMissingField_shouldReturnSchemaRetryGuidance() throws Exception {

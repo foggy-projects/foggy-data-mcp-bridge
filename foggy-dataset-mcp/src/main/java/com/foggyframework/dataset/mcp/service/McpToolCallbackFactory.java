@@ -383,7 +383,27 @@ public class McpToolCallbackFactory {
             response.put("message", firstNonBlank(message, "dataset.query_model returned a failed result"));
             response.put("retry_guidance", retryGuidanceForQueryModelFailure(message));
             response.put("original_result_summary", queryFailureResultSummary(result));
+            attachStructuredQueryInputFailure(response, result);
             return response;
+        }
+
+        private static void attachStructuredQueryInputFailure(
+                Map<String, Object> response,
+                Object result
+        ) {
+            if (!(result instanceof RX<?> rx) || !(rx.getEt() instanceof Map<?, ?> error)) {
+                return;
+            }
+            Object violations = error.get("violations");
+            if (!(violations instanceof List<?>)) {
+                return;
+            }
+            response.put("code", rx.getCode());
+            Object validationCode = error.get("code");
+            if (validationCode != null) {
+                response.put("validationCode", validationCode);
+            }
+            response.put("violations", violations);
         }
 
         private static Map<String, Object> retryGuidanceForQueryModelFailure(String message) {

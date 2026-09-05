@@ -105,6 +105,9 @@ class RuntimeQueryControllerUnknownPropertyTest {
         assertThat(warning.path("code").asText()).isEqualTo("UNKNOWN_QUERY_PROPERTY_IGNORED");
         assertThat(warning.path("path").asText()).isEqualTo("$.groupBy[0].grain");
         assertThat(warning.path("message").asText()).contains("query results may differ");
+        assertThat(warning.path("normalizedFragment").path("field").asText())
+                .isEqualTo("orderDate");
+        assertThat(warning.path("docsRef").asText()).isEqualTo("query-dsl/group-by");
         verify(queryService).queryModel(eq("OrderModel"), any(), eq("validate"), any());
     }
 
@@ -146,6 +149,12 @@ class RuntimeQueryControllerUnknownPropertyTest {
         assertThat(violations).hasSize(2);
         assertThat(violations.get(0).path("path").asText())
                 .isEqualTo("$.groupBy[0].grain");
+        assertThat(violations.get(0).path("normalizedFragment").path("field").asText())
+                .isEqualTo("orderDate");
+        assertThat(violations.get(0).path("docsRef").asText())
+                .isEqualTo("query-dsl/group-by");
+        assertThat(violations.get(1).path("path").asText())
+                .isEqualTo("$.orderBy[0].descending");
         verifyNoInteractions(queryService);
     }
 

@@ -218,6 +218,64 @@ class AnalystMcpControllerTest {
         }
 
         @Test
+        @DisplayName("STRICT Query 失败应完整序列化结构化 violations")
+        void strictQueryFailure_shouldSerializeStructuredViolations() throws Exception {
+            Map<String, Object> violation = Map.of(
+                    "code", "UNKNOWN_QUERY_PROPERTY",
+                    "path", "$.groupBy[0].grain",
+                    "normalizedFragment", Map.of("field", "orderDate"),
+                    "docsRef", "query-dsl/group-by",
+                    "details", Map.of(
+                            "property", "grain",
+                            "allowedProperties", List.of("field", "agg")));
+            Map<String, Object> structured = Map.of(
+                    "code", 400,
+                    "msg", "UNKNOWN_QUERY_PROPERTY: invalid Query DSL input properties",
+                    "et", Map.of(
+                            "code", "UNKNOWN_QUERY_PROPERTY",
+                            "violations", List.of(violation)));
+            McpResponse mockResponse = McpResponse.success("1", Map.of(
+                    "content", List.of(Map.of(
+                            "type", "text",
+                            "text", objectMapper.writeValueAsString(structured))),
+                    "status", "failed",
+                    "structuredContent", structured));
+
+            when(mcpService.handleToolsCall(any(McpRequest.class), any(McpRequestContext.class)))
+                    .thenReturn(mockResponse);
+
+            mockMvc.perform(post("/mcp/analyst/rpc")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                      "jsonrpc":"2.0",
+                                      "id":"1",
+                                      "method":"tools/call",
+                                      "params":{
+                                        "name":"dataset.query_model",
+                                        "arguments":{
+                                          "model":"FactSalesModel",
+                                          "payload":{"groupBy":[{"field":"orderDate","grain":"month"}]}
+                                        }
+                                      }
+                                    }
+                                    """))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.status").value("failed"))
+                    .andExpect(jsonPath("$.result.structuredContent.code").value(400))
+                    .andExpect(jsonPath("$.result.structuredContent.et.code")
+                            .value("UNKNOWN_QUERY_PROPERTY"))
+                    .andExpect(jsonPath("$.result.structuredContent.et.violations.length()")
+                            .value(1))
+                    .andExpect(jsonPath("$.result.structuredContent.et.violations[0].path")
+                            .value("$.groupBy[0].grain"))
+                    .andExpect(jsonPath("$.result.structuredContent.et.violations[0].normalizedFragment.field")
+                            .value("orderDate"))
+                    .andExpect(jsonPath("$.result.structuredContent.et.violations[0].docsRef")
+                            .value("query-dsl/group-by"));
+        }
+
+        @Test
         @DisplayName("remote compose 应透传 request-scoped authority headers")
         void remoteCompose_shouldForwardAuthorityHeaders() throws Exception {
             McpResponse mockResponse = McpResponse.success("1", Map.of(

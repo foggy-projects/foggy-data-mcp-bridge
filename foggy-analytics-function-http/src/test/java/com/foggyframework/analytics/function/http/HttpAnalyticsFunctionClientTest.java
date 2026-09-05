@@ -209,6 +209,37 @@ class HttpAnalyticsFunctionClientTest {
     }
 
     @Test
+    void preservesStructuredQueryInputViolationsFromTheHttpBoundary() {
+        Map<String, Object> violation = Map.of(
+                "code", "UNKNOWN_QUERY_PROPERTY",
+                "path", "$.groupBy[0].grain",
+                "normalizedFragment", Map.of("field", "orderDate"),
+                "docsRef", "query-dsl/group-by",
+                "details", Map.of(
+                        "property", "grain",
+                        "allowedProperties", List.of("field", "agg")));
+        AnalyticsFunctionEnvelope<AnalyticsQueryModelResult> expected =
+                AnalyticsFunctionEnvelope.fail(
+                        AnalyticsFunctionContract.DEFAULT_RUNTIME_API_VERSION,
+                        AnalyticsFunctionContract.DEFAULT_SCHEMA_VERSION,
+                        new AnalyticsFunctionError(
+                                "ANALYTICS_SEMANTIC_QUERY_INVALID",
+                                "semantic-query",
+                                "UNKNOWN_QUERY_PROPERTY",
+                                false,
+                                List.of(violation)),
+                        new AnalyticsFunctionContext("request-1", "trace-1"));
+        forcedOutcome = expected;
+        forcedStatus = 422;
+
+        AnalyticsFunctionEnvelope<AnalyticsQueryModelResult> actual =
+                client.runQueryModel(queryModelRequest());
+
+        assertEquals(expected, actual);
+        assertEquals(List.of(violation), actual.error().violations());
+    }
+
+    @Test
     void failsClosedForProtocolMismatchAndUnavailableTransport() {
         forcedOutcome = AnalyticsFunctionEnvelope.ok(
                 AnalyticsFunctionContract.DEFAULT_RUNTIME_API_VERSION,

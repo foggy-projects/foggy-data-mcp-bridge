@@ -65,6 +65,15 @@ public final class SemanticQueryPropertyInspector {
             "datasource", "model", "route", "routing", "mutation", "governance", "tenant", "principal",
             "security", "write", "delete", "update", "insert", "upsert");
 
+    /** Value-free or schema-oriented fields that are safe to echo in a normalized fragment. */
+    private static final Set<String> SAFE_NORMALIZED_FRAGMENT_PROPERTIES = orderedSet(
+            "field", "agg", "name", "kind", "measure", "scope", "format", "dir", "direction",
+            "nullFirst", "nullLast", "grain", "comparison", "rollingAggregator", "type",
+            "emptyDefault", "axis", "level", "parentLevel", "baseline", "baselineScope",
+            "denominatorScope", "hierarchyMode", "expandDepth", "crossjoin", "rowSubtotals",
+            "columnSubtotals", "grandTotal", "metricPlacement", "start", "limit", "stream",
+            "captionMatchMode", "mismatchHandleStrategy", "returnTotal", "distinct", "withSubtotals");
+
     public List<QueryInputWarning> inspect(
             Map<String, ?> payload,
             UnknownQueryPropertyPolicy requestedPolicy
@@ -225,7 +234,68 @@ public final class SemanticQueryPropertyInspector {
                 .map(String::valueOf)
                 .sorted(Comparator.naturalOrder())
                 .filter(key -> !allowed.contains(key))
-                .forEach(key -> inspection.add(parentPath, key, allowed));
+                .forEach(key -> inspection.add(parentPath, key, allowed, object));
+    }
+
+    private static Map<String, Object> normalizedFragment(
+            Map<?, ?> object,
+            Set<String> allowed
+    ) {
+        Map<String, Object> fragment = new LinkedHashMap<>();
+        for (String property : allowed) {
+            if (!SAFE_NORMALIZED_FRAGMENT_PROPERTIES.contains(property)
+                    || !object.containsKey(property)) {
+                continue;
+            }
+            Object value = safeFragmentValue(object.get(property));
+            if (value != null) {
+                fragment.put(property, value);
+            }
+        }
+        return fragment;
+    }
+
+    private static Object safeFragmentValue(Object value) {
+        if (value instanceof String text) {
+            return safeProperty(text);
+        }
+        if (value instanceof Number || value instanceof Boolean) {
+            return value;
+        }
+        return null;
+    }
+
+    private static String docsRef(String path) {
+        if (path.startsWith("$.groupBy")) {
+            return "query-dsl/group-by";
+        }
+        if (path.startsWith("$.orderBy")) {
+            return "query-dsl/order-by";
+        }
+        if (path.startsWith("$.slice")
+                || path.startsWith("$.having")
+                || path.startsWith("$.postSlice")) {
+            return "query-dsl/filters";
+        }
+        if (path.startsWith("$.calculatedFields")) {
+            return "query-dsl/calculated-fields";
+        }
+        if (path.startsWith("$.timeWindow")) {
+            return "query-dsl/time-window";
+        }
+        if (path.startsWith("$.postAggregateCalculations")) {
+            return "query-dsl/post-aggregate-calculations";
+        }
+        if (path.startsWith("$.outputFormatting")) {
+            return "query-dsl/output-formatting";
+        }
+        if (path.startsWith("$.pivot")) {
+            return "query-dsl/pivot";
+        }
+        if (path.startsWith("$.bindings") || path.startsWith("$.memoryGridBindings")) {
+            return "query-dsl/memory-grid-bindings";
+        }
+        return "query-dsl/request";
     }
 
     private static boolean isProtected(String property) {
@@ -290,7 +360,12 @@ public final class SemanticQueryPropertyInspector {
             this.policy = policy;
         }
 
-        private void add(String parentPath, String rawProperty, Set<String> allowed) {
+        private void add(
+                String parentPath,
+                String rawProperty,
+                Set<String> allowed,
+                Map<?, ?> object
+        ) {
             String property = safeProperty(rawProperty);
             boolean protectedProperty = isProtected(property);
             String code = protectedProperty
@@ -314,6 +389,8 @@ public final class SemanticQueryPropertyInspector {
                                     : "Unknown Query DSL property '" + property + "' is not allowed.",
                     action,
                     false,
+                    normalizedFragment(object, allowed),
+                    docsRef(path),
                     details);
             if (protectedProperty) {
                 protectedViolations.add(warning);
@@ -342,6 +419,8 @@ public final class SemanticQueryPropertyInspector {
                                             + "' was collapsed to its last occurrence.",
                     "Keep exactly one occurrence of the property.",
                     false,
+                    Map.of(),
+                    docsRef(duplicate.path()),
                     details);
             if (protectedProperty) {
                 protectedViolations.add(warning);

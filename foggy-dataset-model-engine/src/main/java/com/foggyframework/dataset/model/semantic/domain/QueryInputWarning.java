@@ -19,11 +19,29 @@ public record QueryInputWarning(
         String message,
         String suggestedNextAction,
         boolean safeToAutoRepair,
+        @JsonInclude(JsonInclude.Include.ALWAYS)
+        Map<String, Object> normalizedFragment,
+        String docsRef,
         Map<String, Object> details
 ) {
     public QueryInputWarning {
+        normalizedFragment = normalizedFragment == null
+                ? Map.of()
+                : Collections.unmodifiableMap(new LinkedHashMap<>(normalizedFragment));
         details = details == null
                 ? Map.of()
                 : Collections.unmodifiableMap(new LinkedHashMap<>(details));
+    }
+
+    /** Source-compatible constructor for callers creating legacy diagnostics. */
+    public QueryInputWarning(
+            String code,
+            String path,
+            String message,
+            String suggestedNextAction,
+            boolean safeToAutoRepair,
+            Map<String, Object> details) {
+        this(code, path, message, suggestedNextAction, safeToAutoRepair,
+                Map.of(), "query-dsl", details);
     }
 }

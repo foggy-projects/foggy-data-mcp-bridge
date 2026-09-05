@@ -1,5 +1,7 @@
 package com.foggyframework.dataset.mcp.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.dataset.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.mcp.base.BaseMcpTest;
@@ -435,6 +437,60 @@ class McpServiceTest extends BaseMcpTest {
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> content = (List<Map<String, Object>>) result.get("content");
             assertEquals("查询被拒绝：column \"totalamount\" does not exist", content.get(0).get("text"));
+        }
+
+        @Test
+        @DisplayName("query_model STRICT 失败应保留 code 和结构化 violations")
+        void strictQueryModelFailure_shouldPreserveStructuredViolations() throws Exception {
+            McpRequest request = createToolsCallRequest("dataset.query_model", Map.of(
+                    "model", "SalesModel",
+                    "payload", Map.of("groupBy", List.of(Map.of(
+                            "field", "orderDate", "grain", "month")))
+            ));
+            McpTool mockTool = MockToolFactory.createQueryModelTool();
+            Map<String, Object> violation = Map.of(
+                    "code", "UNKNOWN_QUERY_PROPERTY",
+                    "path", "$.groupBy[0].grain",
+                    "normalizedFragment", Map.of("field", "orderDate"),
+                    "docsRef", "query-dsl/group-by",
+                    "details", Map.of(
+                            "property", "grain",
+                            "allowedProperties", List.of("field", "agg")));
+            RX<Object> strictFailure = RX.builder()
+                    .code(400)
+                    .message("UNKNOWN_QUERY_PROPERTY: invalid Query DSL input properties")
+                    .error(Map.of(
+                            "code", "UNKNOWN_QUERY_PROPERTY",
+                            "violations", List.of(violation)))
+                    .build();
+
+            when(toolDispatcher.hasTool("dataset.query_model")).thenReturn(true);
+            when(toolDispatcher.getTool("dataset.query_model")).thenReturn(mockTool);
+            when(toolDispatcher.executeTool(eq("dataset.query_model"), any(), any(), any(), any(), any(), any(), any()))
+                    .thenReturn(strictFailure);
+
+            McpResponse response = mcpService.handleToolsCall(
+                    request, UserRole.ADMIN, "trace-1", "req-1", null, null);
+
+            Map<String, Object> result = extractResultMap(response);
+            assertEquals("failed", result.get("status"));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> structured =
+                    (Map<String, Object>) result.get("structuredContent");
+            assertNotNull(structured);
+            assertEquals(400, structured.get("code"));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> error = (Map<String, Object>) structured.get("et");
+            assertEquals("UNKNOWN_QUERY_PROPERTY", error.get("code"));
+            assertEquals(List.of(violation), error.get("violations"));
+
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> content =
+                    (List<Map<String, Object>>) result.get("content");
+            JsonNode text = new ObjectMapper().readTree((String) content.get(0).get("text"));
+            assertEquals(400, text.path("code").asInt());
+            assertEquals("$.groupBy[0].grain",
+                    text.path("et").path("violations").get(0).path("path").asText());
         }
 
         @Test

@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.mcp.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.dataset.mcp.enums.UserRole;
 import com.foggyframework.dataset.mcp.schema.McpError;
@@ -12,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -24,6 +26,8 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class McpService {
+
+    private static final ObjectMapper JSON = new ObjectMapper();
 
     private final McpToolDispatcher toolDispatcher;
     private final ToolFilterService toolFilterService;
@@ -284,16 +288,50 @@ public class McpService {
      */
     private Map<String, Object> buildToolsCallResult(String toolName, Object result) {
         Map<String, Object> toolCallResult = new HashMap<>();
+        Map<String, Object> structuredFailure = structuredQueryModelFailure(toolName, result);
         toolCallResult.put("content", List.of(Map.of(
                 "type", "text",
-                "text", resolveContentText(toolName, result)
+                "text", structuredFailure == null
+                        ? resolveContentText(toolName, result)
+                        : toJsonString(structuredFailure)
         )));
 
         if (isQueryModelTool(toolName)) {
             toolCallResult.put("status", resolveQueryModelStatus(result));
         }
+        if (structuredFailure != null) {
+            toolCallResult.put("structuredContent", structuredFailure);
+        }
 
         return toolCallResult;
+    }
+
+    private Map<String, Object> structuredQueryModelFailure(String toolName, Object result) {
+        if (!isQueryModelTool(toolName)
+                || !(result instanceof RX<?> rx)
+                || rx._isSuccess()
+                || rx.getEt() == null) {
+            return null;
+        }
+        Map<String, Object> failure = new LinkedHashMap<>();
+        failure.put("code", rx.getCode());
+        if (rx.getExCode() != null) {
+            failure.put("exCode", rx.getExCode());
+        }
+        if (rx.getMsg() != null) {
+            failure.put("msg", rx.getMsg());
+        }
+        if (rx.getUserTip() != null) {
+            failure.put("userTip", rx.getUserTip());
+        }
+        if (rx.getData() != null) {
+            failure.put("data", rx.getData());
+        }
+        failure.put("et", rx.getEt());
+        if (rx.getTimestamp() != null) {
+            failure.put("timestamp", rx.getTimestamp().toString());
+        }
+        return failure;
     }
 
     private boolean isQueryModelTool(String toolName) {
@@ -345,8 +383,7 @@ public class McpService {
      */
     private String toJsonString(Object obj) {
         try {
-            return new com.fasterxml.jackson.databind.ObjectMapper()
-                    .writeValueAsString(obj);
+            return JSON.writeValueAsString(obj);
         } catch (Exception e) {
             return String.valueOf(obj);
         }

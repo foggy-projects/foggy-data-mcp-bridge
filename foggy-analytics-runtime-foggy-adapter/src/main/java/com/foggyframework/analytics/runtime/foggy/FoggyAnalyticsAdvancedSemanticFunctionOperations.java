@@ -12,6 +12,7 @@ import com.foggyframework.analytics.runtime.core.function.AnalyticsAdvancedSeman
 import com.foggyframework.analytics.runtime.core.function.AnalyticsSemanticFunctionException;
 import com.foggyframework.analytics.runtime.core.query.QueryAuthorityBinding;
 import com.foggyframework.core.ex.ExRuntimeException;
+import com.foggyframework.dataset.model.semantic.domain.QueryInputWarning;
 import com.foggyframework.dataset.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.model.semantic.permission.ModelPermissionException;
@@ -23,11 +24,13 @@ import com.foggyframework.dataset.model.semantic.port.ComposeExecutionRequest;
 import com.foggyframework.dataset.model.semantic.port.ComposeExecutionResult;
 import com.foggyframework.dataset.model.semantic.port.ComposeOperation;
 import com.foggyframework.dataset.model.semantic.port.SemanticQueryExecutionPort;
+import com.foggyframework.dataset.model.semantic.support.QueryInputValidationException;
+import com.foggyframework.dataset.model.semantic.support.QueryInputWarnings;
 import com.foggyframework.dataset.model.semantic.support.SemanticQueryPayloadMapper;
 import com.foggyframework.dataset.model.semantic.support.UnknownQueryPropertyPolicy;
-import com.foggyframework.dataset.model.semantic.support.QueryInputWarnings;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -49,6 +52,7 @@ public final class FoggyAnalyticsAdvancedSemanticFunctionOperations
     private static final java.util.List<String> VALIDATION_CODE_PREFIXES = java.util.List.of(
             "CALCULATE_",
             "DSL_CTE_",
+            "DUPLICATE_QUERY_",
             "OUTPUT_FORMATTING_",
             "QUERY_MODEL_",
             "UNKNOWN_QUERY_",
@@ -329,7 +333,31 @@ public final class FoggyAnalyticsAdvancedSemanticFunctionOperations
             String validationCode,
             Throwable cause) {
         return new AnalyticsSemanticFunctionException(
-                code, message, validationCode, cause);
+                code, message, validationCode, queryInputViolations(cause), cause);
+    }
+
+    private static List<Map<String, Object>> queryInputViolations(Throwable failure) {
+        for (Throwable current = failure; current != null; current = nextCause(current)) {
+            if (current instanceof QueryInputValidationException queryInputFailure) {
+                return queryInputFailure.getViolations().stream()
+                        .map(FoggyAnalyticsAdvancedSemanticFunctionOperations::queryInputViolation)
+                        .toList();
+            }
+        }
+        return List.of();
+    }
+
+    private static Map<String, Object> queryInputViolation(QueryInputWarning warning) {
+        Map<String, Object> violation = new LinkedHashMap<>();
+        violation.put("code", warning.code());
+        violation.put("path", warning.path());
+        violation.put("message", warning.message());
+        violation.put("suggestedNextAction", warning.suggestedNextAction());
+        violation.put("safeToAutoRepair", warning.safeToAutoRepair());
+        violation.put("normalizedFragment", warning.normalizedFragment());
+        violation.put("docsRef", warning.docsRef());
+        violation.put("details", warning.details());
+        return violation;
     }
 
     private static AnalyticsSemanticFunctionException queryInvalid(

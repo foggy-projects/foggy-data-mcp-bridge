@@ -35,6 +35,8 @@ class SemanticQueryPropertyInspectorTest {
         assertEquals("$.groupBy[0].grain", warning.path());
         assertTrue(warning.suggestedNextAction().contains("model-defined time grain"));
         assertFalse(warning.safeToAutoRepair());
+        assertEquals(Map.of("field", "orderDate"), warning.normalizedFragment());
+        assertEquals("query-dsl/group-by", warning.docsRef());
         assertEquals("grain", warning.details().get("property"));
         assertFalse(warning.toString().contains("sensitive-raw-value"));
     }
@@ -75,6 +77,12 @@ class SemanticQueryPropertyInspectorTest {
         assertEquals(SemanticQueryPropertyInspector.STRICT_CODE, failure.getCode());
         assertEquals(List.of("$.groupBy[0].grain", "$.orderBy[0].descending"),
                 failure.getViolations().stream().map(QueryInputWarning::path).toList());
+        assertEquals(Map.of("field", "orderDate"),
+                failure.getViolations().get(0).normalizedFragment());
+        assertEquals("query-dsl/group-by", failure.getViolations().get(0).docsRef());
+        assertEquals(Map.of("field", "amount"),
+                failure.getViolations().get(1).normalizedFragment());
+        assertEquals("query-dsl/order-by", failure.getViolations().get(1).docsRef());
     }
 
     @Test

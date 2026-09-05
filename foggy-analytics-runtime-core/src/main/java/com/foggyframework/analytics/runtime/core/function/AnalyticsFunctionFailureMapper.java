@@ -14,7 +14,8 @@ public final class AnalyticsFunctionFailureMapper {
                     semanticErrorCode(semanticFailure.code()),
                     "semantic-query",
                     semanticMessage(semanticFailure),
-                    false);
+                    false,
+                    semanticFailure.violations());
         }
         if (failure instanceof AnalyticsModelDependencyResolutionException dependencyFailure) {
             return new AnalyticsFunctionError(

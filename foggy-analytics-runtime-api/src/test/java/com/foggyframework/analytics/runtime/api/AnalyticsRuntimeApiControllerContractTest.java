@@ -9,6 +9,7 @@ import com.foggyframework.analytics.function.contract.AnalyticsComposeFunctionRe
 import com.foggyframework.analytics.function.contract.AnalyticsComposeResult;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionCapabilities;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionEndpoint;
+import com.foggyframework.analytics.function.contract.AnalyticsFunctionError;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionErrorCodes;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionOperations;
 import com.foggyframework.analytics.function.contract.AnalyticsFunctionRequestContext;
@@ -277,6 +278,70 @@ class AnalyticsRuntimeApiControllerContractTest {
         assertEquals("execute", captured.getValue().mode());
         assertEquals(BigInteger.TEN, captured.getValue().payload().get("limit"));
         assertEquals("subject:42", captured.getValue().authority().reference());
+    }
+
+    @Test
+    void preservesStrictQueryModelViolationsInTheHttpErrorEnvelope() throws Exception {
+        Map<String, Object> groupByViolation = Map.of(
+                "code", "UNKNOWN_QUERY_PROPERTY",
+                "path", "$.groupBy[0].grain",
+                "normalizedFragment", Map.of("field", "orderDate"),
+                "docsRef", "query-dsl/group-by",
+                "details", Map.of(
+                        "property", "grain",
+                        "allowedProperties", List.of("field", "agg")));
+        Map<String, Object> orderByViolation = Map.of(
+                "code", "UNKNOWN_QUERY_PROPERTY",
+                "path", "$.orderBy[0].descending",
+                "normalizedFragment", Map.of("field", "amount"),
+                "docsRef", "query-dsl/order-by",
+                "details", Map.of(
+                        "property", "descending",
+                        "allowedProperties", List.of(
+                                "field", "column", "dir", "direction",
+                                "nullFirst", "nullLast")));
+        when(endpoint.runQueryModel(any())).thenReturn(
+                responses.functionResponses().fail(
+                        new AnalyticsFunctionError(
+                                AnalyticsFunctionErrorCodes.SEMANTIC_QUERY_INVALID,
+                                "semantic-query",
+                                "UNKNOWN_QUERY_PROPERTY",
+                                false,
+                                List.of(groupByViolation, orderByViolation)),
+                        responses.context("request-strict", "trace-strict")));
+
+        mvc().perform(post(
+                        "/analytics/api/v1/semantic-models/FactOrderQueryModel/query-model")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "namespace": "default",
+                                  "mode": "execute",
+                                  "payload": {
+                                    "groupBy": [{"field": "orderDate", "grain": "month"}],
+                                    "orderBy": [{"field": "amount", "descending": true}]
+                                  },
+                                  "authority": {
+                                    "provider": "tms",
+                                    "reference": "subject:42"
+                                  },
+                                  "requestId": "request-strict",
+                                  "traceId": "trace-strict"
+                                }
+                                """))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code")
+                        .value(AnalyticsFunctionErrorCodes.SEMANTIC_QUERY_INVALID))
+                .andExpect(jsonPath("$.error.message").value("UNKNOWN_QUERY_PROPERTY"))
+                .andExpect(jsonPath("$.error.violations.length()").value(2))
+                .andExpect(jsonPath("$.error.violations[0].path")
+                        .value("$.groupBy[0].grain"))
+                .andExpect(jsonPath("$.error.violations[0].normalizedFragment.field")
+                        .value("orderDate"))
+                .andExpect(jsonPath("$.error.violations[0].docsRef")
+                        .value("query-dsl/group-by"))
+                .andExpect(jsonPath("$.error.violations[1].path")
+                        .value("$.orderBy[0].descending"));
     }
 
     @Test

@@ -203,8 +203,11 @@ class FoggyAnalyticsAdvancedSemanticFunctionOperationsTest {
                                 "default",
                                 "FactOrderQueryModel",
                                 "execute",
-                                Map.of("groupBy", List.of(Map.of(
-                                        "field", "orderDate", "grain", "month"))),
+                                Map.of(
+                                        "groupBy", List.of(Map.of(
+                                                "field", "orderDate", "grain", "month")),
+                                        "orderBy", List.of(Map.of(
+                                                "field", "amount", "descending", true))),
                                 AUTHORITY,
                                 REQUEST_CONTEXT),
                         AnalyticsFunctionContext.normalize(REQUEST_CONTEXT)));
@@ -212,6 +215,15 @@ class FoggyAnalyticsAdvancedSemanticFunctionOperationsTest {
         assertThat(failure.code())
                 .isEqualTo(AnalyticsSemanticFunctionException.Code.QUERY_INVALID);
         assertThat(failure.validationCode()).isEqualTo("UNKNOWN_QUERY_PROPERTY");
+        assertThat(failure.violations())
+                .extracting(violation -> violation.get("path"))
+                .containsExactly("$.groupBy[0].grain", "$.orderBy[0].descending");
+        assertThat(failure.violations().get(0))
+                .containsEntry("normalizedFragment", Map.of("field", "orderDate"))
+                .containsEntry("docsRef", "query-dsl/group-by");
+        assertThat(failure.violations().get(1))
+                .containsEntry("normalizedFragment", Map.of("field", "amount"))
+                .containsEntry("docsRef", "query-dsl/order-by");
         verifyNoInteractions(queryPort);
     }
 
