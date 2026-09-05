@@ -122,12 +122,16 @@ public class FrontendMetaConverter {
         Boolean calculated = getBoolean(fieldData, "calculated");
         Boolean hierarchical = getBoolean(fieldData, "hierarchical");
         List<String> hierarchyOps = getStringList(fieldData, "hierarchyOps");
+        String semanticRole = getString(fieldData, "semanticRole");
 
         // 推导 category
-        String category = deriveCategory(name, measure, calculated);
+        String category = deriveCategory(name, measure, calculated, semanticRole);
 
-        // 推导 sortable（度量默认不可排序）
-        boolean sortable = !Boolean.TRUE.equals(measure);
+        // 优先服从语义元数据的显式能力；旧元数据仍按原规则推导。
+        Boolean declaredSortable = getBoolean(fieldData, "sortable");
+        boolean sortable = declaredSortable != null
+                ? declaredSortable
+                : !Boolean.TRUE.equals(measure);
 
         // 推导 dictMode
         String dictMode = dictId != null ? "static" : null;
@@ -176,7 +180,11 @@ public class FrontendMetaConverter {
     /**
      * 根据字段命名和类型推导 category
      */
-    private String deriveCategory(String name, Boolean measure, Boolean calculated) {
+    private String deriveCategory(String name, Boolean measure, Boolean calculated,
+                                  String semanticRole) {
+        if ("dictionary-caption".equals(semanticRole)) {
+            return "dictionary-caption";
+        }
         if (Boolean.TRUE.equals(calculated)) {
             return "calculated";
         }
@@ -234,7 +242,8 @@ public class FrontendMetaConverter {
      * 推导 UI 提示
      */
     private UiHintsMeta deriveUiHints(String category, String type) {
-        boolean visible = !"dimension-id".equals(category);
+        boolean visible = !"dimension-id".equals(category)
+                && !"dictionary-caption".equals(category);
 
         UiHintsMeta.UiHintsMetaBuilder builder = UiHintsMeta.builder()
                 .visible(visible)

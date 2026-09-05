@@ -1,0 +1,18 @@
+const order = loadTableModel('DictionaryDiscoveryOrderModel');
+
+export const queryModel = {
+    name: 'ExplicitDictionaryCaptionQueryModel',
+    caption: '显式字典标题查询',
+    model: order,
+    columnGroups: [
+        {
+            caption: '订单信息',
+            items: [
+                { ref: order.orderId },
+                { ref: order.status },
+                { ref: order.status$caption }
+            ]
+        }
+    ],
+    accesses: []
+};

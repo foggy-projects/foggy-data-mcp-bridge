@@ -436,18 +436,18 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
      * 格式化查询结果
      */
     private void formatItems(List items, JdbcModelQueryEngine queryEngine) {
-        for (DbColumn column : queryEngine.getJdbcQuery().getSelect().getColumns()) {
-            if (column instanceof DbQueryColumn) {
-                ObjectTransFormatter<?> ff = ((DbQueryColumn) column).getValueFormatter();
-                if (ff != null) {
-                    String name = column.getName();
-                    for (Object item : items) {
-                        if (item instanceof Map) {
-                            Map mm = (Map) item;
-                            Object v = ff.format(mm.get(name));
-                            mm.put(name, v);
-                        }
+        for (Map.Entry<String, ObjectTransFormatter<?>> entry
+                : queryEngine.getOutputValueFormatters().entrySet()) {
+            String name = entry.getKey();
+            ObjectTransFormatter<?> formatter = entry.getValue();
+            for (Object item : items) {
+                if (item instanceof Map) {
+                    Map mm = (Map) item;
+                    if (!mm.containsKey(name)) {
+                        continue;
                     }
+                    Object value = formatter.format(mm.get(name));
+                    mm.put(name, value);
                 }
             }
         }

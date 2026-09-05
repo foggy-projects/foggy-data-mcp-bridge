@@ -59,7 +59,7 @@ dimensions: [
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `name` | string | 是 | 维度名称，查询时使用 `维度名$属性名` 格式引用 |
-| `tableName` | string | 是 | 关联的维度表名 |
+| `tableName` | string | 条件必填 | 关联的维度表名；普通关联维度必填，单列日期自维度省略 |
 | `foreignKey` | string | 是 | 事实表中的外键字段 |
 | `primaryKey` | string | 是 | 维度表的主键字段 |
 | `captionColumn` | string | 否 | 维度的显示字段，用于 `维度名$caption` |
@@ -69,6 +69,72 @@ dimensions: [
 | `closureTableName` | string | 否 | 闭包表名称（父子维度专用） |
 | `parentKey` | string | 否 | 闭包表中的祖先列（父子维度专用） |
 | `childKey` | string | 否 | 闭包表中的后代列（父子维度专用） |
+
+#### 单列日期自维度（无日期表）
+
+事实表只有一个 `DATE` / `DATETIME` 字段时，也可以将该字段建模为日期维度，方便
+Runtime、MCP 和 LLM 使用稳定的日期粒度字段。此模式不需要创建或 JOIN `dim_date`：
+省略 `tableName`，并让 `foreignKey`、`primaryKey`、`captionColumn` 指向同一个事实表列。
+
+```javascript
+dimensions: [
+    {
+        name: 'orderDate',
+        foreignKey: 'order_date',
+        primaryKey: 'order_date',
+        captionColumn: 'order_date',
+        caption: '订单日期',
+        description: '基于 fact_order.order_date 的日期自维度，不关联日期表',
+        type: 'DAY', // 物理 DATE 使用 DAY；TIMESTAMP/DATETIME 使用 DATETIME
+        timeRole: 'business_date',
+        recommendedUse: '订单趋势、期间筛选和按月汇总的主时间轴',
+        properties: [
+            {
+                column: 'order_date',
+                name: 'year',
+                caption: '订单年份',
+                type: 'INTEGER',
+                dialectFormulaDef: {
+                    sqlite: { builder: (alias) => { return `CAST(strftime('%Y', ${alias}.order_date) AS INTEGER)`; } },
+                    postgresql: { builder: (alias) => { return `EXTRACT(YEAR FROM ${alias}.order_date)`; } },
+                    mysql: { builder: (alias) => { return `YEAR(${alias}.order_date)`; } },
+                    sqlserver: { builder: (alias) => { return `DATEPART(year, ${alias}.order_date)`; } }
+                }
+            },
+            {
+                column: 'order_date',
+                name: 'month',
+                caption: '订单月份',
+                type: 'INTEGER',
+                dialectFormulaDef: {
+                    sqlite: { builder: (alias) => { return `CAST(strftime('%m', ${alias}.order_date) AS INTEGER)`; } },
+                    postgresql: { builder: (alias) => { return `EXTRACT(MONTH FROM ${alias}.order_date)`; } },
+                    mysql: { builder: (alias) => { return `MONTH(${alias}.order_date)`; } },
+                    sqlserver: { builder: (alias) => { return `DATEPART(month, ${alias}.order_date)`; } }
+                }
+            },
+            {
+                column: 'order_date',
+                name: 'yearMonth',
+                caption: '订单年月',
+                type: 'STRING',
+                dialectFormulaDef: {
+                    sqlite: { builder: (alias) => { return `strftime('%Y-%m', ${alias}.order_date)`; } },
+                    postgresql: { builder: (alias) => { return `TO_CHAR(${alias}.order_date, 'YYYY-MM')`; } },
+                    mysql: { builder: (alias) => { return `DATE_FORMAT(${alias}.order_date, '%Y-%m')`; } },
+                    sqlserver: { builder: (alias) => { return `CONVERT(char(7), ${alias}.order_date, 120)`; } }
+                }
+            }
+        ]
+    }
+]
+```
+
+QM 引用 `orderDate` 后会暴露 `orderDate$id`、`orderDate$caption`，并可显式加入
+`orderDate$year`、`orderDate$month`、`orderDate$yearMonth`。日期范围过滤优先使用
+`orderDate$id`；跨年按月分析优先使用 `orderDate$yearMonth` 或同时使用 year + month，
+不要只按 `$month` 聚合不同年份。只有需要节假日、财年、业务周等数据库日历属性时，
+才改为关联物理日期维表。
 
 > **父子维度**: 当配置了 `closureTableName`、`parentKey`、`childKey` 时，该维度将被识别为父子维度（层级维度）。
 > 查询时对该维度的过滤会自动包含所选节点的所有子孙节点。详见[父子维度文档](Parent-Child-Dimension.md)。
@@ -424,10 +490,23 @@ columnGroups: [
 | 格式 | 说明 | 示例 |
 |------|------|------|
 | `属性名` | 事实表属性 | `orderId`, `orderStatus` |
+| `字典属性名$caption` | `dictRef` 静态字典的显示名称 | `orderStatus$caption` |
 | `度量名` | 度量字段 | `salesAmount`, `quantity` |
 | `维度名$caption` | 维度显示值 | `customer$caption` |
 | `维度名$id` | 维度ID | `customer$id` |
 | `维度名$属性名` | 维度属性 | `customer$customerType`, `customer$province` |
+
+#### 静态字典字段的 `$caption`
+
+当 TM 属性配置了 `dictRef`，QM 在 `columnGroups` 中引用原字段时会自动同时暴露
+`属性名$caption`，无需再手工添加一条 caption 列。例如 `{ ref: order.orderStatus }`
+会暴露 `orderStatus`（数据库原始 code）和 `orderStatus$caption`（注册字典的 label）。
+
+- SQL、分组和原始字段排序始终使用数据库 code；label 转换在 Java 查询结果层完成。
+- 原字段 `slice` 过滤继续接受 code，也可直接传已注册 label；`slice` 还可在 `$caption` 上使用等值、非等值、`in`/`not in` 和空值判断。label 会在 Java 层转为字段真实类型的 code；普通字典属性不是聚合字段，不用于 `having`。
+- `$caption` 不支持排序，也不支持范围、模糊匹配。需要按业务名称排序时，应将该字段建模为有数据库来源的维度。
+- 未知 code 在 caption 输出中保留其原值；未知或重复 label 的过滤会明确报错，避免静默误查。
+- 静态字典字段支持 members 枚举，直接返回注册的 code/label，不扫描事实表。
 
 ### 2.6 默认排序 (orders)
 

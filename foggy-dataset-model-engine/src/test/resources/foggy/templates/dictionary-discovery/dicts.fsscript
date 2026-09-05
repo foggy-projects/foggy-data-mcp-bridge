@@ -13,5 +13,14 @@ export const dicts = {
             { value: 'CANCELLED', label: '已取消' },
             { value: 'REFUNDED', label: '已退款' }
         ]
+    }),
+    integer_customer: registerDict({
+        id: 'dictionary_integer_customer',
+        caption: '整数客户字典',
+        items: [
+            { value: 1, label: '一号客户' },
+            { value: 2, label: '二号客户' },
+            { value: 3, label: '三号客户' }
+        ]
     })
 };

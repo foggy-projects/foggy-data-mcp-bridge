@@ -62,4 +62,29 @@ class FrontendMetaConverterTest {
 
         assertNull(result.getFields().get(1).getExtData());
     }
+
+    @Test
+    @DisplayName("字典 caption 保留不可排序语义且默认不生成重复可见列")
+    void convert_preservesDictionaryCaptionCapabilities() {
+        Map<String, Object> captionField = new LinkedHashMap<>();
+        captionField.put("fieldName", "status$caption");
+        captionField.put("name", "状态(名称)");
+        captionField.put("type", "STRING");
+        captionField.put("filterType", "text");
+        captionField.put("filterable", true);
+        captionField.put("sortable", false);
+        captionField.put("semanticRole", "dictionary-caption");
+        captionField.put("dictId", "order_status");
+
+        FrontendMeta result = new FrontendMetaConverter().convert(Map.of(
+                "models", Map.of("OrderQueryModel", Map.of("name", "订单")),
+                "fields", Map.of("status$caption", captionField)));
+
+        FrontendMeta.FieldMeta field = result.getFields().get(0);
+        assertEquals("dictionary-caption", field.getCategory());
+        assertFalse(field.getSortable());
+        assertTrue(field.getFilterable());
+        assertFalse(field.getUiHints().getVisible());
+        assertNull(field.getMemberLookup());
+    }
 }

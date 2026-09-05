@@ -7,6 +7,7 @@ import com.foggyframework.dataset.model.def.dict.DbDictDef;
 import com.foggyframework.dataset.model.def.dict.DbDictItemDef;
 import com.foggyframework.dataset.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.model.impl.AiObject;
+import com.foggyframework.dataset.model.engine.dictionary.DictionaryCaptionDbColumn;
 import com.foggyframework.dataset.model.impl.dimension.DbDimensionSupport;
 import com.foggyframework.dataset.model.impl.dimension.DbModelParentChildDimensionImpl;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogResolution;
@@ -672,6 +673,16 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                             .append(" | ").append(fieldType)
                             .append(" | ").append(escapeMarkdownTable(fieldDesc))
                             .append(" |\n");
+
+                    String captionFieldName = queryProperty.getName() + "$caption";
+                    if (StringUtils.isNotEmpty(dictRef)
+                            && queryModel.findJdbcQueryColumnByName(captionFieldName, false) != null) {
+                        md.append("| ").append(captionFieldName)
+                                .append(" | ").append(fieldCaption).append("(名称)")
+                                .append(" | 文本")
+                                .append(" | 字典 label；仅支持等值/集合过滤，不支持排序")
+                                .append(" |\n");
+                    }
                 }
                 md.append("\n");
             }
@@ -1252,6 +1263,33 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             mergeFieldInfo(fields, fieldName, fieldInfo);
         }
 
+        // Static dictRef fields expose a synthetic $caption query column. It is
+        // not a dimension caption: Java translates values after JDBC execution,
+        // and label filters intentionally support equality/set operations only.
+        for (DbQueryColumn queryColumn : queryModel.getJdbcQueryColumns()) {
+            DictionaryCaptionDbColumn captionColumn =
+                    queryColumn.getDecorate(DictionaryCaptionDbColumn.class);
+            if (captionColumn == null) {
+                continue;
+            }
+            if (!isFieldInLevels(queryColumn.getAi(), levels)) {
+                continue;
+            }
+            String fieldName = queryColumn.getName();
+            String sourceFieldName = sourceDictionaryFieldName(fieldName);
+            if (fieldFilter != null && !fieldFilter.contains(fieldName)
+                    && !fieldFilter.contains(sourceFieldName)) {
+                continue;
+            }
+            if (fieldAccess != null && !fieldAccess.contains(sourceFieldName)) {
+                continue;
+            }
+
+            Map<String, Object> fieldInfo = createDictionaryCaptionFieldInfo(
+                    captionColumn, queryModel.getName(), fieldName);
+            mergeFieldInfo(fields, fieldName, fieldInfo);
+        }
+
         // 处理度量
         Set<String> tableMeasureFieldNames = new HashSet<>();
         for (DbMeasure measure : jdbcModel.getMeasures()) {
@@ -1748,6 +1786,32 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                     referencedDictIds, referencedDictClasses, context);
         }
 
+        // Collect the Java-backed dictionary label projection as its own query
+        // field so Runtime/CLI/MCP all advertise the same executable contract.
+        for (DbQueryColumn queryColumn : queryModel.getJdbcQueryColumns()) {
+            DictionaryCaptionDbColumn captionColumn =
+                    queryColumn.getDecorate(DictionaryCaptionDbColumn.class);
+            if (captionColumn == null) {
+                continue;
+            }
+            if (!isFieldInLevels(queryColumn.getAi(), levels)) {
+                continue;
+            }
+            String fieldName = queryColumn.getName();
+            String sourceFieldName = sourceDictionaryFieldName(fieldName);
+            if (fieldFilter != null && !fieldFilter.contains(fieldName)
+                    && !fieldFilter.contains(sourceFieldName)) {
+                continue;
+            }
+            if (fieldAccess != null && !fieldAccess.contains(sourceFieldName)) {
+                continue;
+            }
+
+            FieldInfoV3 fieldInfo = allFields.computeIfAbsent(fieldName, k -> new FieldInfoV3());
+            fieldInfo.addDictionaryCaption(captionColumn, queryModel.getName(), this,
+                    referencedDictIds);
+        }
+
         // 收集度量信息
         for (DbQueryColumn queryColumn : queryModel.getJdbcQueryColumns()) {
             if (queryColumn.isMeasure()) {
@@ -2021,6 +2085,45 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         addDictionaryDiscoveryMetadata(fieldInfo, property, modelName, fieldName, context);
 
         return fieldInfo;
+    }
+
+    private Map<String, Object> createDictionaryCaptionFieldInfo(DictionaryCaptionDbColumn captionColumn,
+                                                                  String modelName,
+                                                                  String fieldName) {
+        DbProperty property = captionColumn.getProperty();
+        String sourceFieldName = sourceDictionaryFieldName(fieldName);
+        String caption = property.getCaption() != null ? property.getCaption() : sourceFieldName;
+
+        Map<String, Object> fieldInfo = new LinkedHashMap<>();
+        fieldInfo.put("name", caption + "(名称)");
+        fieldInfo.put("fieldName", fieldName);
+        fieldInfo.put("meta", "字典标题 | 文本 | 仅支持等值/集合过滤 | 不支持排序");
+        fieldInfo.put("type", DbColumnType.STRING.name());
+        fieldInfo.put("filterType", "text");
+        fieldInfo.put("filterable", true);
+        fieldInfo.put("sortable", false);
+        fieldInfo.put("measure", false);
+        fieldInfo.put("aggregatable", false);
+        fieldInfo.put("semanticRole", "dictionary-caption");
+        fieldInfo.put("sourceField", sourceFieldName);
+        fieldInfo.put("dictId", property.getDictRef());
+        String sqlColumn = property.getPropertyDbColumn().getSqlColumnName();
+        if (sqlColumn != null) {
+            fieldInfo.put("sourceColumn", sqlColumn);
+        }
+
+        Map<String, Object> modelInfo = new LinkedHashMap<>();
+        modelInfo.put("description", caption + "的字典显示名称；按 label 等值或集合过滤，不支持排序");
+        Map<String, Object> models = new LinkedHashMap<>();
+        models.put(modelName, modelInfo);
+        fieldInfo.put("models", models);
+        return fieldInfo;
+    }
+
+    private String sourceDictionaryFieldName(String captionFieldName) {
+        return captionFieldName.endsWith("$caption")
+                ? captionFieldName.substring(0, captionFieldName.length() - "$caption".length())
+                : captionFieldName;
     }
 
     private Map<String, Object> createCalculatedFieldInfo(CalculatedFieldDef calc, String modelName) {
@@ -2730,6 +2833,24 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             }
 
             modelUsages.put(modelName, usage);
+        }
+
+        public void addDictionaryCaption(DictionaryCaptionDbColumn captionColumn,
+                                         String modelName,
+                                         SemanticServiceV3Impl service,
+                                         Set<String> referencedDictIds) {
+            DbProperty property = captionColumn.getProperty();
+            String sourceFieldName = service.sourceDictionaryFieldName(captionColumn.getName());
+            String caption = property.getCaption() != null ? property.getCaption() : sourceFieldName;
+            this.displayName = caption + "(名称)";
+            this.meta = "字典标题 | 文本 | 仅支持等值/集合过滤 | 不支持排序";
+            this.fieldType = "dictionary_caption";
+
+            ModelUsage usage = new ModelUsage();
+            usage.setDescription(caption + "的字典显示名称；按 label 等值或集合过滤，不支持排序");
+            usage.setDictRef(property.getDictRef());
+            modelUsages.put(modelName, usage);
+            referencedDictIds.add(property.getDictRef());
         }
 
         public void addMeasure(DbQueryColumn measure, String modelName, SemanticServiceV3Impl service) {

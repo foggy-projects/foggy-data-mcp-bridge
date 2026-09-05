@@ -2,6 +2,7 @@ package com.foggyframework.dataset.model.engine;
 
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.core.ex.RX;
+import com.foggyframework.core.trans.ObjectTransFormatter;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.model.common.query.CondType;
 import com.foggyframework.dataset.model.def.query.request.*;
@@ -19,6 +20,7 @@ import com.foggyframework.dataset.model.engine.expression.SqlExpContext;
 import com.foggyframework.dataset.model.engine.formula.SqlFormulaService;
 import com.foggyframework.dataset.model.engine.formula.hierarchy.HierarchyOperator;
 import com.foggyframework.dataset.model.engine.formula.hierarchy.HierarchyOperatorService;
+import com.foggyframework.dataset.model.engine.dictionary.DictionaryCaptionDbColumn;
 import com.foggyframework.dataset.model.engine.join.JoinGraph;
 import com.foggyframework.dataset.model.engine.pivot.PivotTelemetry;
 import com.foggyframework.dataset.model.engine.pivot.transport.DomainRelationRenderResult;
@@ -105,6 +107,11 @@ public class JdbcModelQueryEngine implements QueryEngine {
             "ratioToTotal",
             "cumulativeRatioToTotal"
     );
+    private static final Set<String> DICTIONARY_CAPTION_FILTER_OPERATORS = Set.of(
+            "=", "===", "!=", "<>", "in", "not in", "nin",
+            "isnull", "is null", "isnotnull", "is not null",
+            "isnullandempty", "isnotnullandempty"
+    );
 
     JdbcQueryModel jdbcQueryModel;
 
@@ -127,6 +134,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
      */
     List<CalculatedDbColumn> calculatedColumns;
     List<SliceRequestDef> postAggregateSlice = new ArrayList<>();
+    Map<String, ObjectTransFormatter<?>> outputValueFormatters = new java.util.LinkedHashMap<>();
 
     /**
      * 内联表达式解析结果（包含聚合信息）
@@ -328,6 +336,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
         }
 
         jdbcQuery.select(selectColumns);
+        captureOutputValueFormatters(selectColumns);
 
         // DISTINCT 支持：仅在非聚合查询时生效（聚合查询本身通过 GROUP BY 去重）
         if (queryRequest.isDistinct() && !queryRequest.hasGroupBy()) {
@@ -455,6 +464,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
                     } else {
                         jdbcColumn = jdbcQueryModel.findJdbcColumnForCond(orderRequestDef.getField(), true);
                     }
+                    rejectDictionaryCaptionOrder(orderRequestDef.getField(), jdbcColumn);
                     jdbcQuery.addOrder(new DbQueryOrderColumnImpl(jdbcColumn, orderRequestDef.getDir(), orderRequestDef.isNullLast(), orderRequestDef.isNullFirst()));
 
                 }
@@ -463,6 +473,9 @@ public class JdbcModelQueryEngine implements QueryEngine {
             //加模QM型默认排序
             if (jdbcQueryModel.getOrders() != null && !jdbcQueryModel.getOrders().isEmpty()
                     && !hasAggregateSelect(jdbcQuery)) {
+                for (DbQueryOrderColumnImpl order : jdbcQueryModel.getOrders()) {
+                    rejectDictionaryCaptionOrder(order.getSelectColumn().getName(), order.getSelectColumn());
+                }
                 jdbcQuery.addOrders(jdbcQueryModel.getOrders());
                 for (DbQueryOrderColumnImpl order : jdbcQuery.getOrder().getOrders()) {
                     if (jdbcQuery.containSelect(order.getSelectColumn())) {
@@ -1816,6 +1829,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
         if (jdbcColumn == null) {
             throw RX.throwAUserTip(DatasetMessages.queryColumnNotfound(sliceDef.getField(), jdbcQueryModel.findDimension(sliceDef.getField())));
         }
+        validateDictionaryCaptionFilter(sliceDef.getField(), sliceDef.getOp(), jdbcColumn);
 
         // 判断是否为聚合条件
         boolean isAggregateCondition = isAggregateCondition(sliceDef.getField());
@@ -2863,6 +2877,8 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
                 if (selectColumn != null) {
                     // 字段在 SELECT 中，添加排序
+                    DbColumn semanticColumn = jdbcQueryModel.findJdbcColumnForCond(fieldName, false, true);
+                    rejectDictionaryCaptionOrder(fieldName, semanticColumn);
                     validate(orderRequestDef.getDir());
                     jdbcQuery.addOrder(new DbQueryOrderColumnImpl(
                             selectColumn,
@@ -2893,6 +2909,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
                 }
 
                 if (selectColumn != null) {
+                    rejectDictionaryCaptionOrder(fieldName, orderColumn);
                     // 检查是否已添加（避免重复）
                     final DbColumn finalSelectColumn = selectColumn;
                     boolean alreadyAdded = false;
@@ -2917,6 +2934,48 @@ public class JdbcModelQueryEngine implements QueryEngine {
         if (!skippedFields.isEmpty()) {
 //            log.warn("GroupBy 模式下忽略了不在 SELECT 中的 orderBy 字段: {}", skippedFields);
             throw RX.throwA("GroupBy 模式下 orderBy 字段 必须在columns存在，但: " + skippedFields+" 没有在columns中出现，请根据需求调整groupBy中的字段，或加入field");
+        }
+    }
+
+    private void captureOutputValueFormatters(List<DbColumn> selectColumns) {
+        outputValueFormatters = new java.util.LinkedHashMap<>();
+        if (selectColumns == null) {
+            return;
+        }
+        for (DbColumn column : selectColumns) {
+            DbQueryColumn queryColumn = column == null ? null : column.getDecorate(DbQueryColumn.class);
+            if (queryColumn == null || queryColumn.getValueFormatter() == null) {
+                continue;
+            }
+            String name = queryColumn.getName();
+            if (StringUtils.isNotEmpty(name)) {
+                outputValueFormatters.put(name, queryColumn.getValueFormatter());
+            }
+            String alias = queryColumn.getAlias();
+            if (StringUtils.isNotEmpty(alias)) {
+                outputValueFormatters.put(alias, queryColumn.getValueFormatter());
+            }
+        }
+    }
+
+    private void rejectDictionaryCaptionOrder(String fieldName, DbColumn column) {
+        if (column != null && column.getDecorate(DictionaryCaptionDbColumn.class) != null) {
+            throw RX.throwAUserTip("DICT_CAPTION_ORDER_UNSUPPORTED: 字典标题字段不支持排序: "
+                    + fieldName + "；请按原始字典值字段排序，或将该字段建模为维度");
+        }
+    }
+
+    private void validateDictionaryCaptionFilter(String fieldName, String operator, DbColumn column) {
+        if (column == null || column.getDecorate(DictionaryCaptionDbColumn.class) == null) {
+            return;
+        }
+        String normalizedOperator = operator == null
+                ? ""
+                : operator.trim().toLowerCase(java.util.Locale.ROOT);
+        if (!DICTIONARY_CAPTION_FILTER_OPERATORS.contains(normalizedOperator)) {
+            throw RX.throwAUserTip("DICT_CAPTION_FILTER_UNSUPPORTED: 字典标题字段不支持操作符 "
+                    + operator + ": " + fieldName
+                    + "；仅支持等值、非等值、集合及空值判断");
         }
     }
 }

@@ -1,0 +1,17 @@
+const order = loadTableModel('IntegerDictionaryOrderModel');
+
+export const queryModel = {
+    name: 'IntegerDictionaryOrderQueryModel',
+    caption: '整数字典订单查询',
+    model: order,
+    columnGroups: [
+        {
+            caption: '订单信息',
+            items: [
+                { ref: order.orderId },
+                { ref: order.customerCode }
+            ]
+        }
+    ],
+    accesses: []
+};

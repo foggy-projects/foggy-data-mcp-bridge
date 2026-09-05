@@ -9,6 +9,7 @@ import com.foggyframework.core.tuple.Tuple2;
 import com.foggyframework.core.utils.ErrorUtils;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.model.def.access.DbAccessDef;
+import com.foggyframework.dataset.model.def.dict.DbDictDef;
 import com.foggyframework.dataset.model.semantic.member.permission.QmMemberPermissionDef;
 import com.foggyframework.dataset.model.def.column.DbColumnGroupDef;
 import com.foggyframework.dataset.model.def.order.OrderDef;
@@ -18,6 +19,9 @@ import com.foggyframework.dataset.model.def.query.SelectColumnDef;
 import com.foggyframework.dataset.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.model.def.query.request.WindowOrderDef;
 import com.foggyframework.dataset.model.i18n.DatasetMessages;
+import com.foggyframework.dataset.model.engine.dictionary.DictionaryBinding;
+import com.foggyframework.dataset.model.engine.dictionary.DictionaryCaptionDbColumn;
+import com.foggyframework.dataset.model.engine.dictionary.DictionaryValueDbColumn;
 import com.foggyframework.dataset.model.impl.LoaderSupport;
 import com.foggyframework.dataset.model.impl.dimension.DbDimensionSupport;
 import com.foggyframework.dataset.model.impl.query.*;
@@ -83,6 +87,9 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
 
     @Resource
     private SyntheticMemberQueryModelFactory syntheticMemberQueryModelFactory;
+
+    @Resource
+    private DbModelDictService dbModelDictService;
 
     private final SyntheticMemberQueryModelResolver syntheticMemberQueryModelResolver = new SyntheticMemberQueryModelResolver();
     public QueryModelLoaderImpl(TableModelLoaderManager tableModelLoaderManager,
@@ -1283,6 +1290,28 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                         //维度，自动展开 $id + $caption + 所有属性 + 嵌套子维度（递归）
                         expandDimension(qm, group, ownerModel, dimension, columnName, item, hasRef,
                                 explicitColumnNames, explicitDimensionRefs);
+                    } else if (isDictionaryProperty(exactColumn)) {
+                        if (columnName.endsWith("$caption")) {
+                            addDictionaryCaptionColumn(qm, group, columnName, item, hasRef, exactColumn);
+                        } else {
+                            // 原字段保留原始类型和值，同时在过滤输入上兼容 code/label。
+                            DbPropertyColumn propertyColumn = exactColumn.getDecorate(DbPropertyColumn.class);
+                            DictionaryBinding binding = bindDictionary(
+                                    propertyColumn.getProperty(), exactColumn);
+                            addColumn(qm, group, columnName, item, hasRef,
+                                    new DictionaryValueDbColumn(exactColumn, binding));
+                            String captionColumnName = columnName + "$caption";
+                            if (!explicitColumnNames.contains(captionColumnName)) {
+                                addDictionaryCaptionColumn(
+                                        qm,
+                                        group,
+                                        captionColumnName,
+                                        createDictionaryCaptionItem(item, captionColumnName),
+                                        hasRef,
+                                        exactColumn,
+                                        binding);
+                            }
+                        }
                     } else {
                         addColumn(qm, group, columnName, item, hasRef, exactColumn);
                     }
@@ -1514,14 +1543,85 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
          * - name: 列的唯一标识，用于在 QM 中查找列
          * - alias: 用户定义的别名，用于重命名字段（如 { ref: dc.customerType, alias: 'custType' }）
          */
+        DbQueryColumnImpl dbQueryColumn = createQueryColumn(jdbcColumn, columnName, item, hasRef);
+
+        qm.addJdbcQueryColumn(dbQueryColumn);
+        group.addJdbcColumn(dbQueryColumn);
+    }
+
+    private DbQueryColumnImpl createQueryColumn(DbColumn jdbcColumn,
+                                                String columnName,
+                                                SelectColumnDef item,
+                                                boolean hasRef) {
         String queryColumnName = StringUtils.isNotEmpty(item.getName()) ? item.getName() : columnName;
         DbQueryColumnImpl dbQueryColumn = new DbQueryColumnImpl(
                 jdbcColumn, queryColumnName, item.getCaption(), item.getAlias());
         dbQueryColumn.setExtData(item.getExtData());
         dbQueryColumn.setHasRef(hasRef);
+        return dbQueryColumn;
+    }
 
-        qm.addJdbcQueryColumn(dbQueryColumn);
-        group.addJdbcColumn(dbQueryColumn);
+    private boolean isDictionaryProperty(DbColumn column) {
+        if (column == null) {
+            return false;
+        }
+        DbPropertyColumn propertyColumn = column.getDecorate(DbPropertyColumn.class);
+        return propertyColumn != null
+                && propertyColumn.getProperty() != null
+                && propertyColumn.getProperty().isDict()
+                && StringUtils.isNotEmpty(propertyColumn.getProperty().getDictRef());
+    }
+
+    private void addDictionaryCaptionColumn(QueryModelSupport qm,
+                                            QueryColumnGroup group,
+                                            String captionColumnName,
+                                            SelectColumnDef item,
+                                            boolean hasRef,
+                                            DbColumn sourceColumn) {
+        DbPropertyColumn propertyColumn = sourceColumn.getDecorate(DbPropertyColumn.class);
+        DbProperty property = propertyColumn.getProperty();
+        DictionaryBinding binding = bindDictionary(property, sourceColumn);
+        addDictionaryCaptionColumn(qm, group, captionColumnName, item, hasRef,
+                sourceColumn, binding);
+    }
+
+    private void addDictionaryCaptionColumn(QueryModelSupport qm,
+                                            QueryColumnGroup group,
+                                            String captionColumnName,
+                                            SelectColumnDef item,
+                                            boolean hasRef,
+                                            DbColumn sourceColumn,
+                                            DictionaryBinding binding) {
+        DbPropertyColumn propertyColumn = sourceColumn.getDecorate(DbPropertyColumn.class);
+        DbProperty property = propertyColumn.getProperty();
+        DictionaryCaptionDbColumn captionColumn = new DictionaryCaptionDbColumn(
+                sourceColumn, captionColumnName, property, binding);
+        DbQueryColumnImpl queryColumn = createQueryColumn(
+                captionColumn, captionColumnName, item, hasRef);
+        queryColumn.setValueFormatter(binding.getValueToLabelFormatter());
+        qm.addJdbcQueryColumn(queryColumn);
+        group.addJdbcColumn(queryColumn);
+    }
+
+    private DictionaryBinding bindDictionary(DbProperty property, DbColumn sourceColumn) {
+        if (dbModelDictService == null) {
+            throw RX.throwAUserTip("DICT_SERVICE_UNAVAILABLE: 无法解析字典字段 " + property.getName());
+        }
+        DbDictDef dictionary = dbModelDictService.getDictById(property.getDictRef());
+        if (dictionary == null) {
+            throw RX.throwAUserTip("DICT_NOT_FOUND: 字段 " + property.getName()
+                    + " 引用的字典未注册: " + property.getDictRef());
+        }
+        return DictionaryBinding.bind(dictionary, sourceColumn);
+    }
+
+    private SelectColumnDef createDictionaryCaptionItem(SelectColumnDef item, String captionColumnName) {
+        SelectColumnDef captionItem = new SelectColumnDef();
+        BeanUtils.copyProperties(item, captionItem);
+        captionItem.setName(captionColumnName);
+        captionItem.setAlias(captionColumnName);
+        captionItem.setCaption(null);
+        return captionItem;
     }
 
     private SelectColumnDef createAutoExpandedPropertyItem(SelectColumnDef item, String propColumnName) {

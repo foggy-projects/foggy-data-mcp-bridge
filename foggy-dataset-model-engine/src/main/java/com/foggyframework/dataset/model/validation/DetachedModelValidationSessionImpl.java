@@ -280,6 +280,7 @@ final class DetachedModelValidationSessionImpl
         detached.setDefaultDataSource(live.getDefaultDataSource());
         detached.setSyntheticMemberQueryModelFactory(
                 live.getSyntheticMemberQueryModelFactory());
+        detached.setDbModelDictService(live.getDbModelDictService());
         return detached;
     }
 
