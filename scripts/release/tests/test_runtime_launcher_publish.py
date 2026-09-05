@@ -53,6 +53,15 @@ class RuntimeLauncherPublishTest(unittest.TestCase):
         self.assertEqual(2, process_alive.call_count)
         sleep.assert_not_called()
 
+    @mock.patch.object(release, "windows_process_alive", return_value=True)
+    def test_process_alive_uses_non_signalling_windows_probe(
+        self, windows_process_alive: mock.Mock
+    ) -> None:
+        with mock.patch.object(release.os, "name", "nt"):
+            self.assertTrue(release.process_alive(123))
+
+        windows_process_alive.assert_called_once_with(123)
+
     @mock.patch.object(release.time, "sleep")
     def test_temporary_log_cleanup_retries_windows_handle_release(
         self, sleep: mock.Mock
