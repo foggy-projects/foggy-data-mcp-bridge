@@ -2,6 +2,7 @@ package com.foggyframework.runtime.api.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.foggyframework.dataset.model.config.DatasetProperties;
 import com.foggyframework.dataset.model.config.DatasetRequestNamespaceResolver;
 import com.foggyframework.dataset.model.semantic.domain.SemanticQueryRequest;
@@ -11,18 +12,30 @@ import com.foggyframework.dataset.model.semantic.explain.SemanticExplainResponse
 import com.foggyframework.dataset.model.semantic.explain.SemanticExplainService;
 import com.foggyframework.dataset.model.semantic.permission.ModelPermissionException;
 import com.foggyframework.dataset.model.semantic.permission.PermissionAction;
+import com.foggyframework.dataset.model.semantic.support.QueryInputValidationException;
+import com.foggyframework.dataset.model.semantic.support.SemanticQueryPayloadMapper;
+import com.foggyframework.dataset.model.semantic.support.UnknownQueryPropertyPolicy;
+import com.foggyframework.dataset.model.semantic.support.DuplicateQueryProperty;
 import com.foggyframework.runtime.api.RuntimeApiRoutes;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
+import com.foggyframework.runtime.api.dto.RuntimeError;
 import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import jakarta.servlet.http.HttpServletResponse;
+
+import java.util.Map;
+import java.util.List;
 
 /** Isolated endpoint for on-demand semantic evidence. */
 @RestController
@@ -33,8 +46,10 @@ public class RuntimeQueryExplainController {
     private final RuntimeApiResponseFactory responses;
     private final SemanticExplainService explainService;
     private final ObjectMapper objectMapper;
+    private final SemanticQueryPayloadMapper payloadMapper;
     private final DatasetProperties datasetProperties;
 
+    @Autowired
     public RuntimeQueryExplainController(
             RuntimeApiResponseFactory responses,
             SemanticExplainService explainService,
@@ -44,15 +59,17 @@ public class RuntimeQueryExplainController {
         this.responses = responses;
         this.explainService = explainService;
         this.objectMapper = objectMapper;
+        this.payloadMapper = new SemanticQueryPayloadMapper(objectMapper);
         this.datasetProperties = datasetPropertiesProvider.getIfAvailable();
     }
 
     @PostMapping(RuntimeApiRoutes.V1.QUERY_EXPLAIN)
     public RuntimeEnvelope<SemanticExplainResponse> explain(
             @PathVariable String model,
-            @RequestBody(required = false) JsonNode body,
+            @RequestBody(required = false) String rawBody,
             @RequestHeader(value = "X-NS", required = false) String namespace,
-            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
+            HttpServletResponse httpResponse
     ) {
         String normalizedModel = blankToNull(model);
         if (normalizedModel == null) {
@@ -61,9 +78,18 @@ public class RuntimeQueryExplainController {
         }
 
         final SemanticExplainRequest request;
+        JsonNode body;
         try {
-            request = toExplainRequest(body);
+            RuntimeQueryJsonSupport.ParsedJson parsed = RuntimeQueryJsonSupport.parse(objectMapper, rawBody);
+            body = parsed.body();
+            request = toExplainRequest(
+                    body,
+                    RuntimeQueryJsonSupport.queryDuplicates(body, parsed.duplicates()));
+        } catch (QueryInputValidationException e) {
+            httpResponse.setStatus(HttpStatus.BAD_REQUEST.value());
+            return queryInputFailure(e, normalizedModel);
         } catch (IllegalArgumentException e) {
+            httpResponse.setStatus(HttpStatus.BAD_REQUEST.value());
             return fail("INVALID_DSL_SYNTAX", "Invalid explain request JSON.", normalizedModel,
                     "Fix the explain request JSON and retry.", true);
         }
@@ -82,7 +108,8 @@ public class RuntimeQueryExplainController {
                     normalizedModel,
                     request,
                     SemanticRequestContext.of(effectiveNamespace, authorization)
-                            .withPermissionAction(action));
+                                    .withPermissionAction(action));
+            response = attachQueryInputWarnings(response, request);
             return responses.ok(response);
         } catch (ModelPermissionException e) {
             return fail(e.getCode(), e.getMessage(), normalizedModel,
@@ -101,21 +128,73 @@ public class RuntimeQueryExplainController {
         }
     }
 
-    private SemanticExplainRequest toExplainRequest(JsonNode body) {
+    private SemanticExplainRequest toExplainRequest(
+            JsonNode body,
+            List<DuplicateQueryProperty> duplicateProperties
+    ) {
         if (body == null || body.isNull()) {
             return new SemanticExplainRequest();
         }
         JsonNode payload = firstNonNull(body.get("payload"), body.get("request"));
         if (payload == null && body.has("columns")) {
             SemanticExplainRequest direct = new SemanticExplainRequest();
-            direct.setPayload(objectMapper.convertValue(body, SemanticQueryRequest.class));
+            Map<String, Object> directPayload = objectMapper.convertValue(
+                    body, new TypeReference<Map<String, Object>>() { });
+            directPayload.remove("namespace");
+            direct.setPayload(payloadMapper.toQueryRequest(
+                    directPayload, unknownPropertyPolicy(), duplicateProperties));
             return direct;
         }
-        SemanticExplainRequest request = objectMapper.convertValue(body, SemanticExplainRequest.class);
+        Map<String, Object> explainEnvelope = objectMapper.convertValue(
+                body, new TypeReference<Map<String, Object>>() { });
+        explainEnvelope.remove("payload");
+        explainEnvelope.remove("request");
+        SemanticExplainRequest request = objectMapper.convertValue(
+                explainEnvelope, SemanticExplainRequest.class);
         if (payload != null) {
-            request.setPayload(objectMapper.convertValue(payload, SemanticQueryRequest.class));
+            Map<String, Object> queryPayload = objectMapper.convertValue(
+                    payload, new TypeReference<Map<String, Object>>() { });
+            request.setPayload(payloadMapper.toQueryRequest(
+                    queryPayload, unknownPropertyPolicy(), duplicateProperties));
         }
         return request;
+    }
+
+    private UnknownQueryPropertyPolicy unknownPropertyPolicy() {
+        return datasetProperties != null && datasetProperties.getQuery() != null
+                ? datasetProperties.getQuery().getUnknownPropertyPolicy()
+                : UnknownQueryPropertyPolicy.WARN;
+    }
+
+    private SemanticExplainResponse attachQueryInputWarnings(
+            SemanticExplainResponse response,
+            SemanticExplainRequest request
+    ) {
+        if (response == null || request == null || request.getPayload() == null
+                || request.getPayload().getQueryInputWarnings() == null
+                || request.getPayload().getQueryInputWarnings().isEmpty()) {
+            return response;
+        }
+        return new SemanticExplainResponse(
+                response.schemaVersion(), response.basis(), response.definitionTrace(),
+                response.compilationTrace(), response.securityTrace(), response.materializationTrace(),
+                response.executionTrace(), response.sqlTrace(), response.limitations(),
+                request.getPayload().getQueryInputWarnings());
+    }
+
+    private RuntimeEnvelope<SemanticExplainResponse> queryInputFailure(
+            QueryInputValidationException failure,
+            String model
+    ) {
+        var first = failure.getViolations().isEmpty() ? null : failure.getViolations().get(0);
+        RuntimeError error = new RuntimeError(
+                failure.getCode(), "query.explain", failure.getMessage(), model, null,
+                first == null ? null : first.path(),
+                first == null
+                        ? "Remove unsupported Query DSL properties and retry."
+                        : first.suggestedNextAction(),
+                false, null, null);
+        return responses.fail(error, RuntimeQueryJsonSupport.validationDiagnostics(failure));
     }
 
     private RuntimeEnvelope<SemanticExplainResponse> fail(

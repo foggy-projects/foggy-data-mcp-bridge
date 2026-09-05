@@ -59,7 +59,7 @@ const data = response.data.data
 ### 重要说明
 
 - **禁止使用 `ResponseEntity`**：新的 REST API 必须使用 RX 返回
-- **错误也返回 200**：HTTP 层始终返回 200，通过 RX.code 判断业务状态
+- **一般业务错误返回 200**：通常通过 RX.code 判断业务状态；输入安全边界等明确约定的 fail-closed 校验可返回 HTTP 4xx，例如 Query DSL strict/受保护未知属性返回 400
 - **data 可选**：成功时 data 包含业务数据，错误时 data 可包含错误详情
 - **一致性**：所有模块的 REST API 应遵循此规范
 

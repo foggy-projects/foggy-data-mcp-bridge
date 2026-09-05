@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.dataset.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.model.def.query.request.CondRequestDef;
+import com.foggyframework.dataset.model.def.query.request.PostAggregateCalculationDef;
 import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.model.semantic.domain.DeniedPhysicalColumn;
 import com.foggyframework.dataset.model.semantic.domain.SemanticQueryRequest;
@@ -39,16 +40,40 @@ public class SemanticQueryPayloadMapper {
 
     private final ObjectMapper objectMapper;
 
+    private final SemanticQueryPropertyInspector propertyInspector = new SemanticQueryPropertyInspector();
+
     public SemanticQueryPayloadMapper(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
 
     @SuppressWarnings("unchecked")
     public SemanticQueryRequest toQueryRequest(Map<String, Object> payload) {
+        return toQueryRequest(payload, UnknownQueryPropertyPolicy.WARN);
+    }
+
+    @SuppressWarnings("unchecked")
+    public SemanticQueryRequest toQueryRequest(
+            Map<String, Object> payload,
+            UnknownQueryPropertyPolicy unknownPropertyPolicy
+    ) {
+        return toQueryRequest(payload, unknownPropertyPolicy, List.of());
+    }
+
+    @SuppressWarnings("unchecked")
+    public SemanticQueryRequest toQueryRequest(
+            Map<String, Object> payload,
+            UnknownQueryPropertyPolicy unknownPropertyPolicy,
+            List<DuplicateQueryProperty> duplicateProperties
+    ) {
+        payload = payload == null ? Map.of() : payload;
         SemanticQueryRequest request = new SemanticQueryRequest();
-        if (payload == null || payload.isEmpty()) {
+        if (payload.isEmpty()
+                && (duplicateProperties == null || duplicateProperties.isEmpty())) {
             return request;
         }
+
+        request.setQueryInputWarnings(propertyInspector.inspect(
+                payload, unknownPropertyPolicy, duplicateProperties));
 
         request.setColumns(optionalStringList(payload.get("columns")));
         request.setCalculatedFields(convertList(payload.get("calculatedFields"), CalculatedFieldDef.class));
@@ -57,7 +82,9 @@ public class SemanticQueryPayloadMapper {
         request.setPostSlice(convertSliceItemsIfPresent(payload, "postSlice"));
         request.setGroupBy(convertGroupBy(payload.get("groupBy")));
         request.setOrderBy(convertOrderBy(payload.get("orderBy")));
-        request.setStart(intValue(payload.get("start")));
+        if (payload.containsKey("start")) {
+            request.setStart(intValue(payload.get("start")));
+        }
         request.setLimit(intValue(payload.get("limit")));
         request.setCursor(stringValue(payload.get("cursor")));
         request.setHints(convertMap(payload.get("hints")));
@@ -67,6 +94,10 @@ public class SemanticQueryPayloadMapper {
         request.setDistinct(boolOrDefault(payload.get("distinct"), request.getDistinct()));
         request.setWithSubtotals(boolOrDefault(payload.get("withSubtotals"), request.getWithSubtotals()));
         request.setTimeWindow(convertMap(payload.get("timeWindow")));
+        request.setPostAggregateCalculations(convertList(
+                payload.get("postAggregateCalculations"), PostAggregateCalculationDef.class));
+        request.setOutputFormatting(convertList(
+                payload.get("outputFormatting"), SemanticQueryRequest.OutputFormattingItem.class));
         request.setRoute(stringValue(payload.get("route")));
         request.setStatus(stringValue(payload.get("status")));
         request.setRiskFlags(optionalStringList(firstPresent(payload, "risk_flags", "riskFlags")));

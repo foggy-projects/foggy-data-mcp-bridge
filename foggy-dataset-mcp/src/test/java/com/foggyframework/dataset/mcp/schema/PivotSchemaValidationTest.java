@@ -118,6 +118,43 @@ class PivotSchemaValidationTest {
     }
 
     @Test
+    @DisplayName("违规：MCP schema 应拒绝已知对象中的未知属性")
+    void testUnknownPropertyRejectedByClosedObjects() throws Exception {
+        String json = """
+        {
+          "model": "FactSales",
+          "payload": {
+            "groupBy": [{"field": "orderDate", "grain": "month"}]
+          }
+        }
+        """;
+
+        Set<ValidationMessage> errors = validate(json);
+
+        assertFalse(errors.isEmpty(), "groupBy.grain 应被 schema 前置拒绝");
+        assertTrue(errors.stream().anyMatch(error ->
+                        error.getMessage().contains("grain")
+                                || error.getMessage().contains("additionalProperties")),
+                "应报告未知属性: " + errors);
+    }
+
+    @Test
+    @DisplayName("合规：动态 slice 简写在关闭固定对象后仍保持开放")
+    void testDynamicSliceShorthandRemainsValid() throws Exception {
+        String json = """
+        {
+          "model": "FactSales",
+          "payload": {
+            "slice": [{"businessStatus": "PAID"}],
+            "columns": ["amount"]
+          }
+        }
+        """;
+
+        assertTrue(validate(json).isEmpty(), "动态字段过滤简写不应被误拦截");
+    }
+
+    @Test
     @DisplayName("合规：对象形态 rows 且包含 having")
     void testValidPivotHaving() throws Exception {
         String json = """
@@ -142,6 +179,29 @@ class PivotSchemaValidationTest {
         """;
         Set<ValidationMessage> errors = validate(json);
         assertTrue(errors.isEmpty(), "合规 Having Pivot 应该通过验证: " + errors);
+    }
+
+    @Test
+    @DisplayName("合规：Pivot 轴 slice 兼容别名")
+    void testValidPivotAxisSliceAlias() throws Exception {
+        String json = """
+        {
+          "model": "FactSales",
+          "payload": {
+            "pivot": {
+              "rows": [{
+                "field": "region",
+                "slice": [{"field": "status", "op": "=", "value": "PAID"}]
+              }],
+              "metrics": ["salesAmount"]
+            }
+          }
+        }
+        """;
+
+        Set<ValidationMessage> errors = validate(json);
+
+        assertTrue(errors.isEmpty(), "AxisField.slice 是 domainSlice 的兼容别名: " + errors);
     }
 
     @Test

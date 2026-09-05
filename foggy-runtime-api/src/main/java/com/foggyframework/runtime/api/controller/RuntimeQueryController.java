@@ -2,14 +2,21 @@ package com.foggyframework.runtime.api.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.foggyframework.dataset.model.config.DatasetProperties;
 import com.foggyframework.dataset.model.config.DatasetRequestNamespaceResolver;
 import com.foggyframework.dataset.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.model.semantic.service.SemanticQueryServiceV3;
+import com.foggyframework.dataset.model.semantic.support.QueryInputValidationException;
+import com.foggyframework.dataset.model.semantic.support.QueryInputWarnings;
+import com.foggyframework.dataset.model.semantic.support.SemanticQueryPayloadMapper;
+import com.foggyframework.dataset.model.semantic.support.UnknownQueryPropertyPolicy;
+import com.foggyframework.dataset.model.semantic.support.DuplicateQueryProperty;
 import com.foggyframework.runtime.api.RuntimeApiRoutes;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
+import com.foggyframework.runtime.api.dto.RuntimeError;
 import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -20,6 +27,12 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+
+import jakarta.servlet.http.HttpServletResponse;
+
+import java.util.Map;
+import java.util.List;
 
 @RestController
 @RequestMapping(RuntimeApiRoutes.API_V1)
@@ -29,6 +42,7 @@ public class RuntimeQueryController {
     private final RuntimeApiResponseFactory responses;
     private final SemanticQueryServiceV3 semanticQueryServiceV3;
     private final ObjectMapper objectMapper;
+    private final SemanticQueryPayloadMapper payloadMapper;
     private final DatasetProperties datasetProperties;
 
     public RuntimeQueryController(
@@ -40,51 +54,68 @@ public class RuntimeQueryController {
         this.responses = responses;
         this.semanticQueryServiceV3 = semanticQueryServiceV3;
         this.objectMapper = objectMapper;
+        this.payloadMapper = new SemanticQueryPayloadMapper(objectMapper);
         this.datasetProperties = datasetPropertiesProvider.getIfAvailable();
     }
 
     @PostMapping(RuntimeApiRoutes.V1.QUERY_VALIDATE)
     public RuntimeEnvelope<SemanticQueryResponse> validateQuery(
             @PathVariable String model,
-            @RequestBody(required = false) JsonNode body,
+            @RequestBody(required = false) String rawBody,
             @RequestHeader(value = "X-NS", required = false) String namespace,
-            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
+            HttpServletResponse httpResponse
     ) {
-        return query(model, body, namespace, authorization, "validate", "query.validate");
+        return query(model, rawBody, namespace, authorization, "validate", "query.validate", httpResponse);
     }
 
     @PostMapping(RuntimeApiRoutes.V1.QUERY_EXECUTE)
     public RuntimeEnvelope<SemanticQueryResponse> executeQuery(
             @PathVariable String model,
-            @RequestBody(required = false) JsonNode body,
+            @RequestBody(required = false) String rawBody,
             @RequestHeader(value = "X-NS", required = false) String namespace,
-            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
+            HttpServletResponse httpResponse
     ) {
-        return query(model, body, namespace, authorization, "execute", "query.execute");
+        return query(model, rawBody, namespace, authorization, "execute", "query.execute", httpResponse);
     }
 
     private RuntimeEnvelope<SemanticQueryResponse> query(
             String model,
-            JsonNode body,
+            String rawBody,
             String headerNamespace,
             String authorization,
             String mode,
-            String phase
+            String phase,
+            HttpServletResponse httpResponse
     ) {
         String normalizedModel = blankToNull(model);
         if (normalizedModel == null) {
             return fail("INVALID_REQUEST", phase, "Missing required path variable: model",
                     model, null, "Provide a QM model name in the URL path.", false);
         }
-        if (body == null || body.isNull()) {
+        if (rawBody == null || rawBody.isBlank()) {
             return fail("INVALID_REQUEST", phase, "Missing request body.",
                     normalizedModel, null, "Provide a query payload.", false);
         }
 
         SemanticQueryRequest request;
+        JsonNode body;
         try {
-            request = toSemanticQueryRequest(body);
+            RuntimeQueryJsonSupport.ParsedJson parsed = RuntimeQueryJsonSupport.parse(objectMapper, rawBody);
+            body = parsed.body();
+            if (body == null || body.isNull()) {
+                return fail("INVALID_REQUEST", phase, "Missing request body.",
+                        normalizedModel, null, "Provide a query payload.", false);
+            }
+            request = toSemanticQueryRequest(
+                    body,
+                    RuntimeQueryJsonSupport.queryDuplicates(body, parsed.duplicates()));
+        } catch (QueryInputValidationException e) {
+            httpResponse.setStatus(HttpStatus.BAD_REQUEST.value());
+            return queryInputFailure(e, phase, normalizedModel);
         } catch (IllegalArgumentException e) {
+            httpResponse.setStatus(HttpStatus.BAD_REQUEST.value());
             return fail("INVALID_DSL_SYNTAX", phase, e.getMessage(),
                     normalizedModel, null, "Fix the query JSON shape and retry.", true);
         }
@@ -103,6 +134,7 @@ public class RuntimeQueryController {
                                     : com.foggyframework.dataset.model.semantic.permission.PermissionAction.EXECUTE
                     )
             );
+            QueryInputWarnings.attach(response, request);
             if ("query.validate".equals(phase)) {
                 String blockingWarning = firstBlockingValidationWarning(response);
                 if (blockingWarning != null) {
@@ -119,10 +151,41 @@ public class RuntimeQueryController {
         }
     }
 
-    private SemanticQueryRequest toSemanticQueryRequest(JsonNode body) {
+    private SemanticQueryRequest toSemanticQueryRequest(
+            JsonNode body,
+            List<DuplicateQueryProperty> duplicateProperties
+    ) {
         JsonNode payload = firstNonNull(body.get("payload"), body.get("request"));
         JsonNode queryNode = payload != null ? payload : body;
-        return objectMapper.convertValue(queryNode, SemanticQueryRequest.class);
+        Map<String, Object> queryPayload = objectMapper.convertValue(
+                queryNode, new TypeReference<Map<String, Object>>() { });
+        if (payload == null) {
+            queryPayload.remove("namespace");
+        }
+        return payloadMapper.toQueryRequest(
+                queryPayload, unknownPropertyPolicy(), duplicateProperties);
+    }
+
+    private UnknownQueryPropertyPolicy unknownPropertyPolicy() {
+        return datasetProperties != null && datasetProperties.getQuery() != null
+                ? datasetProperties.getQuery().getUnknownPropertyPolicy()
+                : UnknownQueryPropertyPolicy.WARN;
+    }
+
+    private RuntimeEnvelope<SemanticQueryResponse> queryInputFailure(
+            QueryInputValidationException failure,
+            String phase,
+            String model
+    ) {
+        var first = failure.getViolations().isEmpty() ? null : failure.getViolations().get(0);
+        RuntimeError error = new RuntimeError(
+                failure.getCode(), phase, failure.getMessage(), model, null,
+                first == null ? null : first.path(),
+                first == null
+                        ? "Remove unsupported Query DSL properties and retry."
+                        : first.suggestedNextAction(),
+                false, null, null);
+        return responses.fail(error, RuntimeQueryJsonSupport.validationDiagnostics(failure));
     }
 
     private String bodyNamespace(JsonNode body) {

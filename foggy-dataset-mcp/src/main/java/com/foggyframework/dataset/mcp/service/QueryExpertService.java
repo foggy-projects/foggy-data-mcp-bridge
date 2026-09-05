@@ -161,6 +161,9 @@ public class QueryExpertService {
         if (!debug.isEmpty()) {
             normalized.put("debug", debug);
         }
+        if (response.getQueryInputWarnings() != null && !response.getQueryInputWarnings().isEmpty()) {
+            normalized.put("queryInputWarnings", response.getQueryInputWarnings());
+        }
         return normalized;
     }
 

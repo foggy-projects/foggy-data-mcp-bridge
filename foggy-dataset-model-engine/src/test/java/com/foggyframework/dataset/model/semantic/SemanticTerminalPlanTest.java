@@ -3,6 +3,7 @@ package com.foggyframework.dataset.model.semantic;
 import com.foggyframework.dataset.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.model.semantic.domain.QueryInputWarning;
 import com.foggyframework.dataset.model.semantic.service.impl.SemanticQueryServiceV3Impl;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -67,5 +68,26 @@ class SemanticTerminalPlanTest {
                 service.generateSql("AnyModel", request, SemanticRequestContext.empty()));
 
         assertTrue(ex.getMessage().contains("TERMINAL_PLAN_NOT_EXECUTABLE"));
+    }
+
+    @Test
+    @DisplayName("terminal response preserves structured input warnings separately from legacy warnings")
+    void terminalResponseShouldPreserveStructuredInputWarnings() {
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setRoute("CLARIFY");
+        request.setQueryInputWarnings(List.of(new QueryInputWarning(
+                "UNKNOWN_QUERY_PROPERTY_IGNORED",
+                "$.groupBy[0].grain",
+                "Unknown Query DSL property 'grain' was ignored.",
+                "Use a model-defined time grain field.",
+                false,
+                Map.of("property", "grain"))));
+
+        SemanticQueryResponse response = service.queryModel(
+                "AnyModel", request, "execute", SemanticRequestContext.empty());
+
+        assertEquals(1, response.getQueryInputWarnings().size());
+        assertEquals("$.groupBy[0].grain", response.getQueryInputWarnings().get(0).path());
+        assertEquals(List.of(), response.getWarnings());
     }
 }

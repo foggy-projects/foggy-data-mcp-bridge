@@ -1,6 +1,13 @@
 package com.foggyframework.runtime.api.controller;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.dataset.model.candidate.CandidateQueryException;
+import com.foggyframework.dataset.model.config.DatasetProperties;
+import com.foggyframework.dataset.model.semantic.support.QueryInputValidationException;
+import com.foggyframework.dataset.model.semantic.support.SemanticQueryPayloadMapper;
+import com.foggyframework.dataset.model.semantic.support.UnknownQueryPropertyPolicy;
 import com.foggyframework.runtime.api.RuntimeApiRoutes;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceCreateRequest;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceDeleteRequest;
@@ -18,6 +25,8 @@ import com.foggyframework.runtime.api.dto.AuthoringWorkspaceRevisionRequest;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceSaveRequest;
 import com.foggyframework.runtime.api.dto.AuthoringWorkspaceState;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
+import com.foggyframework.runtime.api.dto.RuntimeDiagnostics;
+import com.foggyframework.runtime.api.dto.RuntimeError;
 import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
 import com.foggyframework.runtime.api.service.RuntimeAuthoringWorkspaceException;
 import com.foggyframework.runtime.api.service.RuntimeAuthoringWorkspaceService;
@@ -25,7 +34,9 @@ import com.foggyframework.runtime.api.service.RuntimeAuthoringWorkspacePublicati
 import com.foggyframework.runtime.api.service.RuntimeCandidateQueryService.Phase;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -37,6 +48,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import jakarta.servlet.http.HttpServletResponse;
+
+import java.util.Map;
 import java.util.Locale;
 import java.util.function.Supplier;
 
@@ -48,23 +62,50 @@ public class RuntimeAuthoringWorkspacesController {
     private final RuntimeApiResponseFactory responses;
     private final RuntimeAuthoringWorkspaceService workspaces;
     private final RuntimeAuthoringWorkspacePublicationService publications;
+    private final ObjectMapper objectMapper;
+    private final SemanticQueryPayloadMapper payloadMapper;
+    private final DatasetProperties datasetProperties;
 
     public RuntimeAuthoringWorkspacesController(
             RuntimeApiResponseFactory responses,
             RuntimeAuthoringWorkspaceService workspaces
     ) {
-        this(responses, workspaces, null);
+        this(responses, workspaces, null, new ObjectMapper(), new DatasetProperties());
+    }
+
+    public RuntimeAuthoringWorkspacesController(
+            RuntimeApiResponseFactory responses,
+            RuntimeAuthoringWorkspaceService workspaces,
+            RuntimeAuthoringWorkspacePublicationService publications
+    ) {
+        this(responses, workspaces, publications, new ObjectMapper(), new DatasetProperties());
     }
 
     @Autowired
     public RuntimeAuthoringWorkspacesController(
             RuntimeApiResponseFactory responses,
             RuntimeAuthoringWorkspaceService workspaces,
-            RuntimeAuthoringWorkspacePublicationService publications
+            RuntimeAuthoringWorkspacePublicationService publications,
+            ObjectMapper objectMapper,
+            ObjectProvider<DatasetProperties> datasetPropertiesProvider
+    ) {
+        this(responses, workspaces, publications, objectMapper,
+                datasetPropertiesProvider.getIfAvailable(DatasetProperties::new));
+    }
+
+    private RuntimeAuthoringWorkspacesController(
+            RuntimeApiResponseFactory responses,
+            RuntimeAuthoringWorkspaceService workspaces,
+            RuntimeAuthoringWorkspacePublicationService publications,
+            ObjectMapper objectMapper,
+            DatasetProperties datasetProperties
     ) {
         this.responses = responses;
         this.workspaces = workspaces;
         this.publications = publications;
+        this.objectMapper = objectMapper;
+        this.payloadMapper = new SemanticQueryPayloadMapper(objectMapper);
+        this.datasetProperties = datasetProperties;
     }
 
     @PostMapping(RuntimeApiRoutes.V1.AUTHORING_WORKSPACES)
@@ -174,6 +215,25 @@ public class RuntimeAuthoringWorkspacesController {
     }
 
     @PostMapping(RuntimeApiRoutes.V1.AUTHORING_QUERY_VALIDATE)
+    public RuntimeEnvelope<AuthoringWorkspaceQueryResponse> validateQueryRequest(
+            @PathVariable String workspaceId,
+            @PathVariable String model,
+            @RequestBody(required = false) String rawBody,
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false)
+            String authorization,
+            HttpServletResponse httpResponse
+    ) {
+        try {
+            return validateQuery(workspaceId, model, toAuthoringQueryRequest(rawBody), authorization);
+        } catch (QueryInputValidationException failure) {
+            httpResponse.setStatus(HttpStatus.BAD_REQUEST.value());
+            return queryInputFailure(failure, "workspaces.query.validate", model);
+        } catch (IllegalArgumentException failure) {
+            httpResponse.setStatus(HttpStatus.BAD_REQUEST.value());
+            return invalidQueryJson("workspaces.query.validate", model);
+        }
+    }
+
     public RuntimeEnvelope<AuthoringWorkspaceQueryResponse> validateQuery(
             @PathVariable String workspaceId,
             @PathVariable String model,
@@ -190,6 +250,25 @@ public class RuntimeAuthoringWorkspacesController {
     }
 
     @PostMapping(RuntimeApiRoutes.V1.AUTHORING_QUERY_EXECUTE)
+    public RuntimeEnvelope<AuthoringWorkspaceQueryResponse> executeQueryRequest(
+            @PathVariable String workspaceId,
+            @PathVariable String model,
+            @RequestBody(required = false) String rawBody,
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false)
+            String authorization,
+            HttpServletResponse httpResponse
+    ) {
+        try {
+            return executeQuery(workspaceId, model, toAuthoringQueryRequest(rawBody), authorization);
+        } catch (QueryInputValidationException failure) {
+            httpResponse.setStatus(HttpStatus.BAD_REQUEST.value());
+            return queryInputFailure(failure, "workspaces.query.execute", model);
+        } catch (IllegalArgumentException failure) {
+            httpResponse.setStatus(HttpStatus.BAD_REQUEST.value());
+            return invalidQueryJson("workspaces.query.execute", model);
+        }
+    }
+
     public RuntimeEnvelope<AuthoringWorkspaceQueryResponse> executeQuery(
             @PathVariable String workspaceId,
             @PathVariable String model,
@@ -203,6 +282,62 @@ public class RuntimeAuthoringWorkspacesController {
                 request == null ? null : request.request(), authorization,
                 Phase.EXECUTE), "QUERY_EXECUTE_FAILED",
                 "workspaces.query.execute");
+    }
+
+    private AuthoringWorkspaceQueryRequest toAuthoringQueryRequest(String rawBody) {
+        RuntimeQueryJsonSupport.ParsedJson parsed = RuntimeQueryJsonSupport.parse(objectMapper, rawBody);
+        JsonNode body = parsed.body();
+        if (body == null || body.isNull()) {
+            return null;
+        }
+        String candidateRevision = body.hasNonNull("candidateRevision")
+                ? body.get("candidateRevision").asText()
+                : null;
+        JsonNode requestNode = body.get("request");
+        if (requestNode == null || requestNode.isNull()) {
+            return new AuthoringWorkspaceQueryRequest(candidateRevision, null);
+        }
+        Map<String, Object> payload = objectMapper.convertValue(
+                requestNode, new TypeReference<Map<String, Object>>() { });
+        return new AuthoringWorkspaceQueryRequest(
+                candidateRevision,
+                payloadMapper.toQueryRequest(
+                        payload,
+                        unknownPropertyPolicy(),
+                        RuntimeQueryJsonSupport.nestedDuplicates(parsed.duplicates(), "request")));
+    }
+
+    private UnknownQueryPropertyPolicy unknownPropertyPolicy() {
+        return datasetProperties != null && datasetProperties.getQuery() != null
+                ? datasetProperties.getQuery().getUnknownPropertyPolicy()
+                : UnknownQueryPropertyPolicy.WARN;
+    }
+
+    private RuntimeEnvelope<AuthoringWorkspaceQueryResponse> queryInputFailure(
+            QueryInputValidationException failure,
+            String phase,
+            String model
+    ) {
+        var first = failure.getViolations().isEmpty() ? null : failure.getViolations().get(0);
+        RuntimeError error = new RuntimeError(
+                failure.getCode(), phase, failure.getMessage(), model, null,
+                first == null ? null : first.path(),
+                first == null
+                        ? "Remove unsupported Query DSL properties and retry."
+                        : first.suggestedNextAction(),
+                false, null, null);
+        return responses.fail(error, RuntimeQueryJsonSupport.validationDiagnostics(failure));
+    }
+
+    private RuntimeEnvelope<AuthoringWorkspaceQueryResponse> invalidQueryJson(
+            String phase,
+            String model
+    ) {
+        RuntimeError error = new RuntimeError(
+                "INVALID_DSL_SYNTAX", phase, "Invalid authoring query request JSON.",
+                model, null, null, "Fix the query JSON shape and retry.",
+                true, null, null);
+        return responses.fail(error, RuntimeDiagnostics.empty());
     }
 
     private <T> RuntimeEnvelope<T> invoke(Supplier<T> action) {

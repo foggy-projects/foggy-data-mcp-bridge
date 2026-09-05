@@ -1,7 +1,9 @@
 package com.foggyframework.dataset.model.semantic.explain;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.model.semantic.domain.SemanticQueryRequest;
+import com.foggyframework.dataset.model.semantic.domain.QueryInputWarning;
 
 import java.util.List;
 import java.util.Map;
@@ -18,9 +20,31 @@ public record SemanticExplainResponse(
         MaterializationTrace materializationTrace,
         ExecutionTrace executionTrace,
         SqlTrace sqlTrace,
-        List<Limitation> limitations
+        List<Limitation> limitations,
+        @JsonInclude(JsonInclude.Include.NON_EMPTY)
+        List<QueryInputWarning> queryInputWarnings
 ) {
     public static final String SCHEMA_VERSION = "foggy-semantic-explain/v1";
+
+    public SemanticExplainResponse {
+        queryInputWarnings = queryInputWarnings == null ? List.of() : List.copyOf(queryInputWarnings);
+    }
+
+    /** Compatibility constructor for callers created before Query DSL input diagnostics. */
+    public SemanticExplainResponse(
+            String schemaVersion,
+            Basis basis,
+            DefinitionTrace definitionTrace,
+            CompilationTrace compilationTrace,
+            SecurityTrace securityTrace,
+            MaterializationTrace materializationTrace,
+            ExecutionTrace executionTrace,
+            SqlTrace sqlTrace,
+            List<Limitation> limitations
+    ) {
+        this(schemaVersion, basis, definitionTrace, compilationTrace, securityTrace,
+                materializationTrace, executionTrace, sqlTrace, limitations, List.of());
+    }
 
     public enum Basis {
         DEFINITION,

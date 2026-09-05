@@ -50,6 +50,7 @@ import com.foggyframework.dataset.model.semantic.service.DimensionMemberLoader;
 import com.foggyframework.dataset.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.model.semantic.support.DslCteDslRequestMapper;
 import com.foggyframework.dataset.model.semantic.support.DslCtePlanningService;
+import com.foggyframework.dataset.model.semantic.support.QueryInputWarnings;
 import com.foggyframework.dataset.model.semantic.support.SemanticSqlDslRequestMapper;
 import com.foggyframework.dataset.model.semantic.support.SemanticSqlToDslMapper;
 import com.foggyframework.dataset.model.semantic.support.SemanticSqlWhitelistValidator;
@@ -207,28 +208,28 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                                             SemanticRequestContext context) {
         SemanticQueryResponse terminal = terminalResponseIfAny(request);
         if (terminal != null) {
-            return terminal;
+            return QueryInputWarnings.attach(terminal, request);
         }
         SemanticQueryResponse semanticSqlPlan = semanticSqlPlanResponseIfAny(model, request, context);
         if (semanticSqlPlan != null) {
-            return semanticSqlPlan;
+            return QueryInputWarnings.attach(semanticSqlPlan, request);
         }
         SemanticQueryResponse memoryGridExecution = memoryGridExecutionResponseIfAny(request, context);
         if (memoryGridExecution != null) {
-            return memoryGridExecution;
+            return QueryInputWarnings.attach(memoryGridExecution, request);
         }
         SemanticQueryResponse memoryGridPlan = memoryGridPlanResponseIfAny(request, context);
         if (memoryGridPlan != null) {
-            return memoryGridPlan;
+            return QueryInputWarnings.attach(memoryGridPlan, request);
         }
         SemanticQueryResponse dslCtePlan = dslCtePlanResponseIfAny(request);
         if (dslCtePlan != null && !dslCteCompileToDslEnabled(request)) {
-            return dslCtePlan;
+            return QueryInputWarnings.attach(dslCtePlan, request);
         }
         if (dslCtePlan != null && isExecuteMode(mode)) {
-            return executeCompiledDslCte(model, request, context);
+            return QueryInputWarnings.attach(executeCompiledDslCte(model, request, context), request);
         }
-        return queryModelInternal(model, request, mode, context);
+        return QueryInputWarnings.attach(queryModelInternal(model, request, mode, context), request);
     }
 
     /**
@@ -331,21 +332,21 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                                                SemanticRequestContext context) {
         SemanticQueryResponse terminal = terminalResponseIfAny(request);
         if (terminal != null) {
-            return terminal;
+            return QueryInputWarnings.attach(terminal, request);
         }
         SemanticQueryResponse semanticSqlPlan = semanticSqlPlanResponseIfAny(model, request, context);
         if (semanticSqlPlan != null) {
-            return semanticSqlPlan;
+            return QueryInputWarnings.attach(semanticSqlPlan, request);
         }
         SemanticQueryResponse memoryGridPlan = memoryGridPlanResponseIfAny(request, context);
         if (memoryGridPlan != null) {
-            return memoryGridPlan;
+            return QueryInputWarnings.attach(memoryGridPlan, request);
         }
         SemanticQueryResponse dslCtePlan = dslCtePlanResponseIfAny(request);
         if (dslCtePlan != null) {
-            return dslCtePlan;
+            return QueryInputWarnings.attach(dslCtePlan, request);
         }
-        return validateQueryInternal(model, request, context);
+        return QueryInputWarnings.attach(validateQueryInternal(model, request, context), request);
     }
 
     @Override

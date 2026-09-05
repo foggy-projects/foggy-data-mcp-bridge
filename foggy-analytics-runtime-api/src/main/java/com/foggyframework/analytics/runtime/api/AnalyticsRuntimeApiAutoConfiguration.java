@@ -41,6 +41,7 @@ import com.foggyframework.dataset.model.semantic.port.SemanticModelCatalogReadPo
 import com.foggyframework.dataset.model.semantic.port.SemanticQueryExecutionPort;
 import com.foggyframework.dataset.model.semantic.port.ComposeExecutionPort;
 import com.foggyframework.dataset.model.engine.compose.security.AuthorityResolver;
+import com.foggyframework.dataset.model.config.DatasetProperties;
 import com.foggyframework.dataset.model.semantic.service.SemanticServiceV3;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -215,7 +216,9 @@ public class AnalyticsRuntimeApiAutoConfiguration {
             FoggySemanticRequestContextResolver semanticContextResolver,
             FoggyComposeCallerResolver composeCallerResolver,
             ObjectMapper objectMapper,
+            ObjectProvider<DatasetProperties> datasetPropertiesProvider,
             @Value("${foggy.compose.dialect:mysql}") String composeDialect) {
+        DatasetProperties datasetProperties = datasetPropertiesProvider.getIfAvailable(DatasetProperties::new);
         return new FoggyAnalyticsAdvancedSemanticFunctionOperations(
                 new FoggyQueryAuthorityResolver(
                         catalogReadPort,
@@ -225,7 +228,9 @@ public class AnalyticsRuntimeApiAutoConfiguration {
                 composeExecutionPort,
                 objectMapper,
                 properties.getMaxRows(),
-                composeDialect);
+                composeDialect,
+                com.foggyframework.analytics.runtime.foggy.FoggyAnalyticsNamespaceMapper.defaultConvention(),
+                datasetProperties.getQuery().getUnknownPropertyPolicy());
     }
 
     @Bean

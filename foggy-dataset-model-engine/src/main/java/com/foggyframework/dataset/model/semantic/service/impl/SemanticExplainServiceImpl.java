@@ -191,7 +191,8 @@ public class SemanticExplainServiceImpl implements SemanticExplainService {
                     new SemanticExplainResponse.SqlTrace(
                             false, null, null, null, List.of(),
                             Confidence.OPAQUE, "NOT_EVALUATED"),
-                    deduplicatedLimitations(limitations));
+                    deduplicatedLimitations(limitations),
+                    List.of());
         }
 
         SemanticQueryRequest originalDsl = deepCopy(payload, SemanticQueryRequest.class);
@@ -253,7 +254,10 @@ public class SemanticExplainServiceImpl implements SemanticExplainService {
                         StageStatus.NOT_EVALUATED,
                         "NOT_EVALUATED"),
                 sqlTrace,
-                deduplicatedLimitations(limitations));
+                deduplicatedLimitations(limitations),
+                payload.getQueryInputWarnings() == null
+                        ? List.of()
+                        : List.copyOf(payload.getQueryInputWarnings()));
     }
 
     private SemanticExplainResponse.DefinitionTrace buildDefinitionTrace(

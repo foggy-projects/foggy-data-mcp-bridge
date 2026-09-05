@@ -2,6 +2,7 @@ package com.foggyframework.dataset.model.controller;
 
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.dataset.model.config.SemanticProperties;
+import com.foggyframework.dataset.model.config.DatasetProperties;
 import com.foggyframework.dataset.model.semantic.domain.SemanticMetadataRequest;
 import com.foggyframework.dataset.model.semantic.domain.SemanticMetadataResponse;
 import com.foggyframework.dataset.model.semantic.domain.SemanticQueryRequest;
@@ -9,6 +10,8 @@ import com.foggyframework.dataset.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.model.semantic.service.SemanticServiceV3;
+import com.foggyframework.dataset.model.semantic.support.SemanticQueryPayloadMapper;
+import com.foggyframework.dataset.model.semantic.support.QueryInputWarnings;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
 import jakarta.annotation.Resource;
@@ -20,6 +23,7 @@ import org.springframework.context.ApplicationContextAware;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Arrays;
+import java.util.Map;
 
 /**
  * 语义元数据接口控制器
@@ -40,6 +44,12 @@ public class SemanticController implements ApplicationContextAware {
 
     @Resource
     SemanticProperties semanticProperties;
+
+    @Resource
+    SemanticQueryPayloadMapper semanticQueryPayloadMapper;
+
+    @Resource
+    DatasetProperties datasetProperties;
 
     @Override
     public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
@@ -120,9 +130,12 @@ public class SemanticController implements ApplicationContextAware {
             @ApiParam(value = "模型名称", required = true) @PathVariable String model,
             @ApiParam(value = "查询模式: execute(执行) | validate(验证)", defaultValue = "execute")
             @RequestParam(value = "mode", defaultValue = "execute") String mode,
-            @RequestBody SemanticQueryRequest request,
+            @RequestBody Map<String, Object> payload,
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestHeader(value = "X-NS", required = false) String namespace) throws InterruptedException {
+
+        SemanticQueryRequest request = semanticQueryPayloadMapper.toQueryRequest(
+                payload, datasetProperties.getQuery().getUnknownPropertyPolicy());
 
         // 记录接口调用的详细参数信息
         logger.info("=== 语义查询接口调用开始 ===");
@@ -143,6 +156,7 @@ public class SemanticController implements ApplicationContextAware {
 //        Thread.sleep(2000L);
         SemanticRequestContext ctx = SemanticRequestContext.of(namespace, authorization);
         SemanticQueryResponse response = semanticQueryService.queryModel(model, request, mode, ctx);
+        QueryInputWarnings.attach(response, request);
 
         // 记录响应基本信息
         logger.info("语义查询完成 - 模型: {}, 返回记录数: {}, 执行时间: {}ms",

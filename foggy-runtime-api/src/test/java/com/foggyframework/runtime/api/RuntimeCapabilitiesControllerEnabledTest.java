@@ -38,6 +38,7 @@ import com.foggyframework.runtime.api.service.RuntimeDatasourceRegistryService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -453,6 +454,39 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(body.path("success").asBoolean()).isTrue();
         assertThat(body.path("data").path("debug").path("durationMs").asLong()).isEqualTo(12L);
         verify(semanticQueryServiceV3).queryModel(eq("OrderModel"), any(SemanticQueryRequest.class), eq("validate"), any());
+    }
+
+    @Test
+    void shouldPropagateUnknownQueryPropertyWarningsThroughRuntimeEnvelope() {
+        SemanticQueryResponse queryResponse = new SemanticQueryResponse();
+        queryResponse.setItems(List.of());
+        when(semanticQueryServiceV3.queryModel(
+                eq("OrderModel"), any(SemanticQueryRequest.class), eq("execute"), any()))
+                .thenReturn(queryResponse);
+
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                BASE_URL + "/api/v1/query/OrderModel/execute",
+                Map.of("payload", Map.of(
+                        "groupBy", List.of(Map.of(
+                                "field", "orderDate$month",
+                                "grain", "month")))),
+                JsonNode.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(body.path("data").path("queryInputWarnings").get(0).path("code").asText())
+                .isEqualTo("UNKNOWN_QUERY_PROPERTY_IGNORED");
+        assertThat(body.path("data").path("queryInputWarnings").get(0).path("path").asText())
+                .isEqualTo("$.groupBy[0].grain");
+
+        ArgumentCaptor<SemanticQueryRequest> requestCaptor =
+                ArgumentCaptor.forClass(SemanticQueryRequest.class);
+        verify(semanticQueryServiceV3).queryModel(
+                eq("OrderModel"), requestCaptor.capture(), eq("execute"), any());
+        assertThat(requestCaptor.getValue().getGroupBy().get(0).getField())
+                .isEqualTo("orderDate$month");
     }
 
     @Test

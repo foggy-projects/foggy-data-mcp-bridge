@@ -40,6 +40,12 @@
                 "type": "string",
                 "description": "表达式，支持算术运算、函数、窗口函数(RANK/ROW_NUMBER/LAG等)，以及受限 CALCULATE(SUM(metric), REMOVE(groupByDim))"
               },
+              "caption": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
               "agg": {
                 "type": "string",
                 "enum": [
@@ -78,19 +84,27 @@
                         "desc"
                       ]
                     }
-                  }
+                  },
+                  "additionalProperties": false
                 },
                 "description": "窗口函数 ORDER BY"
               },
               "windowFrame": {
                 "type": "string",
                 "description": "窗口帧，如 ROWS BETWEEN 6 PRECEDING AND CURRENT ROW"
+              },
+              "type": {
+                "type": "string"
+              },
+              "emptyDefault": {
+                "description": "空结果默认值"
               }
             },
             "required": [
               "name",
               "expression"
-            ]
+            ],
+            "additionalProperties": false
           }
         },
         "columns": {
@@ -129,7 +143,8 @@
                 "required": [
                   "field",
                   "op"
-                ]
+                ],
+                "additionalProperties": false
               },
               {
                 "type": "object",
@@ -142,7 +157,8 @@
                 },
                 "required": [
                   "$expr"
-                ]
+                ],
+                "additionalProperties": false
               },
               {
                 "type": "object",
@@ -158,7 +174,8 @@
                 },
                 "required": [
                   "$or"
-                ]
+                ],
+                "additionalProperties": false
               },
               {
                 "type": "object",
@@ -174,7 +191,8 @@
                 },
                 "required": [
                   "$and"
-                ]
+                ],
+                "additionalProperties": false
               },
               {
                 "type": "object",
@@ -214,6 +232,10 @@
                     "type": "string",
                     "description": "排序字段"
                   },
+                  "column": {
+                    "type": "string",
+                    "description": "field 的兼容别名"
+                  },
                   "dir": {
                     "type": "string",
                     "enum": [
@@ -224,6 +246,16 @@
                     ],
                     "default": "asc"
                   },
+                  "direction": {
+                    "type": "string",
+                    "enum": [
+                      "asc",
+                      "desc",
+                      "ASC",
+                      "DESC"
+                    ],
+                    "description": "dir 的兼容别名"
+                  },
                   "nullFirst": {
                     "type": "boolean"
                   },
@@ -233,7 +265,8 @@
                 },
                 "required": [
                   "field"
-                ]
+                ],
+                "additionalProperties": false
               }
             ]
           }
@@ -272,7 +305,8 @@
                 },
                 "required": [
                   "field"
-                ]
+                ],
+                "additionalProperties": false
               }
             ]
           }
@@ -350,7 +384,8 @@
             "field",
             "grain",
             "comparison"
-          ]
+          ],
+          "additionalProperties": false
         },
         "start": {
           "type": "integer",
@@ -408,6 +443,27 @@
                       "limit": {
                         "type": "integer"
                       },
+                      "start": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "offset": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "domainSlice": {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/properties/payload/properties/slice/items"
+                        }
+                      },
+                      "slice": {
+                        "type": "array",
+                        "description": "domainSlice 的兼容别名",
+                        "items": {
+                          "$ref": "#/properties/payload/properties/slice/items"
+                        }
+                      },
                       "orderBy": {
                         "type": "array",
                         "items": {
@@ -441,13 +497,15 @@
                             "metric",
                             "op",
                             "value"
-                          ]
+                          ],
+                          "additionalProperties": false
                         }
                       }
                     },
                     "required": [
                       "field"
-                    ]
+                    ],
+                    "additionalProperties": false
                   }
                 ]
               }
@@ -479,6 +537,27 @@
                       "limit": {
                         "type": "integer"
                       },
+                      "start": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "offset": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "domainSlice": {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/properties/payload/properties/slice/items"
+                        }
+                      },
+                      "slice": {
+                        "type": "array",
+                        "description": "domainSlice 的兼容别名",
+                        "items": {
+                          "$ref": "#/properties/payload/properties/slice/items"
+                        }
+                      },
                       "orderBy": {
                         "type": "array",
                         "items": {
@@ -512,13 +591,15 @@
                             "metric",
                             "op",
                             "value"
-                          ]
+                          ],
+                          "additionalProperties": false
                         }
                       }
                     },
                     "required": [
                       "field"
-                    ]
+                    ],
+                    "additionalProperties": false
                   }
                 ]
               }
@@ -593,7 +674,8 @@
                   "type": "boolean",
                   "description": "总计。不能与 hierarchyMode=tree 同用。"
                 }
-              }
+              },
+              "additionalProperties": false
             },
             "layout": {
               "type": "object",
@@ -606,7 +688,8 @@
                     "rows"
                   ]
                 }
-              }
+              },
+              "additionalProperties": false
             },
             "outputFormat": {
               "type": "string",
@@ -621,7 +704,8 @@
           "required": [
             "rows",
             "metrics"
-          ]
+          ],
+          "additionalProperties": false
         }
       },
       "allOf": [
@@ -674,5 +758,6 @@
   "required": [
     "model",
     "payload"
-  ]
+  ],
+  "additionalProperties": false
 }

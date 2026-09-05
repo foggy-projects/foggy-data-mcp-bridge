@@ -15,6 +15,11 @@
   - 动态 Bundle 管理 API
   - 配置示例和最佳实践
 
+- **[Query Input Validation](query-input-validation.md)** - Query DSL 未知属性治理
+  - ignore / warn / strict 策略
+  - 结构化告警与入口传播
+  - 受保护属性的 fail-closed 规则
+
 ## 快速链接
 
 - **[开发路线图](../roadmap.md)** - 版本规划与技术演进

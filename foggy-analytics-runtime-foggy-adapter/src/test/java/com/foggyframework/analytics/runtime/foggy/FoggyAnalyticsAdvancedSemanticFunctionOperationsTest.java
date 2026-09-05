@@ -19,6 +19,7 @@ import com.foggyframework.dataset.model.semantic.port.ComposeExecutionRequest;
 import com.foggyframework.dataset.model.semantic.port.ComposeExecutionResult;
 import com.foggyframework.dataset.model.semantic.port.ComposeOperation;
 import com.foggyframework.dataset.model.semantic.port.SemanticQueryExecutionPort;
+import com.foggyframework.dataset.model.semantic.support.UnknownQueryPropertyPolicy;
 import com.foggyframework.dataset.model.spi.QueryModel;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -31,6 +32,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class FoggyAnalyticsAdvancedSemanticFunctionOperationsTest {
@@ -124,6 +126,93 @@ class FoggyAnalyticsAdvancedSemanticFunctionOperationsTest {
         assertThat(context.getValue().getPermissionAction())
                 .isEqualTo(PermissionAction.VALIDATE);
         assertThat(result.response()).containsKey("items");
+    }
+
+    @Test
+    void propagatesStructuredUnknownPropertyWarnings() {
+        FoggyQueryAuthorityResolver authorityResolver = mock(FoggyQueryAuthorityResolver.class);
+        SemanticQueryExecutionPort queryPort = mock(SemanticQueryExecutionPort.class);
+        FoggyAnalyticsAuthority authority = mock(FoggyAnalyticsAuthority.class);
+        @SuppressWarnings("unchecked")
+        CatalogResolution<QueryModel> catalog = mock(CatalogResolution.class);
+        when(authorityResolver.resolveCurrent(any())).thenReturn(authority);
+        when(authority.catalogResolution()).thenReturn(catalog);
+        when(authority.semanticRequestContext()).thenReturn(
+                com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext.empty());
+        when(catalog.canonicalName()).thenReturn("FactOrderQueryModel");
+        SemanticQueryResponse response = new SemanticQueryResponse();
+        response.setItems(List.of());
+        when(queryPort.queryModel(eq("FactOrderQueryModel"), any(), eq("execute"), any()))
+                .thenReturn(response);
+        FoggyAnalyticsAdvancedSemanticFunctionOperations operations = operations(
+                authorityResolver,
+                request -> new ComposeCaller("user-1", null, List.of(), null, null, null),
+                queryPort,
+                mock(ComposeExecutionPort.class));
+
+        var result = operations.runQueryModel(
+                new AnalyticsQueryModelFunctionRequest(
+                        "default",
+                        "FactOrderQueryModel",
+                        "execute",
+                        Map.of("groupBy", List.of(Map.of(
+                                "field", "orderDate$month",
+                                "grain", "month"))),
+                        AUTHORITY,
+                        REQUEST_CONTEXT),
+                AnalyticsFunctionContext.normalize(REQUEST_CONTEXT));
+
+        assertThat(result.response().get("queryInputWarnings")).isInstanceOf(List.class);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> warnings =
+                (List<Map<String, Object>>) result.response().get("queryInputWarnings");
+        assertThat(warnings).hasSize(1);
+        assertThat(warnings.get(0))
+                .containsEntry("code", "UNKNOWN_QUERY_PROPERTY_IGNORED")
+                .containsEntry("path", "$.groupBy[0].grain");
+    }
+
+    @Test
+    void strictModeRejectsUnknownPropertyBeforeExecution() {
+        FoggyQueryAuthorityResolver authorityResolver = mock(FoggyQueryAuthorityResolver.class);
+        SemanticQueryExecutionPort queryPort = mock(SemanticQueryExecutionPort.class);
+        FoggyAnalyticsAuthority authority = mock(FoggyAnalyticsAuthority.class);
+        @SuppressWarnings("unchecked")
+        CatalogResolution<QueryModel> catalog = mock(CatalogResolution.class);
+        when(authorityResolver.resolveCurrent(any())).thenReturn(authority);
+        when(authority.catalogResolution()).thenReturn(catalog);
+        when(authority.semanticRequestContext()).thenReturn(
+                com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext.empty());
+        when(catalog.canonicalName()).thenReturn("FactOrderQueryModel");
+        FoggyAnalyticsAdvancedSemanticFunctionOperations operations =
+                new FoggyAnalyticsAdvancedSemanticFunctionOperations(
+                        authorityResolver,
+                        request -> new ComposeCaller("user-1", null, List.of(), null, null, null),
+                        queryPort,
+                        mock(ComposeExecutionPort.class),
+                        new ObjectMapper(),
+                        100,
+                        "sqlite",
+                        FoggyAnalyticsNamespaceMapper.defaultConvention(),
+                        UnknownQueryPropertyPolicy.STRICT);
+
+        AnalyticsSemanticFunctionException failure = org.junit.jupiter.api.Assertions.assertThrows(
+                AnalyticsSemanticFunctionException.class,
+                () -> operations.runQueryModel(
+                        new AnalyticsQueryModelFunctionRequest(
+                                "default",
+                                "FactOrderQueryModel",
+                                "execute",
+                                Map.of("groupBy", List.of(Map.of(
+                                        "field", "orderDate", "grain", "month"))),
+                                AUTHORITY,
+                                REQUEST_CONTEXT),
+                        AnalyticsFunctionContext.normalize(REQUEST_CONTEXT)));
+
+        assertThat(failure.code())
+                .isEqualTo(AnalyticsSemanticFunctionException.Code.QUERY_INVALID);
+        assertThat(failure.validationCode()).isEqualTo("UNKNOWN_QUERY_PROPERTY");
+        verifyNoInteractions(queryPort);
     }
 
     @Test

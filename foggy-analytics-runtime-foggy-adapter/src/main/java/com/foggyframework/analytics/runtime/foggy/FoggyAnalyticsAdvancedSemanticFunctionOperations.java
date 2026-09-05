@@ -24,6 +24,8 @@ import com.foggyframework.dataset.model.semantic.port.ComposeExecutionResult;
 import com.foggyframework.dataset.model.semantic.port.ComposeOperation;
 import com.foggyframework.dataset.model.semantic.port.SemanticQueryExecutionPort;
 import com.foggyframework.dataset.model.semantic.support.SemanticQueryPayloadMapper;
+import com.foggyframework.dataset.model.semantic.support.UnknownQueryPropertyPolicy;
+import com.foggyframework.dataset.model.semantic.support.QueryInputWarnings;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -49,6 +51,8 @@ public final class FoggyAnalyticsAdvancedSemanticFunctionOperations
             "DSL_CTE_",
             "OUTPUT_FORMATTING_",
             "QUERY_MODEL_",
+            "UNKNOWN_QUERY_",
+            "PROTECTED_QUERY_",
             "SEMANTIC_SQL_",
             "TERMINAL_PLAN_",
             "TIME_WINDOW_");
@@ -59,6 +63,7 @@ public final class FoggyAnalyticsAdvancedSemanticFunctionOperations
     private final ComposeExecutionPort composeExecutionPort;
     private final ObjectMapper json;
     private final SemanticQueryPayloadMapper queryPayloadMapper;
+    private final UnknownQueryPropertyPolicy unknownQueryPropertyPolicy;
     private final int maxRows;
     private final String composeDialect;
     private final FoggyAnalyticsNamespaceMapper namespaceMapper;
@@ -91,6 +96,21 @@ public final class FoggyAnalyticsAdvancedSemanticFunctionOperations
             int maxRows,
             String composeDialect,
             FoggyAnalyticsNamespaceMapper namespaceMapper) {
+        this(queryAuthorityResolver, composeCallerResolver, queryExecutionPort,
+                composeExecutionPort, json, maxRows, composeDialect, namespaceMapper,
+                UnknownQueryPropertyPolicy.WARN);
+    }
+
+    public FoggyAnalyticsAdvancedSemanticFunctionOperations(
+            FoggyQueryAuthorityResolver queryAuthorityResolver,
+            FoggyComposeCallerResolver composeCallerResolver,
+            SemanticQueryExecutionPort queryExecutionPort,
+            ComposeExecutionPort composeExecutionPort,
+            ObjectMapper json,
+            int maxRows,
+            String composeDialect,
+            FoggyAnalyticsNamespaceMapper namespaceMapper,
+            UnknownQueryPropertyPolicy unknownQueryPropertyPolicy) {
         this.queryAuthorityResolver = Objects.requireNonNull(
                 queryAuthorityResolver, "queryAuthorityResolver");
         this.composeCallerResolver = Objects.requireNonNull(
@@ -101,6 +121,7 @@ public final class FoggyAnalyticsAdvancedSemanticFunctionOperations
                 composeExecutionPort, "composeExecutionPort");
         this.json = Objects.requireNonNull(json, "json").copy();
         this.queryPayloadMapper = new SemanticQueryPayloadMapper(this.json);
+        this.unknownQueryPropertyPolicy = UnknownQueryPropertyPolicy.orDefault(unknownQueryPropertyPolicy);
         if (maxRows < 1) {
             throw new IllegalArgumentException("maxRows must be positive");
         }
@@ -116,7 +137,8 @@ public final class FoggyAnalyticsAdvancedSemanticFunctionOperations
         FoggyAnalyticsAuthority authority = resolveModel(request, context);
         SemanticQueryRequest semanticRequest;
         try {
-            semanticRequest = queryPayloadMapper.toQueryRequest(request.payload());
+            semanticRequest = queryPayloadMapper.toQueryRequest(
+                    request.payload(), unknownQueryPropertyPolicy);
             Integer requestedLimit = semanticRequest.getLimit();
             if (requestedLimit == null || requestedLimit > maxRows) {
                 semanticRequest.setLimit(maxRows);
@@ -133,6 +155,7 @@ public final class FoggyAnalyticsAdvancedSemanticFunctionOperations
                             "validate".equals(request.mode())
                                     ? PermissionAction.VALIDATE
                                     : PermissionAction.EXECUTE));
+            QueryInputWarnings.attach(response, semanticRequest);
             if (response == null) {
                 throw failure(
                         AnalyticsSemanticFunctionException.Code.RESPONSE_INVALID,

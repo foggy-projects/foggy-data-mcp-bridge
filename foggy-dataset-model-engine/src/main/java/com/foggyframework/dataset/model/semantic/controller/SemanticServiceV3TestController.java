@@ -7,6 +7,9 @@ import com.foggyframework.dataset.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.model.semantic.service.SemanticServiceV3;
+import com.foggyframework.dataset.model.semantic.support.SemanticQueryPayloadMapper;
+import com.foggyframework.dataset.model.semantic.support.QueryInputWarnings;
+import com.foggyframework.dataset.model.config.DatasetProperties;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
@@ -15,6 +18,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Collections;
+import java.util.Map;
 
 /**
  * V3版本语义服务测试Controller
@@ -37,6 +41,12 @@ public class SemanticServiceV3TestController {
 
     @Resource
     private SemanticQueryServiceV3 semanticQueryServiceV3;
+
+    @Resource
+    private SemanticQueryPayloadMapper semanticQueryPayloadMapper;
+
+    @Resource
+    private DatasetProperties datasetProperties;
 
     /**
      * 获取模型元数据（V3版本：维度展开）
@@ -85,10 +95,14 @@ public class SemanticServiceV3TestController {
     @PostMapping("/query/{model}")
     public SemanticQueryResponse queryModel(
             @ApiParam("模型名称") @PathVariable String model,
-            @RequestBody SemanticQueryRequest request,
+            @RequestBody Map<String, Object> payload,
             @ApiParam("执行模式：execute/validate") @RequestParam(defaultValue = "execute") String mode) {
 
-        return semanticQueryServiceV3.queryModel(model, request, mode, SemanticRequestContext.empty());
+        SemanticQueryRequest request = semanticQueryPayloadMapper.toQueryRequest(
+                payload, datasetProperties.getQuery().getUnknownPropertyPolicy());
+        return QueryInputWarnings.attach(
+                semanticQueryServiceV3.queryModel(model, request, mode, SemanticRequestContext.empty()),
+                request);
     }
 
     /**
@@ -102,8 +116,12 @@ public class SemanticServiceV3TestController {
     @PostMapping("/validate/{model}")
     public SemanticQueryResponse validateQuery(
             @ApiParam("模型名称") @PathVariable String model,
-            @RequestBody SemanticQueryRequest request) {
+            @RequestBody Map<String, Object> payload) {
 
-        return semanticQueryServiceV3.validateQuery(model, request, SemanticRequestContext.empty());
+        SemanticQueryRequest request = semanticQueryPayloadMapper.toQueryRequest(
+                payload, datasetProperties.getQuery().getUnknownPropertyPolicy());
+        return QueryInputWarnings.attach(
+                semanticQueryServiceV3.validateQuery(model, request, SemanticRequestContext.empty()),
+                request);
     }
 }

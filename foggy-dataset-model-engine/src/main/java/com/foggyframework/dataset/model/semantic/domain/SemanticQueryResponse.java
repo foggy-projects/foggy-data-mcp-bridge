@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.model.semantic.domain;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.foggyframework.dataset.model.spi.DbColumnType;
 import io.swagger.annotations.ApiModel;
@@ -39,6 +40,10 @@ public class SemanticQueryResponse {
 
     @ApiModelProperty(value = "警告信息")
     private List<String> warnings;
+
+    @ApiModelProperty(value = "Query DSL 输入检查产生的结构化警告")
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private List<QueryInputWarning> queryInputWarnings;
 
     @ApiModelProperty(value = "调试信息")
     private DebugInfo debug;

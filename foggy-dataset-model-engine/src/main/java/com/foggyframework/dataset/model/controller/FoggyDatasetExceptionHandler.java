@@ -2,11 +2,17 @@ package com.foggyframework.dataset.model.controller;
 
 import com.foggyframework.core.ex.ExRuntimeExceptionImpl;
 import com.foggyframework.core.ex.RX;
+import com.foggyframework.dataset.model.semantic.support.QueryInputValidationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.bind.annotation.ResponseStatus;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * Foggy Dataset Model 模块的异常处理器
@@ -30,6 +36,24 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class FoggyDatasetExceptionHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(FoggyDatasetExceptionHandler.class);
+
+    /**
+     * Reject strict-mode or protected Query DSL properties before execution.
+     */
+    @ExceptionHandler(QueryInputValidationException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public RX<?> handleQueryInputValidationException(QueryInputValidationException ex) {
+        logger.warn("Query DSL input rejected: code={}, violations={}",
+                ex.getCode(), ex.getViolations().size());
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("code", ex.getCode());
+        details.put("violations", ex.getViolations());
+        return RX.builder()
+                .code(HttpStatus.BAD_REQUEST.value())
+                .message(ex.getMessage())
+                .error(details)
+                .build();
+    }
 
     /**
      * 处理业务异常 (ExRuntimeExceptionImpl)

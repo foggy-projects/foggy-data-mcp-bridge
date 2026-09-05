@@ -10,6 +10,7 @@ import com.foggyframework.dataset.model.semantic.domain.SemanticMetadataResponse
 import com.foggyframework.dataset.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.model.semantic.support.UnknownQueryPropertyPolicy;
 import com.foggyframework.dataset.mcp.config.McpProperties;
 import com.foggyframework.dataset.mcp.spi.SemanticServiceResolver;
 import org.junit.jupiter.api.BeforeEach;
@@ -456,6 +457,67 @@ class LocalDatasetAccessorGovernanceTest {
         assertEquals(1, item.getScale());
         assertEquals("HALF_UP", item.getMode());
         assertEquals("display_only", item.getScope());
+    }
+
+    @Test
+    @DisplayName("MCP warn 模式应返回结构化告警且仍按支持的 DSL 执行")
+    void queryShouldPropagateUnknownPropertyWarning() {
+        SemanticQueryResponse response = new SemanticQueryResponse();
+        response.setItems(List.of());
+        when(semanticServiceResolver.queryModel(
+                anyString(), any(SemanticQueryRequest.class), eq("execute"), any(SemanticRequestContext.class)))
+                .thenReturn(response);
+
+        RX<SemanticQueryResponse> result = accessor.queryModel(
+                "FactOrderQueryModel",
+                Map.of("groupBy", List.of(Map.of(
+                        "field", "orderDate$month",
+                        "grain", "month"))),
+                "execute",
+                "trace-query-warning",
+                null,
+                null);
+
+        assertNotNull(result.getData());
+        assertEquals(1, result.getData().getQueryInputWarnings().size());
+        assertEquals("UNKNOWN_QUERY_PROPERTY_IGNORED",
+                result.getData().getQueryInputWarnings().get(0).code());
+        assertEquals("$.groupBy[0].grain",
+                result.getData().getQueryInputWarnings().get(0).path());
+
+        ArgumentCaptor<SemanticQueryRequest> requestCaptor =
+                ArgumentCaptor.forClass(SemanticQueryRequest.class);
+        verify(semanticServiceResolver).queryModel(
+                eq("FactOrderQueryModel"), requestCaptor.capture(), eq("execute"),
+                any(SemanticRequestContext.class));
+        assertEquals("orderDate$month", requestCaptor.getValue().getGroupBy().get(0).getField());
+    }
+
+    @Test
+    @DisplayName("MCP strict 模式应在执行前返回全部未知属性违规")
+    void queryShouldRejectUnknownPropertiesBeforeExecutionInStrictMode() {
+        DatasetProperties strictProperties = new DatasetProperties();
+        strictProperties.getQuery().setUnknownPropertyPolicy(UnknownQueryPropertyPolicy.STRICT);
+        accessor = new LocalDatasetAccessor(
+                semanticServiceResolver, createMcpProperties(), strictProperties);
+
+        RX<SemanticQueryResponse> result = accessor.queryModel(
+                "FactOrderQueryModel",
+                Map.of(
+                        "groupBy", List.of(Map.of("field", "orderDate", "grain", "month")),
+                        "orderBy", List.of(Map.of("field", "amount", "descending", true))),
+                "execute",
+                "trace-query-strict",
+                null,
+                null);
+
+        assertEquals(400, result.getCode());
+        assertNull(result.getData());
+        assertTrue(result.getEt() instanceof Map<?, ?>);
+        Map<?, ?> error = (Map<?, ?>) result.getEt();
+        assertEquals("UNKNOWN_QUERY_PROPERTY", error.get("code"));
+        assertEquals(2, ((List<?>) error.get("violations")).size());
+        verifyNoInteractions(semanticServiceResolver);
     }
 
     @Test

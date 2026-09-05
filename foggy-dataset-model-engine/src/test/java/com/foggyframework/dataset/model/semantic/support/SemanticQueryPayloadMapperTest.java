@@ -21,6 +21,13 @@ class SemanticQueryPayloadMapperTest {
     private final SemanticQueryPayloadMapper mapper = new SemanticQueryPayloadMapper(new ObjectMapper());
 
     @Test
+    void absentStartShouldKeepRequestDefault() {
+        SemanticQueryRequest request = mapper.toQueryRequest(Map.of("columns", List.of("id")));
+
+        assertEquals(0, request.getStart());
+    }
+
+    @Test
     @DisplayName("valid logical slice group should be preserved")
     void validLogicalSliceGroupShouldBePreserved() {
         Map<String, Object> payload = Map.of(
@@ -131,6 +138,36 @@ class SemanticQueryPayloadMapperTest {
                 .get(1).getMaxDepth());
         assertEquals("payAmount > costAmount",
                 SemanticRequestNormalizer.toJdbcSlices(request.getSlice()).get(2).getExpr());
+    }
+
+    @Test
+    @DisplayName("warn mode keeps raw-input diagnostics while mapping only supported properties")
+    void warnModeShouldAttachDiagnosticsBeforeUnknownPropertiesAreDropped() {
+        SemanticQueryRequest request = mapper.toQueryRequest(
+                Map.of("groupBy", List.of(Map.of(
+                        "field", "orderDate$month",
+                        "grain", "month"))),
+                UnknownQueryPropertyPolicy.WARN);
+
+        assertEquals("orderDate$month", request.getGroupBy().get(0).getField());
+        assertNull(request.getGroupBy().get(0).getAgg());
+        assertEquals(1, request.getQueryInputWarnings().size());
+        assertEquals("$.groupBy[0].grain", request.getQueryInputWarnings().get(0).path());
+    }
+
+    @Test
+    @DisplayName("known payload remains warning-free and maps post-aggregate display fields")
+    void knownPayloadShouldRemainWarningFree() {
+        SemanticQueryRequest request = mapper.toQueryRequest(Map.of(
+                "columns", List.of("amount"),
+                "postAggregateCalculations", List.of(Map.of(
+                        "name", "share", "kind", "share", "measure", "amount")),
+                "outputFormatting", List.of(Map.of(
+                        "field", "share", "kind", "decimal", "scale", 2))));
+
+        assertTrue(request.getQueryInputWarnings().isEmpty());
+        assertEquals("share", request.getPostAggregateCalculations().get(0).getName());
+        assertEquals("share", request.getOutputFormatting().get(0).getField());
     }
 
     private void assertInvalidSliceElement(Object element, String expectedMessagePart) {

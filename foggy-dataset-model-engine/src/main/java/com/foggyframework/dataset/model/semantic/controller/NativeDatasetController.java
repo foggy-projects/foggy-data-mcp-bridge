@@ -14,6 +14,7 @@ import com.foggyframework.dataset.model.semantic.service.SemanticModelCatalogSer
 import com.foggyframework.dataset.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.model.semantic.service.SemanticServiceV3;
 import com.foggyframework.dataset.model.semantic.support.SemanticQueryPayloadMapper;
+import com.foggyframework.dataset.model.semantic.support.QueryInputWarnings;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import lombok.RequiredArgsConstructor;
@@ -64,9 +65,11 @@ public class NativeDatasetController {
                 : Collections.emptyMap();
         String mode = stringOr(request.get("mode"), "execute");
 
-        SemanticQueryRequest queryRequest = payloadMapper.toQueryRequest(payload);
+        SemanticQueryRequest queryRequest = payloadMapper.toQueryRequest(
+                payload, datasetProperties.getQuery().getUnknownPropertyPolicy());
         SemanticRequestContext context = buildContext(request, namespace, authorization);
         SemanticQueryResponse response = semanticQueryServiceV3.queryModel(model, queryRequest, mode, context);
+        QueryInputWarnings.attach(response, queryRequest);
         return RX.ok(response);
     }
 

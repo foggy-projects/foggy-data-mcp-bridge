@@ -2,9 +2,14 @@ package com.foggyframework.dataset.model.controller;
 
 import com.foggyframework.core.ex.ExRuntimeExceptionImpl;
 import com.foggyframework.core.ex.RX;
+import com.foggyframework.dataset.model.semantic.domain.QueryInputWarning;
+import com.foggyframework.dataset.model.semantic.support.QueryInputValidationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -52,6 +57,28 @@ class FoggyDatasetExceptionHandlerTest {
         assertNotNull(result);
         assertEquals(404, result.getCode(), "Should preserve custom error code");
         assertTrue(result.getMsg().contains("查询模型不存在"));
+    }
+
+    @Test
+    @DisplayName("Query DSL strict 违规 - 返回 400 和完整结构化 violations")
+    void testHandleQueryInputValidationException() {
+        QueryInputWarning violation = new QueryInputWarning(
+                "UNKNOWN_QUERY_PROPERTY",
+                "$.groupBy[0].grain",
+                "Unknown Query DSL property 'grain' is not allowed.",
+                "Remove the property.",
+                false,
+                Map.of("property", "grain"));
+        QueryInputValidationException exception = new QueryInputValidationException(
+                "UNKNOWN_QUERY_PROPERTY", List.of(violation));
+
+        RX<?> result = handler.handleQueryInputValidationException(exception);
+
+        assertEquals(400, result.getCode());
+        assertInstanceOf(Map.class, result.getEt());
+        Map<?, ?> error = (Map<?, ?>) result.getEt();
+        assertEquals("UNKNOWN_QUERY_PROPERTY", error.get("code"));
+        assertEquals(List.of(violation), error.get("violations"));
     }
 
     // ==========================================

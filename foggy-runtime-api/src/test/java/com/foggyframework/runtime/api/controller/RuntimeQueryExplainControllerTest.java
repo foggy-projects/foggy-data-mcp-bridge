@@ -24,6 +24,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -75,6 +76,20 @@ class RuntimeQueryExplainControllerTest {
     }
 
     @Test
+    void malformedJsonReturnsBadRequestBeforeExplainExecution() throws Exception {
+        String json = mockMvc.perform(post("/api/v1/query/OrderModel/explain")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"payload\":{\"columns\":[\"amount\"]}"))
+                .andExpect(status().isBadRequest())
+                .andReturn().getResponse().getContentAsString();
+
+        JsonNode envelope = objectMapper.readTree(json);
+        assertThat(envelope.path("error").path("code").asText())
+                .isEqualTo("INVALID_DSL_SYNTAX");
+        verifyNoInteractions(explainService);
+    }
+
+    @Test
     void recompiledRequestKeepsPayloadInsideIndependentExplainContract() throws Exception {
         when(explainService.explain(eq("OrderModel"), any(), any()))
                 .thenReturn(response(SemanticExplainResponse.Basis.RECOMPILED));
@@ -102,6 +117,42 @@ class RuntimeQueryExplainControllerTest {
         assertThat(request.getValue().isIncludeSql()).isTrue();
         assertThat(request.getValue().isIncludePhysicalNames()).isTrue();
         assertThat(context.getValue().getAuthorization()).isEqualTo("Bearer caller");
+    }
+
+    @Test
+    void recompiledRequestPropagatesUnknownPropertyWarning() throws Exception {
+        when(explainService.explain(eq("OrderModel"), any(), any()))
+                .thenReturn(response(SemanticExplainResponse.Basis.RECOMPILED));
+
+        String json = mockMvc.perform(post("/api/v1/query/OrderModel/explain")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "payload": {
+                                    "groupBy": [{"field": "orderDate$month", "grain": "month"}]
+                                  }
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        JsonNode envelope = objectMapper.readTree(json);
+        JsonNode warnings = envelope.path("data").path("queryInputWarnings");
+        assertThat(warnings.isArray())
+                .withFailMessage("Expected queryInputWarnings in response: %s", envelope.toPrettyString())
+                .isTrue();
+        assertThat(warnings).hasSize(1);
+        assertThat(warnings.get(0).path("code").asText())
+                .isEqualTo("UNKNOWN_QUERY_PROPERTY_IGNORED");
+        assertThat(warnings.get(0).path("path").asText())
+                .isEqualTo("$.groupBy[0].grain");
+
+        ArgumentCaptor<SemanticExplainRequest> request =
+                ArgumentCaptor.forClass(SemanticExplainRequest.class);
+        verify(explainService).explain(eq("OrderModel"), request.capture(), any());
+        assertThat(request.getValue().getPayload().getGroupBy().get(0).getField())
+                .isEqualTo("orderDate$month");
+        assertThat(request.getValue().getPayload().getQueryInputWarnings()).hasSize(1);
     }
 
     private SemanticExplainResponse response(SemanticExplainResponse.Basis basis) {

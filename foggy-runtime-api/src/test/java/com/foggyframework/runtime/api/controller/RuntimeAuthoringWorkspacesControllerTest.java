@@ -14,6 +14,7 @@ import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
 import com.foggyframework.runtime.api.service.RuntimeAuthoringWorkspaceException;
 import com.foggyframework.runtime.api.service.RuntimeAuthoringWorkspaceService;
 import com.foggyframework.runtime.api.service.RuntimeAuthoringWorkspacePublicationService;
+import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -23,6 +24,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class RuntimeAuthoringWorkspacesControllerTest {
@@ -123,6 +125,20 @@ class RuntimeAuthoringWorkspacesControllerTest {
                 .isEqualTo("QUERY_VALIDATE_FAILED");
         assertThat(response.error().message())
                 .doesNotContain("password", "must-not-leak");
+    }
+
+    @Test
+    void malformedAuthoringQueryJsonReturnsBadRequestWithoutCallingService() {
+        HttpServletResponse httpResponse = mock(HttpServletResponse.class);
+
+        var response = controller.validateQueryRequest(
+                "workspace-1", "Order", "{\"request\":", null, httpResponse);
+
+        assertThat(response.success()).isFalse();
+        assertThat(response.error().code()).isEqualTo("INVALID_DSL_SYNTAX");
+        assertThat(response.error().phase()).isEqualTo("workspaces.query.validate");
+        verify(httpResponse).setStatus(400);
+        verifyNoInteractions(service);
     }
 
     @Test

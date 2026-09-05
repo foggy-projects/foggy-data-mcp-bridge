@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.model.semantic.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.foggyframework.dataset.model.def.query.request.CalculatedFieldDef;
@@ -25,6 +26,13 @@ import java.util.Map;
 @Data
 @ApiModel("语义查询请求")
 public class SemanticQueryRequest {
+
+    /**
+     * Diagnostics captured from the raw public payload before unknown properties are discarded.
+     * This transport-only state is propagated to the response and never participates in planning.
+     */
+    @JsonIgnore
+    private List<QueryInputWarning> queryInputWarnings;
 
     @ApiModelProperty(value = "查询列，可含 $caption", example = "[\"customerName\", \"team$caption\", \"totalAmount\"]")
     private List<String> columns;

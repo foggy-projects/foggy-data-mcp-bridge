@@ -1,7 +1,10 @@
 package com.foggyframework.dataset.model.semantic.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.foggyframework.dataset.model.config.DatasetProperties;
 import com.foggyframework.dataset.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.model.semantic.service.SemanticServiceV3;
+import com.foggyframework.dataset.model.semantic.support.SemanticQueryPayloadMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.context.annotation.Configuration;
@@ -19,6 +22,9 @@ class SemanticServiceV3TestControllerIsolationTest {
     private final WebApplicationContextRunner contextRunner = new WebApplicationContextRunner()
             .withBean(SemanticServiceV3.class, () -> mock(SemanticServiceV3.class))
             .withBean(SemanticQueryServiceV3.class, () -> mock(SemanticQueryServiceV3.class))
+            .withBean(DatasetProperties.class, DatasetProperties::new)
+            .withBean(SemanticQueryPayloadMapper.class,
+                    () -> new SemanticQueryPayloadMapper(new ObjectMapper()))
             .withUserConfiguration(TestControllerConfiguration.class);
 
     @Test

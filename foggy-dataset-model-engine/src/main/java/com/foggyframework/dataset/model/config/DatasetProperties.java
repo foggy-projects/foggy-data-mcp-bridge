@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.model.config;
 
+import com.foggyframework.dataset.model.semantic.support.UnknownQueryPropertyPolicy;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -123,6 +124,11 @@ public class DatasetProperties {
     private RequestConfig request = new RequestConfig();
 
     /**
+     * Public Query DSL input handling.
+     */
+    private QueryConfig query = new QueryConfig();
+
+    /**
      * 数据源解析策略。
      */
     private DataSourceConfig datasource = new DataSourceConfig();
@@ -146,6 +152,15 @@ public class DatasetProperties {
          * <p>默认空字符串，保持底层默认命名空间兼容语义。</p>
          */
         private String defaultNamespace = "";
+    }
+
+    @Data
+    public static class QueryConfig {
+
+        /**
+         * Unknown property handling: IGNORE, WARN (default), or STRICT.
+         */
+        private UnknownQueryPropertyPolicy unknownPropertyPolicy = UnknownQueryPropertyPolicy.WARN;
     }
 
     @Data

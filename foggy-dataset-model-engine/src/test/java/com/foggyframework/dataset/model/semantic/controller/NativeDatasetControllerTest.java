@@ -94,7 +94,7 @@ class NativeDatasetControllerTest {
     @Test
     @DisplayName("query 使用 body.namespace")
     void queryShouldUseBodyNamespace() {
-        when(payloadMapper.toQueryRequest(anyMap())).thenReturn(new SemanticQueryRequest());
+        when(payloadMapper.toQueryRequest(anyMap(), any())).thenReturn(new SemanticQueryRequest());
 
         controller.query(Map.of("model", "Order", "payload", Map.of(), "namespace", " tms-biz "),
                 "Bearer token", null);
@@ -108,7 +108,7 @@ class NativeDatasetControllerTest {
     @Test
     @DisplayName("query 中 X-NS 优先于 body.namespace")
     void queryHeaderNamespaceShouldWinOverBodyNamespace() {
-        when(payloadMapper.toQueryRequest(anyMap())).thenReturn(new SemanticQueryRequest());
+        when(payloadMapper.toQueryRequest(anyMap(), any())).thenReturn(new SemanticQueryRequest());
 
         controller.query(Map.of("model", "Order", "payload", Map.of(), "namespace", "tms-biz"),
                 "Bearer token", " tms-ai ");
