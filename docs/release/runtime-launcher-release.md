@@ -61,8 +61,26 @@ an existing tag additionally requires `--retarget-tag`. GitHub Release is the au
 Legacy OBS replay is opt-in with `--verify-obs`; it is not part of the default publication path.
 
 Development-only `--allow-dirty` or `--skip-java-tests` runs are marked
-`releaseReady=false` in the generated manifest and must not be published. Skipping Java
-tests does not skip the Console frontend rebuild.
+`releaseReady=false` in the generated manifest and must not be published.
+
+An explicitly authorized documentation-only release may skip Java and frontend unit tests while
+still rebuilding, typechecking, and production-building the Console:
+
+```bash
+python3 scripts/release/runtime_launcher_publish.py \
+  --release-version <launcher-version> \
+  --authorized-docs-only-skip-tests \
+  --docs-only-base-ref foggy-runtime-launcher-v<previous-version>
+```
+
+This is a fail-closed exception, not a general skip switch. The packager resolves the base ref,
+records the base/head commits and every changed path in
+`validation.docsOnlyAuthorization`, and accepts only Markdown/RST/text files under a `docs`
+directory, README/CHANGELOG files, or the exact launcher distribution README. Any source,
+build, model, resource, or release-script change rejects the exception. The worktree must still be
+clean, runtime smokes remain mandatory, and the GitHub publisher still verifies all six assets and
+their checksums. Passing `--skip-java-tests` directly remains development-only and never produces a
+publishable manifest.
 
 Before either candidate or release packaging accepts the JAR, it runs
 `fap_question_delivery.py check --skip-compile` against the compiled Java catalog. This prevents

@@ -744,6 +744,23 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--target-commit")
     parser.add_argument("--repo-slug", default=DEFAULT_REPOSITORY)
+    parser.add_argument("--maven-executable", default="mvn")
+    parser.add_argument(
+        "--authorized-docs-only-skip-tests",
+        action="store_true",
+        help=(
+            "explicitly authorize the packager's fail-closed documentation-only "
+            "test-skip mode"
+        ),
+    )
+    parser.add_argument(
+        "--docs-only-base-ref",
+        default="",
+        help=(
+            "previous published launcher tag/commit used to verify that every change "
+            "is documentation-only"
+        ),
+    )
     parser.add_argument(
         "--skip-upload", action="store_true", help="package and validate locally only"
     )
@@ -794,6 +811,17 @@ def main() -> int:
             raise ReleaseError(
                 "--retarget-tag requires --replace-existing and explicit approval"
             )
+        if args.docs_only_base_ref and not args.authorized_docs_only_skip_tests:
+            raise ReleaseError(
+                "--docs-only-base-ref requires --authorized-docs-only-skip-tests"
+            )
+        if args.reuse_package and (
+            args.authorized_docs_only_skip_tests or args.docs_only_base_ref
+        ):
+            raise ReleaseError(
+                "docs-only authorization options apply while packaging and cannot be "
+                "combined with --reuse-package"
+            )
 
         package_dir = (
             args.output_dir
@@ -811,7 +839,17 @@ def main() -> int:
                 version,
                 "--output-dir",
                 str(package_dir),
+                "--maven-executable",
+                args.maven_executable,
             ]
+            if args.authorized_docs_only_skip_tests:
+                packager.extend(
+                    [
+                        "--authorized-docs-only-skip-tests",
+                        "--docs-only-base-ref",
+                        args.docs_only_base_ref,
+                    ]
+                )
             log(f"packaging standard launcher {version}")
             run(packager)
 

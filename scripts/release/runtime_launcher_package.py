@@ -48,6 +48,11 @@ SOURCE_HOST_PUBLICATION_MANIFEST = (
 )
 FAP_DELIVERY_TOOL = Path(__file__).with_name("fap_question_delivery.py")
 
+DOCS_ONLY_EXTENSIONS = frozenset({".md", ".rst", ".txt"})
+DOCS_ONLY_EXACT_PATHS = frozenset({
+    "foggy-mcp-launcher/src/main/distribution/README-foggy-runtime-launcher.md",
+})
+
 CONSOLE_JAR_PATTERN = re.compile(r"BOOT-INF/lib/foggy-analytics-console-[^/]+\.jar$")
 ANALYTICS_RUNTIME_JAR_PATTERN = re.compile(
     r"BOOT-INF/lib/foggy-analytics-runtime-api-[^/]+\.jar$"
@@ -567,6 +572,7 @@ def maven_build_commands(
                 "-Dmaven.test.skip=true",
                 "-DskipTests=true",
                 "-DskipUnitTests=true",
+                "-Dfoggy.analytics-console.frontend.test.skip=true",
             ]
         )
     elif candidate:
@@ -599,6 +605,59 @@ def _worktree_dirty() -> bool:
 
 def _tracked_worktree_dirty() -> bool:
     return bool(_git_output("status", "--porcelain", "--untracked-files=no"))
+
+
+def _is_docs_only_path(relative_path: str) -> bool:
+    normalized = PurePosixPath(relative_path.replace("\\", "/"))
+    path_text = str(normalized)
+    if path_text in DOCS_ONLY_EXACT_PATHS:
+        return True
+    if normalized.suffix.lower() not in DOCS_ONLY_EXTENSIONS:
+        return False
+    return "docs" in normalized.parts or normalized.name.lower().startswith(
+        ("readme", "changelog")
+    )
+
+
+def validate_authorized_docs_only_release(base_ref: str) -> dict[str, object]:
+    if not base_ref or not base_ref.strip():
+        raise ReleaseValidationError(
+            "--authorized-docs-only-skip-tests requires --docs-only-base-ref"
+        )
+    try:
+        base_commit = _git_output("rev-parse", f"{base_ref}^{{commit}}")
+    except subprocess.CalledProcessError as exc:
+        raise ReleaseValidationError(
+            f"cannot resolve docs-only base ref: {base_ref}"
+        ) from exc
+    head_commit = _git_output("rev-parse", "HEAD")
+    changed_paths = tuple(
+        path
+        for path in _git_output(
+            "diff",
+            "--name-only",
+            "--diff-filter=ACMRTUXB",
+            f"{base_commit}...{head_commit}",
+        ).splitlines()
+        if path
+    )
+    if not changed_paths:
+        raise ReleaseValidationError(
+            f"docs-only release has no changes after base ref {base_ref}"
+        )
+    disallowed = tuple(path for path in changed_paths if not _is_docs_only_path(path))
+    if disallowed:
+        raise ReleaseValidationError(
+            "authorized docs-only test skip rejected non-documentation changes: "
+            + ", ".join(disallowed)
+        )
+    return {
+        "kind": "explicit-cli-authorization",
+        "baseRef": base_ref,
+        "baseCommit": base_commit,
+        "headCommit": head_commit,
+        "changedPaths": list(changed_paths),
+    }
 
 
 def _snapshot_tracked_root_target_files() -> dict[Path, tuple[bytes, int]]:
@@ -649,16 +708,31 @@ def fap_question_delivery_command(maven_executable: str) -> list[str]:
 
 def package_release(args: argparse.Namespace) -> Path:
     verify_release_sources()
-    if args.candidate and args.skip_java_tests:
+    authorized_docs_only = args.authorized_docs_only_skip_tests
+    if args.docs_only_base_ref and not authorized_docs_only:
+        raise ReleaseValidationError(
+            "--docs-only-base-ref requires --authorized-docs-only-skip-tests"
+        )
+    if authorized_docs_only and args.skip_java_tests:
+        raise ReleaseValidationError(
+            "--authorized-docs-only-skip-tests cannot be combined with "
+            "--skip-java-tests"
+        )
+    if args.candidate and (args.skip_java_tests or authorized_docs_only):
         raise ReleaseValidationError(
             "--candidate runs the focused Java lane and cannot be combined with "
-            "--skip-java-tests"
+            "a test-skip mode"
         )
     dirty = _worktree_dirty()
     if dirty and not (args.allow_dirty or args.candidate):
         raise ReleaseValidationError(
             "release worktree is dirty; commit or isolate source changes before packaging"
         )
+    docs_only_authorization = (
+        validate_authorized_docs_only_release(args.docs_only_base_ref)
+        if authorized_docs_only
+        else None
+    )
 
     output_dir = args.output_dir.resolve()
     if output_dir.exists() and any(output_dir.iterdir()):
@@ -685,7 +759,9 @@ def package_release(args: argparse.Namespace) -> Path:
     tracked_root_target_files = _snapshot_tracked_root_target_files()
     try:
         clean, package = maven_build_commands(
-            args.maven_executable, args.skip_java_tests, args.candidate
+            args.maven_executable,
+            args.skip_java_tests or authorized_docs_only,
+            args.candidate,
         )
         run_stage("maven-scoped-clean", clean)
         run_stage("maven-affected-package", package)
@@ -746,11 +822,17 @@ def package_release(args: argparse.Namespace) -> Path:
         manifest_name,
         checksum_name,
     ]
-    validation_mode = "candidate" if args.candidate else (
-        "development" if args.skip_java_tests or dirty else "release"
+    validation_mode = (
+        "candidate"
+        if args.candidate
+        else "authorized-docs-only"
+        if authorized_docs_only
+        else "development"
+        if args.skip_java_tests or dirty
+        else "release"
     )
     release_ready = (
-        validation_mode == "release" and not dirty and not args.skip_java_tests
+        validation_mode in {"release", "authorized-docs-only"} and not dirty
     )
     manifest = {
         "schemaVersion": "foggy-runtime-launcher/v1",
@@ -799,14 +881,23 @@ def package_release(args: argparse.Namespace) -> Path:
             "javaTests": (
                 "focused-analytics-fap"
                 if args.candidate
+                else "skipped-authorized-docs-only"
+                if authorized_docs_only
                 else "skipped" if args.skip_java_tests else "affected-reactor"
             ),
             "consoleUnitTests": "skipped" if args.candidate else (
-                "skipped" if args.skip_java_tests else "affected-reactor"
+                "skipped-authorized-docs-only"
+                if authorized_docs_only
+                else "skipped" if args.skip_java_tests else "affected-reactor"
             ),
             "consoleTypecheck": "required",
             "consoleProductionBuild": "required",
             "stages": stages,
+            **(
+                {"docsOnlyAuthorization": docs_only_authorization}
+                if docs_only_authorization is not None
+                else {}
+            ),
         },
         "releaseReady": release_ready,
         "assets": asset_names,
@@ -859,6 +950,22 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "development-only: skip Java tests; the Console frontend is still rebuilt, "
             "and the manifest is marked releaseReady=false"
+        ),
+    )
+    package.add_argument(
+        "--authorized-docs-only-skip-tests",
+        action="store_true",
+        help=(
+            "skip Java/unit tests for an explicitly authorized documentation-only "
+            "release; changed paths are verified fail-closed"
+        ),
+    )
+    package.add_argument(
+        "--docs-only-base-ref",
+        default="",
+        help=(
+            "previous published launcher tag/commit used to prove a documentation-only "
+            "diff; required with --authorized-docs-only-skip-tests"
         ),
     )
     package.add_argument(

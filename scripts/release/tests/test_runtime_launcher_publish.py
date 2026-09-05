@@ -116,6 +116,25 @@ class RuntimeLauncherPublishTest(unittest.TestCase):
         self.assertFalse(default.verify_obs)
         self.assertTrue(requested.verify_obs)
 
+    def test_docs_only_authorization_and_maven_path_are_explicit(self) -> None:
+        args = release.build_parser().parse_args(
+            [
+                "--release-version",
+                "0.1.21",
+                "--maven-executable",
+                "C:/tools/maven/mvn.cmd",
+                "--authorized-docs-only-skip-tests",
+                "--docs-only-base-ref",
+                "foggy-runtime-launcher-v0.1.20",
+            ]
+        )
+
+        self.assertEqual("C:/tools/maven/mvn.cmd", args.maven_executable)
+        self.assertTrue(args.authorized_docs_only_skip_tests)
+        self.assertEqual(
+            "foggy-runtime-launcher-v0.1.20", args.docs_only_base_ref
+        )
+
     @mock.patch.object(release, "run")
     def test_verifies_exact_release_package(self, verify_jar: mock.Mock) -> None:
         with tempfile.TemporaryDirectory() as temporary:

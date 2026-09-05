@@ -46,6 +46,7 @@ class RuntimeLauncherPackageTest(unittest.TestCase):
             ],
         )
         self.assertNotIn("-Dfoggy.analytics-console.frontend.skip=true", package)
+        self.assertIn("-Dfoggy.analytics-console.frontend.test.skip=true", package)
 
     def test_candidate_build_runs_focused_java_lane_and_keeps_frontend_build(self) -> None:
         _, package = release.maven_build_commands(
@@ -65,6 +66,57 @@ class RuntimeLauncherPackageTest(unittest.TestCase):
         command = release.fap_question_delivery_command("C:/tools/maven/mvn.cmd")
 
         self.assertEqual(command[-2:], ["--maven-executable", "C:/tools/maven/mvn.cmd"])
+
+    def test_authorized_docs_only_release_accepts_documentation_paths(self) -> None:
+        outputs = {
+            ("rev-parse", "foggy-runtime-launcher-v0.1.20^{commit}"): "a" * 40,
+            ("rev-parse", "HEAD"): "b" * 40,
+            (
+                "diff",
+                "--name-only",
+                "--diff-filter=ACMRTUXB",
+                f"{'a' * 40}...{'b' * 40}",
+            ): (
+                "foggy-dataset-model-engine/docs/guide/JM-QM-Syntax-Manual.md\n"
+                "README.md"
+            ),
+        }
+        with mock.patch.object(
+            release, "_git_output", side_effect=lambda *args: outputs[args]
+        ):
+            evidence = release.validate_authorized_docs_only_release(
+                "foggy-runtime-launcher-v0.1.20"
+            )
+
+        self.assertEqual("explicit-cli-authorization", evidence["kind"])
+        self.assertEqual(2, len(evidence["changedPaths"]))
+
+    def test_authorized_docs_only_release_rejects_code_changes(self) -> None:
+        outputs = {
+            ("rev-parse", "foggy-runtime-launcher-v0.1.20^{commit}"): "a" * 40,
+            ("rev-parse", "HEAD"): "b" * 40,
+            (
+                "diff",
+                "--name-only",
+                "--diff-filter=ACMRTUXB",
+                f"{'a' * 40}...{'b' * 40}",
+            ): "foggy-runtime-api/src/main/java/example/RuntimeApi.java",
+        }
+        with mock.patch.object(
+            release, "_git_output", side_effect=lambda *args: outputs[args]
+        ):
+            with self.assertRaisesRegex(
+                release.ReleaseValidationError, "non-documentation changes"
+            ):
+                release.validate_authorized_docs_only_release(
+                    "foggy-runtime-launcher-v0.1.20"
+                )
+
+    def test_authorized_docs_only_release_requires_a_base_ref(self) -> None:
+        with self.assertRaisesRegex(
+            release.ReleaseValidationError, "requires --docs-only-base-ref"
+        ):
+            release.validate_authorized_docs_only_release("")
 
     def test_preserves_committed_root_target_evidence_across_maven_clean(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
