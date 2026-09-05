@@ -61,6 +61,11 @@ class RuntimeLauncherPackageTest(unittest.TestCase):
         self.assertNotIn("-Dfoggy.analytics-console.frontend.skip=true", package)
         self.assertNotIn("-Dmaven.test.skip=true", package)
 
+    def test_fap_delivery_reuses_configured_maven_executable(self) -> None:
+        command = release.fap_question_delivery_command("C:/tools/maven/mvn.cmd")
+
+        self.assertEqual(command[-2:], ["--maven-executable", "C:/tools/maven/mvn.cmd"])
+
     def test_preserves_committed_root_target_evidence_across_maven_clean(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             repository_root = Path(directory)

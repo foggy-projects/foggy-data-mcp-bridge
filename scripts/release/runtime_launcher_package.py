@@ -636,6 +636,17 @@ def _write_checksums(directory: Path, names: Iterable[str]) -> None:
     (directory / "SHA256SUMS").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def fap_question_delivery_command(maven_executable: str) -> list[str]:
+    return [
+        sys.executable,
+        str(FAP_DELIVERY_TOOL),
+        "check",
+        "--skip-compile",
+        "--maven-executable",
+        maven_executable,
+    ]
+
+
 def package_release(args: argparse.Namespace) -> Path:
     verify_release_sources()
     if args.candidate and args.skip_java_tests:
@@ -692,7 +703,7 @@ def package_release(args: argparse.Namespace) -> Path:
         )
     run_stage(
         "fap-question-delivery-check",
-        [sys.executable, str(FAP_DELIVERY_TOOL), "check", "--skip-compile"],
+        fap_question_delivery_command(args.maven_executable),
     )
 
     java_version = project_version()
