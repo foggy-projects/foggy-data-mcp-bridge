@@ -354,7 +354,11 @@ def wait_ready(runtime_url: str, pid: int, stdout_log: Path, stderr_log: Path) -
             raise ReleaseError(
                 f"runtime exited before ready; stdout tail={stdout!r}; stderr tail={stderr!r}"
             )
-        status, body = http_request(f"{runtime_url}/readyz", timeout=2)
+        try:
+            status, body = http_request(f"{runtime_url}/readyz", timeout=2)
+        except (TimeoutError, urllib.error.URLError):
+            time.sleep(1)
+            continue
         if status == 200:
             payload = json.loads(body)
             if payload.get("status") == "ready":

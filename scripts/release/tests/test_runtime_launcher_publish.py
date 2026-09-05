@@ -63,6 +63,28 @@ class RuntimeLauncherPublishTest(unittest.TestCase):
         windows_process_alive.assert_called_once_with(123)
 
     @mock.patch.object(release.time, "sleep")
+    @mock.patch.object(
+        release,
+        "http_request",
+        side_effect=[
+            release.urllib.error.URLError("runtime is starting"),
+            (200, b'{"status":"ready"}'),
+        ],
+    )
+    @mock.patch.object(release, "process_alive", return_value=True)
+    def test_wait_ready_retries_transient_connection_errors(
+        self,
+        process_alive: mock.Mock,
+        http_request: mock.Mock,
+        sleep: mock.Mock,
+    ) -> None:
+        release.wait_ready("http://127.0.0.1:18066", 123, Path("out"), Path("err"))
+
+        self.assertEqual(2, process_alive.call_count)
+        self.assertEqual(2, http_request.call_count)
+        sleep.assert_called_once_with(1)
+
+    @mock.patch.object(release.time, "sleep")
     def test_temporary_log_cleanup_retries_windows_handle_release(
         self, sleep: mock.Mock
     ) -> None:
