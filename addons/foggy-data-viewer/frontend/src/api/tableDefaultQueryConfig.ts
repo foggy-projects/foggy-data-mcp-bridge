@@ -1,13 +1,8 @@
-import axios from 'axios'
+import { createDataViewerHttpClient, httpOptions } from './http'
+import type { DataViewerHttpRequestOptions } from './http'
 import type { TableDefaultQueryConfig, TableDefaultQueryConfigScope } from '@/types'
 
-const apiClient = axios.create({
-  baseURL: '/data-viewer/api/table-defaults',
-  timeout: 30000,
-  headers: {
-    'Content-Type': 'application/json'
-  }
-})
+const apiClient = createDataViewerHttpClient('/data-viewer/api/table-defaults')
 
 interface ApiResponse<T> {
   code: number
@@ -37,9 +32,11 @@ function buildParams(scope: TableDefaultQueryConfigScope): Record<string, string
 }
 
 export async function getTableDefaultQueryConfig(
-  scope: TableDefaultQueryConfigScope
+  scope: TableDefaultQueryConfigScope,
+  options?: DataViewerHttpRequestOptions
 ): Promise<TableDefaultQueryConfig | null> {
   const response = await apiClient.get<ApiResponse<TableDefaultQueryConfig | null>>('/default', {
+    ...httpOptions(options),
     params: buildParams(scope)
   })
   return assertApiResponse(response.data, '获取表格默认查询配置失败')

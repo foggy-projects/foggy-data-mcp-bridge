@@ -1,4 +1,5 @@
-import axios from 'axios'
+import { createDataViewerHttpClient, httpOptions } from './http'
+import type { DataViewerHttpRequestOptions } from './http'
 import type {
   QueryMetaResponse,
   ViewerQueryRequest,
@@ -11,13 +12,7 @@ import type {
   OrderRequestDef
 } from '@/types'
 
-const apiClient = axios.create({
-  baseURL: '/data-viewer/api',
-  timeout: 30000,
-  headers: {
-    'Content-Type': 'application/json'
-  }
-})
+const apiClient = createDataViewerHttpClient('/data-viewer/api')
 
 type RawQmField = Record<string, unknown>
 
@@ -199,8 +194,8 @@ export interface CreateQueryResponse {
 /**
  * 创建查询（从 DSL 输入）
  */
-export async function createQuery(request: CreateQueryRequest): Promise<CreateQueryResponse> {
-  const response = await apiClient.post<any>('/query/create', request)
+export async function createQuery(request: CreateQueryRequest, options?: DataViewerHttpRequestOptions): Promise<CreateQueryResponse> {
+  const response = await apiClient.post<any>('/query/create', request, httpOptions(options))
 
   // Handle RX response format: { code: 200, msg: "", data: {} }
   if (!response.data || response.data.code !== 200) {
@@ -217,8 +212,8 @@ export async function createQuery(request: CreateQueryRequest): Promise<CreateQu
 /**
  * 获取查询元数据
  */
-export async function fetchQueryMeta(model: string, queryId: string): Promise<QueryMetaResponse> {
-  const response = await apiClient.get<any>(`/query/${encodeURIComponent(model)}/${queryId}/meta`)
+export async function fetchQueryMeta(model: string, queryId: string, options?: DataViewerHttpRequestOptions): Promise<QueryMetaResponse> {
+  const response = await apiClient.get<any>(`/query/${encodeURIComponent(model)}/${queryId}/meta`, httpOptions(options))
 
   // Handle RX response format: { code: 200, msg: "", data: {} }
   if (!response.data || response.data.code !== 200) {
@@ -234,9 +229,10 @@ export async function fetchQueryMeta(model: string, queryId: string): Promise<Qu
 export async function fetchQueryData(
   model: string,
   queryId: string,
-  request: ViewerQueryRequest
+  request: ViewerQueryRequest,
+  options?: DataViewerHttpRequestOptions
 ): Promise<ViewerDataResponse> {
-  const response = await apiClient.post<any>(`/query/${encodeURIComponent(model)}/${queryId}/data`, request)
+  const response = await apiClient.post<any>(`/query/${encodeURIComponent(model)}/${queryId}/data`, request, httpOptions(options))
 
   // Handle RX response format: { code: 200, msg: "", data: {} }
   if (!response.data || response.data.code !== 200) {
@@ -256,10 +252,12 @@ export async function fetchQueryData(
 export async function fetchFilterOptions(
   model: string,
   queryId: string,
-  columnName: string
+  columnName: string,
+  options?: DataViewerHttpRequestOptions
 ): Promise<FilterOptionsResponse> {
   const response = await apiClient.get<FilterOptionsResponse>(
-    `/query/${encodeURIComponent(model)}/${queryId}/filter-options/${encodeURIComponent(columnName)}`
+    `/query/${encodeURIComponent(model)}/${queryId}/filter-options/${encodeURIComponent(columnName)}`,
+    httpOptions(options)
   )
   return response.data
 }
@@ -267,8 +265,8 @@ export async function fetchFilterOptions(
 /**
  * 获取 QM Schema（查询模型的字段元数据）
  */
-export async function fetchQmSchema(qmModel: string): Promise<ColumnSchema[]> {
-  const response = await apiClient.get<any>(`/schema/${encodeURIComponent(qmModel)}`)
+export async function fetchQmSchema(qmModel: string, options?: DataViewerHttpRequestOptions): Promise<ColumnSchema[]> {
+  const response = await apiClient.get<any>(`/schema/${encodeURIComponent(qmModel)}`, httpOptions(options))
 
   // Handle RX response format: { code: 200, msg: "", data: {} }
   if (!response.data || response.data.code !== 200) {
@@ -335,7 +333,8 @@ function normalizeDirectQueryColumns(columns?: string[]): string[] {
  */
 export async function fetchQueryDataDirect(
   qmModel: string,
-  request: ViewerQueryRequest
+  request: ViewerQueryRequest,
+  options?: DataViewerHttpRequestOptions
 ): Promise<ViewerDataResponse> {
   const columns = normalizeDirectQueryColumns(request.columns)
   if (columns.length === 0) {
@@ -344,7 +343,8 @@ export async function fetchQueryDataDirect(
 
   const response = await apiClient.post<any>(
     `/query/direct/${encodeURIComponent(qmModel)}`,
-    { ...request, columns }
+    { ...request, columns },
+    httpOptions(options)
   )
 
   if (!response.data || response.data.code !== 200) {
@@ -361,8 +361,8 @@ export async function fetchQueryDataDirect(
  *
  * 返回面向前端渲染的标准元数据：fields 为有序数组、包含 memberLookup/category/uiHints。
  */
-export async function fetchFrontendMeta(qmModel: string): Promise<FrontendMeta> {
-  const response = await apiClient.get<any>(`/frontend-meta/${encodeURIComponent(qmModel)}`)
+export async function fetchFrontendMeta(qmModel: string, options?: DataViewerHttpRequestOptions): Promise<FrontendMeta> {
+  const response = await apiClient.get<any>(`/frontend-meta/${encodeURIComponent(qmModel)}`, httpOptions(options))
 
   if (!response.data || response.data.code !== 200) {
     throw new Error(response.data?.msg || '获取前端元数据失败')
@@ -380,9 +380,10 @@ export async function fetchFrontendMeta(qmModel: string): Promise<FrontendMeta> 
  * DSL slice 应使用返回的 selectionFieldName，而非 displayFieldName。
  */
 export async function fetchMemberOptions(
-  request: MemberQueryRequest
+  request: MemberQueryRequest,
+  options?: DataViewerHttpRequestOptions
 ): Promise<MemberQueryResponse> {
-  const response = await apiClient.post<any>('/members/query', request)
+  const response = await apiClient.post<any>('/members/query', request, httpOptions(options))
 
   if (!response.data || response.data.code !== 200) {
     throw new Error(response.data?.msg || '查询维度成员失败')

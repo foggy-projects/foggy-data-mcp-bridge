@@ -55,6 +55,8 @@ export type {
 } from './utils/pivotHeaderTree'
 
 // 导出 API 函数
+export { configureDataViewerHttp } from './api/http'
+export type { DataViewerHttpConfig, DataViewerHttpHeaders, DataViewerHttpRequestOptions, DataViewerUnauthorizedContext } from './api/http'
 export {
   createQuery,
   fetchQueryMeta,

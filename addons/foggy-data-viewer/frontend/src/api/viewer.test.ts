@@ -23,6 +23,7 @@ function resetApiClientMock() {
     get: axiosMock.get,
     post: axiosMock.post,
     interceptors: {
+      request: { use: vi.fn() },
       response: {
         use: axiosMock.responseUse
       }
@@ -191,7 +192,8 @@ describe('fetchQueryDataDirect', () => {
       '/query/direct/FactOrderQueryModel',
       expect.objectContaining({
         columns: ['orderNo', 'amount']
-      })
+      }),
+      expect.any(Object)
     )
   })
 

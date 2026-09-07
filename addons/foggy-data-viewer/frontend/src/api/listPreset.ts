@@ -1,3 +1,5 @@
+import { createDataViewerHttpClient, httpOptions } from './http'
+import type { DataViewerHttpRequestOptions } from './http'
 import axios from 'axios'
 import type {
   ColumnViewSetting,
@@ -6,13 +8,7 @@ import type {
   QueryConditionPreset
 } from '@/types'
 
-const apiClient = axios.create({
-  baseURL: '/data-viewer/api/list-preset',
-  timeout: 30000,
-  headers: {
-    'Content-Type': 'application/json'
-  }
-})
+const apiClient = createDataViewerHttpClient('/data-viewer/api/list-preset')
 
 interface ApiResponse<T> {
   code: number
@@ -67,8 +63,9 @@ function presetPath(userId: string, presetId: string): string {
 /**
  * 查询当前用户在指定 model/businessKey 下的自定义列表方案。
  */
-export async function listPresets(scope: ListPresetScope): Promise<ListPresetDef[]> {
+export async function listPresets(scope: ListPresetScope, options?: DataViewerHttpRequestOptions): Promise<ListPresetDef[]> {
   const response = await apiClient.get<ApiResponse<ListPresetDef[]>>(modelPath(scope), {
+    ...httpOptions(options),
     params: buildScopeParams(scope)
   })
   return assertApiResponse(response.data, '获取自定义列表失败')
@@ -77,8 +74,9 @@ export async function listPresets(scope: ListPresetScope): Promise<ListPresetDef
 /**
  * 查询当前用户在指定 model/businessKey 下的默认自定义列表。
  */
-export async function getDefaultListPreset(scope: ListPresetScope): Promise<ListPresetDef | null> {
+export async function getDefaultListPreset(scope: ListPresetScope, options?: DataViewerHttpRequestOptions): Promise<ListPresetDef | null> {
   const response = await apiClient.get<ApiResponse<ListPresetDef | null>>(`${modelPath(scope)}/default`, {
+    ...httpOptions(options),
     params: buildScopeParams(scope)
   })
   return assertApiResponse(response.data, '获取默认自定义列表失败')
@@ -89,9 +87,11 @@ export async function getDefaultListPreset(scope: ListPresetScope): Promise<List
  */
 export async function createListPreset(
   scope: ListPresetScope,
-  request: SaveListPresetRequest
+  request: SaveListPresetRequest,
+  options?: DataViewerHttpRequestOptions
 ): Promise<ListPresetDef> {
   const response = await apiClient.post<ApiResponse<ListPresetDef>>(modelPath(scope), request, {
+    ...httpOptions(options),
     params: buildScopeParams(scope)
   })
   return assertApiResponse(response.data, '保存自定义列表失败')
@@ -100,8 +100,8 @@ export async function createListPreset(
 /**
  * 获取单个自定义列表详情。
  */
-export async function getListPreset(userId: string, presetId: string): Promise<ListPresetDef> {
-  const response = await apiClient.get<ApiResponse<ListPresetDef>>(presetPath(userId, presetId))
+export async function getListPreset(userId: string, presetId: string, options?: DataViewerHttpRequestOptions): Promise<ListPresetDef> {
+  const response = await apiClient.get<ApiResponse<ListPresetDef>>(presetPath(userId, presetId), httpOptions(options))
   return assertApiResponse(response.data, '获取自定义列表详情失败')
 }
 
@@ -111,33 +111,35 @@ export async function getListPreset(userId: string, presetId: string): Promise<L
 export async function updateListPreset(
   userId: string,
   presetId: string,
-  request: UpdateListPresetRequest
+  request: UpdateListPresetRequest,
+  options?: DataViewerHttpRequestOptions
 ): Promise<ListPresetDef> {
-  const response = await apiClient.put<ApiResponse<ListPresetDef>>(presetPath(userId, presetId), request)
+  const response = await apiClient.put<ApiResponse<ListPresetDef>>(presetPath(userId, presetId), request, httpOptions(options))
   return assertApiResponse(response.data, '更新自定义列表失败')
 }
 
 /**
  * 删除自定义列表方案。
  */
-export async function deleteListPreset(userId: string, presetId: string): Promise<void> {
-  const response = await apiClient.delete<ApiResponse<void>>(presetPath(userId, presetId))
+export async function deleteListPreset(userId: string, presetId: string, options?: DataViewerHttpRequestOptions): Promise<void> {
+  const response = await apiClient.delete<ApiResponse<void>>(presetPath(userId, presetId), httpOptions(options))
   assertApiResponse(response.data, '删除自定义列表失败')
 }
 
 /**
  * 将某个自定义列表设为默认方案。
  */
-export async function setDefaultListPreset(userId: string, presetId: string): Promise<ListPresetDef> {
-  const response = await apiClient.post<ApiResponse<ListPresetDef>>(`${presetPath(userId, presetId)}/default`)
+export async function setDefaultListPreset(userId: string, presetId: string, options?: DataViewerHttpRequestOptions): Promise<ListPresetDef> {
+  const response = await apiClient.post<ApiResponse<ListPresetDef>>(`${presetPath(userId, presetId)}/default`, undefined, httpOptions(options))
   return assertApiResponse(response.data, '设置默认自定义列表失败')
 }
 
 /**
  * 清除当前 model/businessKey 下的默认方案。
  */
-export async function clearDefaultListPreset(scope: ListPresetScope): Promise<void> {
+export async function clearDefaultListPreset(scope: ListPresetScope, options?: DataViewerHttpRequestOptions): Promise<void> {
   const response = await apiClient.delete<ApiResponse<void>>(`${modelPath(scope)}/default`, {
+    ...httpOptions(options),
     params: buildScopeParams(scope)
   })
   assertApiResponse(response.data, '清除默认自定义列表失败')

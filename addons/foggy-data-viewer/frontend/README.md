@@ -2,6 +2,8 @@
 
 一个基于 Vue 3 + TypeScript + vxe-table 的企业级数据表格组件库。
 
+HTTP 鉴权接入（beta.47 起）：从公共入口导入 `configureDataViewerHttp`，在应用挂载前配置动态 `getHeaders` 和 `onUnauthorized`。允许先导入 SDK 再配置，无需 patch Axios，也无需修改 generated 文件。详见 [HTTP 接入与 TMS 迁移指南](./docs/http-auth.md)。
+
 ## 特性
 
 - 🎯 **TypeScript 支持** - 完整的类型定义
