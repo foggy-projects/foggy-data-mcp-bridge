@@ -338,6 +338,8 @@
                   v-else
                   v-model="conditionDraft"
                   :columns="configurableAvailableColumns"
+                  :qm-model="config.model"
+                  :filter-member-loader="filterMemberLoader"
                   :max-conditions="20"
                   data-testid="list-preset-condition-editor"
                 />
@@ -457,7 +459,9 @@ import type {
   ListPresetDef,
   ListPresetVisibility,
   ListViewState,
-  SliceRequestDef
+  SliceRequestDef,
+  MemberQueryRequest,
+  MemberQueryResponse
 } from '@/types'
 
 interface Props {
@@ -469,6 +473,7 @@ interface Props {
   availableColumns?: EnhancedColumnSchema[]
   lockedColumns?: string[]
   requiredRuntimeColumns?: string[]
+  filterMemberLoader?: (request: MemberQueryRequest) => Promise<MemberQueryResponse>
   triggerMode?: 'button' | 'none'
 }
 
@@ -831,7 +836,7 @@ function normalizeDraftForSave(): ColumnDraft[] {
 function buildStateFromDraft(state: ListViewState): ListViewState {
   const draft = normalizeDraftForSave()
   const saveQueryConditions = form.value.saveQueryConditions
-  const persistedColumns = draft.filter(column => !isRuntimeColumn(column.name))
+  const persistedColumns = draft.filter(column => column.visible && !isRuntimeColumn(column.name))
 
   return {
     columns: persistedColumns.filter(column => column.visible).map(column => column.name),
@@ -879,6 +884,10 @@ function toggleColumn(name: string, value: unknown) {
   const column = columnDraft.value.find(item => item.name === name)
   if (!column) return
   const nextVisible = Boolean(value)
+  if (nextVisible && !column.visible && visibleColumnDraft.value.length >= 50) {
+    ElMessage.warning('自定义查询最多配置 50 个字段')
+    return
+  }
   if (isRuntimeColumn(name)) {
     column.visible = false
     ElMessage.warning('运行时字段不作为展示列保存')
@@ -900,6 +909,10 @@ function removeColumn(name: string) {
 }
 
 function selectAllColumns() {
+  if (columnDraft.value.filter(column => !isRuntimeColumn(column.name)).length > 50) {
+    ElMessage.warning('自定义查询最多配置 50 个字段，请分组或逐项选择')
+    return
+  }
   columnDraft.value = columnDraft.value.map(column => ({
     ...column,
     visible: !isRuntimeColumn(column.name)
@@ -920,6 +933,10 @@ function getGroupColumnNames(groupKey: string): Set<string> {
 
 function selectColumnGroup(groupKey: string) {
   const groupColumnNames = getGroupColumnNames(groupKey)
+  if (columnDraft.value.filter(column => (column.visible || groupColumnNames.has(column.name)) && !isRuntimeColumn(column.name)).length > 50) {
+    ElMessage.warning('选择本组将超过 50 个字段上限')
+    return
+  }
   columnDraft.value = columnDraft.value.map(column => (
     groupColumnNames.has(column.name)
       ? { ...column, visible: !isRuntimeColumn(column.name) }
@@ -1048,6 +1065,14 @@ async function loadPresets() {
 }
 
 async function applyPreset(preset: ListPresetDef) {
+  try {
+    validateListPresetLimits({ ...preset, slice: preset.query?.slice || [] }, {
+      internalFields: props.requiredRuntimeColumns || []
+    })
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, '自定义查询超过允许的字段或条件上限'))
+    return
+  }
   const unavailableFields = getUnavailableFields(preset)
   const availableNames = getAvailableColumnNameSet()
   const presetColumnSettings = preset.columnSettings || []

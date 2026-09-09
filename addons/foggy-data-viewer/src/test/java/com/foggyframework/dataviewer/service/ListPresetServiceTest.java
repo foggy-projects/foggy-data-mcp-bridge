@@ -39,6 +39,37 @@ class ListPresetServiceTest {
 
     @Nested
     class FileStoreTests {
+        @Test
+        void shouldRoundTripFiftyFieldsAndTwentyNestedJsonLeaves() throws Exception {
+            ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+            String leaves = IntStream.range(0, 20)
+                    .mapToObj(i -> "{\"field\":\"customer$id\",\"op\":\"=\",\"value\":" + i + "}")
+                    .collect(java.util.stream.Collectors.joining(","));
+            var query = mapper.readValue("{\"slice\":[{\"$and\":[{\"$or\":[" + leaves
+                    + "]}]}],\"orderBy\":[]}", ListPresetDef.QueryConditionPreset.class);
+            var request = request("boundary", false);
+            request.setColumns(IntStream.range(0, 50).mapToObj(i -> "field" + i).toList());
+            request.setQuery(query);
+            var created = service.create("u1", "TicketModel", "ticket-list", request);
+            var loaded = service.get("u1", created.getId()).orElseThrow();
+            assertEquals(50, loaded.getColumns().size());
+            assertEquals(20, loaded.getQuery().getSlice().get(0).getAnd().get(0).getOr().size());
+            assertTrue(mapper.writeValueAsString(loaded).contains("\"$or\""));
+        }
+
+        @Test
+        void shouldValidateMergedColumnsOnPartialUpdateBeforeSaving() {
+            var request = request("boundary", false);
+            request.setColumns(IntStream.range(0, 50).mapToObj(i -> "field" + i).toList());
+            var created = service.create("u1", "TicketModel", "ticket-list", request);
+            var update = new ListPresetService.SaveListPresetRequest();
+            var setting = new ListPresetDef.ColumnViewSetting();
+            setting.setName("extra");
+            update.setColumnSettings(List.of(setting));
+            assertThrows(IllegalArgumentException.class, () -> service.update("u1", created.getId(), update));
+            assertEquals(50, service.get("u1", created.getId()).orElseThrow().getColumns().size());
+        }
+
 
         @Test
         void shouldCreateAndListPresetByUserModelAndBusinessKey() {

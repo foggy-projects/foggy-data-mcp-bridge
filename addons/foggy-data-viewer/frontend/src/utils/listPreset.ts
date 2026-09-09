@@ -38,7 +38,7 @@ export function countConditionLeaves(conditions: readonly SliceRequestDef[] | nu
   if (!conditions) return 0
 
   return conditions.reduce((total, condition) => {
-    const groups = [condition.or, condition.and, condition.children]
+    const groups = [condition.$or, condition.$and, condition.children]
       .filter((children): children is SliceRequestDef[] => Array.isArray(children))
     if (groups.length > 0) {
       return total + groups.reduce((groupTotal, children) => groupTotal + countConditionLeaves(children), 0)
@@ -51,10 +51,20 @@ export function cloneSliceTree(conditions: readonly SliceRequestDef[] | null | u
   if (!conditions) return []
   return conditions.map(condition => ({
     ...condition,
-    ...(condition.or ? { or: cloneSliceTree(condition.or) } : {}),
-    ...(condition.and ? { and: cloneSliceTree(condition.and) } : {}),
+    ...(condition.value === undefined ? {} : { value: cloneConditionValue(condition.value) }),
+    ...(condition.$or ? { $or: cloneSliceTree(condition.$or) } : {}),
+    ...(condition.$and ? { $and: cloneSliceTree(condition.$and) } : {}),
     ...(condition.children ? { children: cloneSliceTree(condition.children) } : {})
   }))
+}
+
+function cloneConditionValue(value: unknown): unknown {
+  if (value instanceof Date) return new Date(value.getTime())
+  if (Array.isArray(value)) return value.map(cloneConditionValue)
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, cloneConditionValue(item)]))
+  }
+  return value
 }
 
 export function getConditionFields(conditions: readonly SliceRequestDef[] | null | undefined): string[] {
@@ -62,8 +72,8 @@ export function getConditionFields(conditions: readonly SliceRequestDef[] | null
   const fields: string[] = []
   for (const condition of conditions) {
     if (condition.field?.trim()) fields.push(condition.field)
-    fields.push(...getConditionFields(condition.or))
-    fields.push(...getConditionFields(condition.and))
+    fields.push(...getConditionFields(condition.$or))
+    fields.push(...getConditionFields(condition.$and))
     fields.push(...getConditionFields(condition.children))
   }
   return distinctNonBlank(fields)
@@ -112,6 +122,7 @@ export function validateListPresetLimits(
 /** Fields shown to a user in the field/condition editor. */
 export function getUserConfigurableColumns(columns: readonly ColumnSchema[]): ColumnSchema[] {
   return columns.filter(column => {
+    if (column.name === '_actions') return false
     if (column.name.endsWith('$id')) return false
     if (column.category === 'dimension-id') return false
     return true

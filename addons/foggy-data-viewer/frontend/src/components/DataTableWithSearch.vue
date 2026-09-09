@@ -12,7 +12,7 @@ import { globalSearchHooks } from './composables/globalSearchHooks'
 import { SearchHookRegistry } from './composables/searchHookRegistry'
 import { getDefaultListPreset } from '@/api/listPreset'
 import { getTableDefaultQueryConfig } from '@/api/tableDefaultQueryConfig'
-import { validateListPresetLimits } from '@/utils/listPreset'
+import { cloneSliceTree, validateListPresetLimits } from '@/utils/listPreset'
 
 // 禁用自动继承属性
 defineOptions({
@@ -160,10 +160,16 @@ const isSchemaMode = computed(() => !!props.schema && !!props.fetchData)
 // ========== useTableQuery（Schema 模式） ==========
 // 始终创建 query 对象，但只在 Schema 模式下调用 loadData
 const query = useTableQuery(
-  props.fetchData ?? (async () => ({ items: [], total: 0 })),
+  async params => {
+    if (!props.fetchData) throw new Error('fetchData is required')
+    return props.fetchData({
+      ...params,
+      columns: mergeColumnNames(params.columns, activeQueryColumns.value)
+    })
+  },
   {
     pageSize: props.schema?.pageSize ?? props.pageSize,
-    hooks: props.queryHooks
+    get hooks() { return props.queryHooks }
   }
 )
 
@@ -225,8 +231,7 @@ const defaultListViewState = computed<ListViewState | null>(() => {
   if (!isSchemaMode.value || !props.schema?.availableColumns) return null
 
   const defaultVisibleColumns = mergeColumnNames(
-    props.schema.defaultVisibleColumns,
-    props.schema.columns.map(column => column.name)
+    props.schema.defaultVisibleColumns ?? props.schema.columns.map(column => column.name)
   ).filter(name => !activeRequiredRuntimeColumns.value.includes(name))
 
   return {
@@ -643,7 +648,7 @@ const queryPlanPresetCommandPrefix = 'apply-list-preset:'
 
 // ========== 筛选状态 ==========
 const searchSlices = ref<SliceRequestDef[]>([])
-const tableSlices = ref<SliceRequestDef[]>([])
+const tableSlices = ref<SliceRequestDef[]>(cloneSliceTree(props.initialSlice))
 const queryPanelSlices = ref<SliceRequestDef[]>([])
 const suppressFilterEventHandling = ref(false)
 
@@ -704,7 +709,7 @@ function buildSearchParams(): FetchDataParams {
     pageSize: query.currentPageSize.value,
     tableInstanceId: effectiveTableInstanceId.value,
     columns: [...activeQueryColumns.value],
-    slice: [...mergedSlices.value],
+    slice: cloneSliceTree(mergedSlices.value),
     orderBy: [...query.currentOrderBy.value]
   }
 }
@@ -754,20 +759,21 @@ async function loadData(trigger: QueryTrigger = 'refresh', actionMeta?: SearchAc
   const searchCtx = buildSearchHookContext(actionMeta ?? getDefaultSearchActionMeta(trigger))
   const propsSearchRegistry = buildPropsSearchRegistry()
 
-  const globalBefore = await globalSearchRegistry.runBefore(searchCtx)
-  if (globalBefore === false) return
-
-  const propsBefore = await propsSearchRegistry.runBefore(searchCtx)
-  if (propsBefore === false) return
-
-  if (trigger !== 'mount') {
-    clearSelectionState()
-  }
-
-  applySearchHookContext(searchCtx)
-
   try {
+    const globalBefore = await globalSearchRegistry.runBefore(searchCtx)
+    if (globalBefore === false) return
+
+    const propsBefore = await propsSearchRegistry.runBefore(searchCtx)
+    if (propsBefore === false) return
+
+    if (trigger !== 'mount') {
+      clearSelectionState()
+    }
+
+    applySearchHookContext(searchCtx)
+
     await query.loadData(trigger)
+    if (query.lastOutcome.value !== 'success') return
     const result: FetchDataResult = {
       items: query.data.value,
       total: query.total.value,
@@ -1010,7 +1016,7 @@ function getListViewState(): ListViewState {
   return {
     columns,
     columnSettings,
-    slice: mergedSlices.value,
+    slice: cloneSliceTree(mergedSlices.value),
     orderBy: query.currentOrderBy.value ?? [],
     pageSize: effectivePageSize.value
   }
@@ -1029,7 +1035,7 @@ function applyListViewState(
   activeListViewState.value = {
     columns: state.columns || [],
     columnSettings: state.columnSettings,
-    slice: state.slice || [],
+    slice: cloneSliceTree(state.slice),
     orderBy: state.orderBy || [],
     pageSize: state.pageSize
   }
@@ -1037,7 +1043,7 @@ function applyListViewState(
 
   searchSlices.value = []
   queryPanelSlices.value = []
-  tableSlices.value = state.slice || []
+  tableSlices.value = cloneSliceTree(state.slice)
 
   query.setSort(state.orderBy || [])
 
@@ -1355,6 +1361,7 @@ defineExpose({
             :available-columns="baseColumns"
             :locked-columns="lockedColumnNames"
             :required-runtime-columns="activeRequiredRuntimeColumns"
+            :filter-member-loader="filterMemberLoader"
             :reload="reloadAfterListPresetApply"
             :clear-conditions="clearListPresetConditions"
           />
@@ -1447,6 +1454,7 @@ defineExpose({
             :available-columns="baseColumns"
             :locked-columns="lockedColumnNames"
             :required-runtime-columns="activeRequiredRuntimeColumns"
+            :filter-member-loader="filterMemberLoader"
             :reload="reloadAfterListPresetApply"
             :clear-conditions="clearListPresetConditions"
             :trigger-mode="shouldRenderHiddenToolbarRightListPreset ? 'none' : 'button'"

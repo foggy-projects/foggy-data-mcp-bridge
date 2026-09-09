@@ -15,6 +15,7 @@ import type {
 } from '@/types'
 import { HookRegistry } from './hookRegistry'
 import { globalQueryHooks } from './globalQueryHooks'
+import { cloneSliceTree } from '@/utils/listPreset'
 
 /** 钩子名称到函数类型的映射 */
 type HookFnMap = {
@@ -69,6 +70,7 @@ export interface UseTableQueryReturn {
   loading: ReturnType<typeof ref<boolean>>
   activeTrigger: ReturnType<typeof ref<QueryTrigger | null>>
   lastError: ReturnType<typeof ref<Error | null>>
+  lastOutcome: ReturnType<typeof ref<'success' | 'cancelled' | 'error' | null>>
   serverSummary: ReturnType<typeof ref<Record<string, unknown> | null>>
   currentPage: ReturnType<typeof ref<number>>
   currentPageSize: ReturnType<typeof ref<number>>
@@ -115,6 +117,7 @@ export function useTableQuery(
   const loading = ref(false)
   const activeTrigger = ref<QueryTrigger | null>(null)
   const lastError = ref<Error | null>(null)
+  const lastOutcome = ref<'success' | 'cancelled' | 'error' | null>(null)
   const serverSummary = ref<Record<string, unknown> | null>(null)
   const currentPage = ref(1)
   const currentPageSize = ref(options.pageSize ?? 50)
@@ -145,7 +148,7 @@ export function useTableQuery(
       page: currentPage.value,
       pageSize: currentPageSize.value,
       columns: [...currentColumns.value],
-      slice: [...currentSlice.value],
+      slice: cloneSliceTree(currentSlice.value),
       orderBy: [...currentOrderBy.value]
     }
     if (currentTableInstanceId.value) {
@@ -158,22 +161,23 @@ export function useTableQuery(
     }
 
     const propsRegistry = buildPropsRegistry()
-
-    // ---- Before hooks: global → props → instance ----
-    const globalBefore = await globalRegistry.runBefore(ctx)
-    if (globalBefore === false) return
-
-    const propsBefore = await propsRegistry.runBefore(ctx)
-    if (propsBefore === false) return
-
-    const instanceBefore = await instanceRegistry.runBefore(ctx)
-    if (instanceBefore === false) return
-
-    // ---- Fetch ----
-    loading.value = true
-    activeTrigger.value = trigger
+    lastOutcome.value = null
     lastError.value = null
+
     try {
+      // ---- Before hooks: global → props → instance ----
+      const globalBefore = await globalRegistry.runBefore(ctx)
+      if (globalBefore === false) { lastOutcome.value = 'cancelled'; return }
+
+      const propsBefore = await propsRegistry.runBefore(ctx)
+      if (propsBefore === false) { lastOutcome.value = 'cancelled'; return }
+
+      const instanceBefore = await instanceRegistry.runBefore(ctx)
+      if (instanceBefore === false) { lastOutcome.value = 'cancelled'; return }
+
+      // ---- Fetch ----
+      loading.value = true
+      activeTrigger.value = trigger
       let result = await fetchData(ctx.params)
 
       // ---- After hooks: instance → props → global ----
@@ -184,9 +188,11 @@ export function useTableQuery(
       data.value = result.items
       total.value = result.total
       serverSummary.value = result.totalData ?? null
+      lastOutcome.value = 'success'
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err))
       lastError.value = error
+      lastOutcome.value = 'error'
 
       // ---- Error hooks: instance → props → global ----
       const instanceHandled = await instanceRegistry.runError(ctx, error)
@@ -251,6 +257,7 @@ export function useTableQuery(
     loading,
     activeTrigger,
     lastError,
+    lastOutcome,
     serverSummary,
     currentPage,
     currentPageSize,

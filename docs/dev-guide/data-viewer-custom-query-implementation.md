@@ -32,4 +32,18 @@
 
 ## 发布边界
 
-本次仅交付引擎公共包、后端兼容性说明和生成器接入方式；不实施 TMS 全量接入、不修改 TMS generated 文件、不重启 TMS 环境、不擅自发布 npm/Maven 包。若仓库发布规则要求额外审批，交付时明确标记待发布。
+本次交付引擎公共包、后端兼容性说明和生成器接入方式；不实施 TMS 全量接入、不修改 TMS generated 文件、不重启 TMS 环境。2026-09-09 用户追加授权 commit、push 和 npm beta 发布；Maven 不在发布范围。
+
+## 发布前 review 修复（1.0.1-beta.48）
+
+- 条件 JSON 使用后端 Jackson 声明的 `$or` / `$and` / `$expr`；原实现错误的无 `$` 字段尚未发布。
+- 仅保存选中的字段设置，字段池超过 50 项不影响少量字段方案；加载的超限方案在过滤失效字段之前拒绝。
+- 请求条件树及 value 深拷贝，业务回调修改不污染用户方案；表头编辑保留不可映射到单列输入的逻辑组。
+- 每次读取当前 hooks 和 fetchData，取消不触发成功事件，before-query 异常进入原错误钩子链。
+- 实际 fetch 前补齐当前展示字段和业务必需字段；初始化用户条件参与首次请求。
+- 条件编辑复用维度成员选择器，字典使用 label 显示、value 提交。
+- 后端拒绝空/混合逻辑组，并验证 partial update 合并后的完整方案。
+
+固定条件仍由可信业务 hooks 或原 fetchData 配方根据当前页面上下文添加，必须与用户条件 AND 组合（slice 顶层数组为 AND）。组件无法从任意业务代码推断固定条件，也不替代服务端权限校验。必需字段声明使用响应式 schema.requiredFields / requiredRuntimeColumns；业务追加内容只存在于每次请求中。
+
+验证：前端 `npm test` 28 文件 / 434 用例通过；`mvn -pl addons/foggy-data-viewer -Dtest=ListPresetServiceTest test` 15 用例通过。新增验收包括真实 `$or` JSON 的后端存储往返、50 字段 / 20 条件边界、partial update、A1→A2、业务回调原地修改隔离、取消/异常、替换 fetchData、逻辑组保留、70 项字段池保存单字段。

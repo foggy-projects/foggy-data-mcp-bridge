@@ -19,10 +19,10 @@ describe('listPreset limits and dimension metadata', () => {
     const nested: SliceRequestDef[] = [{
       field: '',
       op: '',
-      and: [{
+      $and: [{
         field: '',
         op: '',
-        or: leaves
+        $or: leaves
       }]
     }]
 
@@ -40,7 +40,7 @@ describe('listPreset limits and dimension metadata', () => {
     expect(() => validateListPresetLimits({
       columns: [],
       columnSettings: [],
-      slice: [{ field: '', op: '', or: [...leaves, { field: 'overflow', op: '=' }] }]
+      slice: [{ field: '', op: '', $or: [...leaves, { field: 'overflow', op: '=' }] }]
     })).toThrow('最多配置 20 个条件')
   })
 

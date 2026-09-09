@@ -193,6 +193,25 @@ function mountManagerWrapper(options: {
 }
 
 describe('ListPresetManager', () => {
+  it('saves a small selection from a field pool larger than fifty', async () => {
+    vi.mocked(createListPreset).mockResolvedValue(makePreset())
+    const manager = mountManager({ availableColumns: Array.from({ length: 70 }, (_, i) => ({ name: `f${i}`, type: 'TEXT' })),
+      getState: () => ({ columns: ['f0'], slice: [], orderBy: [] }) })
+    manager.openSaveDialog()
+    manager.setDraft({ title: 'small selection' })
+    await manager.saveCurrentPreset()
+    expect(createListPreset).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      columns: ['f0'], columnSettings: [{ name: 'f0', visible: true, order: 0 }]
+    }))
+  })
+
+  it('rejects an oversized loaded preset before dropping unavailable fields', async () => {
+    const applyState = vi.fn()
+    const manager = mountManager({ applyState, availableColumns: [{ name: 'f0', type: 'TEXT' }] })
+    await manager.applyPreset(makePreset({ columns: Array.from({ length: 51 }, (_, i) => `f${i}`), columnSettings: [] }))
+    expect(applyState).not.toHaveBeenCalled()
+    expect(ElMessage.error).toHaveBeenCalledWith(expect.stringContaining('50'))
+  })
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -306,8 +325,7 @@ describe('ListPresetManager', () => {
     expect(createListPreset).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       columns: ['status'],
       columnSettings: [
-        expect.objectContaining({ name: 'orderNo', visible: false, order: 0 }),
-        expect.objectContaining({ name: 'status', visible: true, width: 120, order: 1 })
+        expect.objectContaining({ name: 'status', visible: true, width: 120, order: 0 })
       ]
     }))
   })
@@ -401,8 +419,7 @@ describe('ListPresetManager', () => {
     expect(createListPreset).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       columns: ['orderNo'],
       columnSettings: [
-        expect.objectContaining({ name: 'orderNo', visible: true, order: 0 }),
-        expect.objectContaining({ name: 'status', visible: false, order: 1 })
+        expect.objectContaining({ name: 'orderNo', visible: true, order: 0 })
       ]
     }))
     const request = vi.mocked(createListPreset).mock.calls[0]?.[1]

@@ -180,6 +180,7 @@ public class ListPresetService {
         }
         if (request.getColumnSettings() != null) {
             for (ListPresetDef.ColumnViewSetting setting : request.getColumnSettings()) {
+                if (setting == null) throw new IllegalArgumentException("columnSettings 不能包含空配置");
                 validateFieldName(setting.getName(), "columnSettings 不能包含空字段");
                 if (setting.getFixed() != null
                         && !"left".equals(setting.getFixed())
@@ -261,6 +262,13 @@ public class ListPresetService {
     private void validateCondition(CondRequestDef condition) {
         if (condition == null) {
             throw new IllegalArgumentException("slice 不能包含空条件");
+        }
+        if (condition.getOr() != null && condition.getAnd() != null) {
+            throw new IllegalArgumentException("slice 条件组只能使用一种逻辑运算");
+        }
+        if ((condition.getOr() != null && condition.getOr().isEmpty())
+                || (condition.getAnd() != null && condition.getAnd().isEmpty())) {
+            throw new IllegalArgumentException("slice 条件组不能为空");
         }
         if (condition._isLogicalGroup()) {
             List<CondRequestDef> children = condition._getGroupChildren();

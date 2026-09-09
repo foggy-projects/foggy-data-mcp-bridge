@@ -250,6 +250,8 @@ const sortState = ref<SortState>({
 
 // 过滤状态：每个字段对应一组 SliceRequestDef
 const filterValues = ref<Record<string, SliceRequestDef[] | null>>({})
+// Logical groups cannot be represented by one column's input; preserve them verbatim.
+const groupedFilterSlices = ref<SliceRequestDef[]>([])
 
 // 维度选项缓存
 const dimensionOptionsCache = ref<Record<string, FilterOption[]>>({})
@@ -309,6 +311,7 @@ watch(() => props.pageSize, (newPageSize) => {
 
 // 监听 initialSlice 变化，初始化过滤器显示
 watch(() => props.initialSlice, (slices) => {
+  groupedFilterSlices.value = (slices || []).filter(slice => !slice.field)
   if (!slices || slices.length === 0) {
     filterValues.value = {}
     return
@@ -506,7 +509,7 @@ function getFilterProps(col: EnhancedColumnSchema) {
 }
 
 function getAllFilterSlices(): SliceRequestDef[] {
-  const allSlices: SliceRequestDef[] = []
+  const allSlices: SliceRequestDef[] = [...groupedFilterSlices.value]
   for (const slices of Object.values(filterValues.value)) {
     if (slices && slices.length > 0) {
       allSlices.push(...viewerSlicesToRaw(slices, props.columns))
@@ -652,6 +655,8 @@ function matchesRangeSlice(fieldValue: unknown, slice: SliceRequestDef): boolean
 }
 
 function matchesFilterSlice(row: Record<string, unknown>, slice: SliceRequestDef): boolean {
+  if (slice.$and) return slice.$and.every(child => matchesFilterSlice(row, child))
+  if (slice.$or) return slice.$or.some(child => matchesFilterSlice(row, child))
   if (!slice.field || isEmptyFilterValue(slice.value)) {
     return true
   }
@@ -1422,6 +1427,7 @@ function resetPagination() {
 
 // 清除所有过滤
 function clearFilters() {
+  groupedFilterSlices.value = []
   filterValues.value = {}
   emitFilterChange()
   emitFilterCommit()

@@ -72,10 +72,10 @@ export interface SliceRequestDef {
   link?: 1 | 2  // 1=AND, 2=OR
   children?: SliceRequestDef[]
   /** 当前引擎使用的逻辑条件组；children 保留旧 DSL 兼容性。 */
-  or?: SliceRequestDef[]
-  and?: SliceRequestDef[]
+  $or?: SliceRequestDef[]
+  $and?: SliceRequestDef[]
   /** 表达式条件（引擎会绕过 field/op/value 校验）。 */
-  expr?: string
+  $expr?: string
   maxDepth?: number
 }
 

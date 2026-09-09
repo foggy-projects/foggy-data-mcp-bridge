@@ -209,11 +209,11 @@ function transformSlice(
     ...(slice.children
       ? { children: slice.children.map(child => transformSlice(child, columns, direction)) }
       : {}),
-    ...(slice.or
-      ? { or: slice.or.map(child => transformSlice(child, columns, direction)) }
+    ...(slice.$or
+      ? { $or: slice.$or.map(child => transformSlice(child, columns, direction)) }
       : {}),
-    ...(slice.and
-      ? { and: slice.and.map(child => transformSlice(child, columns, direction)) }
+    ...(slice.$and
+      ? { $and: slice.$and.map(child => transformSlice(child, columns, direction)) }
       : {})
   }
 }

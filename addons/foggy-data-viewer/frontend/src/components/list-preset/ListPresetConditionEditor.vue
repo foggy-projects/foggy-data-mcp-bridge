@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { ColumnSchema, SliceRequestDef } from '@/types'
+import type { ColumnSchema, SliceRequestDef, MemberQueryRequest, MemberQueryResponse } from '@/types'
+import SelectFilter from '../filters/SelectFilter.vue'
 import {
   countConditionLeaves,
   getDisplayColumnForCondition,
@@ -18,6 +19,8 @@ interface Props {
   pathLabel?: string
   /** Leaf conditions outside this recursive subtree. */
   conditionOffset?: number
+  qmModel?: string
+  filterMemberLoader?: (request: MemberQueryRequest) => Promise<MemberQueryResponse>
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -53,9 +56,9 @@ const operators = [
   { value: 'is not null', label: '不为空' }
 ]
 
-function isGroup(node: SliceRequestDef): 'or' | 'and' | 'children' | null {
-  if (Array.isArray(node.or)) return 'or'
-  if (Array.isArray(node.and)) return 'and'
+function isGroup(node: SliceRequestDef): '$or' | '$and' | 'children' | null {
+  if (Array.isArray(node.$or)) return '$or'
+  if (Array.isArray(node.$and)) return '$and'
   if (Array.isArray(node.children)) return 'children'
   return null
 }
@@ -68,8 +71,8 @@ function getChildren(node: SliceRequestDef): SliceRequestDef[] {
 function clone(conditions: SliceRequestDef[]): SliceRequestDef[] {
   return conditions.map(condition => ({
     ...condition,
-    ...(condition.or ? { or: clone(condition.or) } : {}),
-    ...(condition.and ? { and: clone(condition.and) } : {}),
+    ...(condition.$or ? { $or: clone(condition.$or) } : {}),
+    ...(condition.$and ? { $and: clone(condition.$and) } : {}),
     ...(condition.children ? { children: clone(condition.children) } : {})
   }))
 }
@@ -86,7 +89,7 @@ function setField(index: number, displayField: string) {
   const next = clone(props.modelValue)
   const column = configurableColumns.value.find(item => item.name === displayField)
   const field = getQueryFieldForColumn(column) || displayField
-  next[index] = { ...next[index], field }
+  next[index] = { field, op: '=', value: undefined }
   update(next)
 }
 
@@ -123,6 +126,23 @@ function setValue(index: number, text: string) {
   update(next)
 }
 
+function valueColumn(node: SliceRequestDef) {
+  return getDisplayColumnForCondition(node.field, configurableColumns.value)
+}
+
+function setSelectedValue(index: number, value: unknown) {
+  const next = clone(props.modelValue)
+  next[index] = { ...next[index], value }
+  update(next)
+}
+
+function setMemberValue(index: number, slices: SliceRequestDef[] | null) {
+  const next = clone(props.modelValue)
+  const first = slices?.[0]
+  next[index] = first ? { ...first } : { ...next[index], value: undefined }
+  update(next)
+}
+
 function remove(index: number) {
   const next = clone(props.modelValue)
   next.splice(index, 1)
@@ -137,7 +157,7 @@ function addLeaf() {
   update([...props.modelValue, { field, op: '=', value: '' }])
 }
 
-function addGroup(kind: 'or' | 'and') {
+function addGroup(kind: '$or' | '$and') {
   if (conditionCount.value + props.conditionOffset + 2 > props.maxConditions) return
   const first = configurableColumns.value[0]
   if (!first) return
@@ -146,7 +166,7 @@ function addGroup(kind: 'or' | 'and') {
   update([...props.modelValue, { [kind]: [leaf(), leaf()] } as unknown as SliceRequestDef])
 }
 
-function addGroupChild(index: number, kind: 'or' | 'and' | 'children') {
+function addGroupChild(index: number, kind: '$or' | '$and' | 'children') {
   if (!canAddCondition.value) return
   const first = configurableColumns.value[0]
   if (!first) return
@@ -170,7 +190,7 @@ function updateGroupChildren(index: number, children: SliceRequestDef[]) {
   update(next)
 }
 
-function setGroupKind(index: number, kind: 'or' | 'and') {
+function setGroupKind(index: number, kind: '$or' | '$and') {
   const next = clone(props.modelValue)
   const node = next[index]
   if (!node) return
@@ -189,8 +209,8 @@ function setGroupKind(index: number, kind: 'or' | 'and') {
       </div>
       <div class="condition-editor-actions">
         <el-button size="small" :disabled="!canAddCondition" @click="addLeaf">添加条件</el-button>
-        <el-button size="small" :disabled="conditionCount + conditionOffset + 2 > maxConditions" @click="addGroup('and')">添加 AND 组</el-button>
-        <el-button size="small" :disabled="conditionCount + conditionOffset + 2 > maxConditions" @click="addGroup('or')">添加 OR 组</el-button>
+        <el-button size="small" :disabled="conditionCount + conditionOffset + 2 > maxConditions" @click="addGroup('$and')">添加 AND 组</el-button>
+        <el-button size="small" :disabled="conditionCount + conditionOffset + 2 > maxConditions" @click="addGroup('$or')">添加 OR 组</el-button>
       </div>
     </div>
 
@@ -208,12 +228,12 @@ function setGroupKind(index: number, kind: 'or' | 'and') {
         <div v-if="isGroup(condition)" class="condition-group">
           <div class="condition-group-header">
             <el-select
-              :model-value="isGroup(condition) === 'or' ? 'or' : 'and'"
+              :model-value="isGroup(condition) === '$or' ? '$or' : '$and'"
               size="small"
               @change="value => setGroupKind(index, value)"
             >
-              <el-option label="AND 组" value="and" />
-              <el-option label="OR 组" value="or" />
+              <el-option label="AND 组" value="$and" />
+              <el-option label="OR 组" value="$or" />
             </el-select>
             <el-button size="small" link type="primary" @click="addGroupChild(index, isGroup(condition)!)">添加子条件</el-button>
             <el-button size="small" link type="danger" @click="remove(index)">删除组</el-button>
@@ -221,6 +241,8 @@ function setGroupKind(index: number, kind: 'or' | 'and') {
           <ListPresetConditionEditor
             :model-value="getChildren(condition)"
             :columns="columns"
+            :qm-model="qmModel"
+            :filter-member-loader="filterMemberLoader"
             :max-conditions="maxConditions"
             :show-toolbar="false"
             :condition-offset="conditionOffset + conditionCount - countConditionLeaves(getChildren(condition))"
@@ -252,8 +274,26 @@ function setGroupKind(index: number, kind: 'or' | 'and') {
           >
             <el-option v-for="operator in operators" :key="operator.value" :label="operator.label" :value="operator.value" />
           </el-select>
+          <el-select
+            v-if="valueColumn(condition)?.dictItems?.length && !condition.op.startsWith('is ')"
+            :model-value="condition.value"
+            :multiple="condition.op === 'in' || condition.op === 'not in'"
+            filterable
+            @update:model-value="value => setSelectedValue(index, value)"
+          >
+            <el-option v-for="item in valueColumn(condition)?.dictItems" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
+          <SelectFilter
+            v-else-if="valueColumn(condition)?.memberLookup?.enabled && (condition.op === '=' || condition.op === 'in')"
+            :field="valueColumn(condition)!.name"
+            :selection-field="valueColumn(condition)!.memberLookup!.selectionFieldName"
+            :model-value="[condition]"
+            :qm-model="qmModel"
+            :remote-loader="filterMemberLoader"
+            @update:model-value="value => setMemberValue(index, value)"
+          />
           <el-input
-            v-if="condition.op !== 'is null' && condition.op !== 'is not null'"
+            v-else-if="condition.op !== 'is null' && condition.op !== 'is not null'"
             class="condition-value"
             size="small"
             :model-value="valueToText(condition.value)"

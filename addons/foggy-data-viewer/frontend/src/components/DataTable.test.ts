@@ -7,6 +7,17 @@ import type { CellRenderContext, EnhancedColumnSchema, SliceRequestDef } from '@
 import { globalColumnRenderers } from './composables/globalColumnRenderers'
 import { MONEY_VIEWER } from '@/utils/viewer'
 
+describe('logical preset conditions', () => {
+  it('retains nested groups during header filter changes and clears them explicitly', async () => {
+    const group = { $or: [{ field: 'status', op: '=', value: 'active' }, { field: 'status', op: '=', value: 'pending' }] }
+    const wrapper = mount(DataTable, { props: { columns: [{ name: 'status', type: 'TEXT' }], data: [], initialSlice: [group as any] } })
+    const vm = wrapper.vm as any
+    expect(vm.getFilters()).toEqual([group])
+    vm.clearFilters()
+    expect(vm.getFilters()).toEqual([])
+  })
+})
+
 const elMessageWarning = vi.hoisted(() => vi.fn())
 const clearCheckboxRowSpy = vi.hoisted(() => vi.fn())
 const clearCheckboxReserveSpy = vi.hoisted(() => vi.fn())

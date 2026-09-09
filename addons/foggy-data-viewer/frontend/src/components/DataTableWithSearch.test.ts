@@ -1992,6 +1992,81 @@ describe('DataTableWithSearch', () => {
   })
 
   describe('Integration', () => {
+    it('recomputes business constraints for every trigger without persisting mutations or stale context', async () => {
+      let tenant = 'A1'
+      const seen: any[] = []
+      const fetchData = vi.fn(async params => {
+        seen.push(JSON.parse(JSON.stringify(params)))
+        return { items: [], total: 0 }
+      })
+      const businessHook = vi.fn(async ctx => {
+        await Promise.resolve()
+        const user = ctx.params.slice
+        ctx.params.slice = [{ $and: [
+          { field: 'tenantId', op: '=', value: tenant },
+          { $or: user.length ? user : [{ field: 'status', op: '=', value: 'active' }] }
+        ] }]
+        ctx.params.columns = ['recipeField']
+        if (user[0]?.$or?.[0]) user[0].$or[0].value.push('hook-only')
+      })
+      const wrapper = mount(DataTableWithSearch, { props: {
+        schema: { columns: [mockColumns[1]], availableColumns: mockColumns, requiredFields: ['id'] },
+        fetchData, queryHooks: { onBeforeQuery: businessHook }
+      } })
+      await flushPromises()
+      const vm = wrapper.vm as any
+      const state: any = { columns: ['name'], slice: [{ $or: [
+        { field: 'tenantId', op: 'in', value: ['other-tenant'] },
+        { field: 'name', op: '=', value: 'user' }
+      ] }], orderBy: [] }
+      vm.applyListViewState(state, { reload: true })
+      await flushPromises()
+      expect(vm.getListViewState().slice).toEqual(state.slice)
+      expect(vm.getListViewState().columns).toEqual(['name'])
+      const table = wrapper.findComponent({ name: 'DataTable' })
+      await table.vm.$emit('page-change', 2, 25)
+      await flushPromises()
+      await table.vm.$emit('sort-change', 'name', 'asc')
+      await flushPromises()
+      await vm.refresh()
+      tenant = 'A2'
+      await wrapper.setProps({ schema: { columns: [mockColumns[1]], availableColumns: mockColumns, requiredFields: ['nextId'] } })
+      await vm.reload()
+      vm.resetListViewState({ reload: true })
+      await flushPromises()
+      for (const request of seen) {
+        expect(request.slice[0].$and[0].field).toBe('tenantId')
+        expect(request.columns).toContain('name')
+        expect(request.columns).toContain('recipeField')
+      }
+      expect(seen.at(-1).slice[0].$and[0].value).toBe('A2')
+      expect(seen.at(-1).columns).toContain('nextId')
+      expect(seen.at(-1).columns).not.toContain('id')
+      expect(businessHook).toHaveBeenCalledTimes(fetchData.mock.calls.length)
+    })
+
+    it('uses replacement callbacks and fetchData and never emits success for cancellation or failure', async () => {
+      const fetchData = vi.fn().mockResolvedValue({ items: [], total: 0 })
+      const wrapper = mount(DataTableWithSearch, { props: {
+        schema: { columns: mockColumns }, fetchData,
+        queryHooks: { onBeforeQuery: async () => false }
+      } })
+      await flushPromises()
+      expect(fetchData).not.toHaveBeenCalled()
+      expect(wrapper.emitted('load-success')).toBeUndefined()
+      const onQueryError = vi.fn()
+      await wrapper.setProps({ queryHooks: { onBeforeQuery: async () => { throw new Error('business callback failed') }, onQueryError } })
+      await (wrapper.vm as any).refresh()
+      expect(onQueryError).toHaveBeenCalled()
+      expect(fetchData).not.toHaveBeenCalled()
+      expect(wrapper.emitted('load-success')).toBeUndefined()
+      const replacement = vi.fn().mockResolvedValue({ items: [], total: 0 })
+      await wrapper.setProps({ fetchData: replacement, queryHooks: {} })
+      await (wrapper.vm as any).refresh()
+      expect(replacement).toHaveBeenCalledOnce()
+      expect(fetchData).not.toHaveBeenCalled()
+    })
+
     it('should work in complete workflow with button mode', async () => {
       const wrapper = mount(DataTableWithSearch, {
         props: {
