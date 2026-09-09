@@ -193,6 +193,24 @@ function mountManagerWrapper(options: {
 }
 
 describe('ListPresetManager', () => {
+  it('saves and restores explicitly selected dependencies without implicitly adding others', async () => {
+    vi.mocked(createListPreset).mockResolvedValue(makePreset())
+    const applyState = vi.fn()
+    const manager = mountManager({ applyState,
+      availableColumns: ['wayType', 'srcNode', 'implicit'].map(name => ({ name, type: 'TEXT' })),
+      requiredRuntimeColumns: ['wayType', 'implicit'],
+      getState: () => ({ columns: ['wayType', 'srcNode'], slice: [], orderBy: [] })
+    })
+    manager.openSaveDialog()
+    manager.setDraft({ title: 'explicit dependencies' })
+    await manager.saveCurrentPreset()
+    const request = vi.mocked(createListPreset).mock.calls[0][1]
+    expect(request.columns).toEqual(['wayType', 'srcNode'])
+    expect(request.columnSettings?.map(item => item.name)).toEqual(['wayType', 'srcNode'])
+    await manager.applyPreset(makePreset({ columns: request.columns, columnSettings: request.columnSettings }))
+    expect(applyState).toHaveBeenCalledWith(expect.objectContaining({ columns: ['wayType', 'srcNode'] }))
+  })
+
   it('saves a small selection from a field pool larger than fifty', async () => {
     vi.mocked(createListPreset).mockResolvedValue(makePreset())
     const manager = mountManager({ availableColumns: Array.from({ length: 70 }, (_, i) => ({ name: `f${i}`, type: 'TEXT' })),
@@ -384,7 +402,7 @@ describe('ListPresetManager', () => {
     ])
   })
 
-  it('keeps locked columns visible and excludes runtime columns from saved presets', async () => {
+  it('keeps locked columns visible and excludes unselected dependencies from saved presets', async () => {
     const saved = makePreset({ columns: ['orderNo'] })
     vi.mocked(createListPreset).mockResolvedValue(saved)
 

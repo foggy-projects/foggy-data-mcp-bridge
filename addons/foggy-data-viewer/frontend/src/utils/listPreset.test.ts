@@ -44,7 +44,7 @@ describe('listPreset limits and dimension metadata', () => {
     })).toThrow('最多配置 20 个条件')
   })
 
-  it('does not count internal required fields toward the user field limit', () => {
+  it('counts explicitly configured dependencies even with legacy internalFields options', () => {
     const state = {
       columns: ['visibleA', 'businessToken'],
       columnSettings: [
@@ -53,7 +53,10 @@ describe('listPreset limits and dimension metadata', () => {
       ]
     }
 
-    expect(getListPresetFieldCount(state, { internalFields: ['businessToken'] })).toBe(1)
+    expect(getListPresetFieldCount(state, { internalFields: ['businessToken'] })).toBe(2)
+    const columns = Array.from({ length: 50 }, (_, i) => `f${i}`)
+    expect(() => validateListPresetLimits({ columns, slice: [] }, { internalFields: ['f0', 'implicit'] })).not.toThrow()
+    expect(() => validateListPresetLimits({ columns: [...columns, 'required'], slice: [] }, { internalFields: ['required'] })).toThrow('51')
   })
 
   it('shows dimension captions while serializing the metadata selection field', () => {

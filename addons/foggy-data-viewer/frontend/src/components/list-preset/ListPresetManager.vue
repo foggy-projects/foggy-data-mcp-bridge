@@ -165,14 +165,13 @@
                   class="field-row"
                   :class="{
                     'is-selected': column.visible,
-                    'is-locked': isColumnLocked(column.name),
-                    'is-runtime': isRuntimeColumn(column.name)
+                    'is-locked': isColumnLocked(column.name)
                   }"
                   @click="toggleColumn(column.name, !column.visible)"
                 >
                   <el-checkbox
                     :model-value="column.visible"
-                    :disabled="isRuntimeColumn(column.name) || isColumnLocked(column.name)"
+                    :disabled="isColumnLocked(column.name)"
                     @click.stop
                     @change="value => toggleColumn(column.name, value)"
                   />
@@ -180,7 +179,6 @@
                     <div class="field-title">
                       <span>{{ column.title || column.name }}</span>
                       <el-tag v-if="isColumnLocked(column.name)" size="small" type="warning">锁定</el-tag>
-                      <el-tag v-if="isRuntimeColumn(column.name)" size="small">运行时</el-tag>
                       <el-tag size="small" effect="plain">{{ column.type }}</el-tag>
                     </div>
                     <div class="field-code">{{ column.name }}</div>
@@ -472,6 +470,7 @@ interface Props {
   clearConditions?: () => void | Promise<void>
   availableColumns?: EnhancedColumnSchema[]
   lockedColumns?: string[]
+  /** @deprecated Execution dependencies belong to the query layer; never filter presets. */
   requiredRuntimeColumns?: string[]
   filterMemberLoader?: (request: MemberQueryRequest) => Promise<MemberQueryResponse>
   triggerMode?: 'button' | 'none'
@@ -540,16 +539,14 @@ const buttonText = computed(() => props.config.buttonText || '自定义查询')
 const clearConditionsEnabled = computed(() => Boolean(props.clearConditions))
 const currentState = computed(() => props.getState())
 const lockedColumnNameSet = computed(() => new Set(props.lockedColumns || []))
-const runtimeColumnNameSet = computed(() => new Set(props.requiredRuntimeColumns || []))
 const availableColumnMap = computed(() => new Map((props.availableColumns || []).map(column => [column.name, column])))
 const configurableAvailableColumns = computed(() => {
   const sourceColumns = props.availableColumns && props.availableColumns.length > 0
     ? props.availableColumns
     : currentState.value.columns.map(name => ({ name, title: name, type: 'TEXT' }))
   return getUserConfigurableColumns(sourceColumns)
-    .filter(column => !isRuntimeColumn(column.name))
 })
-const visibleColumnDraft = computed(() => columnDraft.value.filter(column => column.visible && !isRuntimeColumn(column.name)))
+const visibleColumnDraft = computed(() => columnDraft.value.filter(column => column.visible))
 const appliedPreset = computed(() => presets.value.find(preset => preset.id === appliedPresetId.value))
 const defaultPreset = computed(() => presets.value.find(preset => preset.isDefault))
 const dialogTitle = computed(() => {
@@ -767,12 +764,7 @@ function isColumnLocked(name: string): boolean {
   return lockedColumnNameSet.value.has(name)
 }
 
-function isRuntimeColumn(name: string): boolean {
-  return runtimeColumnNameSet.value.has(name)
-}
-
 function normalizeVisible(name: string, visibleValue: boolean): boolean {
-  if (isRuntimeColumn(name)) return false
   if (isColumnLocked(name)) return true
   return visibleValue
 }
@@ -789,7 +781,7 @@ function buildColumnDraft(state: ListViewState): ColumnDraft[] {
   return sourceColumns
     .filter(column => hasAvailableColumns
       ? configurableAvailableColumns.value.some(available => available.name === column.name)
-      : getUserConfigurableColumns([column]).length > 0 && !isRuntimeColumn(column.name))
+      : getUserConfigurableColumns([column]).length > 0)
     .map((column, sourceIndex) => {
       const setting = settingMap.get(column.name)
       const visibleValue = setting?.visible ?? (!hasVisibleColumns || visibleNames.has(column.name))
@@ -836,7 +828,7 @@ function normalizeDraftForSave(): ColumnDraft[] {
 function buildStateFromDraft(state: ListViewState): ListViewState {
   const draft = normalizeDraftForSave()
   const saveQueryConditions = form.value.saveQueryConditions
-  const persistedColumns = draft.filter(column => column.visible && !isRuntimeColumn(column.name))
+  const persistedColumns = draft.filter(column => column.visible)
 
   return {
     columns: persistedColumns.filter(column => column.visible).map(column => column.name),
@@ -888,11 +880,6 @@ function toggleColumn(name: string, value: unknown) {
     ElMessage.warning('自定义查询最多配置 50 个字段')
     return
   }
-  if (isRuntimeColumn(name)) {
-    column.visible = false
-    ElMessage.warning('运行时字段不作为展示列保存')
-    return
-  }
   if (isColumnLocked(name) && !nextVisible) {
     column.visible = true
     ElMessage.warning('锁定列不可移除')
@@ -909,20 +896,20 @@ function removeColumn(name: string) {
 }
 
 function selectAllColumns() {
-  if (columnDraft.value.filter(column => !isRuntimeColumn(column.name)).length > 50) {
+  if (columnDraft.value.length > 50) {
     ElMessage.warning('自定义查询最多配置 50 个字段，请分组或逐项选择')
     return
   }
   columnDraft.value = columnDraft.value.map(column => ({
     ...column,
-    visible: !isRuntimeColumn(column.name)
+    visible: true
   }))
 }
 
 function clearOptionalColumns() {
   columnDraft.value = columnDraft.value.map(column => ({
     ...column,
-    visible: isColumnLocked(column.name) && !isRuntimeColumn(column.name)
+    visible: isColumnLocked(column.name)
   }))
 }
 
@@ -933,13 +920,13 @@ function getGroupColumnNames(groupKey: string): Set<string> {
 
 function selectColumnGroup(groupKey: string) {
   const groupColumnNames = getGroupColumnNames(groupKey)
-  if (columnDraft.value.filter(column => (column.visible || groupColumnNames.has(column.name)) && !isRuntimeColumn(column.name)).length > 50) {
+  if (columnDraft.value.filter(column => column.visible || groupColumnNames.has(column.name)).length > 50) {
     ElMessage.warning('选择本组将超过 50 个字段上限')
     return
   }
   columnDraft.value = columnDraft.value.map(column => (
     groupColumnNames.has(column.name)
-      ? { ...column, visible: !isRuntimeColumn(column.name) }
+      ? { ...column, visible: true }
       : column
   ))
 }
@@ -948,7 +935,7 @@ function clearColumnGroup(groupKey: string) {
   const groupColumnNames = getGroupColumnNames(groupKey)
   columnDraft.value = columnDraft.value.map(column => (
     groupColumnNames.has(column.name)
-      ? { ...column, visible: isColumnLocked(column.name) && !isRuntimeColumn(column.name) }
+      ? { ...column, visible: isColumnLocked(column.name) }
       : column
   ))
 }
@@ -1066,9 +1053,7 @@ async function loadPresets() {
 
 async function applyPreset(preset: ListPresetDef) {
   try {
-    validateListPresetLimits({ ...preset, slice: preset.query?.slice || [] }, {
-      internalFields: props.requiredRuntimeColumns || []
-    })
+    validateListPresetLimits({ ...preset, slice: preset.query?.slice || [] })
   } catch (error) {
     ElMessage.error(getErrorMessage(error, '自定义查询超过允许的字段或条件上限'))
     return
@@ -1089,7 +1074,7 @@ async function applyPreset(preset: ListPresetDef) {
   }
 
   try {
-    validateListPresetLimits(state, { internalFields: props.requiredRuntimeColumns || [] })
+    validateListPresetLimits(state)
   } catch (error) {
     ElMessage.error(getErrorMessage(error, '自定义查询超过允许的字段或条件上限'))
     return
@@ -1136,7 +1121,7 @@ async function saveCurrentPreset() {
     return
   }
   try {
-    validateListPresetLimits(state, { internalFields: props.requiredRuntimeColumns || [] })
+    validateListPresetLimits(state)
   } catch (error) {
     ElMessage.error(getErrorMessage(error, '自定义查询超过允许的字段或条件上限'))
     return
@@ -1186,7 +1171,7 @@ async function overwritePreset(preset: ListPresetDef) {
   const state = buildStateFromDraft(currentState.value)
   if (!ensureHasVisibleColumns(state)) return
   try {
-    validateListPresetLimits(state, { internalFields: props.requiredRuntimeColumns || [] })
+    validateListPresetLimits(state)
   } catch (error) {
     ElMessage.error(getErrorMessage(error, '自定义查询超过允许的字段或条件上限'))
     return

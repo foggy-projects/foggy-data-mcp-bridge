@@ -36,6 +36,8 @@
 
 ## 发布前 review 修复（1.0.1-beta.48）
 
+以下为 beta.48 历史记录，执行依赖的展示/持久化语义以文末 beta.49 修正为准。
+
 - 条件 JSON 使用后端 Jackson 声明的 `$or` / `$and` / `$expr`；原实现错误的无 `$` 字段尚未发布。
 - 仅保存选中的字段设置，字段池超过 50 项不影响少量字段方案；加载的超限方案在过滤失效字段之前拒绝。
 - 请求条件树及 value 深拷贝，业务回调修改不污染用户方案；表头编辑保留不可映射到单列输入的逻辑组。
@@ -47,3 +49,12 @@
 固定条件仍由可信业务 hooks 或原 fetchData 配方根据当前页面上下文添加，必须与用户条件 AND 组合（slice 顶层数组为 AND）。组件无法从任意业务代码推断固定条件，也不替代服务端权限校验。必需字段声明使用响应式 schema.requiredFields / requiredRuntimeColumns；业务追加内容只存在于每次请求中。
 
 验证：前端 `npm test` 28 文件 / 434 用例通过；`mvn -pl addons/foggy-data-viewer -Dtest=ListPresetServiceTest test` 15 用例通过。新增验收包括真实 `$or` JSON 的后端存储往返、50 字段 / 20 条件边界、partial update、A1→A2、业务回调原地修改隔离、取消/异常、替换 fetchData、逻辑组保留、70 项字段池保存单字段。
+
+## TMS 验收修正（1.0.1-beta.49）
+
+- requiredFields / requiredRuntimeColumns 仅为执行依赖 R，实际请求为 U∪R；展示、保存、字段额度按用户配置 U。U∩R 不再被字段池、默认列、锁定列、方案保存或额度校验排除。R 中未被用户选择的字段仅补入请求；旧 internalFields 参数保留类型兼容但不再豁免额度。
+- SelectFilter 恢复已选 ID 时主动请求当前成员接口，优先使用 selectedItems 回填页外成员名称；数字/字符串 ID 的标签匹配不修改 DSL 类型。
+- 标签回填独立于下拉列表及主表查询，不 emit 条件变化/commit；模型、字段、selectionField、loader 切换清空缓存并隔离旧响应；已选值变化使用请求序号防止过期回填覆盖，失败后可通过打开下拉重试。
+- 本次不修改尚未确诊的 checkbox 交互，不操作 TMS 或发布 Maven。TMS 临时 adapter 绕过应在新包验收后再移除。
+
+验证：针对性测试首轮 4 文件 / 135 用例通过；补充四类上下文竞态后，完整前端 `npm test` 28 文件 / 442 用例通过。`npm run build:lib`（Vite、vue-tsc、verify:package）通过；后端 `ListPresetServiceTest` 15 用例通过。Review 检查了 U/R 交集、隐式补入不持久化、50/51 边界、过期异步响应及标签回填不 emit 的调用链。

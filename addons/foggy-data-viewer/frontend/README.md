@@ -184,7 +184,11 @@ const amountField = {
 />
 ```
 
-后端可通过 `foggy.data-viewer.table-defaults.system/tenants/roles` 配置 fallback；用户默认配置仍可通过 `listPreset` 覆盖。`requiredRuntimeColumns` 只会追加到 `fetchData(params).columns`，不会显示为普通列。
+后端可通过 `foggy.data-viewer.table-defaults.system/tenants/roles` 配置 fallback；用户默认配置仍可通过 `listPreset` 覆盖。
+
+从 `1.0.1-beta.49` 起，`requiredFields` / `requiredRuntimeColumns` 仅声明执行依赖：请求字段为用户选择 U 与依赖 R 的并集。用户主动选择的 U∩R 正常展示、保存并计入 50 字段额度；隐式补入的 R\\U 不自动展示、不保存、不占用户额度。永久隐藏的系统字段应使用独立元数据规则，不能由 required 推断。旧 `internalFields` 额度豁免选项不再生效。
+
+恢复方案中的维度 ID 时，`SelectFilter` 会通过当前 `filterMemberLoader` 主动回填名称，无需打开下拉。成员接口应在 `selectedItems` 返回不在当前分页内的已选成员；回填不改变 DSL 值或触发额外筛选/主表请求。
 
 ### DataTable Events
 

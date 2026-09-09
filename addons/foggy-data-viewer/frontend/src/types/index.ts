@@ -279,9 +279,9 @@ export interface TableSchema {
   availableColumns?: EnhancedColumnSchema[]
   /** availableColumns 存在时的初始展示列。 */
   defaultVisibleColumns?: string[]
-  /** 运行时依赖字段，只加入查询列，不作为普通可见列 */
+  /** 执行依赖；只补入请求，不自动展示。用户主动选择时可展示、保存并计额度。 */
   requiredRuntimeColumns?: string[]
-  /** 业务内部必需查询字段；不进入用户方案字段池。 */
+  /** 执行依赖，与 requiredRuntimeColumns 同义；不限制字段池或用户选择。 */
   requiredFields?: string[]
   /** 固定可见列，应用自定义列表后仍会补回展示 */
   lockedColumns?: string[]

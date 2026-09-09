@@ -35,9 +35,9 @@ interface Props {
   schema?: TableSchema
   /** 数据加载函数 */
   fetchData?: (params: FetchDataParams) => Promise<FetchDataResult>
-  /** 业务查询所需但不一定展示的字段；不会作为用户字段保存 */
+  /** 执行依赖；隐式补入不展示/保存，用户主动选择时正常展示/保存。 */
   requiredFields?: string[]
-  /** 业务查询所需但不一定展示的运行时字段；不会作为用户字段保存 */
+  /** 执行依赖，与 requiredFields 同义，不限制用户选择。 */
   requiredRuntimeColumns?: string[]
 
   // ========== 受控模式 Props（当不使用 schema 时） ==========
@@ -209,7 +209,7 @@ function mergeColumnNames(...groups: Array<Array<string | null | undefined> | un
   return result
 }
 
-const activeRequiredRuntimeColumns = computed(() => mergeColumnNames(
+const activeRequiredQueryColumns = computed(() => mergeColumnNames(
   props.requiredFields,
   props.requiredRuntimeColumns,
   props.schema?.requiredFields,
@@ -232,7 +232,7 @@ const defaultListViewState = computed<ListViewState | null>(() => {
 
   const defaultVisibleColumns = mergeColumnNames(
     props.schema.defaultVisibleColumns ?? props.schema.columns.map(column => column.name)
-  ).filter(name => !activeRequiredRuntimeColumns.value.includes(name))
+  )
 
   return {
     columns: defaultVisibleColumns,
@@ -244,12 +244,8 @@ const defaultListViewState = computed<ListViewState | null>(() => {
 })
 
 const baseColumns = computed(() => availableBaseColumns.value)
-const displayBaseColumns = computed(() => availableBaseColumns.value.filter(
-  column => !activeRequiredRuntimeColumns.value.includes(column.name)
-))
-const displayLockedColumnNames = computed(() => lockedColumnNames.value.filter(
-  name => !activeRequiredRuntimeColumns.value.includes(name)
-))
+const displayBaseColumns = availableBaseColumns
+const displayLockedColumnNames = lockedColumnNames
 
 function applyColumnSetting(col: EnhancedColumnSchema, setting?: ColumnViewSetting): EnhancedColumnSchema {
   if (!setting) return col
@@ -369,7 +365,7 @@ const effectiveColumns = computed(() => {
 const activeQueryColumns = computed(() => {
   return mergeColumnNames(
     effectiveColumns.value.map(col => col.name),
-    activeRequiredRuntimeColumns.value
+    activeRequiredQueryColumns.value
   )
 })
 
@@ -1027,9 +1023,7 @@ function applyListViewState(
   options: { reload?: boolean; validateLimits?: boolean } = {}
 ) {
   if (options.validateLimits === true || (options.validateLimits !== false && isSchemaMode.value)) {
-    validateListPresetLimits(state, {
-      internalFields: activeRequiredRuntimeColumns.value
-    })
+    validateListPresetLimits(state)
   }
 
   activeListViewState.value = {
@@ -1360,7 +1354,6 @@ defineExpose({
             :apply-state="applyListViewState"
             :available-columns="baseColumns"
             :locked-columns="lockedColumnNames"
-            :required-runtime-columns="activeRequiredRuntimeColumns"
             :filter-member-loader="filterMemberLoader"
             :reload="reloadAfterListPresetApply"
             :clear-conditions="clearListPresetConditions"
@@ -1453,7 +1446,6 @@ defineExpose({
             :apply-state="applyListViewState"
             :available-columns="baseColumns"
             :locked-columns="lockedColumnNames"
-            :required-runtime-columns="activeRequiredRuntimeColumns"
             :filter-member-loader="filterMemberLoader"
             :reload="reloadAfterListPresetApply"
             :clear-conditions="clearListPresetConditions"

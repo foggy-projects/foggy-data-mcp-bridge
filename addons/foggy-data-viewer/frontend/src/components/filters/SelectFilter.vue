@@ -60,6 +60,10 @@ const remoteTotal = ref(0)
 const remoteHasMore = ref(false)
 const selectedLabels = ref<Map<string | number, string>>(new Map())
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
+let contextRevision = 0
+let hydrationRevision = 0
+let optionsRevision = 0
+let disposed = false
 
 /** 是否远程模式 */
 const isRemote = computed(() => !!props.remoteLoader && !!props.qmModel)
@@ -80,7 +84,58 @@ watch(() => props.modelValue, (slices) => {
     isMulti.value = false
     selectedValues.value.add(slice.value as string | number)
   }
+}, { immediate: true, deep: true, flush: 'sync' })
+
+// Labels/options must never cross model, field, or loader contexts.
+watch(() => [props.qmModel, props.field, props.selectionField, props.remoteLoader], () => {
+  contextRevision += 1
+  hydrationRevision += 1
+  optionsRevision += 1
+  selectedLabels.value.clear()
+  remoteOptions.value = []
+  remoteTotal.value = 0
+  remoteHasMore.value = false
+  remoteLoading.value = false
+  if (debounceTimer) clearTimeout(debounceTimer)
+}, { flush: 'sync' })
+
+// Recover labels even when the dropdown has never been opened. This is a
+// member lookup only: do not emit conditions or trigger the table query.
+watch(() => [props.qmModel, props.field, props.selectionField, props.remoteLoader,
+  Array.from(selectedValues.value)], async () => {
+  const revision = ++hydrationRevision
+  const context = contextRevision
+  const values = Array.from(selectedValues.value)
+  if (!isRemote.value || values.length === 0) return
+  try {
+    const response = await props.remoteLoader!({
+      qmModel: props.qmModel!, fieldName: props.field,
+      start: 0, limit: props.maxDisplayItems, selectedValues: values
+    })
+    if (disposed || context !== contextRevision || revision !== hydrationRevision) return
+    cacheLabels(response)
+  } catch (error) {
+    if (!disposed && context === contextRevision && revision === hydrationRevision) {
+      console.error('选中成员标签回填失败:', error)
+    }
+  }
 }, { immediate: true })
+
+function cacheLabels(response: MemberQueryResponse) {
+  for (const item of [...response.items, ...(response.selectedItems || [])]) {
+    selectedLabels.value.set(item.value, item.label)
+  }
+}
+
+function getSelectedLabel(value: string | number): string | undefined {
+  const exact = selectedLabels.value.get(value)
+  if (exact !== undefined) return exact
+  // Some member APIs encode numeric IDs as strings. Match labels only;
+  // keep the original selected value (and its type) untouched in the DSL.
+  return selectedLabels.value.get(typeof value === 'number' ? String(value) : (
+    value !== '' && String(Number(value)) === value ? Number(value) : value
+  ))
+}
 
 // ── 选项列表 ──
 const effectiveOptions = computed(() => {
@@ -119,7 +174,7 @@ const displayText = computed(() => {
   if (isRemote.value) {
     const labels: string[] = []
     for (const v of selectedValues.value) {
-      const label = selectedLabels.value.get(v)
+      const label = getSelectedLabel(v)
       if (label) labels.push(label)
       else labels.push(String(v))
     }
@@ -137,6 +192,8 @@ const displayText = computed(() => {
 async function loadRemote(keyword: string) {
   if (!props.remoteLoader || !props.qmModel) return
 
+  const context = contextRevision
+  const revision = ++optionsRevision
   remoteLoading.value = true
   try {
     const response = await props.remoteLoader({
@@ -150,24 +207,18 @@ async function loadRemote(keyword: string) {
         : undefined
     })
 
+    if (disposed || context !== contextRevision || revision !== optionsRevision) return
     remoteOptions.value = response.items.map(toFilterOption)
     remoteTotal.value = response.total
     remoteHasMore.value = response.hasMore ?? false
 
-    // 缓存已选项的 label
-    if (response.selectedItems) {
-      for (const item of response.selectedItems) {
-        selectedLabels.value.set(item.value, item.label)
-      }
-    }
-    for (const item of response.items) {
-      selectedLabels.value.set(item.value, item.label)
-    }
+    cacheLabels(response)
   } catch (e) {
+    if (disposed || context !== contextRevision || revision !== optionsRevision) return
     console.error('远程成员加载失败:', e)
     remoteOptions.value = []
   } finally {
-    remoteLoading.value = false
+    if (!disposed && context === contextRevision && revision === optionsRevision) remoteLoading.value = false
   }
 }
 
@@ -323,6 +374,7 @@ function handleClickOutside(e: MouseEvent) {
 
 onMounted(() => document.addEventListener('click', handleClickOutside))
 onUnmounted(() => {
+  disposed = true
   document.removeEventListener('click', handleClickOutside)
   if (debounceTimer) clearTimeout(debounceTimer)
 })

@@ -1,9 +1,75 @@
-import { afterEach, describe, expect, it } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { mount, flushPromises } from '@vue/test-utils'
 import SelectFilter from './SelectFilter.vue'
 import type { SliceRequestDef } from '@/types'
 
 describe('SelectFilter', () => {
+  it('hydrates off-page selectedItems without opening, changing DSL types, or emitting queries', async () => {
+    const loader = vi.fn().mockResolvedValue({ items: [{ value: 1, label: '其他' }], total: 100,
+      selectedItems: [{ value: '80581', label: '郑州分拨中心' }] })
+    const slices = [{ field: 'srcNode$id', op: '=', value: 80581 }]
+    const wrapper = mount(SelectFilter, { props: { field: 'srcNode', selectionField: 'srcNode$id',
+      qmModel: 'Routes', remoteLoader: loader, modelValue: slices } })
+    await flushPromises()
+    expect(loader).toHaveBeenCalledWith(expect.objectContaining({ selectedValues: [80581] }))
+    expect(wrapper.find('.selected-text').text()).toBe('郑州分拨中心')
+    expect(slices[0].value).toBe(80581)
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+    expect(wrapper.emitted('commit')).toBeUndefined()
+    loader.mockResolvedValue({ items: [], total: 100, selectedItems: [{ value: '9', label: '页外成员' }] })
+    await wrapper.setProps({ modelValue: [{ field: 'srcNode$id', op: 'in', value: ['9'] }] })
+    await flushPromises()
+    expect(wrapper.find('.selected-text').text()).toBe('页外成员')
+    expect(loader.mock.calls.at(-1)?.[0].selectedValues).toEqual(['9'])
+    wrapper.unmount()
+  })
+
+  it.each(['model', 'field', 'selectionField', 'loader'])('ignores stale hydration and dropdown results after %s changes', async change => {
+    const pending: ((value: any) => void)[] = []
+    const loader = vi.fn(() => new Promise<any>(resolve => pending.push(resolve)))
+    const wrapper = mount(SelectFilter, { props: { field: 'srcNode', selectionField: 'srcNode$id',
+      qmModel: 'A', remoteLoader: loader, modelValue: [{ field: 'srcNode$id', op: '=', value: 7 }] } })
+    await wrapper.find('.select-input').trigger('click')
+    expect(pending).toHaveLength(2)
+    await wrapper.setProps(change === 'model' ? { qmModel: 'B' }
+      : change === 'field' ? { field: 'dstNode' }
+      : change === 'selectionField' ? { selectionField: 'dstNode$id' }
+      : { remoteLoader: () => loader() })
+    pending[2]({ items: [], total: 0, selectedItems: [{ value: 7, label: 'B名称' }] })
+    await flushPromises()
+    pending[0]({ items: [], total: 0, selectedItems: [{ value: 7, label: 'A旧名称' }] })
+    pending[1]({ items: [{ value: 7, label: 'A旧下拉' }], total: 1 })
+    await flushPromises()
+    expect(wrapper.find('.selected-text').text()).toBe('B名称')
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+    expect(wrapper.emitted('commit')).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it('ignores earlier selections and recovers labels after a lookup failure', async () => {
+    const pending: ((value: any) => void)[] = []
+    const loader = vi.fn(() => new Promise<any>(resolve => pending.push(resolve)))
+    const wrapper = mount(SelectFilter, { props: { field: 'node', qmModel: 'A', remoteLoader: loader,
+      modelValue: [{ field: 'node$id', op: '=', value: 1 }] } })
+    await wrapper.setProps({ modelValue: [{ field: 'node$id', op: '=', value: 2 }] })
+    pending[1]({ items: [{ value: 2, label: '新' }], total: 1 })
+    pending[0]({ items: [{ value: 2, label: '旧' }], total: 1 })
+    await flushPromises()
+    expect(wrapper.find('.selected-text').text()).toBe('新')
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const retryLoader = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue({
+      items: [], total: 0, selectedItems: [{ value: 2, label: '恢复' }] })
+    await wrapper.setProps({ remoteLoader: retryLoader })
+    await flushPromises()
+    expect(wrapper.find('.selected-text').text()).toBe('2')
+    await wrapper.find('.select-input').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.selected-text').text()).toBe('恢复')
+    expect(wrapper.emitted('commit')).toBeUndefined()
+    errorLog.mockRestore()
+    wrapper.unmount()
+  })
+
   afterEach(() => {
     document.body.innerHTML = ''
   })

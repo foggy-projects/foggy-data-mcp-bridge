@@ -6,6 +6,7 @@ export const MAX_LIST_PRESET_CONDITIONS = 20
 export interface ListPresetLimitOptions {
   maxFields?: number
   maxConditions?: number
+  /** @deprecated Ignored: execution dependencies never exempt user-authored fields. */
   internalFields?: readonly string[]
 }
 
@@ -81,14 +82,13 @@ export function getConditionFields(conditions: readonly SliceRequestDef[] | null
 
 export function getListPresetFieldCount(
   state: Pick<ListViewState, 'columns' | 'columnSettings'>,
-  options: Pick<ListPresetLimitOptions, 'internalFields'> = {}
+  _options: Pick<ListPresetLimitOptions, 'internalFields'> = {}
 ): number {
-  const internal = new Set(options.internalFields || [])
   const configured = [
     ...(state.columns || []),
     ...(state.columnSettings || []).map(setting => setting.name)
   ]
-  return distinctNonBlank(configured).filter(field => !internal.has(field)).length
+  return distinctNonBlank(configured).length
 }
 
 export function getListPresetLimitResult(

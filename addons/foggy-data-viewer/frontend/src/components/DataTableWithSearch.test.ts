@@ -1992,6 +1992,34 @@ describe('DataTableWithSearch', () => {
   })
 
   describe('Integration', () => {
+    it('keeps user selections independent of execution dependencies across apply and context changes', async () => {
+      const columns = Array.from({ length: 51 }, (_, i) => ({ name: `f${i}`, type: 'TEXT' }))
+      const fetchData = vi.fn().mockResolvedValue({ items: [], total: 0 })
+      const schema = { columns: columns.slice(0, 2), availableColumns: columns,
+        requiredFields: ['f0'], requiredRuntimeColumns: ['f1', 'implicit'] }
+      const wrapper = mount(DataTableWithSearch, { props: { schema, fetchData } })
+      await flushPromises()
+      const vm = wrapper.vm as any
+      const displayed = () => wrapper.findComponent({ name: 'DataTable' }).props('columns').map((c: any) => c.name)
+      expect(displayed()).toEqual(['f0', 'f1'])
+      expect(vm.getListViewState().columns).toEqual(['f0', 'f1'])
+      expect(fetchData.mock.calls.at(-1)?.[0].columns).toEqual(['f0', 'f1', 'implicit'])
+      vm.applyListViewState({ columns: ['f1'], slice: [], orderBy: [] }, { reload: true })
+      await flushPromises()
+      expect(displayed()).toEqual(['f1'])
+      expect(vm.getListViewState().columns).toEqual(['f1'])
+      expect(fetchData.mock.calls.at(-1)?.[0].columns).toContain('f0')
+      await wrapper.setProps({ schema: { ...schema, requiredFields: ['next'], requiredRuntimeColumns: [] } })
+      await vm.refresh()
+      expect(fetchData.mock.calls.at(-1)?.[0].columns).toEqual(['f1', 'next'])
+      const fifty = columns.slice(0, 50).map(c => c.name)
+      vm.applyListViewState({ columns: fifty, slice: [], orderBy: [] }, { reload: true })
+      await flushPromises()
+      expect(vm.getListViewState().columns).toEqual(fifty)
+      expect(fetchData.mock.calls.at(-1)?.[0].columns).toHaveLength(51)
+      expect(() => vm.applyListViewState({ columns: columns.map(c => c.name), slice: [], orderBy: [] })).toThrow('51')
+    })
+
     it('recomputes business constraints for every trigger without persisting mutations or stale context', async () => {
       let tenant = 'A1'
       const seen: any[] = []
