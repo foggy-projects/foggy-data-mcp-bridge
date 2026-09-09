@@ -71,6 +71,12 @@ export interface SliceRequestDef {
   value?: unknown
   link?: 1 | 2  // 1=AND, 2=OR
   children?: SliceRequestDef[]
+  /** 当前引擎使用的逻辑条件组；children 保留旧 DSL 兼容性。 */
+  or?: SliceRequestDef[]
+  and?: SliceRequestDef[]
+  /** 表达式条件（引擎会绕过 field/op/value 校验）。 */
+  expr?: string
+  maxDepth?: number
 }
 
 /**
@@ -269,8 +275,14 @@ export interface TableSchema {
   tableInstanceId?: string
   /** 列配置 */
   columns: EnhancedColumnSchema[]
+  /** 可配置字段全集；未提供时回退到 columns。不会自动成为展示列。 */
+  availableColumns?: EnhancedColumnSchema[]
+  /** availableColumns 存在时的初始展示列。 */
+  defaultVisibleColumns?: string[]
   /** 运行时依赖字段，只加入查询列，不作为普通可见列 */
   requiredRuntimeColumns?: string[]
+  /** 业务内部必需查询字段；不进入用户方案字段池。 */
+  requiredFields?: string[]
   /** 固定可见列，应用自定义列表后仍会补回展示 */
   lockedColumns?: string[]
   /** 单元格复制配置 */
@@ -641,6 +653,7 @@ export interface DefaultsMeta {
   tableInstanceId?: string
   visibleColumns?: string[]
   requiredRuntimeColumns?: string[]
+  requiredFields?: string[]
   lockedColumns?: string[]
   searchFields?: string[]
   pageSize?: number

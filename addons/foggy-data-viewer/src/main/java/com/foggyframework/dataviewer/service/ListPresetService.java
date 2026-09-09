@@ -11,8 +11,10 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -20,6 +22,9 @@ import java.util.UUID;
  */
 @Slf4j
 public class ListPresetService {
+
+    public static final int MAX_USER_CONFIGURED_FIELDS = 50;
+    public static final int MAX_USER_CONDITION_LEAVES = 20;
 
     private final ListPresetStore store;
     private final ListPresetFieldValidator fieldValidator;
@@ -84,31 +89,17 @@ public class ListPresetService {
         validateUserId(userId);
         validateRequest(request, false);
         return store.findById(userId, presetId).map(preset -> {
-            fieldValidator.validate(userId, preset.getModel(), preset.getBusinessKey(), request);
-            if (request.getTitle() != null) {
-                preset.setTitle(request.getTitle());
-            }
-            if (request.getDescription() != null) {
-                preset.setDescription(request.getDescription());
-            }
-            if (request.getColumns() != null) {
-                preset.setColumns(request.getColumns());
-            }
-            if (request.getColumnSettings() != null) {
-                preset.setColumnSettings(request.getColumnSettings());
-            }
-            if (request.getQuery() != null) {
-                preset.setQuery(defaultQuery(request.getQuery()));
-            }
-            if (request.getPageSize() != null) {
-                preset.setPageSize(request.getPageSize());
-            }
-            if (request.getVisibility() != null) {
-                preset.setVisibility(request.getVisibility());
-            }
-            if (request.getIsDefault() != null) {
-                preset.setIsDefault(request.getIsDefault());
-            }
+            SaveListPresetRequest merged = mergeRequest(preset, request);
+            validateRequest(merged, false);
+            fieldValidator.validate(userId, preset.getModel(), preset.getBusinessKey(), merged);
+            preset.setTitle(merged.getTitle());
+            preset.setDescription(merged.getDescription());
+            preset.setColumns(merged.getColumns());
+            preset.setColumnSettings(merged.getColumnSettings());
+            preset.setQuery(defaultQuery(merged.getQuery()));
+            preset.setPageSize(merged.getPageSize());
+            preset.setVisibility(merged.getVisibility());
+            preset.setIsDefault(merged.getIsDefault());
             preset.setUpdatedAt(Instant.now());
             if (Boolean.TRUE.equals(preset.getIsDefault())) {
                 store.clearDefault(userId, preset.getModel(), preset.getBusinessKey());
@@ -201,6 +192,7 @@ public class ListPresetService {
             validateSlices(request.getQuery().getSlice());
             validateOrderBy(request.getQuery().getOrderBy());
         }
+        validateConfiguredFieldCount(request.getColumns(), request.getColumnSettings());
         if (request.getPageSize() != null && request.getPageSize() <= 0) {
             throw new IllegalArgumentException("pageSize 必须大于 0");
         }
@@ -210,9 +202,60 @@ public class ListPresetService {
         if (slices == null) {
             return;
         }
+        int leafCount = 0;
         for (SliceRequestDef slice : slices) {
             validateCondition(slice);
+            leafCount += countConditionLeaves(slice);
         }
+        if (leafCount > MAX_USER_CONDITION_LEAVES) {
+            throw new IllegalArgumentException("slice 最多包含 " + MAX_USER_CONDITION_LEAVES
+                    + " 个叶子条件，当前 " + leafCount + " 个");
+        }
+    }
+
+    private int countConditionLeaves(CondRequestDef condition) {
+        if (condition._isLogicalGroup()) {
+            List<CondRequestDef> children = condition._getGroupChildren();
+            int count = 0;
+            for (CondRequestDef child : children) {
+                count += countConditionLeaves(child);
+            }
+            return count;
+        }
+        return 1;
+    }
+
+    private void validateConfiguredFieldCount(
+            List<String> columns,
+            List<ListPresetDef.ColumnViewSetting> columnSettings) {
+        Set<String> fields = new LinkedHashSet<>();
+        if (columns != null) {
+            fields.addAll(columns);
+        }
+        if (columnSettings != null) {
+            for (ListPresetDef.ColumnViewSetting setting : columnSettings) {
+                if (setting != null && setting.getName() != null) {
+                    fields.add(setting.getName());
+                }
+            }
+        }
+        if (fields.size() > MAX_USER_CONFIGURED_FIELDS) {
+            throw new IllegalArgumentException("自定义查询最多配置 " + MAX_USER_CONFIGURED_FIELDS
+                    + " 个字段，当前 " + fields.size() + " 个");
+        }
+    }
+
+    private SaveListPresetRequest mergeRequest(ListPresetDef preset, SaveListPresetRequest request) {
+        SaveListPresetRequest merged = new SaveListPresetRequest();
+        merged.setTitle(request.getTitle() != null ? request.getTitle() : preset.getTitle());
+        merged.setDescription(request.getDescription() != null ? request.getDescription() : preset.getDescription());
+        merged.setColumns(request.getColumns() != null ? request.getColumns() : preset.getColumns());
+        merged.setColumnSettings(request.getColumnSettings() != null ? request.getColumnSettings() : preset.getColumnSettings());
+        merged.setQuery(request.getQuery() != null ? request.getQuery() : preset.getQuery());
+        merged.setPageSize(request.getPageSize() != null ? request.getPageSize() : preset.getPageSize());
+        merged.setVisibility(request.getVisibility() != null ? request.getVisibility() : preset.getVisibility());
+        merged.setIsDefault(request.getIsDefault() != null ? request.getIsDefault() : preset.getIsDefault());
+        return merged;
     }
 
     private void validateCondition(CondRequestDef condition) {

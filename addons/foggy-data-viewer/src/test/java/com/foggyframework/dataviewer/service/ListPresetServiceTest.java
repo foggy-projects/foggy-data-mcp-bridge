@@ -6,6 +6,7 @@ import com.foggyframework.dataviewer.domain.ListPresetDef;
 import com.foggyframework.dataviewer.service.listpreset.FileSystemListPresetStore;
 import com.foggyframework.dataviewer.service.listpreset.ListPresetFieldValidator;
 import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
+import com.foggyframework.dataset.model.def.query.request.CondRequestDef;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -171,6 +173,35 @@ class ListPresetServiceTest {
                     () -> service.update("u1", created.getId(), update));
 
             assertEquals("字段不允许: unknownField", ex.getMessage());
+        }
+
+        @Test
+        void shouldRejectMoreThanFiftyConfiguredFields() {
+            ListPresetService.SaveListPresetRequest request = request("列表", false);
+            request.setColumns(IntStream.rangeClosed(1, 51).mapToObj(index -> "field" + index).toList());
+
+            IllegalArgumentException ex = assertThrows(
+                    IllegalArgumentException.class,
+                    () -> service.create("u1", "TicketModel", "ticket-list", request));
+
+            assertEquals("自定义查询最多配置 50 个字段，当前 51 个", ex.getMessage());
+        }
+
+        @Test
+        void shouldCountNestedConditionLeavesAndRejectMoreThanTwenty() {
+            List<CondRequestDef> leaves = IntStream.rangeClosed(1, 21)
+                    .mapToObj(index -> new CondRequestDef("field" + index, "=", index))
+                    .toList();
+            ListPresetService.SaveListPresetRequest request = request("列表", false);
+            request.setQuery(new ListPresetDef.QueryConditionPreset(
+                    List.of(SliceRequestDef.and(leaves)),
+                    List.of()));
+
+            IllegalArgumentException ex = assertThrows(
+                    IllegalArgumentException.class,
+                    () -> service.create("u1", "TicketModel", "ticket-list", request));
+
+            assertEquals("slice 最多包含 20 个叶子条件，当前 21 个", ex.getMessage());
         }
     }
 

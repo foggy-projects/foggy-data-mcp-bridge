@@ -1693,9 +1693,9 @@ describe('DataTableWithSearch', () => {
       const filterChangeEvents = wrapper.emitted('filter-change')
       const lastEmit = filterChangeEvents![filterChangeEvents!.length - 1][0] as SliceRequestDef[]
 
-      // 同一字段只保留搜索工具栏的筛选
-      expect(lastEmit).toHaveLength(1)
-      expect(lastEmit[0].value).toBe('from-search')
+      // 同一字段条件不能被去重；业务回调/引擎负责解释 AND、OR 或冲突关系。
+      expect(lastEmit).toHaveLength(2)
+      expect(lastEmit.map(slice => slice.value)).toEqual(['from-search', 'from-table'])
     })
   })
 

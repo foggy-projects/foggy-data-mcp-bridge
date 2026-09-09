@@ -208,6 +208,12 @@ function transformSlice(
     ...(slice.value === undefined ? {} : { value: transformSliceValue(slice.value, transform) }),
     ...(slice.children
       ? { children: slice.children.map(child => transformSlice(child, columns, direction)) }
+      : {}),
+    ...(slice.or
+      ? { or: slice.or.map(child => transformSlice(child, columns, direction)) }
+      : {}),
+    ...(slice.and
+      ? { and: slice.and.map(child => transformSlice(child, columns, direction)) }
       : {})
   }
 }

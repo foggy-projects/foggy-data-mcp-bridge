@@ -65,10 +65,14 @@ watch(() => props.modelValue, (slices) => {
   const grouped: Record<string, SliceRequestDef[]> = {}
   for (const slice of slices) {
     if (!slice.field) continue
-    if (!grouped[slice.field]) {
-      grouped[slice.field] = []
+    const displayColumn = props.columns.find(column =>
+      column.name === slice.field || column.memberLookup?.selectionFieldName === slice.field
+    )
+    const displayField = displayColumn?.name || slice.field
+    if (!grouped[displayField]) {
+      grouped[displayField] = []
     }
-    grouped[slice.field].push(...viewerSlicesToDisplay([slice], props.columns))
+    grouped[displayField].push(...viewerSlicesToDisplay([slice], props.columns))
   }
 
   filterValues.value = grouped

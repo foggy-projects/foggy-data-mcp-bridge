@@ -50,6 +50,15 @@ function createFrontendMeta(queryMode: string, visibleColumns = ['orderNo', 'ser
         uiHints: { visible: true }
       },
       {
+        name: 'serviceArea$id',
+        title: 'Service Area ID',
+        type: 'INTEGER',
+        category: 'dimension-id',
+        filterable: true,
+        sortable: false,
+        uiHints: { visible: true }
+      },
+      {
         name: 'totalTransportFee',
         title: 'Transport Fee',
         type: 'MONEY',
@@ -75,6 +84,7 @@ function createFrontendMeta(queryMode: string, visibleColumns = ['orderNo', 'ser
     defaults: {
       tableInstanceId: 'fact-order-main',
       visibleColumns,
+      requiredFields: ['tenantId'],
       requiredRuntimeColumns: ['orderId'],
       lockedColumns: ['serviceArea'],
       searchFields: ['orderNo'],
@@ -131,6 +141,8 @@ describe('foggy-gen QueryTable template', () => {
       expect(tableVue).toContain('defaultQueryConfigScope?: TableDefaultQueryConfigLoadOptions')
       expect(tableVue).toContain('defaultQueryConfigLoader?: (scope: TableDefaultQueryConfigScope) => Promise<TableDefaultQueryConfig | null>')
       expect(tableVue).toContain('listPreset?: boolean | ListPresetConfig')
+      expect(tableVue).toContain('fetchData?: (params: FetchDataParams) => Promise<FetchDataResult>')
+      expect(tableVue).toContain(':fetch-data="fetchData ?? queryFactOrder"')
       expect(tableVue).toContain(':query-mode="queryMode"')
       expect(tableVue).toContain(':query-schema="props.querySchemaOverride ?? querySchema"')
       expect(tableVue).toContain(':show-query-panel="showQueryPanel"')
@@ -143,6 +155,10 @@ describe('foggy-gen QueryTable template', () => {
       expect(tableSchema).toContain('export const defaultTableInstanceId = "fact-order-main"')
       expect(tableSchema).toContain('tableInstanceId: defaultTableInstanceId')
       expect(tableSchema).toContain('export const defaultRequiredRuntimeColumns = [\n  "orderId"\n]')
+      expect(tableSchema).toContain('export const defaultRequiredFields = [\n  "tenantId"\n]')
+      expect(tableSchema).toContain('availableColumns: allColumns')
+      expect(tableSchema).toContain('defaultVisibleColumns,')
+      expect(tableSchema).toContain('requiredFields: defaultRequiredFields')
       expect(tableSchema).toContain('export const defaultLockedColumns = [\n  "serviceArea"\n]')
       expect(tableSchema).toContain('requiredRuntimeColumns: defaultRequiredRuntimeColumns')
       expect(tableSchema).toContain('lockedColumns: defaultLockedColumns')
@@ -159,6 +175,9 @@ describe('foggy-gen QueryTable template', () => {
       expect(querySchema).toContain('export const defaultFormFieldKeys = ["orderNo"]')
       expect(querySchema).toContain('fields: defaultFormFieldKeys')
       expect(tableSchema).toContain('memberLookup')
+      expect(tableSchema).toContain('name: \'serviceArea$id\'')
+      expect(tableSchema).toContain('category: "dimension-id"')
+      expect(tableSchema).toContain('export const defaultVisibleColumns = [\n  "orderNo",\n  "serviceArea"\n]')
       expect(tableSchema).toContain("selectionFieldName: 'serviceAreaId'")
       expect(tableSchema).toContain("displayFieldName: 'serviceArea'")
       expect(tableSchema).toContain('defaultLimit: 20')

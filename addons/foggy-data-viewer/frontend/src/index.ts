@@ -15,6 +15,7 @@ export { default as PivotGrid } from './components/PivotGrid.vue'
 export { default as PivotAxisPager } from './components/PivotAxisPager.vue'
 export { default as PivotEvidencePanel } from './components/PivotEvidencePanel.vue'
 export { default as ListPresetManager } from './components/list-preset/ListPresetManager.vue'
+export { default as ListPresetConditionEditor } from './components/list-preset/ListPresetConditionEditor.vue'
 
 export type {
   QueryFieldSchema,
@@ -31,6 +32,19 @@ export * from './components/composables'
 
 // 导出工具函数
 export { buildTableColumns, calculateColumnWidth } from './utils/schemaHelper'
+export {
+  MAX_LIST_PRESET_FIELDS,
+  MAX_LIST_PRESET_CONDITIONS,
+  countConditionLeaves,
+  cloneSliceTree,
+  getConditionFields,
+  getListPresetFieldCount,
+  getListPresetLimitResult,
+  validateListPresetLimits,
+  getUserConfigurableColumns,
+  getDisplayColumnForCondition,
+  getQueryFieldForColumn
+} from './utils/listPreset'
 export {
   MONEY_VIEWER,
   formatViewerValue,

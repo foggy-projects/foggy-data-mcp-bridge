@@ -333,8 +333,15 @@
               <el-checkbox v-model="form.saveQueryConditions">保存当前筛选和排序</el-checkbox>
               <div class="query-summary-block">
                 <div class="summary-title">筛选条件</div>
-                <div v-if="!form.saveQueryConditions || conditionSummary.length === 0" class="empty-text">不保存筛选条件</div>
-                <div v-else class="query-summary">
+                <div v-if="!form.saveQueryConditions" class="empty-text">不保存筛选条件</div>
+                <ListPresetConditionEditor
+                  v-else
+                  v-model="conditionDraft"
+                  :columns="configurableAvailableColumns"
+                  :max-conditions="20"
+                  data-testid="list-preset-condition-editor"
+                />
+                <div v-if="form.saveQueryConditions && conditionSummary.length > 0" class="query-summary">
                   <span v-for="item in conditionSummary" :key="item" class="query-summary-item">{{ item }}</span>
                 </div>
               </div>
@@ -409,7 +416,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   ArrowDown,
@@ -436,19 +443,27 @@ import {
   setDefaultListPreset,
   updateListPreset
 } from '@/api/listPreset'
+import ListPresetConditionEditor from './ListPresetConditionEditor.vue'
+import {
+  cloneSliceTree,
+  countConditionLeaves,
+  getUserConfigurableColumns,
+  validateListPresetLimits
+} from '@/utils/listPreset'
 import type {
   ColumnViewSetting,
   EnhancedColumnSchema,
   ListPresetConfig,
   ListPresetDef,
   ListPresetVisibility,
-  ListViewState
+  ListViewState,
+  SliceRequestDef
 } from '@/types'
 
 interface Props {
   config: ListPresetConfig
   getState: () => ListViewState
-  applyState: (state: ListViewState, options?: { reload?: boolean }) => void
+  applyState: (state: ListViewState, options?: { reload?: boolean; validateLimits?: boolean }) => void
   reload?: () => void | Promise<void>
   clearConditions?: () => void | Promise<void>
   availableColumns?: EnhancedColumnSchema[]
@@ -504,6 +519,8 @@ const inspectorTab = ref<InspectorTab>('columns')
 const dialogMode = ref<DialogMode>('customize')
 const presets = ref<ListPresetDef[]>([])
 const columnDraft = ref<ColumnDraft[]>([])
+const conditionDraft = ref<SliceRequestDef[]>([])
+const conditionDraftInitialized = ref(false)
 const editingPresetId = ref<string | null>(null)
 const appliedPresetId = ref<string | null>(null)
 const form = ref({
@@ -520,6 +537,13 @@ const currentState = computed(() => props.getState())
 const lockedColumnNameSet = computed(() => new Set(props.lockedColumns || []))
 const runtimeColumnNameSet = computed(() => new Set(props.requiredRuntimeColumns || []))
 const availableColumnMap = computed(() => new Map((props.availableColumns || []).map(column => [column.name, column])))
+const configurableAvailableColumns = computed(() => {
+  const sourceColumns = props.availableColumns && props.availableColumns.length > 0
+    ? props.availableColumns
+    : currentState.value.columns.map(name => ({ name, title: name, type: 'TEXT' }))
+  return getUserConfigurableColumns(sourceColumns)
+    .filter(column => !isRuntimeColumn(column.name))
+})
 const visibleColumnDraft = computed(() => columnDraft.value.filter(column => column.visible && !isRuntimeColumn(column.name)))
 const appliedPreset = computed(() => presets.value.find(preset => preset.id === appliedPresetId.value))
 const defaultPreset = computed(() => presets.value.find(preset => preset.isDefault))
@@ -533,10 +557,13 @@ const inspectorTitle = computed(() => {
   if (inspectorTab.value === 'save') return editingPresetId.value ? '编辑方案' : '保存方案'
   return '已选字段'
 })
-const savedConditionCount = computed(() => form.value.saveQueryConditions ? currentState.value.slice.length : 0)
+const effectiveConditionDraft = computed(() => conditionDraftInitialized.value
+  ? conditionDraft.value
+  : currentState.value.slice)
+const savedConditionCount = computed(() => form.value.saveQueryConditions ? countConditionLeaves(effectiveConditionDraft.value) : 0)
 const conditionSummary = computed(() => {
   if (!form.value.saveQueryConditions) return []
-  return currentState.value.slice.slice(0, 8).map(slice => {
+  return effectiveConditionDraft.value.slice(0, 8).map(slice => {
     const value = Array.isArray(slice.value) ? slice.value.join(',') : slice.value
     return `${slice.field} ${slice.op} ${value ?? ''}`.trim()
   })
@@ -694,12 +721,14 @@ function openDialog() {
   dialogMode.value = 'customize'
   inspectorTab.value = 'columns'
   syncColumnDraftFromState()
+  syncConditionDraftFromState()
   visible.value = true
 }
 
 function openLoadDialog() {
   dialogMode.value = 'load'
   syncColumnDraftFromState()
+  syncConditionDraftFromState()
   visible.value = true
 }
 
@@ -707,6 +736,7 @@ function openSaveDialog() {
   dialogMode.value = 'save'
   resetForm()
   syncColumnDraftFromState()
+  syncConditionDraftFromState()
   inspectorTab.value = 'save'
   visible.value = true
 }
@@ -715,6 +745,18 @@ function syncColumnDraftFromState() {
   columnDraft.value = buildColumnDraft(currentState.value)
   activeColumnEditor.value = null
 }
+
+function syncConditionDraftFromState() {
+  conditionDraft.value = cloneSliceTree(currentState.value.slice)
+  conditionDraftInitialized.value = true
+}
+
+watch(() => currentState.value.slice, () => {
+  // 清空、重置或外部应用查询状态后，打开的编辑器也必须反映当前表格条件。
+  if (visible.value) {
+    syncConditionDraftFromState()
+  }
+}, { deep: true })
 
 function isColumnLocked(name: string): boolean {
   return lockedColumnNameSet.value.has(name)
@@ -731,7 +773,8 @@ function normalizeVisible(name: string, visibleValue: boolean): boolean {
 }
 
 function buildColumnDraft(state: ListViewState): ColumnDraft[] {
-  const sourceColumns: EnhancedColumnSchema[] = props.availableColumns && props.availableColumns.length > 0
+  const hasAvailableColumns = Boolean(props.availableColumns && props.availableColumns.length > 0)
+  const sourceColumns: EnhancedColumnSchema[] = hasAvailableColumns
     ? props.availableColumns
     : state.columns.map(name => ({ name, type: 'TEXT', title: name }))
   const settingMap = new Map((state.columnSettings || []).map(setting => [setting.name, setting]))
@@ -739,7 +782,9 @@ function buildColumnDraft(state: ListViewState): ColumnDraft[] {
   const hasVisibleColumns = visibleNames.size > 0
 
   return sourceColumns
-    .filter(column => column.name !== '_actions')
+    .filter(column => hasAvailableColumns
+      ? configurableAvailableColumns.value.some(available => available.name === column.name)
+      : getUserConfigurableColumns([column]).length > 0 && !isRuntimeColumn(column.name))
     .map((column, sourceIndex) => {
       const setting = settingMap.get(column.name)
       const visibleValue = setting?.visible ?? (!hasVisibleColumns || visibleNames.has(column.name))
@@ -791,7 +836,7 @@ function buildStateFromDraft(state: ListViewState): ListViewState {
   return {
     columns: persistedColumns.filter(column => column.visible).map(column => column.name),
     columnSettings: persistedColumns.map(toColumnViewSetting),
-    slice: saveQueryConditions ? state.slice : [],
+    slice: saveQueryConditions ? cloneSliceTree(effectiveConditionDraft.value) : [],
     orderBy: saveQueryConditions ? state.orderBy : [],
     pageSize: state.pageSize
   }
@@ -811,7 +856,7 @@ function toColumnViewSetting(column: ColumnDraft, index: number): ColumnViewSett
 
 function getAvailableColumnNameSet(): Set<string> | null {
   if (!props.availableColumns || props.availableColumns.length === 0) return null
-  return new Set(props.availableColumns.map(column => column.name))
+  return new Set(configurableAvailableColumns.value.map(column => column.name))
 }
 
 function getUnavailableFields(preset: ListPresetDef): string[] {
@@ -1004,14 +1049,29 @@ async function loadPresets() {
 
 async function applyPreset(preset: ListPresetDef) {
   const unavailableFields = getUnavailableFields(preset)
-  appliedPresetId.value = preset.id
-  props.applyState({
-    columns: preset.columns,
-    columnSettings: preset.columnSettings,
+  const availableNames = getAvailableColumnNameSet()
+  const presetColumnSettings = preset.columnSettings || []
+  const state: ListViewState = {
+    columns: availableNames
+      ? preset.columns.filter(name => availableNames.has(name))
+      : preset.columns,
+    columnSettings: availableNames
+      ? presetColumnSettings.filter(setting => availableNames.has(setting.name))
+      : presetColumnSettings,
     slice: preset.query?.slice || [],
     orderBy: preset.query?.orderBy || [],
     pageSize: preset.pageSize
-  })
+  }
+
+  try {
+    validateListPresetLimits(state, { internalFields: props.requiredRuntimeColumns || [] })
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, '自定义查询超过允许的字段或条件上限'))
+    return
+  }
+
+  appliedPresetId.value = preset.id
+  props.applyState(state)
   await props.reload?.()
   visible.value = false
   if (unavailableFields.length > 0) {
@@ -1023,6 +1083,7 @@ async function applyPreset(preset: ListPresetDef) {
 function startEditPreset(preset: ListPresetDef) {
   editingPresetId.value = preset.id
   inspectorTab.value = 'save'
+  syncConditionDraftFromState()
   form.value = {
     title: preset.title,
     description: preset.description || '',
@@ -1047,6 +1108,12 @@ async function saveCurrentPreset() {
   const state = buildStateFromDraft(currentState.value)
   if (!ensureHasVisibleColumns(state)) {
     inspectorTab.value = 'columns'
+    return
+  }
+  try {
+    validateListPresetLimits(state, { internalFields: props.requiredRuntimeColumns || [] })
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, '自定义查询超过允许的字段或条件上限'))
     return
   }
   saving.value = true
@@ -1093,6 +1160,12 @@ async function saveCurrentPreset() {
 async function overwritePreset(preset: ListPresetDef) {
   const state = buildStateFromDraft(currentState.value)
   if (!ensureHasVisibleColumns(state)) return
+  try {
+    validateListPresetLimits(state, { internalFields: props.requiredRuntimeColumns || [] })
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, '自定义查询超过允许的字段或条件上限'))
+    return
+  }
   saving.value = true
   try {
     const saved = await updateListPreset(props.config.userId, preset.id, {
@@ -1165,6 +1238,7 @@ async function clearCurrentConditions() {
   clearing.value = true
   try {
     await props.clearConditions()
+    syncConditionDraftFromState()
     ElMessage.success('已清空查询条件')
   } catch (error) {
     ElMessage.error(getErrorMessage(error, '清空查询条件失败'))

@@ -123,19 +123,24 @@ function genTypes(meta) {
 
 function genTableSchema(meta) {
   const prefix = toCamelCase(meta.model)
-  const defaultVisibleCols = meta.fields.filter(f => f.uiHints?.visible !== false).map(f => f.name)
+  const isUserDisplayField = field => field.category !== 'dimension-id' && !field.name.endsWith('$id')
+  const defaultVisibleCols = meta.fields.filter(f => f.uiHints?.visible !== false && isUserDisplayField(f)).map(f => f.name)
   const configuredVisibleCols = meta.defaults?.visibleColumns
-  const visibleCols = Array.isArray(configuredVisibleCols) && configuredVisibleCols.length > 0
-    ? configuredVisibleCols
-    : defaultVisibleCols
+  const configuredUserVisibleCols = Array.isArray(configuredVisibleCols)
+    ? configuredVisibleCols.filter(name => meta.fields.some(field => field.name === name && isUserDisplayField(field)))
+    : []
+  const visibleCols = configuredUserVisibleCols.length > 0 ? configuredUserVisibleCols : defaultVisibleCols
   const searchFields = meta.defaults?.searchFields || []
   const pageSize = meta.defaults?.pageSize || 50
   const tableInstanceId = meta.defaults?.tableInstanceId || meta.model
   const requiredRuntimeColumns = Array.isArray(meta.defaults?.requiredRuntimeColumns)
     ? meta.defaults.requiredRuntimeColumns
     : []
+  const requiredFields = Array.isArray(meta.defaults?.requiredFields)
+    ? meta.defaults.requiredFields
+    : []
   const lockedColumns = Array.isArray(meta.defaults?.lockedColumns)
-    ? meta.defaults.lockedColumns
+    ? meta.defaults.lockedColumns.filter(name => meta.fields.some(field => field.name === name && isUserDisplayField(field)))
     : []
   const queryMode = ['panel', 'column', 'combined', 'none'].includes(meta.defaults?.queryMode)
     ? meta.defaults.queryMode
@@ -160,6 +165,7 @@ function genTableSchema(meta) {
     if (f.groupKey) props.push(`    groupKey: ${JSON.stringify(f.groupKey)}`)
     if (f.groupTitle) props.push(`    groupTitle: ${JSON.stringify(f.groupTitle)}`)
     if (f.groupOrder != null) props.push(`    groupOrder: ${Number(f.groupOrder)}`)
+    if (f.category) props.push(`    category: ${JSON.stringify(f.category)}`)
     if (f.filterType) props.push(`    filterType: '${f.filterType}'`)
     if (f.filterable != null) props.push(`    filterable: ${f.filterable}`)
     if (f.measure) props.push(`    measure: true`)
@@ -191,6 +197,9 @@ function genTableSchema(meta) {
   lines.push(`/** 运行时必需查询列 */`)
   lines.push(`export const defaultRequiredRuntimeColumns = ${JSON.stringify(requiredRuntimeColumns, null, 2)}`)
   lines.push(``)
+  lines.push(`/** 业务必需查询列（不作为用户列表字段保存） */`)
+  lines.push(`export const defaultRequiredFields = ${JSON.stringify(requiredFields, null, 2)}`)
+  lines.push(``)
   lines.push(`/** 固定可见列 */`)
   lines.push(`export const defaultLockedColumns = ${JSON.stringify(lockedColumns, null, 2)}`)
   lines.push(``)
@@ -199,6 +208,9 @@ function genTableSchema(meta) {
   lines.push(`  qmModel: '${meta.model}',`)
   lines.push(`  tableInstanceId: defaultTableInstanceId,`)
   lines.push(`  columns: allColumns.filter(c => defaultVisibleColumns.includes(c.name) || defaultLockedColumns.includes(c.name)),`)
+  lines.push(`  availableColumns: allColumns,`)
+  lines.push(`  defaultVisibleColumns,`)
+  lines.push(`  requiredFields: defaultRequiredFields,`)
   lines.push(`  requiredRuntimeColumns: defaultRequiredRuntimeColumns,`)
   lines.push(`  lockedColumns: defaultLockedColumns,`)
   lines.push(`  searchableFields: defaultSearchFields.length > 0 ? defaultSearchFields : undefined,`)
@@ -367,6 +379,7 @@ function genVue(meta) {
 import { computed, ref, useSlots } from 'vue'
 import { DataTableWithSearch, fetchMemberOptions } from 'foggy-data-viewer'
 import type { SliceRequestDef, QueryHooks, EnhancedColumnSchema, QueryMode, QuerySchema, TableDefaultQueryConfig, TableDefaultQueryConfigScope, TableDefaultQueryConfigLoadOptions, ListPresetConfig } from 'foggy-data-viewer'
+import type { FetchDataParams, FetchDataResult } from 'foggy-data-viewer'
 import { tableSchema } from './${prefix}.table.schema'
 import { querySchema } from './${prefix}.query.schema'
 import { query${prefix} } from './${prefix}.api'
@@ -413,12 +426,14 @@ const props = withDefaults(defineProps<{
   defaultQueryConfigScope?: TableDefaultQueryConfigLoadOptions
   defaultQueryConfigLoader?: (scope: TableDefaultQueryConfigScope) => Promise<TableDefaultQueryConfig | null>
   listPreset?: boolean | ListPresetConfig
+  /** 可替换业务查询配方；仍由 DataTableWithSearch 统一执行回调、取消和错误链 */
+  fetchData?: (params: FetchDataParams) => Promise<FetchDataResult>
 }>(), { showQueryPanel: false })
 
 const mergedSchema = computed(() => {
-  let columns: EnhancedColumnSchema[] = [...tableSchema.columns]
+  let availableColumns: EnhancedColumnSchema[] = [...(tableSchema.availableColumns ?? tableSchema.columns)]
   if (props.columnOverrides) {
-    columns = columns
+    availableColumns = availableColumns
       .map(col => {
         const ov = props.columnOverrides?.[col.name]
         if (!ov) return col
@@ -430,7 +445,10 @@ const mergedSchema = computed(() => {
       })
       .filter(Boolean) as EnhancedColumnSchema[]
   }
-  return { ...tableSchema, columns }
+  const visibleNames = new Set(tableSchema.defaultVisibleColumns ?? tableSchema.columns.map(column => column.name))
+  const lockedNames = new Set(tableSchema.lockedColumns ?? [])
+  const columns = availableColumns.filter(column => visibleNames.has(column.name) || lockedNames.has(column.name))
+  return { ...tableSchema, columns, availableColumns }
 })
 
 defineExpose({
@@ -446,7 +464,7 @@ defineExpose({
   <DataTableWithSearch
     ref="tableRef"
     :schema="mergedSchema"
-    :fetch-data="query${prefix}"
+    :fetch-data="fetchData ?? query${prefix}"
     :query-schema="props.querySchemaOverride ?? querySchema"
     :query-mode="queryMode"
     :show-query-panel="showQueryPanel"
@@ -486,7 +504,7 @@ function genIndex(meta) {
  */
 export type { ${prefix}Row } from './${prefix}.types'
 export { ${constName} } from './${prefix}.types'
-export { allColumns, defaultVisibleColumns, defaultSearchFields, defaultTableInstanceId, defaultRequiredRuntimeColumns, defaultLockedColumns, tableSchema } from './${prefix}.table.schema'
+export { allColumns, defaultVisibleColumns, defaultSearchFields, defaultTableInstanceId, defaultRequiredFields, defaultRequiredRuntimeColumns, defaultLockedColumns, tableSchema } from './${prefix}.table.schema'
 export { queryFields, querySchema } from './${prefix}.query.schema'
 export { query${prefix}, query${prefix}Members, get${prefix}Meta } from './${prefix}.api'
 export { default as ${prefix}Table } from './${prefix}Table.vue'

@@ -12,6 +12,7 @@ import { globalSearchHooks } from './composables/globalSearchHooks'
 import { SearchHookRegistry } from './composables/searchHookRegistry'
 import { getDefaultListPreset } from '@/api/listPreset'
 import { getTableDefaultQueryConfig } from '@/api/tableDefaultQueryConfig'
+import { validateListPresetLimits } from '@/utils/listPreset'
 
 // 禁用自动继承属性
 defineOptions({
@@ -34,6 +35,10 @@ interface Props {
   schema?: TableSchema
   /** 数据加载函数 */
   fetchData?: (params: FetchDataParams) => Promise<FetchDataResult>
+  /** 业务查询所需但不一定展示的字段；不会作为用户字段保存 */
+  requiredFields?: string[]
+  /** 业务查询所需但不一定展示的运行时字段；不会作为用户字段保存 */
+  requiredRuntimeColumns?: string[]
 
   // ========== 受控模式 Props（当不使用 schema 时） ==========
   /** 列配置 */
@@ -199,6 +204,9 @@ function mergeColumnNames(...groups: Array<Array<string | null | undefined> | un
 }
 
 const activeRequiredRuntimeColumns = computed(() => mergeColumnNames(
+  props.requiredFields,
+  props.requiredRuntimeColumns,
+  props.schema?.requiredFields,
   props.schema?.requiredRuntimeColumns
 ))
 
@@ -206,12 +214,37 @@ const lockedColumnNames = computed(() => mergeColumnNames(
   props.schema?.lockedColumns
 ))
 
-const baseColumns = computed(() => {
+const availableBaseColumns = computed(() => {
   if (isSchemaMode.value && props.schema) {
-    return props.schema.columns
+    return props.schema.availableColumns || props.schema.columns
   }
   return props.columns || []
 })
+
+const defaultListViewState = computed<ListViewState | null>(() => {
+  if (!isSchemaMode.value || !props.schema?.availableColumns) return null
+
+  const defaultVisibleColumns = mergeColumnNames(
+    props.schema.defaultVisibleColumns,
+    props.schema.columns.map(column => column.name)
+  ).filter(name => !activeRequiredRuntimeColumns.value.includes(name))
+
+  return {
+    columns: defaultVisibleColumns,
+    columnSettings: [],
+    slice: [],
+    orderBy: [],
+    pageSize: props.schema.pageSize
+  }
+})
+
+const baseColumns = computed(() => availableBaseColumns.value)
+const displayBaseColumns = computed(() => availableBaseColumns.value.filter(
+  column => !activeRequiredRuntimeColumns.value.includes(column.name)
+))
+const displayLockedColumnNames = computed(() => lockedColumnNames.value.filter(
+  name => !activeRequiredRuntimeColumns.value.includes(name)
+))
 
 function applyColumnSetting(col: EnhancedColumnSchema, setting?: ColumnViewSetting): EnhancedColumnSchema {
   if (!setting) return col
@@ -307,9 +340,9 @@ function ensureLockedColumns(
 // ========== 计算属性：根据模式选择数据源 ==========
 const effectiveColumns = computed(() => {
   const cols = ensureLockedColumns(
-    deriveColumnsByListViewState(baseColumns.value, activeListViewState.value),
-    baseColumns.value,
-    lockedColumnNames.value
+    deriveColumnsByListViewState(displayBaseColumns.value, activeListViewState.value || defaultListViewState.value),
+    displayBaseColumns.value,
+    displayLockedColumnNames.value
   )
 
   // 当用户提供 row-actions 插槽时，自动注入一个 actions 列（除非已有同名列）
@@ -618,29 +651,12 @@ const suppressFilterEventHandling = ref(false)
 const mergedSlices = computed(() => {
   // QueryPanel 条件始终参与
   const allSlices = [...queryPanelSlices.value]
-  const usedFields = new Set(allSlices.map(s => s.field))
 
   if (props.filterMergeMode === 'replace') {
     const source = searchSlices.value.length > 0 ? searchSlices.value : tableSlices.value
-    for (const s of source) {
-      if (!usedFields.has(s.field)) {
-        allSlices.push(s)
-        usedFields.add(s.field)
-      }
-    }
+    allSlices.push(...source)
   } else {
-    for (const s of searchSlices.value) {
-      if (!usedFields.has(s.field)) {
-        allSlices.push(s)
-        usedFields.add(s.field)
-      }
-    }
-    for (const s of tableSlices.value) {
-      if (!usedFields.has(s.field)) {
-        allSlices.push(s)
-        usedFields.add(s.field)
-      }
-    }
+    allSlices.push(...searchSlices.value, ...tableSlices.value)
   }
 
   return allSlices
@@ -788,7 +804,11 @@ function applyTableDefaultQueryConfig(
   options: { reload?: boolean } = {}
 ) {
   activeDefaultQueryConfig.value = config
-  applyListViewState(defaultQueryConfigToListViewState(config), options)
+  applyListViewState(defaultQueryConfigToListViewState(config), {
+    ...options,
+    // 业务默认查询不是用户保存的列表配置，不能用用户字段限额限制它。
+    validateLimits: false
+  })
 }
 
 function buildTableDefaultQueryConfigScope(): TableDefaultQueryConfigScope | null {
@@ -996,7 +1016,16 @@ function getListViewState(): ListViewState {
   }
 }
 
-function applyListViewState(state: ListViewState, options: { reload?: boolean } = {}) {
+function applyListViewState(
+  state: ListViewState,
+  options: { reload?: boolean; validateLimits?: boolean } = {}
+) {
+  if (options.validateLimits === true || (options.validateLimits !== false && isSchemaMode.value)) {
+    validateListPresetLimits(state, {
+      internalFields: activeRequiredRuntimeColumns.value
+    })
+  }
+
   activeListViewState.value = {
     columns: state.columns || [],
     columnSettings: state.columnSettings,

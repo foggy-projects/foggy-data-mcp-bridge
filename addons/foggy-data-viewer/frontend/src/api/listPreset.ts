@@ -7,6 +7,7 @@ import type {
   ListPresetVisibility,
   QueryConditionPreset
 } from '@/types'
+import { validateListPresetLimits } from '@/utils/listPreset'
 
 const apiClient = createDataViewerHttpClient('/data-viewer/api/list-preset')
 
@@ -60,6 +61,14 @@ function presetPath(userId: string, presetId: string): string {
   return `${userPath(userId)}/presets/${encodeURIComponent(presetId)}`
 }
 
+function validateClientLimits(request: Partial<SaveListPresetRequest>): void {
+  validateListPresetLimits({
+    columns: request.columns || [],
+    columnSettings: request.columnSettings || [],
+    slice: request.query?.slice || []
+  })
+}
+
 /**
  * 查询当前用户在指定 model/businessKey 下的自定义列表方案。
  */
@@ -90,6 +99,7 @@ export async function createListPreset(
   request: SaveListPresetRequest,
   options?: DataViewerHttpRequestOptions
 ): Promise<ListPresetDef> {
+  validateClientLimits(request)
   const response = await apiClient.post<ApiResponse<ListPresetDef>>(modelPath(scope), request, {
     ...httpOptions(options),
     params: buildScopeParams(scope)
@@ -114,6 +124,7 @@ export async function updateListPreset(
   request: UpdateListPresetRequest,
   options?: DataViewerHttpRequestOptions
 ): Promise<ListPresetDef> {
+  validateClientLimits(request)
   const response = await apiClient.put<ApiResponse<ListPresetDef>>(presetPath(userId, presetId), request, httpOptions(options))
   return assertApiResponse(response.data, '更新自定义列表失败')
 }
