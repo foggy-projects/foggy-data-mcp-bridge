@@ -6,6 +6,7 @@ import DataTable from './DataTable.vue'
 import type { CellRenderContext, EnhancedColumnSchema, SliceRequestDef } from '@/types'
 import { globalColumnRenderers } from './composables/globalColumnRenderers'
 import { MONEY_VIEWER } from '@/utils/viewer'
+import { formatCellDisplayValue } from '@/utils/displayValue'
 
 describe('logical preset conditions', () => {
   it('retains nested groups during header filter changes and clears them explicitly', async () => {
@@ -173,6 +174,16 @@ describe('DataTable', () => {
 
       expect(wrapper.exists()).toBe(true)
       // 组件已成功挂载
+    })
+
+    it('uses the shared export projection for dictionary cells and custom overrides', () => {
+      const row = Object.freeze({ orderStatus: 300 })
+      const column: EnhancedColumnSchema = { name: 'orderStatus', type: 'INTEGER',
+        dictItems: [{ value: 300, label: '已揽收' }], extData: { viewer: MONEY_VIEWER } }
+      const wrapper = mount(DataTable, { props: { columns: [column], data: [row], total: 1, loading: false }, ...renderGridConfig })
+      expect(wrapper.find('.stub-cell-orderStatus').text()).toBe(formatCellDisplayValue(column, row.orderStatus))
+      expect(wrapper.find('.stub-cell-orderStatus').text()).toBe('已揽收')
+      expect(row.orderStatus).toBe(300)
     })
 
     it('formats MONEY_VIEWER cells while keeping row data and export formatter values isolated', () => {

@@ -58,3 +58,11 @@
 - 本次不修改尚未确诊的 checkbox 交互，不操作 TMS 或发布 Maven。TMS 临时 adapter 绕过应在新包验收后再移除。
 
 验证：针对性测试首轮 4 文件 / 135 用例通过；补充四类上下文竞态后，完整前端 `npm test` 28 文件 / 442 用例通过。`npm run build:lib`（Vite、vue-tsc、verify:package）通过；后端 `ListPresetServiceTest` 15 用例通过。Review 检查了 U/R 交集、隐式补入不持久化、50/51 边界、过期异步响应及标签回填不 emit 的调用链。
+
+## 统一展示值投影（1.0.1-beta.50）
+
+新增公开 formatCellDisplayValue(column, value) 和 DisplayValueColumn；DataTable 与消费者统一 Excel 适配器可复用同一纯文本链。字典 String 键匹配，未知值返回原值文本，空值为空，非空 customFormatter 优先于 dictItems、viewer 和类型默认值。不改变查询或行数据，不引入 Excel 库，不修改 TMS 页面。
+
+兼容边界、完整列元数据保留与接入示例见 frontend/README.md。验收覆盖字典300→已揽收、字符串数字、未知值、空值、formatter/viewer优先级、类型默认、ID整数格式、冻结行数据和真实构建包导出入口。TMS 需要在统一 exportExcel.ts 适配器保留元数据并调用新 API，升级包本身不会自动改变旧适配器逻辑。
+
+验证：完整前端 npm test 29 文件 / 458 用例通过；build:lib 的 Vite 82 模块构建、vue-tsc 和真实包入口 API 校验通过。本轮不涉及后端变更。

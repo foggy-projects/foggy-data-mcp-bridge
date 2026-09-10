@@ -31,6 +31,8 @@ export * from './components/filters'
 export * from './components/composables'
 
 // 导出工具函数
+export { formatCellDisplayValue } from './utils/displayValue'
+export type { DisplayValueColumn } from './utils/displayValue'
 export { buildTableColumns, calculateColumnWidth } from './utils/schemaHelper'
 export {
   MAX_LIST_PRESET_FIELDS,

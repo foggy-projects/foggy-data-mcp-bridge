@@ -1,6 +1,7 @@
 import { existsSync, statSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import assert from 'node:assert/strict'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const packageJsonPath = resolve(root, 'package.json')
@@ -69,4 +70,15 @@ if (missing.length > 0) {
   process.exit(1)
 }
 
-console.log('Package artifacts verified.')
+// Execute the actual built public entry, not the source utility.
+const { formatCellDisplayValue } = await import(new URL('../dist/index.js', import.meta.url))
+const displayColumn = { name: 'orderStatus', type: 'INTEGER', dictItems: [{ value: 300, label: '已揽收' }] }
+assert.equal(formatCellDisplayValue(displayColumn, 300), '已揽收')
+assert.equal(formatCellDisplayValue(displayColumn, '300'), '已揽收')
+assert.equal(formatCellDisplayValue(displayColumn, 999), '999')
+assert.equal(formatCellDisplayValue({ ...displayColumn, customFormatter: () => 'custom' }, 300), 'custom')
+assert.equal(formatCellDisplayValue(displayColumn, null), '')
+const publicTypes = readFileSync(resolve(root, packageJson.types), 'utf8')
+assert.match(publicTypes, /formatCellDisplayValue/)
+assert.match(publicTypes, /DisplayValueColumn/)
+console.log('Package artifacts and public display-value API verified.')
