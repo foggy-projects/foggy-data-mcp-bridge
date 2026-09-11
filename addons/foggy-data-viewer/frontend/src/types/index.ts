@@ -467,6 +467,17 @@ export type ListPresetVisibility = 'PRIVATE' | 'DEPARTMENT' | 'TENANT'
 /** 自定义列表按钮挂载位置 */
 export type ListPresetPlacement = 'toolbar-left' | 'toolbar-right' | 'external'
 
+/** TMS 可选提供的页面上下文；QM model 始终是分享包的最低兼容边界。 */
+export interface ListPresetShareContextOptions {
+  menuId?: string
+  url?: string
+}
+
+/** 标准化查询方案分享包中的页面上下文。 */
+export interface ListPresetShareContext extends ListPresetShareContextOptions {
+  model: string
+}
+
 /**
  * 自定义列表配置
  *
@@ -486,6 +497,10 @@ export interface ListPresetConfig {
   autoLoadDefault?: boolean
   allowShared?: boolean
   allowTenantShared?: boolean
+  /** 是否显示查询方案的分享/导入入口，默认开启。 */
+  shareEnabled?: boolean
+  /** 可选的 TMS 菜单或 URL 上下文；传入后导入时会额外校验。 */
+  shareContext?: ListPresetShareContextOptions
   buttonText?: string
   placement?: ListPresetPlacement
 }

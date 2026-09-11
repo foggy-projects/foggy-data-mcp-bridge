@@ -14,7 +14,9 @@ vi.mock('@element-plus/icons-vue', () => ({
   ArrowUp: {},
   Bottom: {},
   Brush: {},
+  CopyDocument: {},
   Delete: {},
+  Download: {},
   Edit: {},
   Finished: {},
   Loading: {},
@@ -24,8 +26,10 @@ vi.mock('@element-plus/icons-vue', () => ({
   Rank: {},
   Refresh: {},
   Search: {},
+  Share: {},
   Star: {},
-  Top: {}
+  Top: {},
+  Upload: {}
 }))
 
 vi.mock('element-plus', () => ({

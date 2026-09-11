@@ -988,7 +988,8 @@ function goHome() {
   :list-preset="{
     userId: 'verification_user_001',
     model: 'FactSalesQueryModel',
-    businessKey: 'sales-custom-list-demo-long'
+    businessKey: 'sales-custom-list-demo-long',
+    shareContext: { menuId: 'tms.sales.custom-list', url: '/acceptance/?scene=custom-list' }
   }"
 /&gt;</code></pre>
           </div>
@@ -1007,6 +1008,7 @@ function goHome() {
               userId: 'verification_user_001',
               model: 'FactSalesQueryModel',
               businessKey: 'sales-custom-list-demo-long',
+              shareContext: { menuId: 'tms.sales.custom-list', url: '/acceptance/?scene=custom-list' },
               allowShared: true,
               buttonText: '自定义查询',
               placement: 'toolbar-right'
@@ -1066,6 +1068,7 @@ function goHome() {
     userId: 'user_manager_001',
     model: 'FactSalesDemoAuthQueryModel',
     businessKey: 'sales-report-2024',
+    shareContext: { menuId: 'tms.sales.saved-query', url: '/acceptance/?scene=saved-query' },
     allowShared: true,
     buttonText: '自定义查询',
     placement: 'toolbar-right'
@@ -1090,6 +1093,7 @@ function goHome() {
               userId: 'user_manager_001',
               model: 'FactSalesDemoAuthQueryModel',
               businessKey: 'sales-report-2024',
+              shareContext: { menuId: 'tms.sales.saved-query', url: '/acceptance/?scene=saved-query' },
               allowShared: true,
               buttonText: '自定义查询',
               placement: 'toolbar-right'

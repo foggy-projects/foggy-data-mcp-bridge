@@ -117,6 +117,19 @@ export {
 
 export { prepareCustomQuery, normalizeUserSlice, resolveRelativeDate, resolveRelativeDatesForDisplay, relativeDateOptions } from './utils/customQuery'
 export type { RelativeDateRange, RelativeDateValue, CustomQueryExecutionOptions } from './utils/customQuery'
+export {
+  LIST_PRESET_SHARE_SCHEMA_VERSION,
+  buildListPresetSharePackage,
+  serializeListPresetSharePackage,
+  parseListPresetSharePackage,
+  assertListPresetShareCompatible,
+  listPresetShareToViewState
+} from './utils/listPresetShare'
+export type {
+  ListPresetSharePreset,
+  ListPresetSharePackage,
+  ListPresetShareTargetContext
+} from './utils/listPresetShare'
 
 // 导出类型定义
 export type {
@@ -181,6 +194,8 @@ export type {
   PivotViewModel,
   ListPresetVisibility,
   ListPresetPlacement,
+  ListPresetShareContextOptions,
+  ListPresetShareContext,
   ListPresetConfig,
   TableDefaultQueryConfig,
   TableDefaultQueryConfigScope,

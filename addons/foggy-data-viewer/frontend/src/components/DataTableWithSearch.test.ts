@@ -10,6 +10,7 @@ import { getTableDefaultQueryConfig } from '@/api/tableDefaultQueryConfig'
 const dataTableClearSelectionSpy = vi.hoisted(() => vi.fn())
 const listPresetOpenDialogSpy = vi.hoisted(() => vi.fn())
 const listPresetOpenLoadDialogSpy = vi.hoisted(() => vi.fn())
+const listPresetOpenShareExportDialogSpy = vi.hoisted(() => vi.fn())
 const listPresetOpenSaveDialogSpy = vi.hoisted(() => vi.fn())
 const listPresetStartEditPresetSpy = vi.hoisted(() => vi.fn())
 const listPresetClearConditionsSpy = vi.hoisted(() => vi.fn())
@@ -128,6 +129,9 @@ vi.mock('./list-preset/ListPresetManager.vue', () => ({
       },
       openLoadDialog() {
         listPresetOpenLoadDialogSpy()
+      },
+      openShareExportDialog(preset: ListPresetDef) {
+        listPresetOpenShareExportDialogSpy(preset)
       },
       openSaveDialog() {
         listPresetOpenSaveDialogSpy()
@@ -516,6 +520,11 @@ describe('DataTableWithSearch', () => {
       await editButton.trigger('click')
       expect(listPresetOpenLoadDialogSpy).toHaveBeenCalledTimes(1)
       expect(listPresetStartEditPresetSpy).toHaveBeenCalledWith(preset)
+
+      const shareButton = wrapper.find('[data-testid="query-plan-preset-share"]')
+      expect(shareButton.attributes('aria-label')).toBe('分享方案：我的常用查询')
+      await shareButton.trigger('click')
+      expect(listPresetOpenShareExportDialogSpy).toHaveBeenCalledWith(preset)
 
       dropdown.vm.$emit('command', 'apply-list-preset:preset_001')
       await flushPromises()

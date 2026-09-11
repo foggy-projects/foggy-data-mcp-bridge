@@ -17,5 +17,8 @@ npm run dev -- --config vite.acceptance.config.ts
 3. 下一步：输入方案名/说明，保持立即应用选中并保存。检查最近一次请求：日期是具体边界；空运单号被剔除；付款方式是 PREPAID/COLLECT；站点是 origin$id 的101/102；status=SIGNED 固定规则仍在；runtimeId 仅在执行 columns 中。
 4. 重载页面后加载方案，应恢复上述行为。编辑方案应回填今天、两个空条件、字典名称和站点名称，不得用当前表格条件覆盖存量方案。核对隔离 JSON 中保留相对日期/空叶，不包含固定签收规则或 runtimeId。
 5. 用户B → 加载查询：不显示用户A方案；切回A可加载。清空用户查询后仍有 status=SIGNED。
+6. 查询管理 → 分享：复制或下载 `custom-query-share.v1` JSON；用户B通过查询方案 → 导入分享粘贴后，确认 QM 一致才能载入草稿并另存为自己的方案。若 TMS 传入 `shareContext.menuId/url`，跨菜单或跨页面导入应被阻止；分享包不得包含用户 ID、方案 ID、权限和时间戳。
 
 正式 TMS 提测时还需验证实际元数据、业务 hooks/fetchData、登录用户映射、Mongo 持久化及后端权限。
+
+面向用户的完整操作手册见：[CUSTOM_QUERY_USER_GUIDE.md](../../CUSTOM_QUERY_USER_GUIDE.md)。

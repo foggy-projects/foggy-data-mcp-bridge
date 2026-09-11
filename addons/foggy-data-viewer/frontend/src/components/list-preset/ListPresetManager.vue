@@ -21,7 +21,10 @@
               <h4>查询方案</h4>
               <span>{{ presets.length }} 个方案</span>
             </div>
-            <el-button :icon="Refresh" :loading="loading" circle @click="loadPresets" />
+            <div class="preset-list-header-actions">
+              <el-button v-if="sharingEnabled" size="small" :icon="Upload" @click="openShareImportDialog">导入分享</el-button>
+              <el-button :icon="Refresh" :loading="loading" circle @click="loadPresets" />
+            </div>
           </div>
 
           <el-input
@@ -73,6 +76,7 @@
               <div class="preset-actions">
                 <el-button data-testid="list-preset-apply" link type="primary" @click="applyPreset(preset)">应用</el-button>
                 <el-button data-testid="list-preset-edit" link :icon="Edit" title="快捷编辑方案" aria-label="快捷编辑方案" @click="startEditPreset(preset)">编辑方案</el-button>
+                <el-button v-if="sharingEnabled" data-testid="list-preset-share" link :icon="Share" title="导出分享方案" aria-label="导出分享方案" @click="openShareExportDialog(preset)">分享</el-button>
                 <el-button data-testid="list-preset-overwrite" link @click="overwritePreset(preset)">覆盖当前</el-button>
                 <el-button data-testid="list-preset-default" link @click="markAsDefault(preset)">设为默认</el-button>
                 <el-button data-testid="list-preset-delete" link type="danger" @click="removePreset(preset)">删除</el-button>
@@ -158,6 +162,45 @@
         </div></div>
       </template>
     </el-dialog>
+    <el-dialog
+      v-model="shareVisible"
+      class="list-preset-share-dialog"
+      :title="shareMode === 'export' ? '分享查询方案' : '导入分享方案'"
+      width="min(760px, calc(100vw - 48px))"
+      :close-on-click-modal="false"
+    >
+      <div class="share-dialog-content">
+        <template v-if="shareMode === 'export'">
+          <p class="share-dialog-lead">复制下面的标准 JSON，通过 TMS 或其他方式发送给其他用户。导入时会校验 QM{{ props.config.shareContext?.menuId || props.config.shareContext?.url ? '及页面上下文' : '' }}。</p>
+          <div class="share-context-tags">
+            <el-tag size="small">QM：{{ props.config.model }}</el-tag>
+            <el-tag v-if="props.config.shareContext?.menuId" size="small" type="info">菜单：{{ props.config.shareContext.menuId }}</el-tag>
+            <el-tag v-if="props.config.shareContext?.url" size="small" type="info">页面：{{ props.config.shareContext.url }}</el-tag>
+          </div>
+          <el-input v-model="shareText" class="share-json-input" type="textarea" :rows="16" readonly aria-label="查询方案分享 JSON" />
+        </template>
+        <template v-else>
+          <p class="share-dialog-lead">粘贴其他用户发来的标准 JSON。导入只会载入方案草稿，保存后归属当前用户。</p>
+          <div class="share-context-tags">
+            <el-tag size="small">当前 QM：{{ props.config.model }}</el-tag>
+            <el-tag v-if="props.config.shareContext?.menuId" size="small" type="info">当前菜单：{{ props.config.shareContext.menuId }}</el-tag>
+            <el-tag v-if="props.config.shareContext?.url" size="small" type="info">当前页面：{{ props.config.shareContext.url }}</el-tag>
+          </div>
+          <el-input v-model="shareText" class="share-json-input" type="textarea" :rows="16" placeholder="请粘贴 custom-query-share.v1 JSON" aria-label="查询方案分享 JSON" />
+          <p v-if="shareError" class="share-error" role="alert">{{ shareError }}</p>
+        </template>
+      </div>
+      <template #footer>
+        <div class="share-dialog-footer">
+          <el-button @click="shareVisible = false">取消</el-button>
+          <template v-if="shareMode === 'export'">
+            <el-button :icon="CopyDocument" type="primary" @click="copyShareJson">复制 JSON</el-button>
+            <el-button :icon="Download" @click="downloadShareJson">下载 JSON</el-button>
+          </template>
+          <el-button v-else type="primary" :icon="Upload" @click="importShareJson">校验并载入</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -169,7 +212,9 @@ import {
   ArrowUp,
   Bottom,
   Brush,
+  CopyDocument,
   Delete,
+  Download,
   Edit,
   Finished,
   Loading,
@@ -178,7 +223,9 @@ import {
   Rank,
   Refresh,
   Search,
-  Top
+  Share,
+  Top,
+  Upload
 } from '@element-plus/icons-vue'
 import {
   createListPreset,
@@ -197,6 +244,12 @@ import {
   validateListPresetLimits
 } from '@/utils/listPreset'
 import { isRelativeDateValue, relativeDateOptions } from '@/utils/customQuery'
+import {
+  assertListPresetShareCompatible,
+  listPresetShareToViewState,
+  parseListPresetSharePackage,
+  serializeListPresetSharePackage
+} from '@/utils/listPresetShare'
 import type {
   ColumnViewSetting,
   EnhancedColumnSchema,
@@ -266,6 +319,10 @@ interface ColumnDragTarget {
 }
 
 const visible = ref(false)
+const shareVisible = ref(false)
+const shareMode = ref<'export' | 'import'>('export')
+const shareText = ref('')
+const shareError = ref('')
 const loading = ref(false)
 const saving = ref(false)
 const clearing = ref(false)
@@ -291,6 +348,7 @@ const form = ref({
 
 const buttonText = computed(() => props.config.buttonText || '自定义查询')
 const clearConditionsEnabled = computed(() => Boolean(props.clearConditions))
+const sharingEnabled = computed(() => props.config.shareEnabled !== false)
 const editingBaseState = ref<ListViewState | null>(null)
 const currentState = computed(() => editingBaseState.value || props.getState())
 const lockedColumnNameSet = computed(() => new Set(props.lockedColumns || []))
@@ -507,6 +565,99 @@ function openLoadDialog() {
   syncColumnDraftFromState()
   syncConditionDraftFromState()
   visible.value = true
+}
+
+function getShareContext() {
+  return {
+    model: props.config.model || '',
+    ...(props.config.shareContext || {})
+  }
+}
+
+function openShareExportDialog(preset: ListPresetDef) {
+  if (!sharingEnabled.value) return
+  try {
+    shareText.value = serializeListPresetSharePackage(preset, getShareContext())
+    shareMode.value = 'export'
+    shareError.value = ''
+    shareVisible.value = true
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, '生成分享方案失败'))
+  }
+}
+
+function openShareImportDialog() {
+  if (!sharingEnabled.value) return
+  shareMode.value = 'import'
+  shareText.value = ''
+  shareError.value = ''
+  shareVisible.value = true
+}
+
+async function copyShareJson() {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(shareText.value)
+    } else {
+      const textarea = document.createElement('textarea')
+      textarea.value = shareText.value
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      textarea.remove()
+    }
+    ElMessage.success('分享 JSON 已复制')
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, '复制分享 JSON 失败，请手动复制'))
+  }
+}
+
+function downloadShareJson() {
+  const blob = new Blob([shareText.value], { type: 'application/json;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = 'custom-query-share.json'
+  anchor.click()
+  URL.revokeObjectURL(url)
+  ElMessage.success('分享 JSON 已下载')
+}
+
+function importShareJson() {
+  shareError.value = ''
+  try {
+    const sharePackage = parseListPresetSharePackage(shareText.value)
+    assertListPresetShareCompatible(sharePackage, getShareContext())
+    const importedState = listPresetShareToViewState(sharePackage)
+    const availableNames = getAvailableColumnNameSet()
+    if (availableNames) {
+      importedState.columns = importedState.columns.filter(name => availableNames.has(name))
+      importedState.columnSettings = importedState.columnSettings?.filter(setting => availableNames.has(setting.name))
+    }
+    if (!importedState.columns.length) {
+      throw new Error('分享方案没有可用于当前 QM 的展示字段')
+    }
+    validateListPresetLimits(importedState)
+
+    resetForm()
+    editingBaseState.value = importedState
+    form.value = {
+      ...form.value,
+      title: sharePackage.preset.title,
+      description: sharePackage.preset.description || ''
+    }
+    dialogMode.value = 'customize'
+    inspectorTab.value = 'columns'
+    syncColumnDraftFromState()
+    syncConditionDraftFromState()
+    shareVisible.value = false
+    visible.value = true
+    ElMessage.success('分享方案已载入，请确认后保存')
+  } catch (error) {
+    shareError.value = getErrorMessage(error, '分享方案校验失败')
+  }
 }
 
 function openSaveDialog() {
@@ -1310,6 +1461,8 @@ defineExpose({
   openDialog,
   openLoadDialog,
   openSaveDialog,
+  openShareExportDialog,
+  openShareImportDialog,
   startColumnDrag,
   startAvailableColumnDrag,
   onColumnDragOver,
@@ -1338,6 +1491,16 @@ defineExpose({
 .query-wizard-dialog .el-dialog__headerbtn { top: 12px; right: 12px; }
 .query-wizard-dialog .el-dialog__body { padding: 0; overflow: auto; min-height: 0; }
 .query-wizard-dialog .el-dialog__footer { padding: 0; flex-shrink: 0; }
+.list-preset-share-dialog.el-dialog { border-radius: 14px; --el-color-primary: #1867d5; font-family: 'HarmonyOS Sans SC', 'Microsoft YaHei UI', 'PingFang SC', sans-serif; }
+.list-preset-share-dialog .el-dialog__header { margin: 0; padding: 22px 26px; border-bottom: 1px solid #e3e8f0; }
+.list-preset-share-dialog .el-dialog__body { padding: 0; }
+.list-preset-share-dialog .el-dialog__footer { padding: 0 26px 20px; }
+.share-dialog-content { padding: 22px 26px 6px; color: #172033; }
+.share-dialog-lead { margin: 0 0 12px; color: #69768a; font-size: 13px; line-height: 1.7; }
+.share-context-tags { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 12px; }
+.share-json-input .el-textarea__inner { min-height: 300px; padding: 12px; color: #30435f; background: #f7f9fc; border-color: #dbe5f2; font-family: 'SFMono-Regular', Consolas, monospace; font-size: 12px; line-height: 1.55; }
+.share-error { margin: 10px 0 0; color: #d64b4b; font-size: 12px; line-height: 1.6; }
+.share-dialog-footer { display: flex; justify-content: flex-end; gap: 8px; }
 </style>
 <style scoped>
 .query-wizard { color: #172033; }
@@ -1433,6 +1596,12 @@ defineExpose({
   padding: 12px 14px;
   border-bottom: 1px solid #e4e7ed;
   background: #fff;
+}
+
+.preset-list-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .section-header h4,

@@ -50,7 +50,7 @@ async function memberLoader(request: MemberQueryRequest) {
     <div class="acceptance-table">
       <DataTableWithSearch :key="userId" ref="table" :schema="schema" :fetch-data="fetchData" :default-query-config="defaultQueryConfig"
         :fixed-slice="[{ field: 'status', op: '=', value: 'SIGNED' }]" :required-runtime-columns="['runtimeId']"
-        query-time-zone="Asia/Shanghai" :list-preset="{ userId, model: 'AcceptanceOrders', businessKey: 'signed-orders' }"
+        query-time-zone="Asia/Shanghai" :list-preset="{ userId, model: 'AcceptanceOrders', businessKey: 'signed-orders', shareContext: { menuId: 'tms.acceptance.signed-orders', url: '/acceptance/' } }"
         qm-model="AcceptanceOrders" :filter-member-loader="memberLoader" @load-error="error => lastError = error.message" />
     </div>
     <el-alert v-if="lastError" :title="lastError" type="error" />

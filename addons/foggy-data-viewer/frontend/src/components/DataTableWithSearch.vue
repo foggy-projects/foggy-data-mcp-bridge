@@ -6,7 +6,7 @@ import QueryPanel from './QueryPanel.vue'
 import type { QueryPanelExpose, QuerySchema } from './QueryPanel.vue'
 import DataTable from './DataTable.vue'
 import ListPresetManager from './list-preset/ListPresetManager.vue'
-import { ArrowDown, Brush, DocumentAdd, Edit, FolderOpened, Operation } from '@element-plus/icons-vue'
+import { ArrowDown, Brush, DocumentAdd, Edit, FolderOpened, Operation, Share, Upload } from '@element-plus/icons-vue'
 import { useTableQuery } from './composables/useTableQuery'
 import { globalSearchHooks } from './composables/globalSearchHooks'
 import { SearchHookRegistry } from './composables/searchHookRegistry'
@@ -634,6 +634,8 @@ interface ListPresetManagerExpose {
   loadPresets: () => Promise<void>
   openDialog: () => void
   openLoadDialog: () => void
+  openShareExportDialog?: (preset: ListPresetDef) => void
+  openShareImportDialog?: () => void
   openSaveDialog: () => void
   startEditPreset: (preset: ListPresetDef) => void
   clearCurrentConditions: () => void | Promise<void>
@@ -1142,6 +1144,11 @@ function handleQueryPlanEdit(preset: ListPresetDef) {
   manager.startEditPreset(preset)
 }
 
+function handleQueryPlanShare(preset: ListPresetDef) {
+  queryPlanDropdownRef.value?.handleClose?.()
+  toolbarListPresetManagerRef.value?.openShareExportDialog?.(preset)
+}
+
 async function handleQueryPlanCommand(command: string | number | object) {
   if (typeof command === 'string' && command.startsWith(queryPlanPresetCommandPrefix)) {
     const presetId = command.slice(queryPlanPresetCommandPrefix.length)
@@ -1155,6 +1162,8 @@ async function handleQueryPlanCommand(command: string | number | object) {
     toolbarListPresetManagerRef.value?.openDialog()
   } else if (command === 'saved-load') {
     toolbarListPresetManagerRef.value?.openLoadDialog()
+  } else if (command === 'saved-import-share') {
+    toolbarListPresetManagerRef.value?.openShareImportDialog?.()
   } else if (command === 'saved-save') {
     toolbarListPresetManagerRef.value?.openSaveDialog()
   } else if (command === 'clear-conditions') {
@@ -1410,6 +1419,13 @@ defineExpose({
                   查询管理
                 </el-dropdown-item>
                 <el-dropdown-item
+                  v-if="normalizedListPresetConfig?.shareEnabled !== false"
+                  command="saved-import-share"
+                  :icon="Upload"
+                >
+                  导入分享
+                </el-dropdown-item>
+                <el-dropdown-item
                   command="saved-save"
                   :icon="DocumentAdd"
                 >
@@ -1446,15 +1462,27 @@ defineExpose({
                   >
                     <span class="query-plan-preset-title">{{ preset.title }}</span>
                     <span v-if="preset.isDefault" class="query-plan-preset-tag">默认</span>
-                    <el-button
-                      data-testid="query-plan-preset-edit"
-                      class="query-plan-preset-edit"
-                      link
-                      :icon="Edit"
-                      :title="`编辑方案：${preset.title}`"
-                      :aria-label="`编辑方案：${preset.title}`"
-                      @click.stop="handleQueryPlanEdit(preset)"
-                    />
+                    <span class="query-plan-preset-actions">
+                      <el-button
+                        data-testid="query-plan-preset-edit"
+                        class="query-plan-preset-edit"
+                        link
+                        :icon="Edit"
+                        :title="`编辑方案：${preset.title}`"
+                        :aria-label="`编辑方案：${preset.title}`"
+                        @click.stop="handleQueryPlanEdit(preset)"
+                      />
+                      <el-button
+                        v-if="normalizedListPresetConfig?.shareEnabled !== false"
+                        data-testid="query-plan-preset-share"
+                        class="query-plan-preset-share"
+                        link
+                        :icon="Share"
+                        :title="`分享方案：${preset.title}`"
+                        :aria-label="`分享方案：${preset.title}`"
+                        @click.stop="handleQueryPlanShare(preset)"
+                      />
+                    </span>
                   </el-dropdown-item>
                 </template>
                 <el-dropdown-item
@@ -1559,15 +1587,44 @@ defineExpose({
   max-width: 220px;
 }
 
+.query-plan-preset-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity .16s ease;
+}
+
+.query-plan-preset-item:hover .query-plan-preset-actions,
+.query-plan-preset-item:focus-within .query-plan-preset-actions {
+  opacity: 1;
+}
+
 .query-plan-preset-edit {
   flex: 0 0 auto;
-  margin-left: auto;
-  padding: 4px;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  margin: 0 !important;
+  padding: 3px;
+  color: #7a8699;
+}
+
+.query-plan-preset-share {
+  flex: 0 0 auto;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  margin: 0 !important;
+  padding: 3px;
   color: #7a8699;
 }
 
 .query-plan-preset-edit:hover,
-.query-plan-preset-edit:focus-visible {
+.query-plan-preset-edit:focus-visible,
+.query-plan-preset-share:hover,
+.query-plan-preset-share:focus-visible {
   color: #1867d5;
   background: #ecf5ff;
 }
