@@ -195,8 +195,18 @@ const amountField = {
 ```ts
 import { formatCellDisplayValue, type DisplayValueColumn } from 'foggy-data-viewer'
 
-// 统一导出适配器保留列元数据，不要只 Pick name/title/customFormatter。
-const exportColumns: DisplayValueColumn[] = schema.columns.map(column => ({ ...column }))
+// TMS 导出适配器必须保留这些列元数据；不要只保留 name/title/customFormatter。
+const exportColumns: DisplayValueColumn[] = schema.columns.map(column => ({
+  name: column.name,
+  title: column.title,
+  type: column.type,
+  customFormatter: column.customFormatter,
+  dictItems: column.dictItems,
+  extData: column.extData,
+  category: column.category,
+  measure: column.measure,
+  aggregatable: column.aggregatable
+}))
 const cells = rows.map(row => exportColumns.map(column =>
   formatCellDisplayValue(column, row[column.name])
 ))
@@ -204,6 +214,8 @@ const cells = rows.map(row => exportColumns.map(column =>
 ```
 
 引擎提供纯文本投影，不提供 Excel 文件生成/下载。`formatCellDisplayValue(column, value): string` 与 DataTable 使用同一实现：空值（null/undefined/空字符串）返回空文本；其余值按 `customFormatter > dictItems > extData.viewer > 类型默认格式化` 处理。字典 key 用 String 匹配，未知 code 返回原值文本。保留 MONEY viewer 缩放及 INTEGER 标识符不分组规则。除 dictItems/type/customFormatter 外，适配器还应保留 extData/category/measure/aggregatable/name/title。
+
+TMS 适配器的最小职责是：保留上述列元数据、逐单元格调用 `formatCellDisplayValue`、将返回的字符串交给现有 Excel 序列化器。适配器不应复制业务字典映射、不应修改 `rows`，也不应把展示值写回查询结果；Excel 单元格类型、文件生成和下载仍由 TMS 负责。
 
 兼容性：beta.50 将原来 viewer 优先于 customFormatter/dictItems 的顺序调整为上述顺序，空值不再调用 customFormatter。API 不写回行数据；业务自定义 formatter 应保持纯函数，其异常继续向调用方抛出。返回值是字符串，Excel 单元格类型、安全转义和文件生成由导出适配器负责。VNode、slot 和 global renderer 的视觉内容不自动转成 Excel 文本；需要等价文本时使用 customFormatter。原复制按钮的复制语义保持不变。
 

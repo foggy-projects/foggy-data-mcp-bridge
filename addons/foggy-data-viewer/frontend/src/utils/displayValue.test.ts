@@ -25,6 +25,9 @@ describe('shared cell display projection', () => {
     expect(formatCellDisplayValue({ ...col, dictItems: [] }, 300)).toBe('3.00')
     expect(formatCellDisplayValue({ name: 'amount', type: 'MONEY' }, 300)).toBe('300.00')
   })
+  it('keeps MONEY viewer scaling in the shared table/export projection', () => {
+    expect(formatCellDisplayValue({ name: 'amount', type: 'MONEY', extData: { viewer: MONEY_VIEWER } }, 3400)).toBe('34.00')
+  })
   it.each([
     ['NUMBER', 1234.5, '1,234.50'], ['INTEGER', 1234, '1,234'],
     ['DATETIME', '2026-09-10T01:02:03Z', '2026-09-10 01:02:03'],

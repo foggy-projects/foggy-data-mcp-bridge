@@ -4,6 +4,8 @@
 
 ### Changed
 
+- `DisplayValueColumn.type` is now required by the public table/export projection contract, preventing export adapters from dropping type metadata.
+- Clarified the TMS adapter contract for preserving column metadata and delegating Excel serialization and download to TMS.
 - Direct query requests now require explicit non-empty `columns`.
 - Generated query APIs send the current displayed business columns and exclude frontend-only `_actions`.
 - `DataTableWithSearch` keeps direct-query columns aligned with active list-view / saved-query column state.
@@ -19,6 +21,7 @@
 
 ### Added
 
+- Added explicit shared table/export display-value coverage for MONEY viewer scaling.
 - Added cell render context exports: `CellRenderContext` and `CellRenderFn`.
 - `ColumnCustomization.render` and `EnhancedColumnSchema.customRender` now receive `{ row, value, column }`.
 - `foggy-gen` generated QueryTable wrappers now forward `column-*` and `filter-*` dynamic slots to `DataTableWithSearch`.

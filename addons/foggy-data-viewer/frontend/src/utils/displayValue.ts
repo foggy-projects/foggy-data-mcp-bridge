@@ -1,10 +1,14 @@
 import type { EnhancedColumnSchema } from '@/types'
 import { formatViewerValue } from './viewer'
 
-/** Preserve these metadata fields when projecting export columns. */
+/**
+ * TMS 导出适配器必须保留的列元数据。
+ *
+ * `formatCellDisplayValue` 只读取这些字段，不会修改列定义或行数据。
+ * 其中 `type` 是必需字段，避免导出适配器裁剪列元数据后丢失类型格式化规则。
+ */
 export type DisplayValueColumn = Pick<EnhancedColumnSchema,
-  'name' | 'title' | 'customFormatter' | 'dictItems' | 'extData' | 'category' | 'measure' | 'aggregatable'> &
-  Partial<Pick<EnhancedColumnSchema, 'type'>>
+  'name' | 'type' | 'title' | 'customFormatter' | 'dictItems' | 'extData' | 'category' | 'measure' | 'aggregatable'>
 
 function hasIdentifierKeyword(value: string | undefined): boolean {
   if (!value) return false
