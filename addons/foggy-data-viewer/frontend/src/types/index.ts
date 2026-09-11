@@ -345,7 +345,13 @@ export type FetchDataFn<T = Record<string, unknown>> = (
 export type MaybePromise<T> = T | Promise<T>
 
 /** 查询触发来源 */
-export type QueryTrigger = 'mount' | 'filter' | 'sort' | 'page' | 'refresh' | 'reload'
+export type QueryTrigger = 'mount' | 'filter' | 'sort' | 'page' | 'refresh' | 'reload' | 'export'
+
+/** Options for a stateless query execution. */
+export interface QueryExecutionOptions {
+  /** Trigger visible to query hooks. Defaults to `export` for the public export API. */
+  trigger?: QueryTrigger
+}
 
 /** 钩子名称 */
 export type QueryHookName = 'onBeforeQuery' | 'onAfterQuery' | 'onQueryError'
@@ -410,10 +416,10 @@ export interface QueryHooks {
 // ========== Search Hooks ==========
 
 /** 搜索动作来源 */
-export type SearchSource = 'search-toolbar' | 'query-panel' | 'column-filter' | 'external' | 'api'
+export type SearchSource = 'search-toolbar' | 'query-panel' | 'column-filter' | 'external' | 'api' | 'export'
 
 /** 搜索动作触发原因 */
-export type SearchTrigger = 'search' | 'reset' | 'filter' | 'sort' | 'page' | 'refresh' | 'reload' | 'mount'
+export type SearchTrigger = 'search' | 'reset' | 'filter' | 'sort' | 'page' | 'refresh' | 'reload' | 'mount' | 'export'
 
 export interface SearchHookContext {
   source: SearchSource

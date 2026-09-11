@@ -158,6 +158,7 @@ export type {
   FilterOption,
   FetchDataParams,
   FetchDataResult,
+  QueryExecutionOptions,
   FetchDataFn,
   DictItem,
   PaginationState,

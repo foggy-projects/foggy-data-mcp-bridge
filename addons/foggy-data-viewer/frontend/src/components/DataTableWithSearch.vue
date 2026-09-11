@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, useAttrs, useSlots } from 'vue'
-import type { EnhancedColumnSchema, SliceRequestDef, FilterOption, TableSchema, FetchDataParams, FetchDataResult, OrderRequestDef, QueryHooks, MemberQueryRequest, MemberQueryResponse, CellCopyConfig, QueryMode, ListViewState, ColumnViewSetting, ListPresetConfig, ListPresetDef, TableDensity, QueryTrigger, SearchHookContext, SearchHooks, SearchSource, SearchTrigger, TableDefaultQueryConfig, TableDefaultQueryConfigScope, TableDefaultQueryConfigLoadOptions } from '@/types'
+import type { EnhancedColumnSchema, SliceRequestDef, FilterOption, TableSchema, FetchDataParams, FetchDataResult, OrderRequestDef, QueryHooks, MemberQueryRequest, MemberQueryResponse, CellCopyConfig, QueryMode, ListViewState, ColumnViewSetting, ListPresetConfig, ListPresetDef, TableDensity, QueryTrigger, QueryExecutionOptions, SearchHookContext, SearchHooks, SearchSource, SearchTrigger, TableDefaultQueryConfig, TableDefaultQueryConfigScope, TableDefaultQueryConfigLoadOptions } from '@/types'
 import SearchToolbar from './SearchToolbar.vue'
 import QueryPanel from './QueryPanel.vue'
 import type { QueryPanelExpose, QuerySchema } from './QueryPanel.vue'
@@ -13,7 +13,7 @@ import { SearchHookRegistry } from './composables/searchHookRegistry'
 import { getDefaultListPreset } from '@/api/listPreset'
 import { getTableDefaultQueryConfig } from '@/api/tableDefaultQueryConfig'
 import { cloneSliceTree, validateListPresetLimits } from '@/utils/listPreset'
-import { prepareCustomQuery, resolveRelativeDatesForDisplay } from '@/utils/customQuery'
+import { normalizeUserSlice, prepareCustomQuery, resolveRelativeDatesForDisplay } from '@/utils/customQuery'
 
 // 禁用自动继承属性
 defineOptions({
@@ -170,7 +170,7 @@ const query = useTableQuery(
     return props.fetchData({
       ...params,
       slice: [...cloneSliceTree(params.slice), ...cloneSliceTree(props.fixedSlice)],
-      columns: mergeColumnNames(params.columns, activeQueryColumns.value)
+      columns: mergeColumnNames(params.columns, activeQueryColumns.value, activeRequiredQueryColumns.value)
     })
   },
   {
@@ -704,12 +704,14 @@ function getDefaultSearchActionMeta(trigger: QueryTrigger): SearchActionMeta {
       return { source: 'api', trigger: 'refresh' }
     case 'reload':
       return { source: 'api', trigger: 'reload' }
+    case 'export':
+      return { source: 'export', trigger: 'export' }
   }
 }
 
-function buildSearchParams(): FetchDataParams {
+function buildSearchParams(overrides: Partial<FetchDataParams> = {}): FetchDataParams {
   const userQuery = prepareCustomQuery(getListViewState(), { timeZone: props.queryTimeZone })
-  return {
+  const base: FetchDataParams = {
     page: query.currentPage.value,
     pageSize: query.currentPageSize.value,
     tableInstanceId: effectiveTableInstanceId.value,
@@ -717,10 +719,19 @@ function buildSearchParams(): FetchDataParams {
     slice: userQuery.slice,
     orderBy: [...query.currentOrderBy.value]
   }
+  return {
+    ...base,
+    ...overrides,
+    columns: overrides.columns !== undefined ? [...overrides.columns] : base.columns,
+    slice: overrides.slice !== undefined
+      ? normalizeUserSlice(overrides.slice, { timeZone: props.queryTimeZone })
+      : base.slice,
+    orderBy: overrides.orderBy !== undefined ? overrides.orderBy.map(order => ({ ...order })) : base.orderBy
+  }
 }
 
-function buildSearchHookContext(meta: SearchActionMeta): SearchHookContext {
-  const params = buildSearchParams()
+function buildSearchHookContext(meta: SearchActionMeta, overrides: Partial<FetchDataParams> = {}): SearchHookContext {
+  const params = buildSearchParams(overrides)
   return {
     ...meta,
     slice: params.slice,
@@ -733,14 +744,17 @@ function buildSearchHookContext(meta: SearchActionMeta): SearchHookContext {
   }
 }
 
-function applySearchHookContext(ctx: SearchHookContext): FetchDataParams {
+function materializeSearchHookContext(ctx: SearchHookContext, updateTableState: boolean): FetchDataParams {
+  const source = ctx.params
   const params: FetchDataParams = {
-    page: ctx.params?.page ?? query.currentPage.value,
-    pageSize: ctx.params?.pageSize ?? query.currentPageSize.value,
-    tableInstanceId: ctx.params?.tableInstanceId ?? effectiveTableInstanceId.value,
-    columns: [...(ctx.columns ?? ctx.params?.columns ?? activeQueryColumns.value)],
-    slice: [...(ctx.slice ?? ctx.params?.slice ?? mergedSlices.value)],
-    orderBy: [...(ctx.orderBy ?? ctx.params?.orderBy ?? query.currentOrderBy.value)]
+    page: source?.page ?? query.currentPage.value,
+    pageSize: source?.pageSize ?? query.currentPageSize.value,
+    tableInstanceId: source?.tableInstanceId ?? effectiveTableInstanceId.value,
+    columns: [...(ctx.columns ?? source?.columns ?? activeQueryColumns.value)],
+    slice: normalizeUserSlice(ctx.slice ?? source?.slice ?? mergedSlices.value, {
+      timeZone: props.queryTimeZone
+    }),
+    orderBy: [...(ctx.orderBy ?? source?.orderBy ?? query.currentOrderBy.value)].map(order => ({ ...order }))
   }
 
   ctx.params = params
@@ -748,11 +762,13 @@ function applySearchHookContext(ctx: SearchHookContext): FetchDataParams {
   ctx.slice = params.slice
   ctx.orderBy = params.orderBy
 
-  query.setPage(params.page, params.pageSize)
-  query.setColumns(params.columns)
-  query.setTableInstanceId(params.tableInstanceId)
-  query.setSlice(params.slice)
-  query.setSort(params.orderBy)
+  if (updateTableState) {
+    query.setPage(params.page, params.pageSize)
+    query.setColumns(params.columns)
+    query.setTableInstanceId(params.tableInstanceId)
+    query.setSlice(params.slice)
+    query.setSort(params.orderBy)
+  }
 
   return params
 }
@@ -780,7 +796,7 @@ async function loadData(trigger: QueryTrigger = 'refresh', actionMeta?: SearchAc
       clearSelectionState()
     }
 
-    applySearchHookContext(searchCtx)
+    materializeSearchHookContext(searchCtx, true)
 
     await query.loadData(trigger)
     if (query.lastOutcome.value !== 'success') return
@@ -803,6 +819,50 @@ async function loadData(trigger: QueryTrigger = 'refresh', actionMeta?: SearchAc
     }
     // 未被钩子处理的错误，发出 load-error 事件
     emit('load-error', err)
+  }
+}
+
+/**
+ * Execute the current table query on an isolated parameter snapshot.
+ * Search hooks and query hooks still run, but no table/query reactive state is
+ * written and the result is returned to the caller instead of being displayed.
+ */
+async function executeQuery(
+  overrides: Partial<FetchDataParams> = {},
+  options: QueryExecutionOptions = {}
+): Promise<FetchDataResult | undefined> {
+  if (!isSchemaMode.value || !props.fetchData) return undefined
+
+  const trigger = options.trigger ?? 'export'
+  const searchCtx = {
+    ...(getDefaultSearchActionMeta(trigger)),
+    slice: [], orderBy: [], columns: []
+  } as SearchHookContext
+  const propsSearchRegistry = buildPropsSearchRegistry()
+
+  try {
+    Object.assign(searchCtx, buildSearchHookContext(getDefaultSearchActionMeta(trigger), overrides))
+
+    const globalBefore = await globalSearchRegistry.runBefore(searchCtx)
+    if (globalBefore === false) return undefined
+
+    const propsBefore = await propsSearchRegistry.runBefore(searchCtx)
+    if (propsBefore === false) return undefined
+
+    const params = materializeSearchHookContext(searchCtx, false)
+    const result = await query.executeQuery(params, { trigger })
+    if (!result) return undefined
+
+    searchCtx.result = result
+    await propsSearchRegistry.runAfter(searchCtx, result)
+    await globalSearchRegistry.runAfter(searchCtx, result)
+    return result
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error))
+    const propsHandled = await propsSearchRegistry.runError(searchCtx, err)
+    const globalHandled = await globalSearchRegistry.runError(searchCtx, err)
+    if (propsHandled || globalHandled) return undefined
+    throw err
   }
 }
 
@@ -1311,6 +1371,11 @@ defineExpose({
   clearSelection: clearSelectionState,
   /** 获取 useTableQuery 实例（高级用法） */
   getQuery: () => query,
+  /**
+   * 在不改变页面状态的前提下执行独立查询（适用于 Excel 导出等场景）。
+   * 会执行搜索钩子、查询钩子、固定业务条件和必需字段注入。
+   */
+  executeQuery,
 
   // ========== 保存查询功能方法 ==========
   /** 获取当前列表视图状态（用于保存自定义列表） */

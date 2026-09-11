@@ -4,6 +4,7 @@ import { h } from 'vue'
 import DataTableWithSearch from './DataTableWithSearch.vue'
 import type { EnhancedColumnSchema, SliceRequestDef, ListViewState, FetchDataResult, SearchHookContext, ListPresetDef } from '@/types'
 import { globalSearchHooks } from './composables/globalSearchHooks'
+import { globalQueryHooks } from './composables/globalQueryHooks'
 import { getDefaultListPreset } from '@/api/listPreset'
 import { getTableDefaultQueryConfig } from '@/api/tableDefaultQueryConfig'
 
@@ -183,6 +184,7 @@ describe('DataTableWithSearch', () => {
     vi.mocked(getTableDefaultQueryConfig).mockResolvedValue(null)
     listPresetManagerState.presets = []
     globalSearchHooks.clear()
+    globalQueryHooks.clear()
   })
 
   const mockColumns: EnhancedColumnSchema[] = [
@@ -2085,6 +2087,115 @@ describe('DataTableWithSearch', () => {
   })
 
   describe('Integration', () => {
+    it('executeQuery keeps page state unchanged while running the complete export lifecycle', async () => {
+      const lifecycle: string[] = []
+      const fetchData = vi.fn(async (params) => {
+        lifecycle.push('fetch')
+        expect(params.slice.some((item: any) => item.value?.$relativeDate)).toBe(false)
+        return { items: [{ id: 1 }], total: 1 }
+      })
+      globalSearchHooks.add('beforeSearch', ctx => { lifecycle.push(`global-search-before:${ctx.trigger}`) })
+      globalSearchHooks.add('afterSearch', () => { lifecycle.push('global-search-after') })
+      globalQueryHooks.add('onBeforeQuery', ctx => {
+        lifecycle.push(`global-query-before:${ctx.trigger}`)
+        ctx.params.slice.push({ field: 'fromQueryHook', op: '=', value: true })
+      })
+      globalQueryHooks.add('onAfterQuery', () => { lifecycle.push('global-query-after') })
+
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          schema: {
+            columns: [mockColumns[1]],
+            availableColumns: mockColumns,
+            requiredFields: ['requiredId']
+          },
+          fetchData,
+          fixedSlice: [{ field: 'tenantId', op: '=', value: 'tenant-a' }],
+          queryHooks: {
+            onBeforeQuery: ctx => { lifecycle.push(`props-query-before:${ctx.trigger}`) },
+            onAfterQuery: () => { lifecycle.push('props-query-after') }
+          },
+          searchHooks: {
+            beforeSearch: ctx => { lifecycle.push(`props-search-before:${ctx.trigger}`) },
+            afterSearch: () => { lifecycle.push('props-search-after') }
+          }
+        }
+      })
+      await flushPromises()
+      fetchData.mockClear()
+      lifecycle.length = 0
+
+      const vm = wrapper.vm as any
+      vm.applyListViewState({
+        columns: ['name'],
+        slice: [{ field: 'status', op: '=', value: 'ready' }],
+        orderBy: [{ field: 'name', dir: 'asc' }],
+        pageSize: 25
+      }, { reload: true })
+      await flushPromises()
+      const query = vm.getQuery()
+      const before = {
+        data: JSON.parse(JSON.stringify(query.data.value)),
+        total: query.total.value,
+        page: query.currentPage.value,
+        pageSize: query.currentPageSize.value,
+        columns: JSON.parse(JSON.stringify(query.currentColumns.value)),
+        slice: JSON.parse(JSON.stringify(query.currentSlice.value)),
+        orderBy: JSON.parse(JSON.stringify(query.currentOrderBy.value)),
+        error: query.lastError.value,
+        outcome: query.lastOutcome.value
+      }
+      lifecycle.length = 0
+      vm.addQueryHook('onBeforeQuery', ctx => { lifecycle.push(`instance-query-before:${ctx.trigger}`) })
+      vm.addQueryHook('onAfterQuery', () => { lifecycle.push('instance-query-after') })
+
+      const result = await vm.executeQuery({
+        page: 4,
+        pageSize: 2,
+        columns: ['name'],
+        slice: [{
+          field: 'openingTime',
+          op: '[)',
+          value: { $relativeDate: 'yesterday', dateTime: true }
+        }],
+        orderBy: [{ field: 'name', dir: 'desc' }]
+      })
+
+      expect(result).toEqual({ items: [{ id: 1 }], total: 1 })
+      expect(fetchData).toHaveBeenCalledWith(expect.objectContaining({
+        page: 4,
+        pageSize: 2,
+        columns: expect.arrayContaining(['name', 'requiredId']),
+        slice: expect.arrayContaining([
+          { field: 'tenantId', op: '=', value: 'tenant-a' },
+          { field: 'fromQueryHook', op: '=', value: true }
+        ])
+      }))
+      const request = fetchData.mock.calls.at(-1)![0]
+      expect(request.slice.find((item: any) => item.field === 'openingTime').value).toEqual([
+        expect.stringMatching(/^\d{4}-\d{2}-\d{2} 00:00:00$/),
+        expect.stringMatching(/^\d{4}-\d{2}-\d{2} 00:00:00$/)
+      ])
+      expect(JSON.parse(JSON.stringify({
+        data: query.data.value,
+        total: query.total.value,
+        page: query.currentPage.value,
+        pageSize: query.currentPageSize.value,
+        columns: query.currentColumns.value,
+        slice: query.currentSlice.value,
+        orderBy: query.currentOrderBy.value,
+        error: query.lastError.value,
+        outcome: query.lastOutcome.value
+      }))).toEqual(JSON.parse(JSON.stringify(before)))
+      expect(lifecycle).toEqual([
+        'global-search-before:export', 'props-search-before:export',
+        'global-query-before:export', 'props-query-before:export', 'instance-query-before:export',
+        'fetch', 'instance-query-after', 'props-query-after', 'global-query-after',
+        'props-search-after', 'global-search-after'
+      ])
+      wrapper.unmount()
+    })
+
     it('keeps user selections independent of execution dependencies across apply and context changes', async () => {
       const columns = Array.from({ length: 51 }, (_, i) => ({ name: `f${i}`, type: 'TEXT' }))
       const fetchData = vi.fn().mockResolvedValue({ items: [], total: 0 })

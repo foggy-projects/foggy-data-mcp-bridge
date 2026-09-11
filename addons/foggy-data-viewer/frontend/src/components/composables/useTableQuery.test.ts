@@ -182,6 +182,92 @@ describe('useTableQuery', () => {
         orderBy: [{ field: 'id', dir: 'desc' }]
       })
     })
+
+    it('executeQuery should return a paged result without changing table state', async () => {
+      const mockFetch = vi.fn(async (params: FetchDataParams) => {
+        params.slice.push({ field: 'fetch-only', op: '=', value: true })
+        return { items: [{ id: params.page }], total: 101 }
+      })
+      const query = useTableQuery(mockFetch)
+      query.setPage(3, 25)
+      query.setColumns(['id'])
+      query.setSlice([{ field: 'status', op: '=', value: 'ready' }])
+      query.setSort([{ field: 'id', dir: 'desc' }])
+      await query.loadData()
+
+      const before = {
+        data: JSON.parse(JSON.stringify(query.data.value)),
+        total: query.total.value,
+        loading: query.loading.value,
+        activeTrigger: query.activeTrigger.value,
+        lastError: query.lastError.value,
+        lastOutcome: query.lastOutcome.value,
+        serverSummary: query.serverSummary.value,
+        page: query.currentPage.value,
+        pageSize: query.currentPageSize.value,
+        columns: JSON.parse(JSON.stringify(query.currentColumns.value)),
+        slice: JSON.parse(JSON.stringify(query.currentSlice.value)),
+        orderBy: JSON.parse(JSON.stringify(query.currentOrderBy.value))
+      }
+
+      const result = await query.executeQuery({
+        page: 7,
+        pageSize: 2,
+        columns: ['name'],
+        slice: [{ field: 'kind', op: '=', value: 'export' }],
+        orderBy: [{ field: 'name', dir: 'asc' }]
+      })
+
+      expect(result).toEqual({ items: [{ id: 7 }], total: 101 })
+      expect(mockFetch).toHaveBeenLastCalledWith(expect.objectContaining({
+        page: 7,
+        pageSize: 2,
+        columns: ['name'],
+        orderBy: [{ field: 'name', dir: 'asc' }]
+      }))
+      expect(mockFetch.mock.calls.at(-1)?.[0].slice).toEqual([
+        { field: 'kind', op: '=', value: 'export' },
+        { field: 'fetch-only', op: '=', value: true }
+      ])
+      expect({
+        data: query.data.value,
+        total: query.total.value,
+        loading: query.loading.value,
+        activeTrigger: query.activeTrigger.value,
+        lastError: query.lastError.value,
+        lastOutcome: query.lastOutcome.value,
+        serverSummary: query.serverSummary.value,
+        page: query.currentPage.value,
+        pageSize: query.currentPageSize.value,
+        columns: query.currentColumns.value,
+        slice: query.currentSlice.value,
+        orderBy: query.currentOrderBy.value
+      }).toEqual({
+        ...before,
+        data: JSON.parse(JSON.stringify(before.data))
+      })
+    })
+
+    it('executeQuery should run all query hooks with trigger=export', async () => {
+      const order: string[] = []
+      globalQueryHooks.add('onBeforeQuery', ctx => { order.push(`global-before:${ctx.trigger}`) })
+      globalQueryHooks.add('onAfterQuery', () => { order.push('global-after') })
+      const query = useTableQuery(createMockFetch(), {
+        hooks: {
+          onBeforeQuery: () => { order.push('props-before') },
+          onAfterQuery: () => { order.push('props-after') }
+        }
+      })
+      query.addHook('onBeforeQuery', () => { order.push('instance-before') })
+      query.addHook('onAfterQuery', () => { order.push('instance-after') })
+
+      await query.executeQuery({ page: 1, pageSize: 10, columns: ['id'], slice: [], orderBy: [] })
+
+      expect(order).toEqual([
+        'global-before:export', 'props-before', 'instance-before',
+        'instance-after', 'props-after', 'global-after'
+      ])
+    })
   })
 
   describe('refresh / reload', () => {

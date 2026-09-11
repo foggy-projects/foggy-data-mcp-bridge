@@ -11,7 +11,8 @@ import type {
   QueryHookName,
   BeforeQueryHookFn,
   AfterQueryHookFn,
-  ErrorQueryHookFn
+  ErrorQueryHookFn,
+  QueryExecutionOptions
 } from '@/types'
 import { HookRegistry } from './hookRegistry'
 import { globalQueryHooks } from './globalQueryHooks'
@@ -81,6 +82,8 @@ export interface UseTableQueryReturn {
 
   // 查询方法
   loadData: (trigger?: QueryTrigger) => Promise<void>
+  /** Execute an independent query without changing any table state. */
+  executeQuery: (params: FetchDataParams, options?: QueryExecutionOptions) => Promise<FetchDataResult | undefined>
   refresh: () => Promise<void>
   reload: () => Promise<void>
   setPage: (page: number, pageSize?: number) => void
@@ -103,6 +106,11 @@ export interface UseTableQueryReturn {
  *   global onBeforeQuery → props onBeforeQuery → instance onBeforeQuery
  *     → fetchData
  *   instance onAfterQuery → props onAfterQuery → global onAfterQuery
+ *
+ * executeQuery uses the same query hook order with an isolated params copy.
+ * It never updates loading, activeTrigger, data, totals, errors, or outcome;
+ * cancellation and handled errors resolve to undefined, while unhandled
+ * errors reject.
  *
  * @param fetchData 数据加载函数
  * @param options 配置项
@@ -143,6 +151,103 @@ export function useTableQuery(
   }
 
   // ========== 核心加载逻辑 ==========
+  function cloneParams(params: FetchDataParams): FetchDataParams {
+    return {
+      page: params.page,
+      pageSize: params.pageSize,
+      ...(params.tableInstanceId ? { tableInstanceId: params.tableInstanceId } : {}),
+      columns: [...params.columns],
+      slice: cloneSliceTree(params.slice),
+      orderBy: params.orderBy.map(order => ({ ...order }))
+    }
+  }
+
+  async function runQuery(
+    params: FetchDataParams,
+    trigger: QueryTrigger,
+    updateTableState: boolean
+  ): Promise<FetchDataResult | undefined> {
+    const executionParams = cloneParams(params)
+    const ctx: QueryHookContext = {
+      params: executionParams,
+      trigger
+    }
+
+    const propsRegistry = buildPropsRegistry()
+
+    if (updateTableState) {
+      lastOutcome.value = null
+      lastError.value = null
+    }
+
+    try {
+      // ---- Before hooks: global → props → instance ----
+      const globalBefore = await globalRegistry.runBefore(ctx)
+      if (globalBefore === false) {
+        if (updateTableState) lastOutcome.value = 'cancelled'
+        return undefined
+      }
+
+      const propsBefore = await propsRegistry.runBefore(ctx)
+      if (propsBefore === false) {
+        if (updateTableState) lastOutcome.value = 'cancelled'
+        return undefined
+      }
+
+      const instanceBefore = await instanceRegistry.runBefore(ctx)
+      if (instanceBefore === false) {
+        if (updateTableState) lastOutcome.value = 'cancelled'
+        return undefined
+      }
+
+      // Hook replacement objects are part of the public hook contract. Detach
+      // their mutable query branches before crossing into the fetch function.
+      ctx.params = cloneParams(ctx.params)
+
+      if (updateTableState) {
+        loading.value = true
+        activeTrigger.value = trigger
+      }
+      let result = await fetchData(ctx.params)
+
+      // ---- After hooks: instance → props → global ----
+      result = await instanceRegistry.runAfter(ctx, result)
+      result = await propsRegistry.runAfter(ctx, result)
+      result = await globalRegistry.runAfter(ctx, result)
+
+      if (updateTableState) {
+        data.value = result.items
+        total.value = result.total
+        serverSummary.value = result.totalData ?? null
+        lastOutcome.value = 'success'
+      }
+      return result
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err))
+
+      if (updateTableState) {
+        lastError.value = error
+        lastOutcome.value = 'error'
+      }
+
+      // ---- Error hooks: instance → props → global ----
+      const instanceHandled = await instanceRegistry.runError(ctx, error)
+      const propsHandled = await propsRegistry.runError(ctx, error)
+      const globalHandled = await globalRegistry.runError(ctx, error)
+
+      if (!instanceHandled && !propsHandled && !globalHandled) {
+        if (updateTableState) console.error('数据加载失败:', error)
+        throw error
+      }
+      return undefined
+    } finally {
+      if (updateTableState) {
+        loading.value = false
+        activeTrigger.value = null
+      }
+    }
+  }
+
   async function loadData(trigger: QueryTrigger = 'refresh'): Promise<void> {
     const params: FetchDataParams = {
       page: currentPage.value,
@@ -155,58 +260,14 @@ export function useTableQuery(
       params.tableInstanceId = currentTableInstanceId.value
     }
 
-    const ctx: QueryHookContext = {
-      params,
-      trigger
-    }
+    await runQuery(params, trigger, true)
+  }
 
-    const propsRegistry = buildPropsRegistry()
-    lastOutcome.value = null
-    lastError.value = null
-
-    try {
-      // ---- Before hooks: global → props → instance ----
-      const globalBefore = await globalRegistry.runBefore(ctx)
-      if (globalBefore === false) { lastOutcome.value = 'cancelled'; return }
-
-      const propsBefore = await propsRegistry.runBefore(ctx)
-      if (propsBefore === false) { lastOutcome.value = 'cancelled'; return }
-
-      const instanceBefore = await instanceRegistry.runBefore(ctx)
-      if (instanceBefore === false) { lastOutcome.value = 'cancelled'; return }
-
-      // ---- Fetch ----
-      loading.value = true
-      activeTrigger.value = trigger
-      let result = await fetchData(ctx.params)
-
-      // ---- After hooks: instance → props → global ----
-      result = await instanceRegistry.runAfter(ctx, result)
-      result = await propsRegistry.runAfter(ctx, result)
-      result = await globalRegistry.runAfter(ctx, result)
-
-      data.value = result.items
-      total.value = result.total
-      serverSummary.value = result.totalData ?? null
-      lastOutcome.value = 'success'
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error(String(err))
-      lastError.value = error
-      lastOutcome.value = 'error'
-
-      // ---- Error hooks: instance → props → global ----
-      const instanceHandled = await instanceRegistry.runError(ctx, error)
-      const propsHandled = await propsRegistry.runError(ctx, error)
-      const globalHandled = await globalRegistry.runError(ctx, error)
-
-      if (!instanceHandled && !propsHandled && !globalHandled) {
-        console.error('数据加载失败:', error)
-        throw error
-      }
-    } finally {
-      loading.value = false
-      activeTrigger.value = null
-    }
+  async function executeQuery(
+    params: FetchDataParams,
+    options: QueryExecutionOptions = {}
+  ): Promise<FetchDataResult | undefined> {
+    return runQuery(params, options.trigger ?? 'export', false)
   }
 
   // ========== 便捷方法 ==========
@@ -266,6 +327,7 @@ export function useTableQuery(
     currentColumns,
     currentTableInstanceId,
     loadData,
+    executeQuery,
     refresh,
     reload,
     setPage,

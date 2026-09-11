@@ -2,6 +2,28 @@
 
 Schema 模式的 `DataTableWithSearch` 在每次搜索、分页、排序、刷新、加载方案时，复制用户配置并整理执行参数，然后进入原有 search/query hooks 和 `fetchData`。
 
+## 无状态执行（导出）
+
+`DataTableWithSearch` 暴露 `executeQuery`，用于 Excel 导出等需要独立分页的调用：
+
+```ts
+const result = await tableRef.value.executeQuery({
+  page: 1,
+  pageSize: 500,
+  columns: ['orderNo', 'status', 'amount'],
+  slice: currentUserConditions,
+  orderBy: currentOrderBy
+}, { trigger: 'export' })
+
+// result?.items / result?.total 交给宿主的 Excel 适配器处理
+```
+
+参数是当前页面查询的执行快照，可按导出分页覆盖；执行不会修改页码、排序、筛选、列、表格数据、loading、错误或成功状态，也不需要 refresh/restore。`undefined` 表示被 before hook 取消，或错误已被 error hook 处理；未处理的错误会 reject。成功时 after hooks 按查询生命周期处理后返回独立结果。
+
+导出执行顺序固定为：全局 `beforeSearch` → 页面 `beforeSearch` → 全局 `onBeforeQuery` → 页面 `onBeforeQuery` → 实例 `onBeforeQuery` → `fetchData` → 实例/页面/全局 `onAfterQuery` → 页面/全局 `afterSearch`。错误钩子分别按实例 → 页面 → 全局执行；搜索层错误钩子在搜索阶段或未被查询层处理的错误上执行。`trigger` 对查询和搜索上下文均为 `export`。
+
+固定 `fixedSlice` 和必需查询字段在所有查询 hooks 之后的最终请求包装层追加/补入，用户条件与固定条件按顶层 AND 合并，hooks 不能删除固定业务约束。相对日期只在本次执行副本中解析为普通范围，绝不会透传到引擎或写回方案。导出宿主应调用组件的 `executeQuery`，不要调用原始 `fetchData`、`/direct` 或 `getQuery().loadData` 绕过页面整理链路。
+
 - 用户最多选择 50 个显示字段、配置 20 条条件。空条件也占配置名额；重复字段允许，按 AND/OR 原样执行。
 - 空值条件不提交，配置本身保留。`0`、`false`、`is null`、`is not null` 保留；半填范围提示错误。
 - 维度使用元数据声明的 selectionFieldName 提交 ID；字典提交 code，多选生成 IN。
