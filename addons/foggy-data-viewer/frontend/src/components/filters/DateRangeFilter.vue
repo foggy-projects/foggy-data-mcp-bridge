@@ -45,9 +45,13 @@ watch(() => props.modelValue, (slices) => {
   const rangeSlice = slices.find(s => s.op === '[)' || s.op === '[]')
   if (rangeSlice && Array.isArray(rangeSlice.value)) {
     const [start, end] = rangeSlice.value as [string, string]
+    if (!start || !end) { dateRange.value = null; return }
+    const parse = (value: string) => new Date(value.length === 10 ? `${value}T00:00:00` : value.replace(' ', 'T'))
+    const displayEnd = parse(end)
+    if (!isDatetime.value && rangeSlice.op === '[)') displayEnd.setDate(displayEnd.getDate() - 1)
     dateRange.value = [
-      new Date(start.replace(' ', 'T')),
-      new Date(end.replace(' ', 'T'))
+      parse(start),
+      displayEnd
     ]
   } else {
     // 尝试从 >= 和 <= 条件解析

@@ -39,7 +39,7 @@ interface Props {
   loading: boolean
   /** 已有数据上的后台刷新状态 */
   backgroundLoading?: boolean
-  /** 后台刷新提示文案 */
+  /** @deprecated 后台刷新过程不再显示文字提示，保留该属性以兼容既有调用方 */
   backgroundLoadingText?: string
   /** 后台刷新失败提示 */
   backgroundLoadingError?: string | null
@@ -148,10 +148,7 @@ const overlayLoadingVisibility = useDeferredVisibility(computed(() => props.load
 const backgroundLoadingVisibility = useDeferredVisibility(computed(() => props.backgroundLoading ?? false))
 
 const queryStatusText = computed(() => {
-  if (props.backgroundLoadingError) {
-    return props.backgroundLoadingError
-  }
-  return props.backgroundLoadingText || ''
+  return props.backgroundLoadingError || ''
 })
 
 const queryStatusIsError = computed(() => !!props.backgroundLoadingError && !props.backgroundLoading)
@@ -159,13 +156,11 @@ const queryStatusIsError = computed(() => !!props.backgroundLoadingError && !pro
 const hasQueryStatusAnchor = computed(() => props.showPager || !!slots['toolbar-right'])
 
 const queryStatusShouldRender = computed(() => {
-  if (!queryStatusText.value || !hasQueryStatusAnchor.value) return false
-  return backgroundLoadingVisibility.shouldRender.value || queryStatusIsError.value
+  return Boolean(queryStatusText.value && hasQueryStatusAnchor.value && queryStatusIsError.value)
 })
 
 const queryStatusVisible = computed(() => {
-  if (queryStatusIsError.value) return true
-  return backgroundLoadingVisibility.visible.value
+  return queryStatusIsError.value
 })
 
 const backgroundProgressShouldRender = computed(() => backgroundLoadingVisibility.shouldRender.value)
@@ -373,6 +368,13 @@ function inferFilterType(col: EnhancedColumnSchema): string {
     return 'dict'
   }
 
+  // A member lookup is a semantic dimension even when older metadata does
+  // not also provide filterType: 'dimension'. Keep the table header aligned
+  // with the preset/query editors and use the member label loader.
+  if (col.memberLookup?.enabled) {
+    return 'dimension'
+  }
+
   // 其次使用后端返回的 filterType
   if (col.filterType) {
     return col.filterType
@@ -520,11 +522,16 @@ function getAllFilterSlices(): SliceRequestDef[] {
 }
 
 function getColumnMinWidth(col: EnhancedColumnSchema): number {
-  if (col.minWidth != null) {
-    return col.minWidth
-  }
+  const filterType = inferFilterType(col)
+  const filterMinWidth = filterType === 'datetime'
+    ? 250
+    : filterType === 'date'
+      ? 190
+      : filterType === 'bool'
+        ? BOOLEAN_FILTER_MIN_WIDTH
+        : 120
 
-  return inferFilterType(col) === 'bool' ? BOOLEAN_FILTER_MIN_WIDTH : 120
+  return Math.max(col.minWidth ?? 0, filterMinWidth)
 }
 
 function normalizeFilterValue(value: SliceRequestDef[] | null): SliceRequestDef[] | null {
@@ -1070,15 +1077,20 @@ const tableColumns = computed<VxeGridProps['columns']>(() => {
   }
 
   const dataColumns = props.columns.map(col => {
+    const filterType = inferFilterType(col)
+    const minWidth = getColumnMinWidth(col)
+    const width = col.width != null && (filterType === 'date' || filterType === 'datetime')
+      ? Math.max(col.width, minWidth)
+      : col.width
     const colConfig: Record<string, unknown> = {
       field: col.name,
       title: col.title || col.name,
-      width: col.width,
-      minWidth: getColumnMinWidth(col),
+      ...getColumnFormatter(col),
+      width,
+      minWidth,
       fixed: col.fixed,
       className: isBooleanColumn(col) ? 'data-table-boolean-column' : undefined,
       sortable: false, // 禁用 vxe-table 内置排序，我们自己处理
-      ...getColumnFormatter(col),
       // 使用 slots 在表头渲染过滤器
       slots: {
         header: () => {

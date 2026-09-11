@@ -45,4 +45,14 @@ describe('preset condition wire contract', () => {
     ;(wrapper.vm as any).addLeaf()
     expect(wrapper.emitted('update:modelValue')).toBeUndefined()
   })
+  it('uses the checkbox selector for dictionary codes and preserves multi-value IN', () => {
+    const wrapper = shallowMount(Editor, { props: {
+      columns: [{ name: 'status', type: 'TEXT', dictItems: [{ value: 0, label: '待处理' }] }],
+      modelValue: [{ field: 'status', op: '=', value: undefined }]
+    } })
+    const select = wrapper.findComponent(SelectFilter)
+    expect(select.props('options')).toEqual([{ value: 0, label: '待处理' }])
+    select.vm.$emit('update:modelValue', [{ field: 'status', op: 'in', value: [0, 1] }])
+    expect(wrapper.emitted('update:modelValue')![0][0]).toEqual([{ field: 'status', op: 'in', value: [0, 1] }])
+  })
 })

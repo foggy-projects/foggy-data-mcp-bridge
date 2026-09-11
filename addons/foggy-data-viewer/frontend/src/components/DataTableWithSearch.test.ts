@@ -11,6 +11,7 @@ const dataTableClearSelectionSpy = vi.hoisted(() => vi.fn())
 const listPresetOpenDialogSpy = vi.hoisted(() => vi.fn())
 const listPresetOpenLoadDialogSpy = vi.hoisted(() => vi.fn())
 const listPresetOpenSaveDialogSpy = vi.hoisted(() => vi.fn())
+const listPresetStartEditPresetSpy = vi.hoisted(() => vi.fn())
 const listPresetClearConditionsSpy = vi.hoisted(() => vi.fn())
 const listPresetLoadPresetsSpy = vi.hoisted(() => vi.fn())
 const listPresetApplyPresetSpy = vi.hoisted(() => vi.fn())
@@ -131,6 +132,9 @@ vi.mock('./list-preset/ListPresetManager.vue', () => ({
       openSaveDialog() {
         listPresetOpenSaveDialogSpy()
       },
+      startEditPreset(preset: ListPresetDef) {
+        listPresetStartEditPresetSpy(preset)
+      },
       clearCurrentConditions() {
         listPresetClearConditionsSpy()
       }
@@ -199,6 +203,80 @@ describe('DataTableWithSearch', () => {
     ...defaultProps,
     queryMode: 'panel' as const
   }
+
+  it('normalizes each execution before hooks and appends fixed business conditions without saving them', async () => {
+    const fixedSlice = [{ field: 'status', op: '=', value: 'SIGNED' }]
+    const fetchData = vi.fn().mockResolvedValue({ items: [], total: 0 })
+    const before = vi.fn((ctx: any) => {
+      expect(ctx.params.slice.some((s: any) => s.field === 'blank')).toBe(false)
+      ctx.params.slice.push({ field: 'business', op: '=', value: 'hook' })
+    })
+    const wrapper = mount(DataTableWithSearch, { props: {
+      schema: { columns: mockColumns }, fetchData, fixedSlice,
+      requiredRuntimeColumns: ['runtimeId'], queryHooks: { onBeforeQuery: before }
+    } })
+    await flushPromises()
+    const vm = wrapper.vm as any
+    const draft = [
+      { field: 'blank', op: '=', value: '' },
+      { field: 'amount', op: '>=', value: 0 },
+      { field: 'amount', op: '<=', value: 500 }
+    ]
+    vm.applyListViewState({ columns: ['amount'], slice: draft, orderBy: [] }, { reload: true })
+    await flushPromises()
+    wrapper.findComponent({ name: 'DataTable' }).vm.$emit('page-change', 2, 20)
+    await flushPromises()
+    const request = fetchData.mock.calls.at(-1)![0]
+    expect(request.page).toBe(2)
+    expect(request.slice).toEqual([...draft.slice(1), { field: 'business', op: '=', value: 'hook' }, ...fixedSlice])
+    expect(request.columns).toContain('runtimeId')
+    expect(vm.getListViewState().slice).toEqual(draft)
+    expect(vm.getListViewState().columns).toEqual(['amount'])
+    vm.resetListViewState({ reload: true })
+    await flushPromises()
+    expect(fetchData.mock.calls.at(-1)![0].slice).toEqual([{ field: 'business', op: '=', value: 'hook' }, ...fixedSlice])
+    expect(vm.getListViewState().slice).toEqual([])
+    expect(fixedSlice).toEqual([{ field: 'status', op: '=', value: 'SIGNED' }])
+    wrapper.unmount()
+  })
+
+  it('projects relative list preset dates into table filter display values without changing saved state', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-09-10T04:00:00Z'))
+      const fetchData = vi.fn().mockResolvedValue({ items: [], total: 0 })
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          schema: {
+            columns: [{ name: 'openingTime', type: 'DATETIME', title: '开单时间', filterable: true }]
+          },
+          fetchData,
+          queryTimeZone: 'Asia/Shanghai'
+        }
+      })
+      await flushPromises()
+
+      const draft: SliceRequestDef[] = [{
+        field: 'openingTime',
+        op: '[)',
+        value: { $relativeDate: 'yesterday', dateTime: true }
+      }]
+      const vm = wrapper.vm as unknown as { applyListViewState: (state: ListViewState) => void; getListViewState: () => ListViewState }
+      vm.applyListViewState({ columns: ['openingTime'], slice: draft, orderBy: [] })
+      await wrapper.vm.$nextTick()
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      expect(dataTable.props('initialSlice')).toEqual([{
+        field: 'openingTime',
+        op: '[)',
+        value: ['2026-09-09 00:00:00', '2026-09-10 00:00:00']
+      }])
+      expect(vm.getListViewState().slice).toEqual(draft)
+      wrapper.unmount()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 
   const mockQuerySchema = {
     fields: [
@@ -319,7 +397,7 @@ describe('DataTableWithSearch', () => {
       const listPresetManager = wrapper.findComponent({ name: 'ListPresetManager' })
       expect(wrapper.find('[data-testid="query-plan-dropdown"]').exists()).toBe(true)
       expect(wrapper.text()).toContain('自定义查询')
-      expect(wrapper.text()).toContain('加载查询')
+      expect(wrapper.text()).toContain('查询管理')
       expect(wrapper.text()).toContain('保存查询')
       expect(listPresetManager.props('config')).toMatchObject({
         model: 'TicketQueryModel',
@@ -432,6 +510,12 @@ describe('DataTableWithSearch', () => {
       expect(wrapper.text()).toContain('可用查询')
       expect(wrapper.text()).toContain('我的常用查询')
       expect(wrapper.text()).toContain('默认')
+
+      const editButton = wrapper.find('[data-testid="query-plan-preset-edit"]')
+      expect(editButton.attributes('aria-label')).toBe('编辑方案：我的常用查询')
+      await editButton.trigger('click')
+      expect(listPresetOpenLoadDialogSpy).toHaveBeenCalledTimes(1)
+      expect(listPresetStartEditPresetSpy).toHaveBeenCalledWith(preset)
 
       dropdown.vm.$emit('command', 'apply-list-preset:preset_001')
       await flushPromises()

@@ -96,6 +96,12 @@ function inferFilterType(col: EnhancedColumnSchema): string {
     return 'dict'
   }
 
+  // Older metadata may omit filterType while still declaring a member lookup.
+  // Treat it as a dimension so saved member conditions can hydrate labels.
+  if (col.memberLookup?.enabled) {
+    return 'dimension'
+  }
+
   // 使用后端返回的 filterType
   if (col.filterType) {
     return col.filterType

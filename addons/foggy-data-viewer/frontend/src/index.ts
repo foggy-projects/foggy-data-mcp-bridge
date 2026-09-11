@@ -115,6 +115,9 @@ export {
   getTableDefaultQueryConfig
 } from './api/tableDefaultQueryConfig'
 
+export { prepareCustomQuery, normalizeUserSlice, resolveRelativeDate, resolveRelativeDatesForDisplay, relativeDateOptions } from './utils/customQuery'
+export type { RelativeDateRange, RelativeDateValue, CustomQueryExecutionOptions } from './utils/customQuery'
+
 // 导出类型定义
 export type {
   ColumnSchema,

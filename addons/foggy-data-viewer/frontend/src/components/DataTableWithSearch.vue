@@ -6,13 +6,14 @@ import QueryPanel from './QueryPanel.vue'
 import type { QueryPanelExpose, QuerySchema } from './QueryPanel.vue'
 import DataTable from './DataTable.vue'
 import ListPresetManager from './list-preset/ListPresetManager.vue'
-import { ArrowDown, Brush, DocumentAdd, FolderOpened, Operation } from '@element-plus/icons-vue'
+import { ArrowDown, Brush, DocumentAdd, Edit, FolderOpened, Operation } from '@element-plus/icons-vue'
 import { useTableQuery } from './composables/useTableQuery'
 import { globalSearchHooks } from './composables/globalSearchHooks'
 import { SearchHookRegistry } from './composables/searchHookRegistry'
 import { getDefaultListPreset } from '@/api/listPreset'
 import { getTableDefaultQueryConfig } from '@/api/tableDefaultQueryConfig'
 import { cloneSliceTree, validateListPresetLimits } from '@/utils/listPreset'
+import { prepareCustomQuery, resolveRelativeDatesForDisplay } from '@/utils/customQuery'
 
 // 禁用自动继承属性
 defineOptions({
@@ -39,6 +40,10 @@ interface Props {
   requiredFields?: string[]
   /** 执行依赖，与 requiredFields 同义，不限制用户选择。 */
   requiredRuntimeColumns?: string[]
+  /** 页面固定业务条件：最终请求中 AND 追加，不参与用户配额和方案保存。 */
+  fixedSlice?: SliceRequestDef[]
+  /** 相对日期使用的业务时区，默认浏览器时区。 */
+  queryTimeZone?: string
 
   // ========== 受控模式 Props（当不使用 schema 时） ==========
   /** 列配置 */
@@ -164,6 +169,7 @@ const query = useTableQuery(
     if (!props.fetchData) throw new Error('fetchData is required')
     return props.fetchData({
       ...params,
+      slice: [...cloneSliceTree(params.slice), ...cloneSliceTree(props.fixedSlice)],
       columns: mergeColumnNames(params.columns, activeQueryColumns.value)
     })
   },
@@ -496,10 +502,8 @@ const effectiveDensity = computed<TableDensity>(() => {
 })
 
 const effectiveInitialSlice = computed(() => {
-  if (activeListViewState.value) {
-    return activeListViewState.value.slice || []
-  }
-  return props.initialSlice
+  const source = activeListViewState.value?.slice ?? props.initialSlice
+  return source == null ? source : resolveRelativeDatesForDisplay(source, { timeZone: props.queryTimeZone })
 })
 
 const effectiveLocalFilter = computed(() => {
@@ -631,6 +635,7 @@ interface ListPresetManagerExpose {
   openDialog: () => void
   openLoadDialog: () => void
   openSaveDialog: () => void
+  startEditPreset: (preset: ListPresetDef) => void
   clearCurrentConditions: () => void | Promise<void>
 }
 
@@ -638,6 +643,7 @@ const searchToolbarRef = ref<SearchToolbarExpose>()
 const queryPanelRef = ref<QueryPanelExpose>()
 const dataTableRef = ref<DataTableExpose>()
 const toolbarListPresetManagerRef = ref<ListPresetManagerExpose>()
+const queryPlanDropdownRef = ref<{ handleClose?: () => void }>()
 const queryPlanPresetLoading = ref(false)
 const queryPlanPresets = ref<ListPresetDef[]>([])
 const queryPlanPresetCommandPrefix = 'apply-list-preset:'
@@ -700,12 +706,13 @@ function getDefaultSearchActionMeta(trigger: QueryTrigger): SearchActionMeta {
 }
 
 function buildSearchParams(): FetchDataParams {
+  const userQuery = prepareCustomQuery(getListViewState(), { timeZone: props.queryTimeZone })
   return {
     page: query.currentPage.value,
     pageSize: query.currentPageSize.value,
     tableInstanceId: effectiveTableInstanceId.value,
     columns: [...activeQueryColumns.value],
-    slice: cloneSliceTree(mergedSlices.value),
+    slice: userQuery.slice,
     orderBy: [...query.currentOrderBy.value]
   }
 }
@@ -752,10 +759,15 @@ function applySearchHookContext(ctx: SearchHookContext): FetchDataParams {
 async function loadData(trigger: QueryTrigger = 'refresh', actionMeta?: SearchActionMeta) {
   if (!isSchemaMode.value || !props.fetchData) return
 
-  const searchCtx = buildSearchHookContext(actionMeta ?? getDefaultSearchActionMeta(trigger))
+  // Build the raw context first so normalization failures use the regular error hooks.
+  const searchCtx = {
+    ...(actionMeta ?? getDefaultSearchActionMeta(trigger)),
+    slice: [], orderBy: [], columns: []
+  } as SearchHookContext
   const propsSearchRegistry = buildPropsSearchRegistry()
 
   try {
+    Object.assign(searchCtx, buildSearchHookContext(actionMeta ?? getDefaultSearchActionMeta(trigger)))
     const globalBefore = await globalSearchRegistry.runBefore(searchCtx)
     if (globalBefore === false) return
 
@@ -1122,6 +1134,14 @@ async function handleQueryPlanDropdownVisibleChange(visible: boolean) {
   }
 }
 
+function handleQueryPlanEdit(preset: ListPresetDef) {
+  queryPlanDropdownRef.value?.handleClose?.()
+  const manager = toolbarListPresetManagerRef.value
+  if (!manager) return
+  manager.openLoadDialog()
+  manager.startEditPreset(preset)
+}
+
 async function handleQueryPlanCommand(command: string | number | object) {
   if (typeof command === 'string' && command.startsWith(queryPlanPresetCommandPrefix)) {
     const presetId = command.slice(queryPlanPresetCommandPrefix.length)
@@ -1363,6 +1383,7 @@ defineExpose({
           <slot name="toolbar-right" />
           <el-dropdown
             v-if="shouldRenderUnifiedQueryPlanDropdown"
+            ref="queryPlanDropdownRef"
             trigger="click"
             @command="handleQueryPlanCommand"
             @visible-change="handleQueryPlanDropdownVisibleChange"
@@ -1386,7 +1407,7 @@ defineExpose({
                   command="saved-load"
                   :icon="FolderOpened"
                 >
-                  加载查询
+                  查询管理
                 </el-dropdown-item>
                 <el-dropdown-item
                   command="saved-save"
@@ -1425,6 +1446,15 @@ defineExpose({
                   >
                     <span class="query-plan-preset-title">{{ preset.title }}</span>
                     <span v-if="preset.isDefault" class="query-plan-preset-tag">默认</span>
+                    <el-button
+                      data-testid="query-plan-preset-edit"
+                      class="query-plan-preset-edit"
+                      link
+                      :icon="Edit"
+                      :title="`编辑方案：${preset.title}`"
+                      :aria-label="`编辑方案：${preset.title}`"
+                      @click.stop="handleQueryPlanEdit(preset)"
+                    />
                   </el-dropdown-item>
                 </template>
                 <el-dropdown-item
@@ -1527,6 +1557,19 @@ defineExpose({
 
 .query-plan-preset-item {
   max-width: 220px;
+}
+
+.query-plan-preset-edit {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 4px;
+  color: #7a8699;
+}
+
+.query-plan-preset-edit:hover,
+.query-plan-preset-edit:focus-visible {
+  color: #1867d5;
+  background: #ecf5ff;
 }
 
 .query-plan-preset-title {

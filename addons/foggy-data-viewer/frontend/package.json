@@ -20,6 +20,7 @@
   "files": [
     "dist",
     "docs/http-auth.md",
+    "docs/custom-query-execution.md",
     "README.md"
   ],
   "scripts": {

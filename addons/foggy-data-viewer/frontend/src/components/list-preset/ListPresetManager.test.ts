@@ -56,6 +56,11 @@ type ExposedManager = {
     width?: number
     fixed?: 'left' | 'right'
   }>
+  startColumnDrag: (name: string, event: DragEvent) => void
+  startAvailableColumnDrag: (name: string, event: DragEvent) => void
+  onColumnDragOver: (name: string, event: DragEvent) => void
+  dropColumn: (name: string, event?: DragEvent) => void
+  dropSelectedList: (event: DragEvent) => void
   getDraft: () => {
     title: string
     description: string
@@ -193,6 +198,38 @@ function mountManagerWrapper(options: {
 }
 
 describe('ListPresetManager', () => {
+  it('persists empty conditions and relative tokens and immediately applies the saved configuration', async () => {
+    const slice = [
+      { field: 'customer$id', op: '=', value: '' },
+      { field: 'date', op: '[)', value: { $relativeDate: 'thismonth', dateTime: false } }
+    ]
+    vi.mocked(createListPreset).mockImplementation(async (_scope, request) => makePreset({
+      ...request, query: request.query!, visibility: request.visibility || 'PRIVATE'
+    }))
+    const applyState = vi.fn()
+    const reload = vi.fn().mockResolvedValue(undefined)
+    const manager = mountManager({ applyState, reload, getState: () => ({ ...currentState, slice }) })
+    manager.openSaveDialog()
+    manager.setDraft({ title: '本月客户查询' })
+    await manager.saveCurrentPreset()
+    expect(createListPreset).toHaveBeenCalledWith(config, expect.objectContaining({ query: { slice, orderBy: currentState.orderBy } }))
+    expect(applyState).toHaveBeenCalledWith(expect.objectContaining({ slice }))
+    expect(reload).toHaveBeenCalledTimes(1)
+  })
+
+  it('can save without applying the scheme', async () => {
+    vi.mocked(createListPreset).mockResolvedValue(makePreset())
+    const applyState = vi.fn()
+    const wrapper = mountManagerWrapper({ applyState })
+    const manager = wrapper.vm as unknown as ExposedManager
+    manager.openSaveDialog()
+    manager.setDraft({ title: '稍后使用' })
+    ;(wrapper.vm as any).applyAfterSave = false
+    await manager.saveCurrentPreset()
+    expect(createListPreset).toHaveBeenCalledTimes(1)
+    expect(applyState).not.toHaveBeenCalled()
+  })
+
   it('saves and restores explicitly selected dependencies without implicitly adding others', async () => {
     vi.mocked(createListPreset).mockResolvedValue(makePreset())
     const applyState = vi.fn()
@@ -304,7 +341,7 @@ describe('ListPresetManager', () => {
     manager.openLoadDialog()
     await wrapper.vm.$nextTick()
 
-    expect(wrapper.find('.preset-layout.is-load-mode').exists()).toBe(true)
+    expect(wrapper.find('.query-wizard.is-load-mode').exists()).toBe(true)
     expect(wrapper.find('.preset-list-section').exists()).toBe(true)
     expect(wrapper.find('.field-pool-section').exists()).toBe(false)
     expect(wrapper.find('.inspector-section').exists()).toBe(false)
@@ -317,9 +354,10 @@ describe('ListPresetManager', () => {
     manager.openDialog()
     await wrapper.vm.$nextTick()
 
-    expect(wrapper.find('.preset-layout.is-customize-mode').exists()).toBe(true)
-    expect(wrapper.find('.field-pool-section').exists()).toBe(true)
-    expect(wrapper.find('.inspector-section').exists()).toBe(true)
+    expect(wrapper.find('.query-wizard.is-customize-mode').exists()).toBe(true)
+    expect(wrapper.find('.wizard-selected').exists()).toBe(true)
+    expect(wrapper.find('.wizard-field-workspace').exists()).toBe(true)
+    expect(wrapper.find('.preset-list-section').exists()).toBe(false)
   })
 
   it('saves column visibility and order from available columns', async () => {
@@ -444,7 +482,7 @@ describe('ListPresetManager', () => {
     expect(request?.columnSettings?.some(setting => setting.name === 'runtimeToken')).toBe(false)
   })
 
-  it('groups the field pool by QM group metadata', async () => {
+  it('shows grouped metadata fields as prototype cards while retaining their metadata', async () => {
     const wrapper = mountManagerWrapper({
       getState: () => ({
         columns: ['orderNo', 'customerName', 'amount'],
@@ -467,11 +505,11 @@ describe('ListPresetManager', () => {
     manager.syncColumnDraftFromState()
     await wrapper.vm.$nextTick()
 
-    expect(wrapper.findAll('.field-group-title span').map(node => node.text())).toEqual(['订单信息', '客户信息'])
-    expect(wrapper.findAll('.field-group').at(0)?.text()).toContain('2 / 2 已选')
+    expect(wrapper.findAll('.wizard-field-card b').map(node => node.text())).toEqual(['订单号', '客户', '金额'])
+    expect(manager.getColumnDraft()).toEqual(expect.arrayContaining([expect.objectContaining({ name: 'customerName', groupTitle: '客户信息' })]))
   })
 
-  it('places columns without group metadata into the base attribute group', async () => {
+  it('shows fields without group metadata and classifies LONG as numeric', async () => {
     const wrapper = mountManagerWrapper({
       getState: () => ({
         columns: ['longProbeId'],
@@ -490,11 +528,11 @@ describe('ListPresetManager', () => {
     manager.syncColumnDraftFromState()
     await wrapper.vm.$nextTick()
 
-    expect(wrapper.findAll('.field-group-title span').map(node => node.text())).toEqual(['基础属性'])
+    expect(wrapper.find('.wizard-field-card').text()).toContain('数值')
     expect(wrapper.text()).not.toContain('未分组')
   })
 
-  it('merges category-like explicit groups with the base attribute fallback group', async () => {
+  it('includes both explicitly grouped and ungrouped fields in the card picker', async () => {
     const wrapper = mountManagerWrapper({
       getState: () => ({
         columns: ['orderId', 'longProbeId'],
@@ -522,11 +560,10 @@ describe('ListPresetManager', () => {
     manager.syncColumnDraftFromState()
     await wrapper.vm.$nextTick()
 
-    expect(wrapper.findAll('.field-group-title span').map(node => node.text())).toEqual(['基础属性'])
-    expect(wrapper.find('.field-group').text()).toContain('2 / 2 已选')
+    expect(wrapper.findAll('.wizard-field-card b').map(node => node.text())).toEqual(['订单ID', 'LONG测试ID'])
   })
 
-  it('keeps selected field actions in a separate rail and opens field settings only on row click', async () => {
+  it('offers draggable fields and opens settings from the edit action', async () => {
     const wrapper = mountManagerWrapper({
       getState: () => ({
         columns: ['orderNo', 'status'],
@@ -548,19 +585,95 @@ describe('ListPresetManager', () => {
     await wrapper.vm.$nextTick()
 
     const firstRow = wrapper.find('.selected-row')
-    const actionRail = firstRow.find('.selected-action-rail')
+    const actionRail = firstRow.find('.selected-actions')
     expect(actionRail.exists()).toBe(true)
-    expect(actionRail.find('.selected-move-actions').exists()).toBe(true)
-    expect(actionRail.find('.selected-row-actions').exists()).toBe(true)
-    expect(firstRow.find('.selected-move-actions').exists()).toBe(true)
-    expect(firstRow.find('[aria-label="移到顶部"]').exists()).toBe(true)
+    expect(firstRow.attributes('draggable')).toBe('true')
+    expect(actionRail.find('[aria-label="编辑字段配置"]').exists()).toBe(true)
     expect(firstRow.text()).toContain('左固定')
-    expect(firstRow.text()).toContain('宽 180')
+    expect(firstRow.text()).toContain('180 px')
     expect(firstRow.find('.selected-editor').exists()).toBe(false)
 
-    await firstRow.trigger('click')
+    await firstRow.find('[aria-label="编辑字段配置"]').trigger('click')
 
     expect(wrapper.find('.selected-editor').exists()).toBe(true)
+  })
+
+  it('shows insertion lines, supports center swap, and briefly confirms moved fields', async () => {
+    vi.useFakeTimers()
+    try {
+      const wrapper = mountManagerWrapper({
+        getState: () => ({ columns: ['a', 'b', 'c'], columnSettings: [], slice: [], orderBy: [] }),
+        availableColumns: [
+          { name: 'a', title: '字段 A', type: 'TEXT' },
+          { name: 'b', title: '字段 B', type: 'TEXT' },
+          { name: 'c', title: '字段 C', type: 'TEXT' }
+        ]
+      })
+      const manager = wrapper.vm as unknown as ExposedManager
+      manager.syncColumnDraftFromState()
+      await wrapper.vm.$nextTick()
+      const rect = { top: 0, height: 100 } as DOMRect
+      const event = (clientY: number) => ({ currentTarget: { getBoundingClientRect: () => rect }, clientY, dataTransfer: { setData: vi.fn(), effectAllowed: '' } }) as unknown as DragEvent
+
+      manager.startColumnDrag('a', event(0))
+      manager.onColumnDragOver('c', event(10))
+      await wrapper.vm.$nextTick()
+      expect(wrapper.findAll('.selected-row').at(2)?.classes()).toContain('drop-before')
+      expect(wrapper.find('.drag-feedback').text()).toContain('之前插入')
+      manager.dropColumn('c', event(10))
+      await wrapper.vm.$nextTick()
+      expect(manager.getColumnDraft().filter(column => column.visible).map(column => column.name)).toEqual(['b', 'a', 'c'])
+      expect(wrapper.findAll('.selected-row').at(1)?.classes()).toContain('is-recently-moved')
+
+      manager.startColumnDrag('a', event(0))
+      manager.onColumnDragOver('c', event(50))
+      await wrapper.vm.$nextTick()
+      expect(wrapper.findAll('.selected-row').at(2)?.classes()).toContain('drop-swap')
+      manager.dropColumn('c', event(50))
+      await wrapper.vm.$nextTick()
+      expect(manager.getColumnDraft().filter(column => column.visible).map(column => column.name)).toEqual(['b', 'c', 'a'])
+      vi.advanceTimersByTime(1800)
+      await wrapper.vm.$nextTick()
+      expect(wrapper.findAll('.selected-row').some(row => row.classes().includes('is-recently-moved'))).toBe(false)
+      wrapper.unmount()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('inserts an unselected field into the selected list without replacing its target', async () => {
+    vi.useFakeTimers()
+    try {
+      const wrapper = mountManagerWrapper({
+        getState: () => ({ columns: ['a', 'c'], columnSettings: [], slice: [], orderBy: [] }),
+        availableColumns: [
+          { name: 'a', title: '字段 A', type: 'TEXT' },
+          { name: 'b', title: '字段 B', type: 'TEXT' },
+          { name: 'c', title: '字段 C', type: 'TEXT' }
+        ]
+      })
+      const manager = wrapper.vm as unknown as ExposedManager
+      manager.syncColumnDraftFromState()
+      await wrapper.vm.$nextTick()
+      const rect = { top: 0, height: 100 } as DOMRect
+      const event = (clientY: number) => ({ currentTarget: { getBoundingClientRect: () => rect }, clientY, dataTransfer: { setData: vi.fn(), effectAllowed: '' } }) as unknown as DragEvent
+
+      manager.startAvailableColumnDrag('b', event(0))
+      manager.onColumnDragOver('c', event(10))
+      await wrapper.vm.$nextTick()
+      expect(wrapper.findAll('.selected-row').at(1)?.classes()).toContain('drop-before')
+      expect(wrapper.find('.drag-feedback').text()).toContain('不会替换')
+      manager.dropColumn('c', event(10))
+      await wrapper.vm.$nextTick()
+      expect(manager.getColumnDraft().filter(column => column.visible).map(column => column.name)).toEqual(['a', 'b', 'c'])
+      expect(manager.getColumnDraft().find(column => column.name === 'b')?.visible).toBe(true)
+      expect(wrapper.findAll('.selected-row').at(1)?.classes()).toContain('is-recently-moved')
+      vi.advanceTimersByTime(1800)
+      await wrapper.vm.$nextTick()
+      wrapper.unmount()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('calls the clear conditions callback', async () => {
@@ -598,9 +711,9 @@ describe('ListPresetManager', () => {
     expect(createListPreset).not.toHaveBeenCalled()
   })
 
-  it('edits an existing preset with current table state', async () => {
+  it('edits a saved preset without replacing it with unrelated current table state', async () => {
     const preset = makePreset()
-    const updated = makePreset({ title: '更新后的视图', columns: currentState.columns })
+    const updated = makePreset({ title: '更新后的视图' })
     vi.mocked(updateListPreset).mockResolvedValue(updated)
 
     const manager = mountManager()
@@ -610,13 +723,25 @@ describe('ListPresetManager', () => {
 
     expect(updateListPreset).toHaveBeenCalledWith(config.userId, preset.id, expect.objectContaining({
       title: '更新后的视图',
-      columns: currentState.columns,
+      columns: preset.columns,
+      pageSize: preset.pageSize,
       query: {
-        slice: currentState.slice,
-        orderBy: currentState.orderBy
+        slice: preset.query?.slice || [],
+        orderBy: preset.query?.orderBy || []
       }
     }))
     expect(manager.getPresets()[0]).toEqual(updated)
+  })
+
+  it('opens editing at the first wizard step', async () => {
+    const wrapper = mountManagerWrapper()
+    const manager = wrapper.vm as unknown as ExposedManager
+    manager.openLoadDialog()
+    manager.startEditPreset(makePreset())
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="wizard-step-columns"]').classes()).toContain('active')
+    expect(wrapper.find('[data-testid="wizard-step-save"]').classes()).not.toContain('active')
   })
 
   it('overwrites a preset content while keeping its metadata', async () => {

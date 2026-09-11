@@ -271,7 +271,7 @@ describe('DataTable', () => {
       // vxe-table 会显示 loading 状态
     })
 
-    it('should show background loading status next to pager after delay', async () => {
+    it('should keep the background progress line without a transient loading prompt', async () => {
       vi.useFakeTimers()
       const wrapper = mount(DataTable, {
         props: {
@@ -292,10 +292,27 @@ describe('DataTable', () => {
       await wrapper.vm.$nextTick()
 
       const status = wrapper.find('.data-table-query-status')
-      expect(status.exists()).toBe(true)
-      expect(status.classes()).toContain('is-visible')
-      expect(status.text()).toContain('正在筛选...')
+      expect(status.exists()).toBe(false)
       expect(wrapper.find('.data-table-progress-line').classes()).toContain('is-visible')
+    })
+
+    it('should still show a background query error after loading finishes', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false,
+          backgroundLoading: false,
+          backgroundLoadingError: '查询失败'
+        },
+        ...globalConfig
+      })
+
+      const status = wrapper.find('.data-table-query-status')
+      expect(status.exists()).toBe(true)
+      expect(status.classes()).toContain('is-error')
+      expect(status.text()).toContain('查询失败')
     })
 
     it('should avoid pager-side status when pager is hidden and no toolbar anchor exists', async () => {
@@ -1220,6 +1237,78 @@ describe('DataTable', () => {
         op: '=',
         value: 88810
       }])
+    })
+
+    it('should infer a member lookup column as a dimension and hydrate an initial preset value', async () => {
+      const memberLoader = vi.fn().mockResolvedValue({
+        items: [{ value: 88810, label: '杭州分拨中心' }],
+        selectedItems: [{ value: 88810, label: '杭州分拨中心' }],
+        total: 1,
+        hasMore: false
+      })
+
+      const wrapper = mount(DataTable, {
+        attachTo: document.body,
+        props: {
+          columns: [{
+            name: 'destination$caption',
+            type: 'TEXT',
+            title: '运达站点',
+            memberLookup: {
+              enabled: true,
+              selectionFieldName: 'destination$id',
+              displayFieldName: 'destination$caption'
+            }
+          }],
+          data: [],
+          total: 0,
+          loading: false,
+          initialSlice: [{ field: 'destination$id', op: '=', value: 88810 }],
+          filterMemberLoader: memberLoader,
+          qmModel: 'AcceptanceOrders'
+        },
+        ...renderGridConfig
+      })
+
+      await flushPromises()
+
+      expect(wrapper.find('.filter-select').exists()).toBe(true)
+      expect(wrapper.find('.selected-text').text()).toBe('杭州分拨中心')
+      expect(memberLoader).toHaveBeenCalledWith(expect.objectContaining({
+        fieldName: 'destination$caption',
+        selectedValues: [88810]
+      }))
+    })
+
+    it('should project dictionary, text, and numeric preset values into their header filters', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: [
+            {
+              name: 'status',
+              type: 'TEXT',
+              title: '运单状态',
+              dictId: 'status',
+              dictItems: [{ value: 'SIGNED', label: '已签收' }]
+            },
+            { name: 'customerName', type: 'TEXT', title: '客户名称' },
+            { name: 'pieces', type: 'INTEGER', title: '件数' }
+          ],
+          data: [],
+          total: 0,
+          loading: false,
+          initialSlice: [
+            { field: 'status', op: '=', value: 'SIGNED' },
+            { field: 'customerName', op: 'right_like', value: '杭州' },
+            { field: 'pieces', op: '>=', value: 3 }
+          ]
+        },
+        ...renderGridConfig
+      })
+
+      expect(wrapper.find('.filter-select .selected-text').text()).toBe('已签收')
+      expect((wrapper.find('.filter-text input').element as HTMLInputElement).value).toBe('杭州')
+      expect((wrapper.find('.filter-number-range input').element as HTMLInputElement).value).toBe('3')
     })
   })
 

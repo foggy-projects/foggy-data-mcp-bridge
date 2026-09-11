@@ -7,12 +7,13 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-http-auth
-test-results
-playwright-report
-dist-ssr
+node_modules/
+dist/
+dist-http-auth/
+.acceptance/
+test-results/
+playwright-report/
+dist-ssr/
 *.local
 
 # Editor directories and files

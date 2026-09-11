@@ -4,6 +4,19 @@ import SelectFilter from './SelectFilter.vue'
 import type { SliceRequestDef } from '@/types'
 
 describe('SelectFilter', () => {
+  it('keeps the dropdown in its dialog and labels its multi-select checkboxes', async () => {
+    const dialog = document.createElement('div')
+    dialog.setAttribute('role', 'dialog')
+    document.body.appendChild(dialog)
+    const wrapper = mount(SelectFilter, { attachTo: dialog, props: {
+      field: 'payment', options: [{ value: 'PREPAID', label: '寄付' }]
+    } })
+    await wrapper.find('.toggle-multi').trigger('click')
+    await wrapper.find('.select-input').trigger('click')
+    expect(dialog.querySelector('.filter-dropdown')).not.toBeNull()
+    expect(dialog.querySelector('input[type="checkbox"]')?.getAttribute('aria-label')).toBe('寄付')
+    wrapper.unmount()
+  })
   it('hydrates off-page selectedItems without opening, changing DSL types, or emitting queries', async () => {
     const loader = vi.fn().mockResolvedValue({ items: [{ value: 1, label: '其他' }], total: 100,
       selectedItems: [{ value: '80581', label: '郑州分拨中心' }] })

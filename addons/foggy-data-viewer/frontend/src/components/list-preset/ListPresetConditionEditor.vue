@@ -2,6 +2,8 @@
 import { computed } from 'vue'
 import type { ColumnSchema, SliceRequestDef, MemberQueryRequest, MemberQueryResponse } from '@/types'
 import SelectFilter from '../filters/SelectFilter.vue'
+import PresetDateValue from '../filters/PresetDateValue.vue'
+import { isRelativeDateValue } from '@/utils/customQuery'
 import {
   countConditionLeaves,
   getDisplayColumnForCondition,
@@ -89,7 +91,7 @@ function setField(index: number, displayField: string) {
   const next = clone(props.modelValue)
   const column = configurableColumns.value.find(item => item.name === displayField)
   const field = getQueryFieldForColumn(column) || displayField
-  next[index] = { field, op: '=', value: undefined }
+  next[index] = { field, op: column && isDateColumn(column) ? '[)' : '=', value: undefined }
   update(next)
 }
 
@@ -100,6 +102,7 @@ function setOperator(index: number, operator: string) {
   next[index] = {
     ...current,
     op: operator,
+    ...(isRelativeDateValue(current.value) && operator !== '[)' ? { value: undefined } : {}),
     ...(operator === 'is null' || operator === 'is not null' ? { value: undefined } : {})
   }
   update(next)
@@ -128,6 +131,27 @@ function setValue(index: number, text: string) {
 
 function valueColumn(node: SliceRequestDef) {
   return getDisplayColumnForCondition(node.field, configurableColumns.value)
+}
+
+function isDateColumn(column: ColumnSchema | undefined): boolean {
+  return !!column && (['date', 'datetime'].includes(column.filterType || '') || ['DATE', 'DAY', 'DATETIME'].includes(column.type.toUpperCase()))
+}
+
+function isDateTimeColumn(column: ColumnSchema | undefined): boolean {
+  return column?.filterType === 'datetime' || column?.type.toUpperCase() === 'DATETIME'
+}
+
+function setCondition(index: number, condition: SliceRequestDef) {
+  const next = clone(props.modelValue)
+  next[index] = condition
+  update(next)
+}
+
+function columnOperators(condition: SliceRequestDef) {
+  if (isDateColumn(valueColumn(condition))) {
+    return operators.filter(operator => !['like', 'right_like', 'in', 'not in'].includes(operator.value))
+  }
+  return operators
 }
 
 function setSelectedValue(index: number, value: unknown) {
@@ -272,10 +296,24 @@ function setGroupKind(index: number, kind: '$or' | '$and') {
             size="small"
             @change="value => setOperator(index, value)"
           >
-            <el-option v-for="operator in operators" :key="operator.value" :label="operator.label" :value="operator.value" />
+            <el-option v-for="operator in columnOperators(condition)" :key="operator.value" :label="operator.label" :value="operator.value" />
           </el-select>
+          <PresetDateValue
+            v-if="isDateColumn(valueColumn(condition)) && !condition.op.startsWith('is ')"
+            :condition="condition"
+            :show-time="isDateTimeColumn(valueColumn(condition))"
+            @update:condition="value => setCondition(index, value)"
+          />
+          <SelectFilter
+            v-else-if="valueColumn(condition)?.dictItems?.length && (condition.op === '=' || condition.op === 'in')"
+            :field="condition.field"
+            :model-value="[condition]"
+            :options="valueColumn(condition)?.dictItems"
+            labels-only
+            @update:model-value="value => setMemberValue(index, value)"
+          />
           <el-select
-            v-if="valueColumn(condition)?.dictItems?.length && !condition.op.startsWith('is ')"
+            v-else-if="valueColumn(condition)?.dictItems?.length && !condition.op.startsWith('is ')"
             :model-value="condition.value"
             :multiple="condition.op === 'in' || condition.op === 'not in'"
             filterable
@@ -290,6 +328,7 @@ function setGroupKind(index: number, kind: '$or' | '$and') {
             :model-value="[condition]"
             :qm-model="qmModel"
             :remote-loader="filterMemberLoader"
+            labels-only
             @update:model-value="value => setMemberValue(index, value)"
           />
           <el-input

@@ -25,6 +25,8 @@ interface Props {
   remoteLoader?: (request: MemberQueryRequest) => Promise<MemberQueryResponse>
   /** 远程模式所需的 qmModel */
   qmModel?: string
+  /** Do not expose raw IDs/codes while labels are loading or unavailable. */
+  labelsOnly?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -80,7 +82,7 @@ watch(() => props.modelValue, (slices) => {
   if (slice.op === 'in' && Array.isArray(slice.value)) {
     isMulti.value = true
     ;(slice.value as (string | number)[]).forEach(v => selectedValues.value.add(v))
-  } else if (slice.op === '=') {
+  } else if (slice.op === '=' && slice.value != null && slice.value !== '') {
     isMulti.value = false
     selectedValues.value.add(slice.value as string | number)
   }
@@ -176,14 +178,14 @@ const displayText = computed(() => {
     for (const v of selectedValues.value) {
       const label = getSelectedLabel(v)
       if (label) labels.push(label)
-      else labels.push(String(v))
+      else labels.push(props.labelsOnly ? '名称待加载' : String(v))
     }
     if (labels.length <= 2) return labels.join(', ')
     return `已选 ${labels.length} 项`
   }
 
   const selected = props.options.filter(opt => selectedValues.value.has(opt.value))
-  if (selected.length === 0) return Array.from(selectedValues.value).join(', ')
+  if (selected.length === 0) return props.labelsOnly ? `已选 ${selectedValues.value.size} 项` : Array.from(selectedValues.value).join(', ')
   if (selected.length <= 2) return selected.map(s => s.label).join(', ')
   return `已选 ${selected.length} 项`
 })
@@ -361,6 +363,8 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 const dropdownRef = ref<HTMLElement>()
+// Keep popups inside the owning dialog's focus trap and accessibility tree.
+const dropdownTarget = ref<HTMLElement | string>('body')
 
 function handleClickOutside(e: MouseEvent) {
   const target = e.target as Node
@@ -372,7 +376,10 @@ function handleClickOutside(e: MouseEvent) {
   }
 }
 
-onMounted(() => document.addEventListener('click', handleClickOutside))
+onMounted(() => {
+  dropdownTarget.value = containerRef.value?.closest<HTMLElement>('[role="dialog"]') || 'body'
+  document.addEventListener('click', handleClickOutside)
+})
 onUnmounted(() => {
   disposed = true
   document.removeEventListener('click', handleClickOutside)
@@ -391,7 +398,7 @@ onUnmounted(() => {
       <span v-if="displayText" class="clear-btn" @click.stop="clear">×</span>
     </div>
 
-    <Teleport to="body">
+    <Teleport :to="dropdownTarget">
       <div v-if="showDropdown" ref="dropdownRef" class="filter-dropdown" :style="dropdownStyle">
         <div class="search-box">
           <input
@@ -422,6 +429,7 @@ onUnmounted(() => {
               <input
                 v-if="isMulti"
                 type="checkbox"
+                :aria-label="opt.label"
                 :checked="isSelected(opt)"
                 @click.stop="selectItem(opt)"
               />

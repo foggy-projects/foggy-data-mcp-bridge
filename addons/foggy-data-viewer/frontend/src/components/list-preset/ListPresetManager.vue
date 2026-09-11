@@ -1,33 +1,20 @@
 <template>
   <div class="list-preset-manager">
     <template v-if="triggerMode !== 'none'">
-      <el-button data-testid="list-preset-open" size="small" :icon="Operation" @click="openDialog">
-        {{ buttonText }}
-      </el-button>
-      <el-tooltip v-if="clearConditionsEnabled" content="清空查询条件" placement="top">
-        <el-button
-          data-testid="list-preset-clear-conditions"
-          size="small"
-          :icon="Brush"
-          circle
-          title="清空查询条件"
-          aria-label="清空查询条件"
-          :loading="clearing"
-          @click="clearCurrentConditions"
-        />
-      </el-tooltip>
+      <el-button data-testid="list-preset-open" size="small" :icon="Operation" @click="openDialog">{{ buttonText }}</el-button>
+      <el-button v-if="clearConditionsEnabled" data-testid="list-preset-clear-conditions" size="small" :icon="Brush" circle title="清空查询条件" aria-label="清空查询条件" :loading="clearing" @click="clearCurrentConditions" />
     </template>
-
-    <el-dialog
-      v-model="visible"
-      class="list-preset-dialog"
-      :title="dialogTitle"
-      width="min(1360px, calc(100vw - 32px))"
-      top="4vh"
-      :close-on-click-modal="false"
-      @open="loadPresets"
-    >
-      <div class="preset-layout" :class="`is-${dialogMode}-mode`" data-testid="list-preset-dialog">
+    <el-dialog v-model="visible" class="list-preset-dialog query-wizard-dialog" :title="dialogTitle"
+      width="min(1450px, calc(100vw - 48px))" top="3vh" :close-on-click-modal="false" @open="loadPresets">
+      <template #header><div class="wizard-title"><div><h2>{{ dialogMode === 'load' ? '查询管理' : editingPresetId ? '编辑自定义查询' : '新建自定义查询' }}</h2><p>方案将保存个人展示、条件、排序与分页偏好</p></div><span v-if="dialogMode !== 'load'" class="wizard-draft">草稿</span></div></template>
+      <div data-testid="list-preset-dialog" class="query-wizard" :class="`is-${dialogMode}-mode`">
+        <nav v-if="dialogMode !== 'load'" class="wizard-progress" aria-label="配置进度">
+          <button v-for="(step, index) in wizardSteps" :key="step.key" class="wizard-step" :class="{ active: inspectorTab === step.key, done: wizardStepIndex > index }"
+            :aria-current="inspectorTab === step.key ? 'step' : undefined" :data-testid="`wizard-step-${step.key}`" @click="goStep(step.key)">
+            <span class="wizard-step-dot">{{ wizardStepIndex > index ? '✓' : index + 1 }}</span><span><b>{{ step.title }}</b><small>{{ step.subtitle }}</small></span>
+          </button>
+        </nav>
+        <div v-if="dialogMode === 'load'" class="wizard-load">
         <section class="preset-list-section">
           <div class="section-header">
             <div>
@@ -85,338 +72,97 @@
 
               <div class="preset-actions">
                 <el-button data-testid="list-preset-apply" link type="primary" @click="applyPreset(preset)">应用</el-button>
-                <el-dropdown trigger="click">
-                  <el-button data-testid="list-preset-more" link :icon="MoreFilled" />
-                  <template #dropdown>
-                    <el-dropdown-menu>
-                      <el-dropdown-item @click="startEditPreset(preset)">
-                        编辑名称与范围
-                      </el-dropdown-item>
-                      <el-dropdown-item @click="overwritePreset(preset)">
-                        覆盖当前
-                      </el-dropdown-item>
-                      <el-dropdown-item @click="markAsDefault(preset)">
-                        <el-icon><Star /></el-icon>
-                        设为默认
-                      </el-dropdown-item>
-                      <el-dropdown-item divided class="danger-item" @click="removePreset(preset)">
-                        <el-icon><Delete /></el-icon>
-                        删除
-                      </el-dropdown-item>
-                    </el-dropdown-menu>
-                  </template>
-                </el-dropdown>
+                <el-button data-testid="list-preset-edit" link :icon="Edit" title="快捷编辑方案" aria-label="快捷编辑方案" @click="startEditPreset(preset)">编辑方案</el-button>
+                <el-button data-testid="list-preset-overwrite" link @click="overwritePreset(preset)">覆盖当前</el-button>
+                <el-button data-testid="list-preset-default" link @click="markAsDefault(preset)">设为默认</el-button>
+                <el-button data-testid="list-preset-delete" link type="danger" @click="removePreset(preset)">删除</el-button>
               </div>
             </article>
           </el-scrollbar>
         </section>
 
-        <section v-if="dialogMode !== 'load'" class="field-pool-section">
-          <div class="section-header">
-            <div>
-              <h4>字段池</h4>
-              <span>{{ filteredColumnDraft.length }} / {{ columnDraft.length }} 个字段</span>
-            </div>
-            <el-button link type="primary" @click="syncColumnDraftFromState">恢复当前</el-button>
-          </div>
 
-          <div class="field-tools">
-            <el-input
-              v-model="fieldKeyword"
-              placeholder="按字段名或编码搜索"
-              :prefix-icon="Search"
-              clearable
-            />
-            <el-select v-model="fieldTypeFilter" placeholder="类型" clearable>
-              <el-option
-                v-for="type in columnTypeOptions"
-                :key="type"
-                :label="type"
-                :value="type"
-              />
-            </el-select>
-          </div>
-
-          <div class="field-actions">
-            <el-button size="small" @click="selectAllColumns">全选</el-button>
-            <el-button size="small" @click="clearOptionalColumns">取消可选</el-button>
-          </div>
-
-          <el-scrollbar class="field-scroll">
-            <div class="field-list">
-              <section
-                v-for="group in filteredColumnGroups"
-                :key="group.key"
-                class="field-group"
-              >
-                <div class="field-group-header">
-                  <div class="field-group-title">
-                    <span>{{ group.title }}</span>
-                    <small>{{ group.selectedCount }} / {{ group.columns.length }} 已选</small>
-                  </div>
-                  <div class="field-group-actions">
-                    <el-button size="small" link type="primary" @click="selectColumnGroup(group.key)">选择本组</el-button>
-                    <el-button size="small" link @click="clearColumnGroup(group.key)">取消本组</el-button>
-                  </div>
-                </div>
-                <article
-                  v-for="column in group.columns"
-                  :key="column.name"
-                  class="field-row"
-                  :class="{
-                    'is-selected': column.visible,
-                    'is-locked': isColumnLocked(column.name)
-                  }"
-                  @click="toggleColumn(column.name, !column.visible)"
-                >
-                  <el-checkbox
-                    :model-value="column.visible"
-                    :disabled="isColumnLocked(column.name)"
-                    @click.stop
-                    @change="value => toggleColumn(column.name, value)"
-                  />
-                  <div class="field-main">
-                    <div class="field-title">
-                      <span>{{ column.title || column.name }}</span>
-                      <el-tag v-if="isColumnLocked(column.name)" size="small" type="warning">锁定</el-tag>
-                      <el-tag size="small" effect="plain">{{ column.type }}</el-tag>
-                    </div>
-                    <div class="field-code">{{ column.name }}</div>
-                  </div>
-                  <el-icon v-if="column.visible" class="field-selected-icon"><Finished /></el-icon>
-                </article>
-              </section>
-            </div>
-          </el-scrollbar>
-        </section>
-
-        <section v-if="dialogMode !== 'load'" class="inspector-section">
-          <div class="inspector-header">
-            <div class="inspector-title">
-              <h4>{{ inspectorTitle }}</h4>
-              <span v-if="inspectorTab === 'columns'">{{ visibleColumnDraft.length }} 已选</span>
-              <span v-else-if="inspectorTab === 'query'">{{ savedConditionCount }} 条件</span>
-            </div>
-            <el-radio-group v-model="inspectorTab" size="small">
-              <el-radio-button label="columns">字段</el-radio-button>
-              <el-radio-button label="query">条件</el-radio-button>
-              <el-radio-button data-testid="list-preset-save-tab" label="save">保存</el-radio-button>
-            </el-radio-group>
-          </div>
-
-          <el-scrollbar class="inspector-body">
-            <div v-if="inspectorTab === 'columns'" class="selected-list">
-              <el-empty v-if="visibleColumnDraft.length === 0" description="暂无选中字段" />
-              <article
-                v-for="(column, index) in visibleColumnDraft"
-                v-else
-                :key="column.name"
-                class="selected-row"
-                :class="{ 'is-editing': activeColumnEditor === column.name }"
-                tabindex="0"
-                @click="openColumnEditor(column.name)"
-                @keydown.enter="openColumnEditor(column.name)"
-                @keydown.space.prevent="openColumnEditor(column.name)"
-              >
-                <el-icon class="drag-icon"><Rank /></el-icon>
-                <div class="selected-main">
-                  <div class="selected-name">
-                    <span>{{ column.title || column.name }}</span>
-                    <el-tag v-if="isColumnLocked(column.name)" size="small" type="warning">锁定</el-tag>
-                    <el-tag
-                      v-for="tag in getColumnSettingTags(column)"
-                      :key="tag"
-                      size="small"
-                      effect="plain"
-                    >
-                      {{ tag }}
-                    </el-tag>
-                  </div>
-                  <div class="selected-code">{{ column.name }}</div>
-                </div>
-                <div class="selected-action-rail" @click.stop>
-                  <div class="selected-actions selected-move-actions">
-                    <el-tooltip content="移到顶部" placement="top">
-                      <el-button
-                        :icon="Top"
-                        size="small"
-                        title="移到顶部"
-                        aria-label="移到顶部"
-                        :disabled="index === 0"
-                        @click="moveVisibleColumnToEdge(index, 'top')"
-                      />
-                    </el-tooltip>
-                    <el-tooltip content="上移" placement="top">
-                      <el-button
-                        :icon="ArrowUp"
-                        size="small"
-                        title="上移"
-                        aria-label="上移"
-                        :disabled="index === 0"
-                        @click="moveVisibleColumn(index, -1)"
-                      />
-                    </el-tooltip>
-                    <el-tooltip content="下移" placement="top">
-                      <el-button
-                        :icon="ArrowDown"
-                        size="small"
-                        title="下移"
-                        aria-label="下移"
-                        :disabled="index === visibleColumnDraft.length - 1"
-                        @click="moveVisibleColumn(index, 1)"
-                      />
-                    </el-tooltip>
-                    <el-tooltip content="移到底部" placement="top">
-                      <el-button
-                        :icon="Bottom"
-                        size="small"
-                        title="移到底部"
-                        aria-label="移到底部"
-                        :disabled="index === visibleColumnDraft.length - 1"
-                        @click="moveVisibleColumnToEdge(index, 'bottom')"
-                      />
-                    </el-tooltip>
-                  </div>
-                  <div class="selected-actions selected-row-actions">
-                    <el-tooltip content="编辑字段配置" placement="top">
-                      <el-button
-                        :icon="Edit"
-                        size="small"
-                        title="编辑字段配置"
-                        aria-label="编辑字段配置"
-                        @click="toggleColumnEditor(column.name)"
-                      />
-                    </el-tooltip>
-                    <el-tooltip :content="isColumnLocked(column.name) ? '锁定列不可移除' : '移除字段'" placement="top">
-                      <el-button
-                        :icon="isColumnLocked(column.name) ? Lock : Delete"
-                        size="small"
-                        :type="isColumnLocked(column.name) ? 'warning' : 'default'"
-                        :title="isColumnLocked(column.name) ? '锁定列不可移除' : '移除字段'"
-                        :aria-label="isColumnLocked(column.name) ? '锁定列不可移除' : '移除字段'"
-                        :disabled="isColumnLocked(column.name)"
-                        @click="removeColumn(column.name)"
-                      />
-                    </el-tooltip>
-                  </div>
+        </div>
+        <div v-else-if="inspectorTab === 'columns'" class="wizard-fields">
+          <aside class="wizard-selected" aria-label="已选展示字段">
+            <header class="wizard-panel-head"><div><h3>已选展示字段</h3><p>拖动调整表格列顺序</p></div><div class="wizard-count">{{ visibleColumnDraft.length }}<small>/ 50</small></div></header>
+            <p class="wizard-note drag-feedback" role="status" aria-live="polite" :class="{ 'is-active': draggedColumn }">
+              <span class="drag-feedback-text">
+                <template v-if="dragFeedback">↕ {{ dragFeedback }}</template>
+                <template v-else>↕ 拖动字段调整顺序：拖到上下边缘可插入，拖到中部可交换位置；点击编辑设置列宽和固定位置。</template>
+              </span>
+            </p>
+            <div class="selected-list" :class="{ 'is-drop-ready': dragOrigin === 'available' && draggedColumn, 'drop-append': dragOver?.target === appendDropTarget }"
+              @dragover.prevent="onSelectedListDragOver" @dragleave="onSelectedListDragLeave" @drop.prevent="dropSelectedList">
+              <el-empty v-if="!visibleColumnDraft.length" description="从右侧选择展示字段" />
+              <article v-for="(column, index) in visibleColumnDraft" :key="column.name" class="selected-row" :class="{
+                  'is-editing': activeColumnEditor === column.name,
+                  'is-dragging': draggedColumn === column.name,
+                  'drop-before': dragOver?.target === column.name && dragOver.mode === 'insert-before',
+                  'drop-after': dragOver?.target === column.name && dragOver.mode === 'insert-after',
+                  'drop-swap': dragOver?.target === column.name && dragOver.mode === 'swap',
+                  'is-recently-moved': recentlyMovedColumns.includes(column.name)
+                }"
+                draggable="true" tabindex="0" @dragstart="startColumnDrag(column.name, $event)" @dragend="clearColumnDrag" @dragover.prevent.stop="onColumnDragOver(column.name, $event)" @dragleave="onColumnDragLeave(column.name, $event)" @drop.prevent.stop="dropColumn(column.name, $event)"
+                @keydown.alt.up.prevent="moveVisibleColumn(index, -1)" @keydown.alt.down.prevent="moveVisibleColumn(index, 1)">
+                <span class="drag-icon" title="拖动排序；Alt + 方向键可调整">⠿</span><span class="wizard-field-rank">{{ index + 1 }}</span>
+                <div class="selected-main"><b>{{ column.title || column.name }}</b><small>{{ column.width || '自动' }} px · {{ column.fixed === 'left' ? '左固定' : column.fixed === 'right' ? '右固定' : '不固定' }}</small></div>
+                <div class="selected-actions" @click.stop>
+                  <el-button :icon="Edit" link size="small" title="编辑字段配置" aria-label="编辑字段配置" @click="toggleColumnEditor(column.name)" />
+                  <el-button :icon="Delete" link size="small" title="移除字段" aria-label="移除字段" :disabled="isColumnLocked(column.name)" @click="removeColumn(column.name)" />
                 </div>
                 <div v-if="activeColumnEditor === column.name" class="selected-editor" @click.stop>
-                  <label class="editor-field">
-                    <span>列宽</span>
-                    <el-input-number
-                      v-model="column.width"
-                      size="small"
-                      :min="40"
-                      :step="10"
-                      controls-position="right"
-                      placeholder="列宽"
-                    />
-                  </label>
-                  <label class="editor-field">
-                    <span>固定</span>
-                    <el-select v-model="column.fixed" size="small" placeholder="不固定" clearable>
-                      <el-option label="左固定" value="left" />
-                      <el-option label="右固定" value="right" />
-                    </el-select>
-                  </label>
-                  <div class="editor-actions">
-                    <el-button size="small" link @click="resetColumnSettings(column.name)">恢复默认</el-button>
-                    <el-button size="small" type="primary" link @click="closeColumnEditor">完成</el-button>
-                  </div>
+                  <label class="editor-field"><span>列宽</span><el-input-number v-model="column.width" size="small" :min="40" :max="1000" :step="10" controls-position="right" /></label>
+                  <label class="editor-field"><span>固定位置</span><el-select v-model="column.fixed" size="small" placeholder="不固定" clearable><el-option label="左固定" value="left" /><el-option label="右固定" value="right" /></el-select></label>
+                  <div class="editor-actions"><el-button size="small" link @click="moveVisibleColumnToEdge(index, 'top')">移到顶部</el-button><el-button size="small" link @click="moveVisibleColumnToEdge(index, 'bottom')">移到底部</el-button><el-button size="small" link @click="resetColumnSettings(column.name)">恢复默认</el-button><el-button size="small" link type="primary" @click="closeColumnEditor">完成</el-button></div>
                 </div>
               </article>
             </div>
-
-            <div v-else-if="inspectorTab === 'query'" class="query-panel">
-              <el-checkbox v-model="form.saveQueryConditions">保存当前筛选和排序</el-checkbox>
-              <div class="query-summary-block">
-                <div class="summary-title">筛选条件</div>
-                <div v-if="!form.saveQueryConditions" class="empty-text">不保存筛选条件</div>
-                <ListPresetConditionEditor
-                  v-else
-                  v-model="conditionDraft"
-                  :columns="configurableAvailableColumns"
-                  :qm-model="config.model"
-                  :filter-member-loader="filterMemberLoader"
-                  :max-conditions="20"
-                  data-testid="list-preset-condition-editor"
-                />
-                <div v-if="form.saveQueryConditions && conditionSummary.length > 0" class="query-summary">
-                  <span v-for="item in conditionSummary" :key="item" class="query-summary-item">{{ item }}</span>
-                </div>
-              </div>
-              <div class="query-summary-block">
-                <div class="summary-title">排序规则</div>
-                <div v-if="!form.saveQueryConditions || orderSummary.length === 0" class="empty-text">不保存排序规则</div>
-                <div v-else class="query-summary">
-                  <span v-for="item in orderSummary" :key="item" class="query-summary-item">{{ item }}</span>
-                </div>
-              </div>
-              <div class="query-summary-block">
-                <div class="summary-title">分页大小</div>
-                <span>{{ currentState.pageSize || '-' }}</span>
-              </div>
+          </aside>
+          <section class="wizard-field-workspace">
+            <header class="wizard-workspace-head"><div><span class="wizard-eyebrow">STEP 01 / 03</span><h2>选择展示字段</h2><p>选择要显示在表格中的列，并调整它们的顺序。</p></div><div class="wizard-field-count"><b>{{ visibleColumnDraft.length }} / 50</b><small>已选展示字段</small></div></header>
+            <p class="wizard-scope-note">ⓘ 这里只决定表格展示列。查询条件可以使用其他可用字段，不必先作为展示列。</p>
+            <div class="wizard-field-tools"><el-input v-model="fieldKeyword" placeholder="搜索字段名称" :prefix-icon="Search" clearable /><div class="wizard-type-filters"><button v-for="type in wizardFieldTypes" :key="type" :class="{ active: wizardFieldType === type }" @click="wizardFieldType = type">{{ type }}</button></div></div>
+            <div class="wizard-field-section-head"><b>可选字段 <small>{{ wizardFilteredColumns.length }} 个</small></b><div><el-button size="small" @click="selectFilteredColumns">选择当前结果</el-button><el-button size="small" @click="clearOptionalColumns">清空已选</el-button></div></div>
+            <div class="wizard-field-grid">
+              <button v-for="column in wizardFilteredColumns" :key="column.name" class="field-row wizard-field-card" :class="{ 'is-selected': column.visible, 'is-draggable-source': !column.visible }" :aria-pressed="column.visible" :draggable="!column.visible" @dragstart="!column.visible && startAvailableColumnDrag(column.name, $event)" @dragend="clearColumnDrag" @click="toggleColumn(column.name, !column.visible)">
+                <span class="wizard-check">{{ column.visible ? '✓' : '' }}</span><span><b>{{ column.title || column.name }}</b><small>{{ column.visible ? '已加入展示' : '点击加入展示' }}</small></span><span class="wizard-type-pill">{{ wizardColumnType(column) }}</span>
+              </button>
+              <p v-if="!wizardFilteredColumns.length" class="empty-text">没有符合条件的字段</p>
             </div>
-
-            <el-form v-else class="save-form" label-position="top" :model="form">
-              <el-form-item label="名称" required>
-                <div data-testid="list-preset-title" class="preset-input-wrapper">
-                  <el-input v-model="form.title" maxlength="50" show-word-limit />
-                </div>
-              </el-form-item>
-              <el-form-item label="描述">
-                <div data-testid="list-preset-description" class="preset-input-wrapper">
-                  <el-input v-model="form.description" type="textarea" :rows="3" maxlength="200" show-word-limit />
-                </div>
-              </el-form-item>
-              <el-form-item label="可见范围">
-                <el-radio-group v-model="form.visibility">
-                  <el-radio label="PRIVATE">仅自己</el-radio>
-                  <el-radio v-if="config.allowShared" label="DEPARTMENT">部门</el-radio>
-                  <el-radio v-if="config.allowTenantShared" label="TENANT">租户</el-radio>
-                </el-radio-group>
-              </el-form-item>
-              <el-form-item>
-                <el-checkbox v-model="form.isDefault">设为默认</el-checkbox>
-              </el-form-item>
-              <el-button v-if="editingPresetId" link type="primary" @click="cancelEdit">
-                取消编辑
-              </el-button>
-            </el-form>
-          </el-scrollbar>
-
-          <div class="state-summary">
-            <div>
-              <strong>{{ visibleColumnDraft.length }}</strong>
-              <span>展示列</span>
-            </div>
-            <div>
-              <strong>{{ savedConditionCount }}</strong>
-              <span>条件</span>
-            </div>
-            <div>
-              <strong>{{ currentState.pageSize || '-' }}</strong>
-              <span>分页</span>
-            </div>
-          </div>
-        </section>
-      </div>
-
-      <template #footer>
-        <div class="dialog-footer">
-          <el-button @click="visible = false">关闭</el-button>
-          <el-button v-if="editingPresetId" @click="cancelEdit">取消编辑</el-button>
-          <el-button data-testid="list-preset-save" type="primary" :loading="saving" @click="saveCurrentPreset">
-            {{ editingPresetId ? '更新方案' : '保存当前方案' }}
-          </el-button>
+            <p class="wizard-scope-note">系统规则需要的字段会自动补充；未选为展示列的运行字段不会出现在表格中。</p>
+          </section>
         </div>
+        <ConditionTreeEditor v-else-if="inspectorTab === 'query'" v-model="conditionDraft" :columns="configurableAvailableColumns" :qm-model="config.model" :filter-member-loader="filterMemberLoader" />
+        <div v-else class="wizard-review">
+          <section class="wizard-save-card" aria-label="保存查询方案">
+            <header><div><h3>保存查询方案</h3><p>给这次配置起个名字，保存后即可直接使用。</p></div><span class="wizard-personal-tag">个人方案</span></header>
+            <el-form class="save-form" label-position="top" :model="form">
+              <el-form-item label="方案名称" required><div data-testid="list-preset-title" class="preset-input-wrapper"><el-input v-model="form.title" maxlength="50" show-word-limit placeholder="例如：我的待揽收运单列表" aria-label="方案名称" /></div><small class="wizard-form-hint">建议使用容易识别的名称，方便下次查找。</small></el-form-item>
+              <el-form-item label="方案说明（可选）"><div data-testid="list-preset-description" class="preset-input-wrapper"><el-input v-model="form.description" type="textarea" :rows="3" maxlength="200" show-word-limit placeholder="例如：每天早上查看待揽收运单" aria-label="方案说明" /></div></el-form-item>
+              <div class="wizard-apply-option"><el-checkbox v-model="applyAfterSave" data-testid="list-preset-apply-after-save">保存后立即应用这个方案</el-checkbox></div>
+            </el-form>
+            <p class="wizard-policy-note">ⓘ 只保存你的字段、条件、排序和分页偏好。数据权限由后台控制，页面固定规则会在查询前自动加入。</p>
+            <div class="wizard-save-ready">✓ 配置已检查，可以保存</div>
+          </section>
+        </div>
+      </div>
+      <template #footer>
+        <div class="wizard-footer"><div v-if="dialogMode !== 'load'" class="wizard-summary"><span><b>{{ visibleColumnDraft.length }}</b> 展示字段</span><span><b>{{ savedConditionCount }}</b> 用户条件</span><span>分页大小 <b>{{ currentState.pageSize || 50 }}</b></span></div><div class="wizard-footer-actions">
+          <el-button v-if="dialogMode === 'load' || inspectorTab === 'columns'" @click="visible = false">关闭</el-button>
+          <el-button v-if="dialogMode !== 'load' && inspectorTab === 'query'" @click="goStep('columns')">返回字段选择</el-button>
+          <el-button v-if="dialogMode !== 'load' && inspectorTab === 'save'" @click="goStep('query')">返回条件设置</el-button>
+          <el-button v-if="dialogMode !== 'load' && inspectorTab === 'columns'" type="primary" @click="goStep('query')">下一步：设置查询条件</el-button>
+          <el-button v-if="dialogMode !== 'load' && inspectorTab === 'query'" data-testid="list-preset-save-tab" type="primary" @click="goStep('save')">下一步：确认与保存</el-button>
+          <el-button v-if="dialogMode !== 'load' && inspectorTab === 'save'" data-testid="list-preset-save" type="primary" :loading="saving" @click="saveCurrentPreset">{{ editingPresetId ? '更新方案' : '保存方案' }}</el-button>
+        </div></div>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   ArrowDown,
@@ -428,12 +174,10 @@ import {
   Finished,
   Loading,
   Lock,
-  MoreFilled,
   Operation,
   Rank,
   Refresh,
   Search,
-  Star,
   Top
 } from '@element-plus/icons-vue'
 import {
@@ -444,12 +188,15 @@ import {
   updateListPreset
 } from '@/api/listPreset'
 import ListPresetConditionEditor from './ListPresetConditionEditor.vue'
+import ConditionTreeEditor from './ConditionTreeEditor.vue'
 import {
   cloneSliceTree,
   countConditionLeaves,
+  getDisplayColumnForCondition,
   getUserConfigurableColumns,
   validateListPresetLimits
 } from '@/utils/listPreset'
+import { isRelativeDateValue, relativeDateOptions } from '@/utils/customQuery'
 import type {
   ColumnViewSetting,
   EnhancedColumnSchema,
@@ -510,6 +257,13 @@ interface ColumnGroupResolution {
 type InspectorTab = 'columns' | 'query' | 'save'
 type DialogMode = 'customize' | 'load' | 'save'
 type MoveEdge = 'top' | 'bottom'
+type ColumnDropMode = 'insert-before' | 'insert-after' | 'swap'
+type ColumnDragOrigin = 'selected' | 'available'
+
+interface ColumnDragTarget {
+  target: string
+  mode: ColumnDropMode
+}
 
 const visible = ref(false)
 const loading = ref(false)
@@ -537,7 +291,8 @@ const form = ref({
 
 const buttonText = computed(() => props.config.buttonText || '自定义查询')
 const clearConditionsEnabled = computed(() => Boolean(props.clearConditions))
-const currentState = computed(() => props.getState())
+const editingBaseState = ref<ListViewState | null>(null)
+const currentState = computed(() => editingBaseState.value || props.getState())
 const lockedColumnNameSet = computed(() => new Set(props.lockedColumns || []))
 const availableColumnMap = computed(() => new Map((props.availableColumns || []).map(column => [column.name, column])))
 const configurableAvailableColumns = computed(() => {
@@ -546,11 +301,18 @@ const configurableAvailableColumns = computed(() => {
     : currentState.value.columns.map(name => ({ name, title: name, type: 'TEXT' }))
   return getUserConfigurableColumns(sourceColumns)
 })
+
+const draggedColumn = ref<string | null>(null)
+const dragOrigin = ref<ColumnDragOrigin | null>(null)
+const dragOver = ref<ColumnDragTarget | null>(null)
+const appendDropTarget = '__append__'
+const recentlyMovedColumns = ref<string[]>([])
+let recentMoveTimer: ReturnType<typeof setTimeout> | null = null
 const visibleColumnDraft = computed(() => columnDraft.value.filter(column => column.visible))
 const appliedPreset = computed(() => presets.value.find(preset => preset.id === appliedPresetId.value))
 const defaultPreset = computed(() => presets.value.find(preset => preset.isDefault))
 const dialogTitle = computed(() => {
-  if (dialogMode.value === 'load') return '加载查询'
+  if (dialogMode.value === 'load') return '查询管理'
   if (dialogMode.value === 'save') return '保存查询'
   return '自定义查询'
 })
@@ -566,8 +328,19 @@ const savedConditionCount = computed(() => form.value.saveQueryConditions ? coun
 const conditionSummary = computed(() => {
   if (!form.value.saveQueryConditions) return []
   return effectiveConditionDraft.value.slice(0, 8).map(slice => {
-    const value = Array.isArray(slice.value) ? slice.value.join(',') : slice.value
-    return `${slice.field} ${slice.op} ${value ?? ''}`.trim()
+    if (slice.$and || slice.$or || slice.children) return `${slice.$or ? 'OR' : 'AND'} 组（${countConditionLeaves([slice])} 条件）`
+    const column = getDisplayColumnForCondition(slice.field, configurableAvailableColumns.value)
+    const values = Array.isArray(slice.value) ? slice.value : [slice.value]
+    let value = values.filter(item => item != null && item !== '').join(', ')
+    if (isRelativeDateValue(slice.value)) {
+      const range = slice.value.$relativeDate
+      value = relativeDateOptions.find(option => option.value === range)?.label || '未知日期范围'
+    } else if (column?.dictItems?.length) {
+      value = values.map(item => column.dictItems!.find(option => option.value === item)?.label || '').filter(Boolean).join(', ')
+    } else if (column?.memberLookup?.enabled) {
+      value = values.filter(item => item != null && item !== '').length ? '已选择成员' : ''
+    }
+    return `${column?.title || column?.name || slice.field} ${slice.op} ${value}`.trim()
   })
 })
 const orderSummary = computed(() => {
@@ -720,6 +493,7 @@ function resolveColumnGroup(column: ColumnDraft): ColumnGroupResolution {
 }
 
 function openDialog() {
+  resetForm()
   dialogMode.value = 'customize'
   inspectorTab.value = 'columns'
   syncColumnDraftFromState()
@@ -728,6 +502,7 @@ function openDialog() {
 }
 
 function openLoadDialog() {
+  resetForm()
   dialogMode.value = 'load'
   syncColumnDraftFromState()
   syncConditionDraftFromState()
@@ -999,6 +774,7 @@ function moveVisibleColumn(index: number, direction: -1 | 1) {
   visibleColumns[index] = target
   visibleColumns[nextIndex] = current
   applyVisibleOrder(visibleColumns)
+  flashMovedColumns([current.name, target.name])
 }
 
 function moveVisibleColumnToEdge(index: number, edge: MoveEdge) {
@@ -1011,6 +787,7 @@ function moveVisibleColumnToEdge(index: number, edge: MoveEdge) {
     visibleColumns.push(current)
   }
   applyVisibleOrder(visibleColumns)
+  flashMovedColumns([current.name, visibleColumns[edge === 'top' ? 0 : visibleColumns.length - 1]?.name].filter(Boolean) as string[])
 }
 
 function moveColumn(index: number, direction: -1 | 1) {
@@ -1026,6 +803,7 @@ function moveColumn(index: number, direction: -1 | 1) {
 }
 
 function resetForm() {
+  editingBaseState.value = null
   editingPresetId.value = null
   form.value = {
     title: '',
@@ -1091,8 +869,17 @@ async function applyPreset(preset: ListPresetDef) {
 }
 
 function startEditPreset(preset: ListPresetDef) {
+  editingBaseState.value = {
+    columns: [...preset.columns], columnSettings: preset.columnSettings,
+    slice: cloneSliceTree(preset.query?.slice || []),
+    orderBy: preset.query?.orderBy || [], pageSize: preset.pageSize
+  }
+  dialogMode.value = 'customize'
   editingPresetId.value = preset.id
-  inspectorTab.value = 'save'
+  // Editing should start from the same first step as creating a query. The
+  // saved conditions and metadata remain loaded in the draft for later steps.
+  inspectorTab.value = 'columns'
+  syncColumnDraftFromState()
   syncConditionDraftFromState()
   form.value = {
     title: preset.title,
@@ -1105,6 +892,221 @@ function startEditPreset(preset: ListPresetDef) {
 
 function cancelEdit() {
   resetForm()
+}
+
+const applyAfterSave = ref(true)
+const wizardSteps: { key: InspectorTab; title: string; subtitle: string }[] = [
+  { key: 'columns', title: '选择展示字段', subtitle: '决定表格显示哪些列' },
+  { key: 'query', title: '设置查询条件', subtitle: '最多 20 条用户条件' },
+  { key: 'save', title: '确认并保存', subtitle: '保存个人查询方案' }
+]
+const wizardStepIndex = computed(() => wizardSteps.findIndex(step => step.key === inspectorTab.value))
+const wizardFieldTypes = ['全部', '文本', '选项', '日期', '日期时间', '数值']
+const wizardFieldType = ref('全部')
+function wizardColumnType(column: ColumnDraft) {
+  const meta = availableColumnMap.value.get(column.name)
+  if (meta?.dictId || meta?.dictItems?.length || meta?.memberLookup?.enabled) return '选项'
+  if (meta?.filterType === 'datetime' || column.type.toUpperCase() === 'DATETIME') return '日期时间'
+  if (meta?.filterType === 'date' || ['DATE', 'DAY'].includes(column.type.toUpperCase())) return '日期'
+  return ['NUMBER', 'INTEGER', 'LONG', 'DOUBLE', 'BIGDECIMAL', 'MONEY'].includes(column.type.toUpperCase()) ? '数值' : '文本'
+}
+const wizardFilteredColumns = computed(() => columnDraft.value.filter(column =>
+  (wizardFieldType.value === '全部' || wizardColumnType(column) === wizardFieldType.value) &&
+  `${column.title || ''} ${column.name}`.toLowerCase().includes(fieldKeyword.value.trim().toLowerCase())))
+function selectFilteredColumns() {
+  const additional = wizardFilteredColumns.value.filter(column => !column.visible)
+  if (visibleColumnDraft.value.length + additional.length > 50) { ElMessage.warning('选择当前结果将超过 50 个展示字段上限'); return }
+  additional.forEach(column => { column.visible = true })
+}
+function startColumnDrag(name: string, event: DragEvent) {
+  draggedColumn.value = name
+  dragOrigin.value = 'selected'
+  dragOver.value = null
+  event.dataTransfer?.setData('text/plain', name)
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
+}
+
+function startAvailableColumnDrag(name: string, event: DragEvent) {
+  const column = columnDraft.value.find(item => item.name === name)
+  if (!column || column.visible) return
+  draggedColumn.value = name
+  dragOrigin.value = 'available'
+  dragOver.value = null
+  event.dataTransfer?.setData('text/plain', name)
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'copy'
+}
+
+function getColumnTitle(name: string): string {
+  if (name === appendDropTarget) return '列表末尾'
+  return visibleColumnDraft.value.find(column => column.name === name)?.title || name
+}
+
+const dragFeedback = computed(() => {
+  if (!draggedColumn.value) return ''
+  const sourceTitle = getColumnTitle(draggedColumn.value)
+  if (dragOrigin.value === 'available') {
+    if (!dragOver.value) return `正在添加「${sourceTitle}」，拖到左侧字段之间即可插入，不会替换已有字段。`
+    const targetTitle = getColumnTitle(dragOver.value.target)
+    return `松开后将在「${targetTitle}」${dragOver.value.mode === 'insert-before' ? '之前' : '之后'}插入「${sourceTitle}」，不会替换。`
+  }
+  if (!dragOver.value) return `正在拖动「${sourceTitle}」，移到目标字段上方/下方可插入，中部可交换。`
+  const targetTitle = getColumnTitle(dragOver.value.target)
+  if (dragOver.value.mode === 'swap') return `松开后「${sourceTitle}」将与「${targetTitle}」交换位置。`
+  return `松开后将在「${targetTitle}」${dragOver.value.mode === 'insert-before' ? '之前' : '之后'}插入「${sourceTitle}」。`
+})
+
+function getColumnDropMode(target: string, event: DragEvent): ColumnDropMode | null {
+  if (!draggedColumn.value || draggedColumn.value === target) return null
+  const element = event.currentTarget as HTMLElement | null
+  const rect = element?.getBoundingClientRect()
+  if (!rect || rect.height <= 0) return 'swap'
+  const ratio = (event.clientY - rect.top) / rect.height
+  if (dragOrigin.value === 'available') return ratio < 0.5 ? 'insert-before' : 'insert-after'
+  if (ratio < 0.28) return 'insert-before'
+  if (ratio > 0.72) return 'insert-after'
+  return 'swap'
+}
+
+function onColumnDragOver(target: string, event: DragEvent) {
+  const mode = getColumnDropMode(target, event)
+  dragOver.value = mode ? { target, mode } : null
+}
+
+function onSelectedListDragOver(event: DragEvent) {
+  if (dragOrigin.value !== 'available' || !draggedColumn.value) return
+  const target = event.target as HTMLElement | null
+  if (target?.closest('.selected-row')) return
+  dragOver.value = { target: appendDropTarget, mode: 'insert-after' }
+}
+
+function onSelectedListDragLeave(event: DragEvent) {
+  const element = event.currentTarget as HTMLElement | null
+  const related = event.relatedTarget as Node | null
+  if (element && related && element.contains(related)) return
+  if (dragOver.value?.target === appendDropTarget) dragOver.value = null
+}
+
+function onColumnDragLeave(target: string, event: DragEvent) {
+  const element = event.currentTarget as HTMLElement | null
+  const related = event.relatedTarget as Node | null
+  if (element && related && element.contains(related)) return
+  if (dragOver.value?.target === target) dragOver.value = null
+}
+
+function clearColumnDrag() {
+  draggedColumn.value = null
+  dragOrigin.value = null
+  dragOver.value = null
+}
+
+function flashMovedColumns(names: string[]) {
+  if (recentMoveTimer) clearTimeout(recentMoveTimer)
+  recentlyMovedColumns.value = [...new Set(names)]
+  recentMoveTimer = setTimeout(() => {
+    recentlyMovedColumns.value = []
+    recentMoveTimer = null
+  }, 1800)
+}
+
+function dropColumn(target: string, event?: DragEvent) {
+  const ordered = visibleColumnDraft.value.slice()
+  const sourceName = draggedColumn.value
+  const mode = dragOver.value?.target === target
+    ? dragOver.value.mode
+    : event ? getColumnDropMode(target, event) : null
+  const from = ordered.findIndex(column => column.name === sourceName)
+  const to = ordered.findIndex(column => column.name === target)
+
+  if (dragOrigin.value === 'available') {
+    const source = columnDraft.value.find(column => column.name === sourceName)
+    if (!source || source.visible || !sourceName || !mode) {
+      clearColumnDrag()
+      return
+    }
+    let insertAt = to < 0 ? ordered.length : to
+    if (mode === 'insert-after') insertAt += 1
+    ordered.splice(insertAt, 0, { ...source, visible: true })
+    applyVisibleOrder(ordered)
+    flashMovedColumns([sourceName, target])
+    clearColumnDrag()
+    return
+  }
+
+  if (!sourceName || !mode || from < 0 || to < 0 || from === to) {
+    clearColumnDrag()
+    return
+  }
+
+  const [source] = ordered.splice(from, 1)
+  if (!source) {
+    clearColumnDrag()
+    return
+  }
+
+  if (mode === 'swap') {
+    const targetIndex = ordered.findIndex(column => column.name === target)
+    const targetColumn = ordered[targetIndex]
+    if (!targetColumn) {
+      clearColumnDrag()
+      return
+    }
+    ordered[targetIndex] = source
+    ordered.splice(Math.min(from, ordered.length), 0, targetColumn)
+  } else {
+    let insertAt = ordered.findIndex(column => column.name === target)
+    if (insertAt < 0) insertAt = ordered.length
+    if (mode === 'insert-after') insertAt += 1
+    ordered.splice(insertAt, 0, source)
+  }
+
+  applyVisibleOrder(ordered)
+  flashMovedColumns([sourceName, target])
+  clearColumnDrag()
+}
+
+function dropSelectedList(event: DragEvent) {
+  if (dragOrigin.value !== 'available' || !draggedColumn.value) {
+    clearColumnDrag()
+    return
+  }
+  const target = dragOver.value?.target || appendDropTarget
+  if (target === appendDropTarget) {
+    const source = columnDraft.value.find(column => column.name === draggedColumn.value)
+    if (!source || source.visible) {
+      clearColumnDrag()
+      return
+    }
+    const ordered = [...visibleColumnDraft.value, { ...source, visible: true }]
+    applyVisibleOrder(ordered)
+    flashMovedColumns([source.name])
+    clearColumnDrag()
+    return
+  }
+  dropColumn(target, event)
+}
+
+onUnmounted(() => {
+  if (recentMoveTimer) clearTimeout(recentMoveTimer)
+})
+function validateWizardConditions(slices: SliceRequestDef[]) {
+  for (const condition of slices) {
+    const groups = condition.$and || condition.$or || condition.children
+    if (groups) {
+      if (!groups.length) throw new Error('空条件组请添加条件或删除后再保存')
+      validateWizardConditions(groups)
+    }
+  }
+}
+function goStep(step: InspectorTab) {
+  if (step !== 'columns') {
+    const state = buildStateFromDraft(currentState.value)
+    if (!ensureHasVisibleColumns(state)) return
+    try {
+      validateListPresetLimits(state)
+      if (step === 'save') validateWizardConditions(state.slice)
+    } catch (error) { ElMessage.warning(getErrorMessage(error, '请检查查询配置')); return }
+  }
+  inspectorTab.value = step
 }
 
 async function saveCurrentPreset() {
@@ -1122,6 +1124,7 @@ async function saveCurrentPreset() {
   }
   try {
     validateListPresetLimits(state)
+    validateWizardConditions(state.slice)
   } catch (error) {
     ElMessage.error(getErrorMessage(error, '自定义查询超过允许的字段或条件上限'))
     return
@@ -1159,7 +1162,15 @@ async function saveCurrentPreset() {
       }))
     }
     resetForm()
-    ElMessage.success(wasEditing ? '自定义查询已更新' : '自定义查询已保存')
+    if (applyAfterSave.value) {
+      try {
+        await applyPreset(saved)
+      } catch (error) {
+        ElMessage.error(getErrorMessage(error, '方案已保存，但应用失败，请重新应用'))
+      }
+    } else {
+      ElMessage.success(wasEditing ? '自定义查询已更新' : '自定义查询已保存')
+    }
   } catch (error) {
     ElMessage.error(getErrorMessage(error, editingPresetId.value ? '更新自定义查询失败' : '保存自定义查询失败'))
   } finally {
@@ -1299,6 +1310,12 @@ defineExpose({
   openDialog,
   openLoadDialog,
   openSaveDialog,
+  startColumnDrag,
+  startAvailableColumnDrag,
+  onColumnDragOver,
+  dropColumn,
+  dropSelectedList,
+  clearColumnDrag,
   overwritePreset,
   saveCurrentPreset,
   startEditPreset,
@@ -1315,6 +1332,35 @@ defineExpose({
 })
 </script>
 
+<style>
+.query-wizard-dialog.el-dialog { padding: 0; overflow: hidden; max-height: calc(100vh - 48px); display: flex; flex-direction: column; border-radius: 14px; --el-color-primary: #1867d5; font-family: 'HarmonyOS Sans SC', 'Microsoft YaHei UI', 'PingFang SC', sans-serif; }
+.query-wizard-dialog .el-dialog__header { margin: 0; padding: 22px 30px; border-bottom: 1px solid #e3e8f0; }
+.query-wizard-dialog .el-dialog__headerbtn { top: 12px; right: 12px; }
+.query-wizard-dialog .el-dialog__body { padding: 0; overflow: auto; min-height: 0; }
+.query-wizard-dialog .el-dialog__footer { padding: 0; flex-shrink: 0; }
+</style>
+<style scoped>
+.query-wizard { color: #172033; }
+.wizard-title { display: flex; align-items: center; gap: 16px; }.wizard-title h2 { margin: 0; font-size: 22px; }.wizard-title p { margin: 6px 0 0; font-size: 12px; color: #6b7689; }
+.wizard-draft, .wizard-personal-tag { color: #1867d5; background: #eaf3ff; border: 1px solid #c9ddfb; padding: 4px 9px; border-radius: 20px; font-size: 11px; }
+.wizard-progress { display: flex; align-items: center; height: 86px; padding: 0 42px; border-bottom: 1px solid #e3e8f0; background: linear-gradient(180deg, #fff, #fbfcfe); }
+.wizard-step { display: flex; align-items: center; gap: 10px; border: 0; background: transparent; color: #8290a2; padding: 0; text-align: left; cursor: pointer; }.wizard-step + .wizard-step { flex: 1; }.wizard-step + .wizard-step::before { content: ''; height: 1px; flex: 1; margin: 0 20px; background: #d9e2ee; }.wizard-step b { font-size: 13px; }.wizard-step small { display: block; margin-top: 4px; font-size: 11px; color: #909bac; }
+.wizard-step-dot { display: grid; place-items: center; flex: 0 0 30px; height: 30px; border-radius: 50%; border: 1px solid #d6dee9; background: white; font-size: 12px; font-weight: 700; }.wizard-step.active { color: #0c4fae; }.wizard-step.active .wizard-step-dot { background: #1867d5; color: white; border-color: #1867d5; box-shadow: 0 0 0 5px #eaf3ff; }.wizard-step.done .wizard-step-dot { color: #237a54; background: #edf8f2; border-color: #9dddbc; }
+.wizard-fields { display: grid; grid-template-columns: 330px minmax(0, 1fr); min-height: 540px; }.wizard-selected { min-width: 0; padding: 22px 16px; background: #f8fafc; border-right: 1px solid #e3e8f0; }.wizard-panel-head { display: flex; justify-content: space-between; padding: 0 7px; }.wizard-panel-head h3 { margin: 0; font-size: 15px; }.wizard-panel-head p { margin: 6px 0 0; color: #8490a2; font-size: 12px; }.wizard-count { font-size: 20px; color: #0c4fae; font-weight: 700; }.wizard-count small { display: block; text-align: right; font-size: 11px; font-weight: 400; color: #8490a2; }
+.wizard-note { background: #f1f7ff; border: 1px solid #dce8f6; border-radius: 8px; padding: 10px; margin: 15px 0 12px; font-size: 11px; color: #5c7494; line-height: 1.6; }
+.wizard-selected .selected-list { display: grid; gap: 7px; max-height: 395px; overflow: auto; background: white; border: 1px solid #e0e7f0; border-radius: 10px; padding: 8px; transition: border-color .16s ease, background-color .16s ease, box-shadow .16s ease; }.wizard-selected .selected-list.is-drop-ready { border-color: #80afea; background: #f7fbff; box-shadow: inset 0 0 0 2px #dceafd; }.wizard-selected .selected-list.drop-append { border-color: #35a66a; background: #f1fbf5; box-shadow: inset 0 0 0 2px #c8efd8; }
+.wizard-selected .selected-row { position: relative; display: grid; grid-template-columns: 14px 18px minmax(0, 1fr) auto; align-items: center; gap: 6px; min-height: 48px; padding: 7px; border: 1px solid #e0e7f0; border-radius: 7px; margin: 0; transition: border-color .16s ease, background-color .16s ease, opacity .16s ease, box-shadow .16s ease, transform .16s ease; }.wizard-selected .selected-row:hover { border-color: #9ec3f7; }.wizard-selected .selected-row.is-dragging { opacity: .42; transform: scale(.985); }.wizard-selected .selected-row.drop-swap { border-color: #e1a93b; background: #fff8e8; box-shadow: 0 0 0 3px #ffedbd; }.wizard-selected .selected-row.drop-before::before, .wizard-selected .selected-row.drop-after::after { content: ''; position: absolute; z-index: 2; left: 6px; right: 6px; height: 3px; border-radius: 999px; background: #1867d5; box-shadow: 0 0 0 3px #dceafd, 0 2px 8px #1867d566; pointer-events: none; }.wizard-selected .selected-row.drop-before::before { top: -6px; }.wizard-selected .selected-row.drop-after::after { bottom: -6px; }.wizard-selected .selected-row.is-recently-moved { animation: column-drop-confirm 1.8s ease-out; }.wizard-selected .selected-main b { font-size: 12px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }.wizard-selected .selected-main small { display: block; color: #8a96a7; margin-top: 4px; font-size: 10px; }.wizard-field-rank { font-size: 10px; color: #92a0b1; }.wizard-selected .selected-actions { display: flex; gap: 2px; }.wizard-selected .selected-actions .el-button { margin: 0; padding: 2px; }.wizard-selected .selected-editor { grid-column: 1 / -1; display: grid; grid-template-columns: 100px 100px; gap: 8px; padding: 10px 0 0; }.wizard-selected .editor-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px; }.wizard-selected .editor-actions .el-button { margin: 0; }.wizard-selected .el-input-number { width: 100px; }
+.drag-feedback { height: 58px; box-sizing: border-box; display: flex; align-items: center; overflow: hidden; transition: color .16s ease, border-color .16s ease, background-color .16s ease; }.drag-feedback-text { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }.drag-feedback.is-active { color: #1857ae; border-color: #9ec3f7; background: #edf5ff; }
+@keyframes column-drop-confirm { 0% { border-color: #35a66a; background: #eaf8f0; box-shadow: 0 0 0 3px #c8efd8; } 70% { border-color: #8fd3b1; background: #f4fcf7; box-shadow: 0 0 0 2px #e1f6e9; } 100% { border-color: #e0e7f0; background: #fff; box-shadow: none; } }
+.wizard-field-workspace { min-width: 0; padding: 26px 30px; }.wizard-workspace-head { display: flex; justify-content: space-between; gap: 16px; }.wizard-eyebrow { color: #1867d5; font-size: 11px; font-weight: 700; letter-spacing: .07em; }.wizard-workspace-head h2 { font-size: 21px; margin: 6px 0; }.wizard-workspace-head p { font-size: 13px; color: #6b7689; margin: 0; }.wizard-field-count { padding: 10px 12px; border: 1px solid #dbe6f7; border-radius: 9px; color: #0c4fae; background: #f4f8ff; text-align: right; }.wizard-field-count b { display: block; font-size: 18px; }.wizard-field-count small { font-size: 11px; }
+.wizard-scope-note { padding: 11px 13px; border: 1px solid #e2e8f1; border-radius: 8px; background: #f7f9fc; color: #69768a; font-size: 12px; line-height: 1.6; margin: 18px 0 14px; }.wizard-field-tools { display: flex; gap: 10px; }.wizard-field-tools > .el-input { flex: 1; min-width: 150px; }.wizard-type-filters { display: flex; gap: 5px; }.wizard-type-filters button { padding: 7px 10px; border: 1px solid #d9e1eb; border-radius: 6px; color: #6e7c91; background: white; font-size: 12px; cursor: pointer; }.wizard-type-filters button.active { color: #0c4fae; background: #eaf3ff; border-color: #91b9eb; }
+.wizard-field-section-head { display: flex; justify-content: space-between; align-items: center; margin: 18px 0 10px; font-size: 13px; }.wizard-field-section-head small { color: #8290a3; font-weight: 400; margin-left: 6px; }
+.wizard-field-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; max-height: 305px; overflow: auto; padding: 2px; }.wizard-field-grid .wizard-field-card { display: flex; align-items: center; gap: 9px; min-height: 67px; padding: 10px 12px; border: 1px solid #dfe6ef; border-radius: 8px; color: #172033; background: white; text-align: left; cursor: pointer; }.wizard-field-grid .wizard-field-card.is-draggable-source { cursor: grab; }.wizard-field-grid .wizard-field-card.is-draggable-source:active { cursor: grabbing; }.wizard-field-card b { font-size: 12px; }.wizard-field-card small { display: block; margin-top: 5px; color: #8b98a9; font-size: 10px; }.wizard-field-grid .wizard-field-card:hover { border-color: #80afea; }.wizard-field-grid .wizard-field-card.is-selected { border-color: #8fd3b1; background: #f1fbf5; }.wizard-check { display: grid; place-items: center; flex: 0 0 18px; height: 18px; border: 1px solid #cbd6e3; border-radius: 4px; background: white; }.is-selected .wizard-check { color: white; background: #35a66a; border-color: #35a66a; }.wizard-type-pill { margin-left: auto; padding: 3px 5px; border-radius: 4px; background: #f0f3f7; color: #58728e; font-size: 10px; white-space: nowrap; }
+.wizard-review { display: grid; place-items: start center; min-height: 540px; padding: 44px 30px; background: #f8fafc; }.wizard-save-card { width: min(560px, 100%); padding: 25px 28px; border: 1px solid #cfe0f5; border-radius: 11px; background: white; box-shadow: 0 8px 22px #284f8314; }.wizard-save-card header { display: flex; justify-content: space-between; align-items: start; gap: 12px; padding-bottom: 17px; border-bottom: 1px solid #eaf0f7; }.wizard-save-card h3 { margin: 0; font-size: 16px; }.wizard-save-card header p { margin: 6px 0 0; color: #7c889a; font-size: 11px; }.wizard-personal-tag { white-space: nowrap; border-radius: 5px; }.wizard-save-card .save-form { margin-top: 18px; }.wizard-form-hint { color: #9aa5b3; font-size: 10px; }.wizard-apply-option { padding: 7px 11px; border: 1px solid #e4ebf4; border-radius: 7px; background: #f8fbff; }.wizard-policy-note { padding-top: 14px; border-top: 1px solid #edf1f5; color: #7c8999; font-size: 11px; line-height: 1.7; }.wizard-save-ready { padding: 10px; border-radius: 7px; color: #237a54; background: #edf8f2; font-size: 11px; }
+.wizard-footer { display: flex; justify-content: space-between; align-items: center; min-height: 74px; padding: 16px 28px; border-top: 1px solid #e3e8f0; gap: 15px; }.wizard-summary { display: flex; gap: 20px; color: #718096; font-size: 12px; }.wizard-summary b { color: #172033; font-size: 17px; }.wizard-footer-actions { display: flex; margin-left: auto; gap: 10px; }.wizard-footer-actions .el-button { margin: 0; }.wizard-load { padding: 12px 24px 18px; }.wizard-load .preset-list-section { border: 0; }.wizard-load .preset-scroll { height: auto; max-height: min(500px, calc(100vh - 280px)); }
+@media (max-width: 1180px) { .wizard-field-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.wizard-field-tools { flex-wrap: wrap; }.wizard-fields { grid-template-columns: 300px minmax(0, 1fr); }.wizard-field-workspace { padding: 22px; } }
+@media (max-height: 850px) { .wizard-fields, .wizard-review { min-height: 470px; }.wizard-review { padding: 22px; }.wizard-selected .selected-list { max-height: 310px; }.wizard-field-grid { max-height: 235px; } }
+</style>
 <style scoped>
 .list-preset-manager {
   display: inline-flex;
@@ -1430,12 +1476,13 @@ defineExpose({
 .preset-item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
+  gap: 24px;
   margin: 10px 10px 0;
-  padding: 10px;
+  padding: 14px 16px;
   border: 1px solid #e4e7ed;
   border-radius: 6px;
   background: #fff;
+  align-items: center;
 }
 
 .preset-item.is-active {
@@ -1489,7 +1536,24 @@ defineExpose({
 
 .preset-actions {
   flex-shrink: 0;
-  gap: 2px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.preset-actions .el-button {
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .preset-item {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .preset-actions {
+    justify-content: flex-start;
+  }
 }
 
 .field-tools {

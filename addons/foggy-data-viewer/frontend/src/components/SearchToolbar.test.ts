@@ -463,6 +463,32 @@ describe('SearchToolbar', () => {
       expect(wrapper.find('.number-filter').exists()).toBe(true)
       expect(wrapper.find('.select-filter').exists()).toBe(false)
     })
+
+    it('should infer member lookup columns as dimension filters when filterType is omitted', () => {
+      const memberColumns: EnhancedColumnSchema[] = [{
+        name: 'destination$caption',
+        type: 'TEXT',
+        title: '运达站点',
+        filterable: true,
+        memberLookup: {
+          enabled: true,
+          selectionFieldName: 'destination$id',
+          displayFieldName: 'destination$caption'
+        }
+      }]
+
+      const wrapper = mount(SearchToolbar, {
+        props: {
+          columns: memberColumns,
+          searchableFields: ['destination$caption'],
+          filterMemberLoader: vi.fn().mockResolvedValue({ items: [], total: 0, hasMore: false }),
+          qmModel: 'AcceptanceOrders'
+        }
+      })
+
+      expect(wrapper.find('.select-filter').exists()).toBe(true)
+      expect(wrapper.find('.text-filter').exists()).toBe(false)
+    })
   })
 
   describe('Integration', () => {
