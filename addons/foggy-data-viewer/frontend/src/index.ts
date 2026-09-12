@@ -157,6 +157,7 @@ export type {
   OrderRequestDef,
   FilterOption,
   FetchDataParams,
+  FetchDataParamsWithExtensions,
   FetchDataResult,
   QueryExecutionOptions,
   FetchDataFn,

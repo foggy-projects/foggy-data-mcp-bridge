@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, useAttrs, useSlots } from 'vue'
-import type { EnhancedColumnSchema, SliceRequestDef, FilterOption, TableSchema, FetchDataParams, FetchDataResult, OrderRequestDef, QueryHooks, MemberQueryRequest, MemberQueryResponse, CellCopyConfig, QueryMode, ListViewState, ColumnViewSetting, ListPresetConfig, ListPresetDef, TableDensity, QueryTrigger, QueryExecutionOptions, SearchHookContext, SearchHooks, SearchSource, SearchTrigger, TableDefaultQueryConfig, TableDefaultQueryConfigScope, TableDefaultQueryConfigLoadOptions } from '@/types'
+import type { EnhancedColumnSchema, SliceRequestDef, FilterOption, TableSchema, FetchDataParams, FetchDataResult, OrderRequestDef, QueryHooks, MemberQueryRequest, MemberQueryResponse, CellCopyConfig, QueryMode, ListViewState, ColumnViewSetting, ListPresetConfig, ListPresetDef, TableDensity, QueryTrigger, QueryExecutionOptions, SearchHookContext, SearchHooks, SearchSource, SearchTrigger, FetchDataParamsWithExtensions, TableDefaultQueryConfig, TableDefaultQueryConfigScope, TableDefaultQueryConfigLoadOptions } from '@/types'
 import SearchToolbar from './SearchToolbar.vue'
 import QueryPanel from './QueryPanel.vue'
 import type { QueryPanelExpose, QuerySchema } from './QueryPanel.vue'
@@ -741,7 +741,7 @@ function buildSearchHookContext(meta: SearchActionMeta, overrides: Partial<Fetch
     qmModel: effectiveQmModel.value,
     tableSchema: props.schema,
     querySchema: props.querySchema,
-    params
+    params: params as FetchDataParamsWithExtensions
   }
 }
 
@@ -766,7 +766,7 @@ function materializeSearchHookContext(ctx: SearchHookContext, updateTableState: 
     columns: base.columns,
     slice: base.slice,
     orderBy: base.orderBy
-  })
+  }) as FetchDataParamsWithExtensions
 
   ctx.params = params
   ctx.columns = params.columns

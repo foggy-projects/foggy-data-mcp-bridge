@@ -9,7 +9,7 @@ import { cloneSliceTree } from './listPreset'
  * the params object as a closed DTO silently drops those fields when an
  * execution crosses a lifecycle boundary.
  */
-export function cloneFetchDataParams(params: FetchDataParams): FetchDataParams {
+export function cloneFetchDataParams<T extends FetchDataParams>(params: T): T {
   const cloned: Record<string, unknown> = {}
 
   for (const [key, value] of Object.entries(params)) {
@@ -20,7 +20,7 @@ export function cloneFetchDataParams(params: FetchDataParams): FetchDataParams {
   cloned.slice = cloneSliceTree(params.slice)
   cloned.orderBy = params.orderBy.map(order => ({ ...order }))
 
-  return cloned as FetchDataParams
+  return cloned as unknown as T
 }
 
 function cloneQueryValue(value: unknown): unknown {

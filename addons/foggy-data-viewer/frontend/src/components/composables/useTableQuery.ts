@@ -12,7 +12,8 @@ import type {
   BeforeQueryHookFn,
   AfterQueryHookFn,
   ErrorQueryHookFn,
-  QueryExecutionOptions
+  QueryExecutionOptions,
+  FetchDataParamsWithExtensions
 } from '@/types'
 import { HookRegistry } from './hookRegistry'
 import { globalQueryHooks } from './globalQueryHooks'
@@ -157,7 +158,7 @@ export function useTableQuery(
     trigger: QueryTrigger,
     updateTableState: boolean
   ): Promise<FetchDataResult | undefined> {
-    const executionParams = cloneFetchDataParams(params)
+    const executionParams = cloneFetchDataParams(params) as FetchDataParamsWithExtensions
     const ctx: QueryHookContext = {
       params: executionParams,
       trigger

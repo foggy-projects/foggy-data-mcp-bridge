@@ -4,7 +4,8 @@ import type {
   AfterQueryHookFn,
   ErrorQueryHookFn,
   QueryHookContext,
-  FetchDataResult
+  FetchDataResult,
+  FetchDataParamsWithExtensions
 } from '@/types'
 
 /** 钩子函数联合类型 */
@@ -61,7 +62,7 @@ export class HookRegistry {
       const result = await (fn as BeforeQueryHookFn)(ctx)
       if (result === false) return false
       if (result && typeof result === 'object' && 'page' in result) {
-        ctx.params = result
+        ctx.params = result as FetchDataParamsWithExtensions
       }
     }
   }

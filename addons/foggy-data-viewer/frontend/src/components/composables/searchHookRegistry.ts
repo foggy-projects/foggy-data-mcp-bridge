@@ -6,7 +6,8 @@ import type {
   SearchHookContext,
   SearchHookName,
   SearchHooks,
-  SearchHookUpdate
+  SearchHookUpdate,
+  FetchDataParamsWithExtensions
 } from '@/types'
 
 type SearchHookFn = BeforeSearchHookFn | AfterSearchHookFn | ErrorSearchHookFn
@@ -19,7 +20,7 @@ type SearchHookFnMap = {
 
 function applySearchHookUpdate(ctx: SearchHookContext, update: SearchHookUpdate): void {
   if (update.params) {
-    ctx.params = update.params
+    ctx.params = update.params as FetchDataParamsWithExtensions
     ctx.columns = [...update.params.columns]
     ctx.slice = [...update.params.slice]
     ctx.orderBy = [...update.params.orderBy]

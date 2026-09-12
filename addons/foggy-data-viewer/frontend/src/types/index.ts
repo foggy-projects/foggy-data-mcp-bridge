@@ -312,11 +312,6 @@ export interface TableSchema {
  * 数据加载参数
  */
 export interface FetchDataParams {
-  /**
-   * Host-defined request extensions are preserved through all query lifecycle
-   * boundaries (for example `slots` used by business fetch adapters).
-   */
-  [key: string]: unknown
   page: number
   pageSize: number
   /** 同一 QM 下的业务表格实例标识 */
@@ -326,6 +321,17 @@ export interface FetchDataParams {
   slice: SliceRequestDef[]
   orderBy: OrderRequestDef[]
 }
+
+/**
+ * Query parameters with host-defined request extensions.
+ *
+ * Keep the standard FetchDataParams shape closed so mapped utility types such
+ * as Omit<FetchDataParams, ...> retain the types of explicit fields. Use this
+ * extension-aware view at lifecycle boundaries where hooks may attach fields
+ * such as `slots` or `tenantRule`.
+ */
+export type FetchDataParamsWithExtensions<Extensions extends object = Record<string, unknown>> =
+  FetchDataParams & Extensions
 
 /**
  * 数据加载结果
@@ -366,7 +372,7 @@ export type QueryHookName = 'onBeforeQuery' | 'onAfterQuery' | 'onQueryError'
  */
 export interface QueryHookContext {
   /** 查询参数（可在 onBeforeQuery 中修改） */
-  params: FetchDataParams
+  params: FetchDataParamsWithExtensions
   /** 触发来源 */
   trigger: QueryTrigger
 }
@@ -435,7 +441,7 @@ export interface SearchHookContext {
   qmModel?: string
   tableSchema?: TableSchema
   querySchema?: unknown
-  params?: FetchDataParams
+  params?: FetchDataParams | FetchDataParamsWithExtensions
   result?: FetchDataResult
 }
 
@@ -443,7 +449,7 @@ export interface SearchHookUpdate {
   slice?: SliceRequestDef[]
   orderBy?: OrderRequestDef[]
   columns?: string[]
-  params?: FetchDataParams
+  params?: FetchDataParams | FetchDataParamsWithExtensions
 }
 
 export type SearchHookName = 'beforeSearch' | 'afterSearch' | 'searchError'
