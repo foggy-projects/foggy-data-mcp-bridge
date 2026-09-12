@@ -1,6 +1,6 @@
 {
   "name": "foggy-data-viewer",
-  "version": "1.0.1-beta.54",
+  "version": "1.0.1-beta.55",
   "description": "A Vue 3 data table component with advanced features",
   "author": "Foggy Framework",
   "license": "Apache-2.0",
@@ -28,7 +28,8 @@
     "build": "npm run build:lib",
     "build:app": "vite build",
     "build:types": "vue-tsc -p tsconfig.build.json",
-    "build:lib": "vite build --mode lib && npm run build:types && npm run verify:package",
+    "build:lib": "vite build --mode lib && npm run build:types && npm run verify:type-compatibility && npm run verify:package",
+    "verify:type-compatibility": "vue-tsc -p tsconfig.type-compatibility.json",
     "preview": "vite preview",
     "test": "vitest run",
     "test:ui": "vitest --ui",
