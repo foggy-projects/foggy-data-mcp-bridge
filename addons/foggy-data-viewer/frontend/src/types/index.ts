@@ -312,6 +312,11 @@ export interface TableSchema {
  * 数据加载参数
  */
 export interface FetchDataParams {
+  /**
+   * Host-defined request extensions are preserved through all query lifecycle
+   * boundaries (for example `slots` used by business fetch adapters).
+   */
+  [key: string]: unknown
   page: number
   pageSize: number
   /** 同一 QM 下的业务表格实例标识 */

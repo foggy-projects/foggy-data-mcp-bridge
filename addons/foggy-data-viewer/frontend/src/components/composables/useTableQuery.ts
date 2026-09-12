@@ -17,6 +17,7 @@ import type {
 import { HookRegistry } from './hookRegistry'
 import { globalQueryHooks } from './globalQueryHooks'
 import { cloneSliceTree } from '@/utils/listPreset'
+import { cloneFetchDataParams } from '@/utils/queryParams'
 
 /** 钩子名称到函数类型的映射 */
 type HookFnMap = {
@@ -151,23 +152,12 @@ export function useTableQuery(
   }
 
   // ========== 核心加载逻辑 ==========
-  function cloneParams(params: FetchDataParams): FetchDataParams {
-    return {
-      page: params.page,
-      pageSize: params.pageSize,
-      ...(params.tableInstanceId ? { tableInstanceId: params.tableInstanceId } : {}),
-      columns: [...params.columns],
-      slice: cloneSliceTree(params.slice),
-      orderBy: params.orderBy.map(order => ({ ...order }))
-    }
-  }
-
   async function runQuery(
     params: FetchDataParams,
     trigger: QueryTrigger,
     updateTableState: boolean
   ): Promise<FetchDataResult | undefined> {
-    const executionParams = cloneParams(params)
+    const executionParams = cloneFetchDataParams(params)
     const ctx: QueryHookContext = {
       params: executionParams,
       trigger
@@ -202,7 +192,7 @@ export function useTableQuery(
 
       // Hook replacement objects are part of the public hook contract. Detach
       // their mutable query branches before crossing into the fetch function.
-      ctx.params = cloneParams(ctx.params)
+      ctx.params = cloneFetchDataParams(ctx.params)
 
       if (updateTableState) {
         loading.value = true

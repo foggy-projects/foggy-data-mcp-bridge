@@ -13,6 +13,7 @@ import { SearchHookRegistry } from './composables/searchHookRegistry'
 import { getDefaultListPreset } from '@/api/listPreset'
 import { getTableDefaultQueryConfig } from '@/api/tableDefaultQueryConfig'
 import { cloneSliceTree, validateListPresetLimits } from '@/utils/listPreset'
+import { cloneFetchDataParams } from '@/utils/queryParams'
 import { normalizeUserSlice, prepareCustomQuery, resolveRelativeDatesForDisplay } from '@/utils/customQuery'
 
 // 禁用自动继承属性
@@ -746,7 +747,7 @@ function buildSearchHookContext(meta: SearchActionMeta, overrides: Partial<Fetch
 
 function materializeSearchHookContext(ctx: SearchHookContext, updateTableState: boolean): FetchDataParams {
   const source = ctx.params
-  const params: FetchDataParams = {
+  const base: FetchDataParams = {
     page: source?.page ?? query.currentPage.value,
     pageSize: source?.pageSize ?? query.currentPageSize.value,
     tableInstanceId: source?.tableInstanceId ?? effectiveTableInstanceId.value,
@@ -756,6 +757,16 @@ function materializeSearchHookContext(ctx: SearchHookContext, updateTableState: 
     }),
     orderBy: [...(ctx.orderBy ?? source?.orderBy ?? query.currentOrderBy.value)].map(order => ({ ...order }))
   }
+  const params = cloneFetchDataParams({
+    ...base,
+    ...(source ?? {}),
+    page: base.page,
+    pageSize: base.pageSize,
+    tableInstanceId: base.tableInstanceId,
+    columns: base.columns,
+    slice: base.slice,
+    orderBy: base.orderBy
+  })
 
   ctx.params = params
   ctx.columns = params.columns

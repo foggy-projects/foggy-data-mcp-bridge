@@ -2099,6 +2099,7 @@ describe('DataTableWithSearch', () => {
       globalQueryHooks.add('onBeforeQuery', ctx => {
         lifecycle.push(`global-query-before:${ctx.trigger}`)
         ctx.params.slice.push({ field: 'fromQueryHook', op: '=', value: true })
+        Object.assign(ctx.params, { slots: { business: 'signed-orders' } })
       })
       globalQueryHooks.add('onAfterQuery', () => { lifecycle.push('global-query-after') })
 
@@ -2166,6 +2167,7 @@ describe('DataTableWithSearch', () => {
         page: 4,
         pageSize: 2,
         columns: expect.arrayContaining(['name', 'requiredId']),
+        slots: { business: 'signed-orders' },
         slice: expect.arrayContaining([
           { field: 'tenantId', op: '=', value: 'tenant-a' },
           { field: 'fromQueryHook', op: '=', value: true }

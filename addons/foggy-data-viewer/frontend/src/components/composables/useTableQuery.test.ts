@@ -268,6 +268,40 @@ describe('useTableQuery', () => {
         'instance-after', 'props-after', 'global-after'
       ])
     })
+
+    it('should preserve query hook extension fields and isolate them for executeQuery', async () => {
+      let seenParams: FetchDataParams | undefined
+      const fetchData = vi.fn(async (params: FetchDataParams) => {
+        expect(params.slots).toEqual({ business: 'signed-orders' })
+        seenParams = JSON.parse(JSON.stringify(params)) as FetchDataParams
+        const slots = params.slots as { business: string }
+        slots.business = 'fetch-only'
+        return { items: [], total: 0 }
+      })
+      const query = useTableQuery(fetchData)
+      query.addHook('onBeforeQuery', ctx => {
+        Object.assign(ctx.params, {
+          slots: { business: 'signed-orders' },
+          tenantRule: { field: 'tenantId', op: '=', value: 'tenant-a' }
+        })
+      })
+
+      const params: FetchDataParams = {
+        page: 2,
+        pageSize: 20,
+        columns: ['id'],
+        slice: [],
+        orderBy: [],
+        slots: { business: 'original' }
+      }
+      await query.executeQuery(params)
+
+      expect(params.slots).toEqual({ business: 'original' })
+      expect(seenParams).toEqual(expect.objectContaining({
+        slots: { business: 'signed-orders' },
+        tenantRule: { field: 'tenantId', op: '=', value: 'tenant-a' }
+      }))
+    })
   })
 
   describe('refresh / reload', () => {
