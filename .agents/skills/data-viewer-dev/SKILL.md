@@ -1,6 +1,6 @@
 ---
 name: data-viewer-dev
-description: 开发和维护 foggy-data-viewer Vue 3 组件库（DataTable、Composables、工具函数）。当用户需要开发新组件、修改现有组件、编写测试、更新文档或构建发布时使用。
+description: 修改 foggy-data-viewer 组件库自身的 DataTable、Composables、类型或发布构建时使用。消费方业务页面接线或普通页面改动不触发组件库开发流程。
 ---
 
 # Foggy Data Viewer 组件开发
@@ -123,11 +123,11 @@ app.use(ElementPlus, { locale: zhCn })
 
 ## 决策规则
 
-- 修改 DataTable → 更新 DataTable.test.ts
+- 修改 DataTable 行为 → 检查并更新受影响的 DataTable 测试；文案/样式不机械新增测试
 - 添加新 Composable → 在 `composables/` 创建，在 `index.ts` 导出
 - 添加新类型 → 在 `types/index.ts` 定义，在 `index.ts` 导出
 - 修改 Props/Events → 更新对应测试和 README
-- 修改列渲染/插槽扩展点 → 同步更新 README、USAGE、SearchToolbar 文档和生成器模板测试
+- 修改列渲染/插槽公开扩展点 → 更新受影响合同文档与生成器/消费者测试；未改变的合同不重复回写
 - verification-app 报错 → 先执行 `npm run build:lib` 重新构建
 
 ## 已知陷阱
