@@ -17,7 +17,7 @@ vi.mock('./filters', () => ({
   },
   DateRangeFilter: {
     name: 'DateRangeFilter',
-    props: ['field', 'modelValue', 'placeholder', 'showTime'],
+    props: ['field', 'modelValue', 'placeholder', 'showTime', 'endOfDay'],
     template: '<div class="date-filter"></div>'
   },
   SelectFilter: {
@@ -48,6 +48,26 @@ vi.mock('./filters', () => ({
 
 describe('QueryPanel', () => {
   const loader = vi.fn<[], Promise<MemberQueryResponse>>()
+
+  it('passes end-of-day behavior to the date range filter when configured', () => {
+    const wrapper = mount(QueryPanel, {
+      props: {
+        schema: {
+          fields: [{
+            key: 'createdDate',
+            label: '创建时间',
+            placement: 'form',
+            component: 'dateRange',
+            endOfDay: true
+          }]
+        }
+      }
+    })
+
+    const dateFilter = wrapper.findComponent({ name: 'DateRangeFilter' })
+    expect(dateFilter.props('showTime')).toBe(true)
+    expect(dateFilter.props('endOfDay')).toBe(true)
+  })
 
   it('keeps MONEY_VIEWER query inputs in display units and emits raw units', async () => {
     const wrapper = mount(QueryPanel, {

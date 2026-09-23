@@ -165,7 +165,7 @@ function getFilterProps(col: EnhancedColumnSchema) {
 
   switch (filterType) {
     case 'datetime':
-      return { ...baseProps, showTime: true, format: col.format }
+      return { ...baseProps, showTime: true, format: col.format, endOfDay: true }
     case 'date':
       return { ...baseProps, format: col.format }
     case 'dict':

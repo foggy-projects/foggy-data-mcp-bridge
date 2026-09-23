@@ -3,6 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, h } from 'vue'
 import type { PropType } from 'vue'
 import DataTable from './DataTable.vue'
+import DateRangeFilter from './filters/DateRangeFilter.vue'
 import type { CellRenderContext, EnhancedColumnSchema, SliceRequestDef } from '@/types'
 import { globalColumnRenderers } from './composables/globalColumnRenderers'
 import { MONEY_VIEWER } from '@/utils/viewer'
@@ -161,6 +162,23 @@ describe('DataTable', () => {
   })
 
   describe('Basic Rendering', () => {
+    it('uses the full selected end day for datetime column filters', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: [{ name: 'actualDepartureTime', type: 'DATETIME', title: '实际发车时间', filterable: true }],
+          data: [],
+          total: 0,
+          loading: false
+        },
+        ...renderGridConfig
+      })
+
+      const filter = wrapper.findComponent(DateRangeFilter)
+      expect(filter.exists()).toBe(true)
+      expect(filter.props('showTime')).toBe(true)
+      expect(filter.props('endOfDay')).toBe(true)
+    })
+
     it('should render table with columns and data', () => {
       const wrapper = mount(DataTable, {
         props: {

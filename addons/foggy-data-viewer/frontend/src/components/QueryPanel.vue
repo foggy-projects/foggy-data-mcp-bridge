@@ -22,6 +22,8 @@ export interface QueryFieldSchema {
   component: 'text' | 'numberRange' | 'dateRange' | 'dictSelect' | 'qmLookupSelect' | 'memberSelect' | 'bool' | 'custom'
   defaultOperator?: string
   defaultValue?: unknown
+  /** Set a datetime range's end date to 23:59 and include that entire day. */
+  endOfDay?: boolean
   columnRef?: string
   dictId?: string
   /** 远程成员查询使用的展示/lookup 字段，如 customer$caption */
@@ -153,7 +155,7 @@ function getFilterProps(field: QueryFieldSchema): Record<string, unknown> {
 
   switch (field.component) {
     case 'dateRange':
-      return { ...baseProps, showTime: true }
+      return { ...baseProps, showTime: true, endOfDay: field.endOfDay }
     case 'dictSelect':
       return {
         ...baseProps,

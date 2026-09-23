@@ -7,11 +7,14 @@ interface Props {
   modelValue?: SliceRequestDef[] | null
   format?: string
   showTime?: boolean
+  /** Show 23:59 as the end date and query through that complete calendar day. */
+  endOfDay?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   format: 'YYYY-MM-DD',
-  showTime: false
+  showTime: false,
+  endOfDay: false
 })
 
 const emit = defineEmits<{
@@ -33,6 +36,11 @@ const dateFormat = computed(() => {
   return 'YYYY-MM-DD'
 })
 
+// Element Plus applies these times when users choose dates in a datetime range.
+const defaultTime = computed<[Date, Date] | undefined>(() => props.endOfDay && isDatetime.value
+  ? [new Date(2000, 0, 1, 0, 0, 0), new Date(2000, 0, 1, 23, 59, 59)]
+  : undefined)
+
 // 从 modelValue 初始化
 watch(() => props.modelValue, (slices) => {
   if (!slices || slices.length === 0) {
@@ -47,10 +55,20 @@ watch(() => props.modelValue, (slices) => {
     const [start, end] = rangeSlice.value as [string, string]
     if (!start || !end) { dateRange.value = null; return }
     const parse = (value: string) => new Date(value.length === 10 ? `${value}T00:00:00` : value.replace(' ', 'T'))
+    const displayStart = parse(start)
     const displayEnd = parse(end)
     if (!isDatetime.value && rangeSlice.op === '[)') displayEnd.setDate(displayEnd.getDate() - 1)
+    if (isDatetime.value && props.endOfDay) {
+      if (rangeSlice.op === '[)' && displayEnd.getTime() > displayStart.getTime()
+        && displayEnd.getSeconds() === 0 && displayEnd.getMilliseconds() === 0) {
+        displayEnd.setSeconds(displayEnd.getSeconds() - 1)
+      } else if (isStartOfDay(displayEnd)) {
+        // Legacy same-day empty ranges and inclusive midnight ends mean the selected full day.
+        displayEnd.setHours(23, 59, 59, 0)
+      }
+    }
     dateRange.value = [
-      parse(start),
+      displayStart,
       displayEnd
     ]
   } else {
@@ -88,6 +106,10 @@ function formatDate(date: Date): string {
   return `${year}-${month}-${day}`
 }
 
+function isStartOfDay(date: Date): boolean {
+  return date.getHours() === 0 && date.getMinutes() === 0 && date.getSeconds() === 0
+}
+
 function handleChange(val: [Date, Date] | null) {
   if (!val || val.length !== 2) {
     emit('update:modelValue', null)
@@ -100,7 +122,15 @@ function handleChange(val: [Date, Date] | null) {
   // 对于日期，结束日期使用 < 下一天来实现左闭右开
   let endVal: string
   if (isDatetime.value) {
-    endVal = formatDate(end)
+    if (props.endOfDay) {
+      // The picker shows minutes, so an exclusive bound must start at the next minute.
+      const nextMinute = new Date(end)
+      nextMinute.setSeconds(0, 0)
+      nextMinute.setMinutes(nextMinute.getMinutes() + 1)
+      endVal = formatDate(nextMinute)
+    } else {
+      endVal = formatDate(end)
+    }
   } else {
     // 日期范围：结束日期+1天，使用 [) 左闭右开
     const nextDay = new Date(end)
@@ -125,6 +155,7 @@ function handleChange(val: [Date, Date] | null) {
       v-model="dateRange"
       :type="isDatetime ? 'datetimerange' : 'daterange'"
       :format="dateFormat"
+      :default-time="defaultTime"
       range-separator="~"
       start-placeholder="开始"
       end-placeholder="结束"

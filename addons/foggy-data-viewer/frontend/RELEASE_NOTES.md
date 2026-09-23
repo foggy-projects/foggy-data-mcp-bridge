@@ -21,6 +21,10 @@
 
 ### Added
 
+- Added a query-field `endOfDay` option for datetime ranges. It defaults the selected end date to 23:59 and serializes that day as an exclusive next-day midnight bound.
+- Existing inclusive datetime ranges with a midnight end now display and query through 23:59 when `endOfDay` is enabled.
+- Custom end times use the next minute as the exclusive query bound (for example, 13:59 becomes `< 14:00:00`) so the selected minute is complete.
+- Datetime table header and search-toolbar filters now select 23:59 by default for the end date, so same-day queries include the whole day.
 - Added explicit shared table/export display-value coverage for MONEY viewer scaling.
 - Added cell render context exports: `CellRenderContext` and `CellRenderFn`.
 - `ColumnCustomization.render` and `EnhancedColumnSchema.customRender` now receive `{ row, value, column }`.
