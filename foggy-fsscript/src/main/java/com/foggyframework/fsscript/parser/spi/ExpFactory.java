@@ -75,6 +75,21 @@ public interface ExpFactory {
         return createEqDef(id, createUnresolvedFunCall(operator, args, false));
     }
 
+    default Exp createCompoundAssign(Exp target, String operator, Exp right) {
+        if (target instanceof IdExp) {
+            return createCompoundAssign(((IdExp) target).getValue(), operator, right);
+        }
+        if (target instanceof PropertyExp
+                && !(target instanceof OptionalPropertyExp)
+                && !(target instanceof LengthPropertyExp)) {
+            return new CompoundAssignExp(target, operator, right, this);
+        }
+        if (target instanceof SubExp) {
+            return new CompoundAssignExp(target, operator, right, this);
+        }
+        throw new IllegalArgumentException("Invalid compound assignment target: " + target);
+    }
+
     Exp createFor(Exp defExp, Exp booleanExp, Exp addExp, Exp forBodyExp);
 
     /**
