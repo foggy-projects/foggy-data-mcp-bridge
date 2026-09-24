@@ -64,7 +64,7 @@ public class ExpScanner extends ElExpScanner {
 		advance();
 		dollarDeep++;
 
-		return makeToken(ExpSymbols.LBRACE, "{");
+		return makeToken(isControlBlockStart() ? ExpSymbols.CONTROL_LBRACE : ExpSymbols.LBRACE, "{");
 	}
 
 	@Override

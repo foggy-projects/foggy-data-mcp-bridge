@@ -20,6 +20,8 @@ import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.List;
 import java.util.Stack;
+import java.util.ArrayDeque;
+import java.util.Deque;
 
 public class ElExpScanner implements BaseScanner {
 
@@ -290,6 +292,86 @@ public class ElExpScanner implements BaseScanner {
      */
     protected boolean newlineEncountered = false;
 
+    private record ControlParenthesis(int kind, int braceDepth) {}
+
+    /** Source metadata stays on tokens, including tokens buffered for ASI. */
+    private static final class SourceSymbol extends Symbol {
+        boolean lineBreakBefore;
+        boolean controlHeaderEnd;
+        boolean insideControlHeader;
+
+        SourceSymbol(int id, int left, int right, Object value) {
+            super(id, left, right, value);
+        }
+    }
+
+    private final Stack<ControlParenthesis> controlParentheses = new Stack<>();
+    private int previousRawSymbol = -1;
+    private boolean previousRawWasProperty;
+    private boolean previousRawWasPrefixUpdate;
+    private int closedControlHeader = -1;
+    private int sourceBraceDepth;
+    private final Deque<Symbol> statementTokens = new ArrayDeque<>();
+
+    private Symbol insertStatementTerminator(Symbol following) {
+        if (inNf && nfLRCount == 1) {
+            // End an expression arrow before ending the containing statement.
+            inNf = false;
+            nfLRCount = 0;
+            statementTokens.add(new SourceSymbol(ExpSymbols.NCOUNT, following.left, following.left, "ASI;"));
+            statementTokens.add(following);
+            return makeSymbol(ExpSymbols.RBRACE, "auto fix}");
+        }
+        tmpSymbol = following;
+        return makeSymbol(ExpSymbols.NCOUNT, "ASI;");
+    }
+
+    public boolean hasLineBreakBefore(Symbol token) {
+        return token instanceof SourceSymbol source && source.lineBreakBefore;
+    }
+
+    public boolean isControlHeaderEnd(Symbol token) {
+        return token instanceof SourceSymbol source && source.controlHeaderEnd;
+    }
+
+    public boolean isInsideControlHeader(Symbol token) {
+        return token instanceof SourceSymbol source && source.insideControlHeader;
+    }
+
+    protected boolean isControlBlockStart() {
+        return closedControlHeader == ExpSymbols.IF || closedControlHeader == ExpSymbols.FOR
+                || closedControlHeader == ExpSymbols.WHILE || previousRawSymbol == ExpSymbols.ELSE;
+    }
+
+    private void trackControlHeader(Symbol token) {
+        SourceSymbol source = (SourceSymbol) token;
+        for (ControlParenthesis context : controlParentheses) {
+            if (context.kind() != -1 && context.braceDepth() == sourceBraceDepth) {
+                source.insideControlHeader = true;
+                break;
+            }
+        }
+        previousRawWasPrefixUpdate = (token.sym == ExpSymbols.INCREMENT || token.sym == ExpSymbols.DECREMENT)
+                && (newlineEncountered || closedControlHeader != -1 || !canEndStatement(previousRawSymbol));
+        closedControlHeader = -1;
+        if (token.sym == ExpSymbols.LPAREN) {
+            int kind = previousRawWasProperty ? -1 : previousRawSymbol;
+            boolean control = kind == ExpSymbols.IF || kind == ExpSymbols.FOR
+                    || kind == ExpSymbols.WHILE || kind == ExpSymbols.SWITCH || kind == ExpSymbols.CATCH;
+            controlParentheses.push(new ControlParenthesis(control ? kind : -1, sourceBraceDepth));
+        } else if (token.sym == ExpSymbols.RPAREN && !controlParentheses.isEmpty()) {
+            closedControlHeader = controlParentheses.pop().kind();
+            source.controlHeaderEnd = closedControlHeader != -1;
+        } else if (token.sym == ExpSymbols.LBRACE || token.sym == ExpSymbols.CONTROL_LBRACE
+                || token.sym == ExpSymbols.LBRACE_OBJ || token.sym == ExpSymbols.LBRACE_DESTR) {
+            sourceBraceDepth++;
+        } else if (token.sym == ExpSymbols.RBRACE) {
+            sourceBraceDepth--;
+        }
+        previousRawWasProperty = previousRawSymbol == ExpSymbols.DOT || previousRawSymbol == ExpSymbols.QMARK_DOT;
+        previousRawSymbol = token.sym;
+    }
+
     /**
      * 当前方言（可选）。
      * <p>
@@ -342,6 +424,8 @@ public class ElExpScanner implements BaseScanner {
             case ExpSymbols.THIS:
             case ExpSymbols.BREAK:
             case ExpSymbols.CONTINUE:
+            case ExpSymbols.INCREMENT:
+            case ExpSymbols.DECREMENT:
                 return true;
             default:
                 return false;
@@ -376,6 +460,8 @@ public class ElExpScanner implements BaseScanner {
             case ExpSymbols.BREAK:
             case ExpSymbols.CONTINUE:
             case ExpSymbols.DELETE:
+            case ExpSymbols.INCREMENT:
+            case ExpSymbols.DECREMENT:
             case ExpSymbols.TRUE:
             case ExpSymbols.FALSE:
             case ExpSymbols.NULL:
@@ -423,6 +509,12 @@ public class ElExpScanner implements BaseScanner {
             case ExpSymbols.COLON:       // :
             case ExpSymbols.NF:          // =>
             case ExpSymbols.LPAREN:      // ( 函数调用
+            case ExpSymbols.LSBRACE:     // [ subscript continuation
+            case ExpSymbols.PLUS_EQ:
+            case ExpSymbols.MINUS_EQ:
+            case ExpSymbols.MULTI_EQ:
+            case ExpSymbols.DIVISION_EQ:
+            case ExpSymbols.PERCENT_EQ:
             case ExpSymbols.IN:          // in
             case ExpSymbols.LIKE:        // like
                 return true;
@@ -501,6 +593,8 @@ public class ElExpScanner implements BaseScanner {
 
     protected Symbol doLBRACE() throws IOException {
         advance();
+
+        if (isControlBlockStart()) return makeToken(ExpSymbols.CONTROL_LBRACE, "{");
 
         // 检查是否在函数参数列表中且前一个 token 是 EQ
         // 如果是，发出 LBRACE_OBJ 表示这是一个对象字面量
@@ -617,7 +711,7 @@ public class ElExpScanner implements BaseScanner {
         this.iPrevChar = iChar;
         this.previousSymbol = id;
 
-        return new Symbol(id, iPrevPrevChar, iChar, o);
+        return new SourceSymbol(id, iPrevPrevChar, iChar, o);
     }
 
     protected Symbol makeToken(int i, String s) {
@@ -775,20 +869,29 @@ public class ElExpScanner implements BaseScanner {
 
     @Override
     public final Symbol next_token() throws Exception {
+        if (!statementTokens.isEmpty()) {
+            Symbol token = statementTokens.removeFirst();
+            previousSymbol = token.sym;
+            return token;
+        }
         /**
          * 这段代码，解决 export 不用非得加;的问题
          * 单元测试见AutoNcountExpTest
          */
         if (tmpSymbol != null) {
             try {
+                this.previousSymbol = tmpSymbol.sym;
                 return tmpSymbol;
             } finally {
                 tmpSymbol = null;
             }
         }
         int previousTmp = this.previousSymbol;
+        boolean afterControlHeader = closedControlHeader != -1;
+        boolean afterPrefixUpdate = previousRawWasPrefixUpdate;
 
         Symbol symbol = next_token1();
+        trackControlHeader(symbol);
 
         /**
          * 函数参数列表上下文追踪
@@ -800,6 +903,7 @@ public class ElExpScanner implements BaseScanner {
         // ASI: 检查是否在这次扫描中遇到了换行符（在上一个 token 和当前 token 之间）
         // 必须在 next_token1() 返回后检查，因为换行符是在扫描过程中遇到的
         boolean hadNewline = this.newlineEncountered;
+        ((SourceSymbol) symbol).lineBreakBefore = hadNewline;
         // 重置换行标志
         this.newlineEncountered = false;
 
@@ -820,6 +924,21 @@ public class ElExpScanner implements BaseScanner {
             return symbol;
         }
 
+        if (hadNewline && previousTmp == ExpSymbols.THROW) {
+            throw new IllegalArgumentException("Line terminator is not allowed after throw");
+        }
+        if (hadNewline && canEndStatement(previousTmp) && isInsideControlHeader(symbol)
+                && (symbol.sym == ExpSymbols.INCREMENT || symbol.sym == ExpSymbols.DECREMENT)) {
+            throw new IllegalArgumentException("Line terminator is not allowed before a postfix update in a control header");
+        }
+        if (hadNewline && (previousTmp == ExpSymbols.RETURN
+                || previousTmp == ExpSymbols.BREAK || previousTmp == ExpSymbols.CONTINUE)) {
+            return insertStatementTerminator(symbol);
+        }
+        if (hadNewline && symbol.sym == ExpSymbols.ELSE && inNf && nfLRCount == 1) {
+            return insertStatementTerminator(symbol);
+        }
+
         /**
          * ASI (Automatic Semicolon Insertion) 核心逻辑
          * 条件：
@@ -827,13 +946,13 @@ public class ElExpScanner implements BaseScanner {
          * 2. 前一个 token 可以结束语句
          * 3. 当前 token 不能继续前一条语句（且不是显式可继续的运算符）
          */
-        if (hadNewline && canEndStatement(previousTmp) && !canContinueStatement(symbol.sym)) {
+        if (hadNewline && !afterControlHeader && !afterPrefixUpdate && !isInsideControlHeader(symbol)
+                && canEndStatement(previousTmp) && !canContinueStatement(symbol.sym)) {
             // 特殊情况：如果当前是 EOF，不需要插入分号
             if (symbol.sym != ExpSymbols.EOF) {
                 // 需要在当前 token 前插入分号
                 if (cannotContinueStatement(symbol.sym)) {
-                    tmpSymbol = symbol;
-                    return makeSymbol(ExpSymbols.NCOUNT, "ASI;");
+                    return insertStatementTerminator(symbol);
                 }
             }
         }
@@ -854,6 +973,7 @@ public class ElExpScanner implements BaseScanner {
         if (inNf) {
             if (symbol.sym == ExpSymbols.LPAREN
                     || symbol.sym == ExpSymbols.LBRACE
+                    || symbol.sym == ExpSymbols.CONTROL_LBRACE
                     || symbol.sym == ExpSymbols.LBRACE_OBJ) {
                 nfLRCount++;
             } else if (symbol.sym == ExpSymbols.RPAREN
@@ -899,6 +1019,7 @@ public class ElExpScanner implements BaseScanner {
         } else if (symbol.sym == ExpSymbols.FUNCTION) {
             ncountFixCtx.startFunction();
         } else if (symbol.sym == ExpSymbols.LBRACE
+                || symbol.sym == ExpSymbols.CONTROL_LBRACE
                 || symbol.sym == ExpSymbols.LBRACE_OBJ
                 || symbol.sym == ExpSymbols.LBRACE_DESTR) {
             // 同时追踪所有类型的左花括号：
@@ -1343,6 +1464,10 @@ public class ElExpScanner implements BaseScanner {
                     return makeToken(ExpSymbols.XOR, "^");
                 case '+':
                     advance();
+                    if (nextChar == '+') {
+                        advance();
+                        return makeToken(ExpSymbols.INCREMENT, "++");
+                    }
                     if (nextChar == '=') {
                         advance();
                         return makeToken(ExpSymbols.PLUS_EQ, "+=");
@@ -1350,6 +1475,10 @@ public class ElExpScanner implements BaseScanner {
                     return makeToken(ExpSymbols.PLUS, "/");
                 case '-':
                     advance();
+                    if (nextChar == '-') {
+                        advance();
+                        return makeToken(ExpSymbols.DECREMENT, "--");
+                    }
                     if (nextChar == '=') {
                         advance();
                         return makeToken(ExpSymbols.MINUS_EQ, "-=");
@@ -1383,31 +1512,28 @@ public class ElExpScanner implements BaseScanner {
                                 advance();
                                 switch (nextChar) {
                                     case -1:
-                                    case '\t':
                                     case '\n':
                                     case '\r':
+                                    case '\u2028':
+                                    case '\u2029':
                                         break C;
                                 }
                             }
                             continue;
                         case '*':
-                            // 一定以*/结束
-                            C:
-                            for (; ; ) {
-                                advance();
-                                switch (nextChar) {
-                                    case -1:
-                                        break C;
-                                    case '*':
-                                        advance();
-                                        if (nextChar == '/') {
-                                            // 注释结束
-                                            break C;
-                                        }
-
-                                }
-                            }
                             advance();
+                            while (nextChar != -1) {
+                                if (nextChar == '\n' || nextChar == '\r'
+                                        || nextChar == '\u2028' || nextChar == '\u2029') {
+                                    newlineEncountered = true;
+                                }
+                                if (nextChar == '*' && lookahead() == '/') {
+                                    advance();
+                                    advance();
+                                    break;
+                                }
+                                advance();
+                            }
                             continue;
                         default:
                             return makeToken(ExpSymbols.DIVISION, "/");
@@ -1514,6 +1640,8 @@ public class ElExpScanner implements BaseScanner {
                     break;
                 case '\n':
                 case '\r':
+                case '\u2028':
+                case '\u2029':
                     // ASI: 记录遇到换行符
                     newlineEncountered = true;
                     iPrevChar = iChar;

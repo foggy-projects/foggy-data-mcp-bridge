@@ -20,6 +20,54 @@ import java.util.Stack;
 
 parser code {:
 	private BaseScanner scanner;
+	private Symbol pendingStatementToken;
+	private Symbol previousStatementToken;
+
+	/** Simulate reductions without executing actions or changing the real parse stack. */
+	private boolean acceptsStatementToken(int token) {
+		ArrayList<Integer> states = new ArrayList<Integer>();
+		for (Object entry : stack) states.add(((Symbol) entry).parse_state);
+		if (states.isEmpty()) return false;
+		while (!states.isEmpty()) {
+			int action = get_action(states.get(states.size() - 1), token);
+			if (action > 0) return true;
+			if (action == 0) return false;
+			int production = -action - 1;
+			if (production == start_production()) return token == EOF_sym();
+			int count = production_tab[production][1];
+			if (count >= states.size()) return false;
+			for (int i = 0; i < count; i++) states.remove(states.size() - 1);
+			int next = get_reduce(states.get(states.size() - 1), production_tab[production][0]);
+			if (next < 0) return false;
+			states.add(next);
+		}
+		return false;
+	}
+
+	private Symbol scanStatementToken() throws Exception {
+		if (pendingStatementToken != null) {
+			Symbol token = pendingStatementToken;
+			pendingStatementToken = null;
+			previousStatementToken = token;
+			return token;
+		}
+		Symbol token = scanner.next_token();
+		if (previousStatementToken != null && scanner instanceof ElExpScanner) {
+			ElExpScanner source = (ElExpScanner) scanner;
+			boolean boundary = token.sym == ExpSymbols.EOF || token.sym == ExpSymbols.RBRACE
+					|| source.hasLineBreakBefore(token);
+			// ASI must never create an empty control body or a for-header separator.
+			if (boundary && !source.isControlHeaderEnd(previousStatementToken)
+					&& previousStatementToken.sym != ExpSymbols.ELSE
+					&& !source.isInsideControlHeader(token)
+					&& !acceptsStatementToken(token.sym) && acceptsStatementToken(ExpSymbols.NCOUNT)) {
+				pendingStatementToken = token;
+				token = new Symbol(ExpSymbols.NCOUNT, token.left, token.left, "ASI;");
+			}
+		}
+		previousStatementToken = token;
+		return token;
+	}
 	ExpFactory factory =DefaultExpFactory.DEFAULT ;
 	FsscriptClosureDefinition fcDefinition;
 	FsscriptDialect dialect;
@@ -100,10 +148,11 @@ parser code {:
 	}
 :}
 /**//* Preliminaries to set up and use the scanner.  */
-init with {: scanner.init();              :};
-scan with {: return scanner.next_token(); :};
+init with {: scanner.init(); pendingStatementToken = null; previousStatementToken = null; :};
+scan with {: return scanStatementToken(); :};
 
 // Terminals (tokens returned by the scanner).
+
 // a. Keywords.
 terminal
     AND,					//&
@@ -206,6 +255,8 @@ terminal Number NUMBER;
 terminal Long LONG;
 terminal PLUS_EQ, MINUS_EQ, MULTI_EQ, DIVISION_EQ, PERCENT_EQ;    // +=, -=, *=, /=, %=
 
+terminal IF_WITHOUT_ELSE, CONTROL_LBRACE, INCREMENT, DECREMENT;
+
 // Non terminals
 non terminal String
     comp_op,
@@ -248,6 +299,7 @@ non terminal Exp
 	dollar_expression,
 	string_expression,
 	var_expression,
+	control_var_expression,
 	return_expression,
 	import_expression,
 	/**
@@ -269,15 +321,17 @@ non terminal Exp
 	try_def,
 	
 	ifelse,
-	if,
-	else,
-	elseif,
+
+
+
 	
 	for,
 	while,
 	switch,
 	case,
 	ncount_fragment_list,
+	control_body,
+
 	
 	value_expression_primary;
 
@@ -297,6 +351,8 @@ non terminal ListExp
 	arg_list;
 
 /** The grammar */
+precedence nonassoc IF_WITHOUT_ELSE;
+precedence nonassoc ELSE;
 
 	
 
@@ -404,46 +460,46 @@ dollar_expression ::=
 /**********************************************************/
 
 for ::=
-	FOR LPAREN expression_or_empty:e1 NCOUNT expression_or_empty:e2 NCOUNT expression_or_empty:e3 RPAREN  ncount_fragment_list:l2  {:
+	FOR LPAREN expression_or_empty:e1 NCOUNT expression_or_empty:e2 NCOUNT expression_or_empty:e3 RPAREN  control_body:l2  {:
 		RESULT = parser.factory.createFor(e1,e2,e3,l2);
 	:}
-	|	FOR LPAREN var_expression:e1 NCOUNT expression_or_empty:e2 NCOUNT var_expression:e3 RPAREN  ncount_fragment_list:l2  {:
+	|	FOR LPAREN var_expression:e1 NCOUNT expression_or_empty:e2 NCOUNT var_expression:e3 RPAREN  control_body:l2  {:
 		RESULT = parser.factory.createFor(e1,e2,e3,l2);
 	:}
-	|	FOR LPAREN var_expression:e1 NCOUNT expression_or_empty:e2 NCOUNT expression_or_empty:e3 RPAREN  ncount_fragment_list:l2  {:
+	|	FOR LPAREN var_expression:e1 NCOUNT expression_or_empty:e2 NCOUNT expression_or_empty:e3 RPAREN  control_body:l2  {:
 		RESULT = parser.factory.createFor(e1,e2,e3,l2);
 	:}
-	|	FOR LPAREN VAR ID:l COLON expression_or_empty:ll RPAREN ncount_fragment_list:l2{:
+	|	FOR LPAREN VAR ID:l COLON expression_or_empty:ll RPAREN control_body:l2{:
 		RESULT = parser.factory.createFor(l,ll,l2);
 	:}
-	|	FOR LPAREN LET ID:l COLON expression_or_empty:ll RPAREN ncount_fragment_list:l2{:
+	|	FOR LPAREN LET ID:l COLON expression_or_empty:ll RPAREN control_body:l2{:
     		RESULT = parser.factory.createFor(l,ll,l2);
     	:}
-    |	FOR LPAREN CONST ID:l COLON expression_or_empty:ll RPAREN ncount_fragment_list:l2{:
+    |	FOR LPAREN CONST ID:l COLON expression_or_empty:ll RPAREN control_body:l2{:
         		RESULT = parser.factory.createFor(l,ll,l2);
         	:}
 
-    |	FOR LPAREN VAR ID:l IN expression_or_empty:ll RPAREN ncount_fragment_list:l2{:
+    |	FOR LPAREN VAR ID:l IN expression_or_empty:ll RPAREN control_body:l2{:
     		RESULT = parser.factory.createForIn(l,ll,l2);
     	:}
-    |	FOR LPAREN LET ID:l IN expression_or_empty:ll RPAREN ncount_fragment_list:l2{:
+    |	FOR LPAREN LET ID:l IN expression_or_empty:ll RPAREN control_body:l2{:
             RESULT = parser.factory.createForIn(l,ll,l2);
         :}
-    |	FOR LPAREN CONST ID:l IN expression_or_empty:ll RPAREN ncount_fragment_list:l2{:
+    |	FOR LPAREN CONST ID:l IN expression_or_empty:ll RPAREN control_body:l2{:
                 RESULT = parser.factory.createForIn(l,ll,l2);
             :}
-    |	FOR LPAREN VAR ID:l OF expression_or_empty:ll RPAREN ncount_fragment_list:l2{:
+    |	FOR LPAREN VAR ID:l OF expression_or_empty:ll RPAREN control_body:l2{:
                 RESULT = parser.factory.createFor(l,ll,l2);
             :}
-    |	FOR LPAREN LET ID:l OF expression_or_empty:ll RPAREN ncount_fragment_list:l2{:
+    |	FOR LPAREN LET ID:l OF expression_or_empty:ll RPAREN control_body:l2{:
                 RESULT = parser.factory.createFor(l,ll,l2);
             :}
-    |	FOR LPAREN CONST ID:l OF expression_or_empty:ll RPAREN ncount_fragment_list:l2{:
+    |	FOR LPAREN CONST ID:l OF expression_or_empty:ll RPAREN control_body:l2{:
                 RESULT = parser.factory.createFor(l,ll,l2);
             :}
 	;
 while ::=
-	WHILE LPAREN expression_or_empty:e1  RPAREN  ncount_fragment_list:l2  {:
+	WHILE LPAREN expression_or_empty:e1  RPAREN  control_body:l2  {:
 		RESULT = parser.factory.createFor(null,e1,null,l2);
 	:}
 	;
@@ -478,41 +534,39 @@ case ::=
 
 
 ifelse ::=
-		if:i {:
-		    RESULT = i;
-		:}
-	|
-		if:i ELSE ncount_fragment_list:l2{:
-			ListExp args = new ListExp(2);
-			args.add(i);
-			args.add(l2);
-			RESULT = parser.factory.createUnresolvedFunCall("else",args,false);
-		:}
-	;
+    IF LPAREN expression_or_empty:e RPAREN control_body:body {:
+        ListExp args = new ListExp(2);
+        args.add(e);
+        args.add(body);
+        RESULT = parser.factory.createUnresolvedFunCall("iif", args, false);
+    :} %prec IF_WITHOUT_ELSE
+    | IF LPAREN expression_or_empty:e RPAREN control_body:yes ELSE control_body:no {:
+        ListExp args = new ListExp(2);
+        args.add(e);
+        args.add(yes);
+        Exp condition = parser.factory.createUnresolvedFunCall("iif", args, false);
+        ListExp branches = new ListExp(2);
+        branches.add(condition);
+        branches.add(no);
+        RESULT = parser.factory.createUnresolvedFunCall("else", branches, false);
+    :}
+    ;
 
-if ::=
-		IF LPAREN expression_or_empty:e RPAREN ncount_fragment_list:l {:
-			ListExp args = new ListExp(2);
-			args.add(e);
-			args.add(l);
-			RESULT = parser.factory.createUnresolvedFunCall("iif",args,false);
-		:}
-	|	if:i elseif:ei {:
-			ListExp args = new ListExp(2);
-			args.add(i);
-			args.add(ei);
-			RESULT = parser.factory.createUnresolvedFunCall("elseif",args,false);
-		:}
-	;
+// Functions and try/catch/finally keep their required block grammar.
+control_body ::=
+      CONTROL_LBRACE ncount_list:b RBRACE {: RESULT = parser.factory.createNCountExp(b); :}
+    | value_expression:e NCOUNT {: RESULT = e; :}
+    | control_var_expression:e NCOUNT {: RESULT = e; :}
+    | return_expression:e NCOUNT {: RESULT = e; :}
+    | THROW value_expression:e NCOUNT {: RESULT = parser.factory.createThrowDef(e); :}
+    | NCOUNT {: RESULT = parser.factory.createEmpty(); :}
+    | ifelse:e {: RESULT = e; :}
+    | for:e {: RESULT = e; :}
+    | while:e {: RESULT = e; :}
+    | switch:e {: RESULT = e; :}
+    | try_def:e {: RESULT = e; :}
+    ;
 
-elseif ::=
-		ELSE IF LPAREN expression_or_empty:e RPAREN ncount_fragment_list:l {:
-			ListExp args = new ListExp(2);
-			args.add(e);
-			args.add(l);
-			RESULT = parser.factory.createUnresolvedFunCall("iif",args,false);
-		:}
-	;
 function_def ::=
 		FUNCTION LPAREN arg_list:a RPAREN ncount_fragment_list:l {:
 			RESULT = parser.factory.createFunctionDef(parser.getFcDefinition(),l,a);
@@ -616,52 +670,32 @@ import_expression ::=
     ;
 
 var_expression ::=
-		VAR factor0:id EQ expression_or_empty:e{:
-			RESULT = parser.factory.createVarDef(id,e);
-		:}
-	|	LET factor0:id EQ expression_or_empty:e{:
-        			RESULT = parser.factory.createLetDef(id,e);
-        		:}
-	|   VAR factor0:id {:
-			RESULT = parser.factory.createVarDef(id,null);
-		:}
-	|	LET factor0:id {:
-        	RESULT = parser.factory.createLetDef(id,null);
-        :}
-     |	CONST factor0:id EQ expression_or_empty:e{:
-             			RESULT = parser.factory.createVarDef(id,e);
-        :}
-	|	factor0:id EQ expression_or_empty:e{:
-			RESULT = parser.factory.createEqDef(id,e);
-		:}
-	|	factor0:id PLUS_EQ value_expression:e {:
-			RESULT = parser.factory.createCompoundAssign(id,"+",e);
-		:}
-	|	factor0:id MINUS_EQ value_expression:e {:
-			RESULT = parser.factory.createCompoundAssign(id,"-",e);
-		:}
-	|	factor0:id MULTI_EQ value_expression:e {:
-			RESULT = parser.factory.createCompoundAssign(id,"*",e);
-		:}
-	|	factor0:id DIVISION_EQ value_expression:e {:
-			RESULT = parser.factory.createCompoundAssign(id,"/",e);
-		:}
-	|	factor0:id PERCENT_EQ value_expression:e {:
-			RESULT = parser.factory.createCompoundAssign(id,"%",e);
-		:}
-	// 解构赋值支持: const { name, caption = 'default' } = options
-	|	CONST destructure_pattern:p EQ expression_or_empty:e {:
-			RESULT = parser.factory.createDestructurePattern(p, e, "const");
-		:}
-	|	LET destructure_pattern:p EQ expression_or_empty:e {:
-			RESULT = parser.factory.createDestructurePattern(p, e, "let");
-		:}
-	|	VAR destructure_pattern:p EQ expression_or_empty:e {:
-			RESULT = parser.factory.createDestructurePattern(p, e, "var");
-		:}
+      control_var_expression:e {: RESULT = e; :}
+    | LET factor0:id EQ expression_or_empty:e {: RESULT = parser.factory.createLetDef(id,e); :}
+    | LET factor0:id {: RESULT = parser.factory.createLetDef(id,null); :}
+    | CONST factor0:id EQ expression_or_empty:e {: RESULT = parser.factory.createVarDef(id,e); :}
+    | CONST destructure_pattern:p EQ expression_or_empty:e {:
+        RESULT = parser.factory.createDestructurePattern(p, e, "const");
+    :}
+    | LET destructure_pattern:p EQ expression_or_empty:e {:
+        RESULT = parser.factory.createDestructurePattern(p, e, "let");
+    :}
+    ;
 
-	;
-
+// Lexical declarations require a block; assignment and var are single statements.
+control_var_expression ::=
+      VAR factor0:id EQ expression_or_empty:e {: RESULT = parser.factory.createVarDef(id,e); :}
+    | VAR factor0:id {: RESULT = parser.factory.createVarDef(id,null); :}
+    | factor0:id EQ expression_or_empty:e {: RESULT = parser.factory.createEqDef(id,e); :}
+    | factor0:id PLUS_EQ value_expression:e {: RESULT = parser.factory.createCompoundAssign(id,"+",e); :}
+    | factor0:id MINUS_EQ value_expression:e {: RESULT = parser.factory.createCompoundAssign(id,"-",e); :}
+    | factor0:id MULTI_EQ value_expression:e {: RESULT = parser.factory.createCompoundAssign(id,"*",e); :}
+    | factor0:id DIVISION_EQ value_expression:e {: RESULT = parser.factory.createCompoundAssign(id,"/",e); :}
+    | factor0:id PERCENT_EQ value_expression:e {: RESULT = parser.factory.createCompoundAssign(id,"%",e); :}
+    | VAR destructure_pattern:p EQ expression_or_empty:e {:
+        RESULT = parser.factory.createDestructurePattern(p, e, "var");
+    :}
+    ;
 export_expression ::=
 		EXPORT expression_or_empty:e{:
 			RESULT = parser.factory.createExportDef(e);
@@ -915,27 +949,7 @@ term2 ::=
     		list.add(y);
             RESULT = parser.factory.createUnresolvedFunCall("%",list,false);
     	:}
-    |	term2:x PLUS PLUS{:
-    		ListExp list = new ListExp(1);
-    		list.add(x);
-            RESULT = parser.factory.createUnresolvedFunCall("P_IJJ",list,false);
-    	:}
-    |	PLUS PLUS term:y{:
-    		ListExp list = new ListExp(1);
-    		list.add(y);
-            RESULT = parser.factory.createUnresolvedFunCall("P_JJI",list,false);
-    	:}
-    |	term2:x MINUS MINUS{:
-    		ListExp list = new ListExp(1);
-    		list.add(x);
-            RESULT = parser.factory.createUnresolvedFunCall("M_IJJ",list,false);
-    	:}
-    |	MINUS MINUS term:y{:
-    		ListExp list = new ListExp(1);
-    		list.add(y);
-            RESULT = parser.factory.createUnresolvedFunCall("M_JJI",list,false);
-    	:}
-	;
+        ;
 	
 term ::=
         term0:t {:
@@ -981,6 +995,27 @@ factor ::=
 			list.add(e);
             RESULT = parser.factory.createUnresolvedFunCall("!", list,false);
 		:}
+
+|	factor0:x INCREMENT{:
+            ListExp list = new ListExp(1);
+            list.add(x);
+            RESULT = parser.factory.createUnresolvedFunCall("P_IJJ",list,false);
+        :}
+    |	INCREMENT factor0:y{:
+            ListExp list = new ListExp(1);
+            list.add(y);
+            RESULT = parser.factory.createUnresolvedFunCall("P_JJI",list,false);
+        :}
+    |	factor0:x DECREMENT{:
+            ListExp list = new ListExp(1);
+            list.add(x);
+            RESULT = parser.factory.createUnresolvedFunCall("M_IJJ",list,false);
+        :}
+    |	DECREMENT factor0:y{:
+            ListExp list = new ListExp(1);
+            list.add(y);
+            RESULT = parser.factory.createUnresolvedFunCall("M_JJI",list,false);
+        :}
 
     |   DELETE factor0:id {:
             RESULT = parser.factory.createDelete(id);

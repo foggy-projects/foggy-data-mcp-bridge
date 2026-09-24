@@ -32,6 +32,7 @@ public class ExpSymbols {
   public static final int RPAREN = 46;
   public static final int LBRACE_OBJ = 48;
   public static final int LT = 41;
+  public static final int INCREMENT = 93;
   public static final int DOLLAR_LBRACE = 77;
   public static final int LBRACE = 47;
   public static final int LPAREN = 45;
@@ -43,6 +44,7 @@ public class ExpSymbols {
   public static final int EQ = 36;
   public static final int DOLLAR = 80;
   public static final int EQ2 = 37;
+  public static final int IF_WITHOUT_ELSE = 91;
   public static final int NUMBER = 84;
   public static final int _EE = 18;
   public static final int TRUE = 13;
@@ -69,6 +71,7 @@ public class ExpSymbols {
   public static final int DEFAULT = 22;
   public static final int MINUS_EQ = 87;
   public static final int PERCENT_EQ = 90;
+  public static final int DECREMENT = 94;
   public static final int FUNCTION = 59;
   public static final int IMPORT = 19;
   public static final int RSBRACE = 52;
@@ -89,6 +92,7 @@ public class ExpSymbols {
   public static final int LSBRACE = 51;
   public static final int _EVALUATOR = 17;
   public static final int SQM = 34;
+  public static final int CONTROL_LBRACE = 92;
   public static final int CASE = 26;
   public static final int NEW = 4;
   public static final int STRING = 82;
@@ -190,7 +194,11 @@ public class ExpSymbols {
   "MINUS_EQ",
   "MULTI_EQ",
   "DIVISION_EQ",
-  "PERCENT_EQ"
+  "PERCENT_EQ",
+  "IF_WITHOUT_ELSE",
+  "CONTROL_LBRACE",
+  "INCREMENT",
+  "DECREMENT"
   };
 }
 
