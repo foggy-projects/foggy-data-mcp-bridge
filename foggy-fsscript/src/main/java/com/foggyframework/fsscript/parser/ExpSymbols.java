@@ -22,6 +22,7 @@ public class ExpSymbols {
   public static final int EXPORT = 21;
   public static final int GE = 38;
   public static final int EXP_STRING = 83;
+  public static final int MULTI_EQ = 88;
   public static final int LBRACE_DESTR = 49;
   public static final int LIKE = 6;
   public static final int CATCH = 73;
@@ -67,6 +68,7 @@ public class ExpSymbols {
   public static final int BANG = 44;
   public static final int DEFAULT = 22;
   public static final int MINUS_EQ = 87;
+  public static final int PERCENT_EQ = 90;
   public static final int FUNCTION = 59;
   public static final int IMPORT = 19;
   public static final int RSBRACE = 52;
@@ -94,6 +96,7 @@ public class ExpSymbols {
   public static final int AND = 2;
   public static final int NF = 43;
   public static final int LET = 61;
+  public static final int DIVISION_EQ = 89;
   public static final int NE = 42;
   public static final int XOR = 12;
   public static final String[] terminalNames = new String[] {
@@ -184,7 +187,10 @@ public class ExpSymbols {
   "NUMBER",
   "LONG",
   "PLUS_EQ",
-  "MINUS_EQ"
+  "MINUS_EQ",
+  "MULTI_EQ",
+  "DIVISION_EQ",
+  "PERCENT_EQ"
   };
 }
 

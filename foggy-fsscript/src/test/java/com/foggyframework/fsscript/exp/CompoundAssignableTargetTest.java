@@ -90,6 +90,36 @@ class CompoundAssignableTargetTest {
     }
 
     @Test
+    void multiplyDivideAndModuloAssignmentsSupportVariablesAndProperties() {
+        Map<String, Object> obj = new HashMap<>();
+        obj.put("key", 6);
+        DefaultExpEvaluator evaluator = DefaultExpEvaluator.newInstance();
+        evaluator.setVar("itemIndex", 8);
+        evaluator.setVar("obj", obj);
+
+        eval("itemIndex *= 3; itemIndex /= 4; itemIndex %= 5;"
+                + "obj.key *= 2; obj.key /= 3; obj.key %= 3;", evaluator);
+
+        Assertions.assertEquals(1, evaluator.getVar("itemIndex"));
+        Assertions.assertEquals(1, obj.get("key"));
+    }
+
+    @Test
+    void multiplyAssignmentSubscriptEvaluatesTargetAndRightHandSideOnce() {
+        List<Object> arr = new ArrayList<>(List.of(3));
+        Probe probe = new Probe();
+        DefaultExpEvaluator evaluator = DefaultExpEvaluator.newInstance();
+        evaluator.setVar("arr", arr);
+        evaluator.setVar("probe", probe);
+
+        eval("arr[probe.nextIndex()] *= probe.nextValue();", evaluator);
+
+        Assertions.assertEquals(6.0d, arr.get(0));
+        Assertions.assertEquals(1, probe.indexCalls);
+        Assertions.assertEquals(1, probe.valueCalls);
+    }
+
+    @Test
     void nonAssignableExpressionIsRejected() {
         Assertions.assertThrows(CompileException.class, () ->
                 ExpUtils.compileEl(

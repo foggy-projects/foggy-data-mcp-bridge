@@ -1357,14 +1357,25 @@ public class ElExpScanner implements BaseScanner {
                     return makeToken(ExpSymbols.MINUS, "-");
                 case '*':
                     advance();
+                    if (nextChar == '=') {
+                        advance();
+                        return makeToken(ExpSymbols.MULTI_EQ, "*=");
+                    }
                     return makeToken(ExpSymbols.MULTI, "*");
                 case '%':
                     advance();
+                    if (nextChar == '=') {
+                        advance();
+                        return makeToken(ExpSymbols.PERCENT_EQ, "%=");
+                    }
                     return makeToken(ExpSymbols.PERCENT, "%");
                 case '/':
                     advance();
 
                     switch (nextChar) {
+                        case '=':
+                            advance();
+                            return makeToken(ExpSymbols.DIVISION_EQ, "/=");
                         case '/':
                             // 注释
                             C:
