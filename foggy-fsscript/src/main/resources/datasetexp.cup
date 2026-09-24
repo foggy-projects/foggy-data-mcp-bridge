@@ -204,6 +204,7 @@ terminal String STRING;
 terminal String EXP_STRING;
 terminal Number NUMBER;
 terminal Long LONG;
+terminal PLUS_EQ, MINUS_EQ;    // +=, -=
 
 // Non terminals
 non terminal String
@@ -632,6 +633,12 @@ var_expression ::=
         :}
 	|	factor0:id EQ expression_or_empty:e{:
 			RESULT = parser.factory.createEqDef(id,e);
+		:}
+	|	ID:id PLUS_EQ value_expression:e {:
+			RESULT = parser.factory.createCompoundAssign(id,"+",e);
+		:}
+	|	ID:id MINUS_EQ value_expression:e {:
+			RESULT = parser.factory.createCompoundAssign(id,"-",e);
 		:}
 	// 解构赋值支持: const { name, caption = 'default' } = options
 	|	CONST destructure_pattern:p EQ expression_or_empty:e {:

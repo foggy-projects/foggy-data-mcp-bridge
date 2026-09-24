@@ -17,6 +17,7 @@ public class ExpSymbols {
   public static final int GT = 39;
   public static final int REQUEST = 16;
   public static final int CONST = 62;
+  public static final int PLUS_EQ = 86;
   public static final int AA = 3;
   public static final int EXPORT = 21;
   public static final int GE = 38;
@@ -65,6 +66,7 @@ public class ExpSymbols {
   public static final int THIS = 15;
   public static final int BANG = 44;
   public static final int DEFAULT = 22;
+  public static final int MINUS_EQ = 87;
   public static final int FUNCTION = 59;
   public static final int IMPORT = 19;
   public static final int RSBRACE = 52;
@@ -180,7 +182,9 @@ public class ExpSymbols {
   "STRING",
   "EXP_STRING",
   "NUMBER",
-  "LONG"
+  "LONG",
+  "PLUS_EQ",
+  "MINUS_EQ"
   };
 }
 

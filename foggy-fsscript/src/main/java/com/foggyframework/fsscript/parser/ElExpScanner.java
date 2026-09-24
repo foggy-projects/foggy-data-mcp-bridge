@@ -1343,9 +1343,17 @@ public class ElExpScanner implements BaseScanner {
                     return makeToken(ExpSymbols.XOR, "^");
                 case '+':
                     advance();
+                    if (nextChar == '=') {
+                        advance();
+                        return makeToken(ExpSymbols.PLUS_EQ, "+=");
+                    }
                     return makeToken(ExpSymbols.PLUS, "/");
                 case '-':
                     advance();
+                    if (nextChar == '=') {
+                        advance();
+                        return makeToken(ExpSymbols.MINUS_EQ, "-=");
+                    }
                     return makeToken(ExpSymbols.MINUS, "-");
                 case '*':
                     advance();

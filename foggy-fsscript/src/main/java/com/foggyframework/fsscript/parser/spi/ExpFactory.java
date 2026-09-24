@@ -67,6 +67,14 @@ public interface ExpFactory {
 
     Exp createEqDef(Exp id, Exp e);
 
+    /** Compound assignment to a variable, using the existing arithmetic and assignment behavior. */
+    default Exp createCompoundAssign(String id, String operator, Exp right) {
+        ListExp args = new ListExp(2);
+        args.add(createId(id));
+        args.add(right);
+        return createEqDef(id, createUnresolvedFunCall(operator, args, false));
+    }
+
     Exp createFor(Exp defExp, Exp booleanExp, Exp addExp, Exp forBodyExp);
 
     /**

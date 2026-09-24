@@ -2,11 +2,13 @@ package com.foggyframework.fsscript.exp;
 
 import com.foggyframework.fsscript.DefaultExpEvaluator;
 import com.foggyframework.fsscript.FoggyFrameworkFsscriptTestApplication;
+import com.foggyframework.fsscript.closure.SimpleFsscriptClosureDefinitionSpace;
 import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import com.foggyframework.fsscript.parser.ExpParser;
 import com.foggyframework.fsscript.parser.spi.Exp;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
+import com.foggyframework.fsscript.utils.ExpUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,6 +55,66 @@ public class ForExpTest {
         Assertions.assertEquals(1,mm.get("c"));
         Assertions.assertEquals(null,mm.get("i"));
         Assertions.assertEquals(2,mm.get("ee"));
+    }
+
+    @Test
+    public void forAssignmentUpdate() {
+        String expStr = "let result = []; for (let i = 0; i < 4; i = i + 2) { result.add(i); } export result;";
+        Exp exp = ExpUtils.compileEl(
+                new SimpleFsscriptClosureDefinitionSpace().newFsscriptClosureDefinition(), expStr, null);
+
+        ExpEvaluator ee = DefaultExpEvaluator.newInstance(appCtx);
+        exp.evalValue(ee);
+
+        Assertions.assertEquals(List.of(0, 2), ee.getExportMap().get("result"));
+    }
+
+    @Test
+    public void forCompoundAssignmentUpdate() {
+        String expStr = "let result = []; for (let itemIndex = 0; itemIndex < 4; itemIndex += 2) { result.add(itemIndex); } export result;";
+        Exp exp = ExpUtils.compileEl(
+                new SimpleFsscriptClosureDefinitionSpace().newFsscriptClosureDefinition(), expStr, null);
+
+        ExpEvaluator ee = DefaultExpEvaluator.newInstance(appCtx);
+        exp.evalValue(ee);
+
+        Assertions.assertEquals(List.of(0, 2), ee.getExportMap().get("result"));
+    }
+
+    @Test
+    public void forCompoundSubtractionUpdate() {
+        String expStr = "let result = []; for (let itemIndex = 4; itemIndex > 0; itemIndex -= 2) { result.add(itemIndex); } export result;";
+        Exp exp = ExpUtils.compileEl(
+                new SimpleFsscriptClosureDefinitionSpace().newFsscriptClosureDefinition(), expStr, null);
+
+        ExpEvaluator ee = DefaultExpEvaluator.newInstance(appCtx);
+        exp.evalValue(ee);
+
+        Assertions.assertEquals(List.of(4, 2), ee.getExportMap().get("result"));
+    }
+
+    @Test
+    public void compoundAssignmentStatement() {
+        String expStr = "let s = \"\"; s += \"x\"; export s;";
+        Exp exp = ExpUtils.compileEl(
+                new SimpleFsscriptClosureDefinitionSpace().newFsscriptClosureDefinition(), expStr, null);
+
+        ExpEvaluator ee = DefaultExpEvaluator.newInstance(appCtx);
+        exp.evalValue(ee);
+
+        Assertions.assertEquals("x", ee.getExportMap().get("s"));
+    }
+
+    @Test
+    public void compoundSubtractionStatement() {
+        String expStr = "let value = 5; value -= 2; export value;";
+        Exp exp = ExpUtils.compileEl(
+                new SimpleFsscriptClosureDefinitionSpace().newFsscriptClosureDefinition(), expStr, null);
+
+        ExpEvaluator ee = DefaultExpEvaluator.newInstance(appCtx);
+        exp.evalValue(ee);
+
+        Assertions.assertEquals(3, ee.getExportMap().get("value"));
     }
 
     @Test
