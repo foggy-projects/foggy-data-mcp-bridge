@@ -1,0 +1,22 @@
+{
+  "columns": [
+    "salesDate$year",
+    "salesDate$month",
+    "store$caption",
+    "sum(salesAmount) as totalAmount",
+    "count(orderId) as orderCount"
+  ],
+  "groupBy": [
+    { "field": "salesDate$year" },
+    { "field": "salesDate$month" },
+    { "field": "store$caption" }
+  ],
+  "orderBy": [
+    { "field": "salesDate$year", "dir": "asc" },
+    { "field": "salesDate$month", "dir": "asc" },
+    { "field": "store$caption", "dir": "asc" }
+  ],
+  "start": 0,
+  "limit": 2,
+  "returnTotal": false
+}

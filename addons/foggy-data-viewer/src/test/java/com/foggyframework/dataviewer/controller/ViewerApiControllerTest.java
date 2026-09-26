@@ -322,6 +322,51 @@ class ViewerApiControllerTest {
     class QueryDirectTests {
 
         @Test
+        @DisplayName("无总数分组查询应多取一行并准确返回hasNext")
+        void shouldOverfetchGroupedPageWithoutTotal() {
+            when(queryFacade.query(any(QueryFacadeRequest.class)))
+                    .thenReturn(queryResult(3, 0));
+
+            ViewerQueryRequest request = new ViewerQueryRequest();
+            request.setColumns(List.of("customerId", "amount"));
+            request.setStart(4);
+            request.setLimit(2);
+            request.setReturnTotal(false);
+            request.setHaving(List.of(new SliceRequestDef("amount", ">", 10000)));
+
+            RX<ViewerDataResponse> response = controller.queryDirect("orders", null, null, request);
+
+            assertEquals(RX.SUCCESS, response.getCode());
+            ViewerDataResponse data = response.getData();
+            assertEquals(2, data.getItems().size());
+            assertEquals(-1, data.getTotal());
+            assertEquals(Boolean.TRUE, data.getHasNext());
+            ArgumentCaptor<QueryFacadeRequest> captor = ArgumentCaptor.forClass(QueryFacadeRequest.class);
+            verify(queryFacade).query(captor.capture());
+            Map<String, Object> query = captor.getValue().getQuery();
+            assertEquals(false, query.get("returnTotal"));
+            assertEquals(3, captor.getValue().getLimit());
+            assertEquals(4, captor.getValue().getStart());
+            assertEquals("amount", ((Map<?, ?>) ((List<?>) query.get("having")).get(0)).get("field"));
+        }
+
+        @Test
+        @DisplayName("无总数分组查询末页恰好满页时不应误报下一页")
+        void shouldStopAtExactFullLastPage() {
+            when(queryFacade.query(any(QueryFacadeRequest.class)))
+                    .thenReturn(queryResult(2, 0));
+            ViewerQueryRequest request = new ViewerQueryRequest();
+            request.setColumns(List.of("customerId"));
+            request.setLimit(2);
+            request.setReturnTotal(false);
+
+            ViewerDataResponse data = controller.queryDirect("orders", null, null, request).getData();
+
+            assertEquals(2, data.getItems().size());
+            assertEquals(Boolean.FALSE, data.getHasNext());
+        }
+
+        @Test
         @DisplayName("应优先使用请求头namespace执行直连查询")
         void shouldUseHeaderNamespaceForDirectQuery() {
             when(queryFacade.query(any(QueryFacadeRequest.class)))

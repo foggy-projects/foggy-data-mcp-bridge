@@ -1799,12 +1799,24 @@ public class JdbcModelQueryEngine implements QueryEngine {
             return;
         }
 
-        if (!isAggregateCondition(havingDef.getField())) {
-            throw RX.throwAUserTip("HAVING_REQUIRES_AGGREGATE_FIELD: request.having field '" + havingDef.getField()
-                    + "' is not an aggregate measure. Use slice for row-level filters.");
+        boolean groupDimension = isRequestedGroupDimension(context, havingDef.getField());
+        if (!isAggregateCondition(havingDef.getField()) && !groupDimension) {
+            throw RX.throwAUserTip("HAVING_REQUIRES_GROUP_FIELD: request.having field '" + havingDef.getField()
+                    + "' must be an aggregate measure or a dimension in request.groupBy.");
         }
         buildSingleCondition(context, jdbcQueryModel, jdbcQuery, listCond, havingDef, level, parentLink, true,
-                aggregateRelationPushdownSafe);
+                groupDimension ? false : aggregateRelationPushdownSafe);
+    }
+
+    private boolean isRequestedGroupDimension(ModelResultContext context, String field) {
+        if (field == null || context == null || context.getRequest() == null
+                || context.getRequest().getParam() == null
+                || context.getRequest().getParam().getGroupBy() == null) {
+            return false;
+        }
+        return context.getRequest().getParam().getGroupBy().stream()
+                .anyMatch(group -> field.equals(group.getField())
+                        && (group.getAgg() == null || group.getAgg().isBlank()));
     }
 
     /**

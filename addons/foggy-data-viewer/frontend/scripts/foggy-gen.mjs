@@ -351,6 +351,9 @@ export async function query${prefix}(params: FetchDataParams): Promise<FetchData
     limit: params.pageSize,
     columns,
     slice: params.slice,
+    having: params.having,
+    groupBy: params.groupBy,
+    returnTotal: params.returnTotal,
     orderBy: params.orderBy,
   })
 }
@@ -378,7 +381,7 @@ function genVue(meta) {
 <script setup lang="ts">
 import { computed, ref, useSlots } from 'vue'
 import { DataTableWithSearch, fetchMemberOptions } from 'foggy-data-viewer'
-import type { SliceRequestDef, QueryHooks, EnhancedColumnSchema, QueryMode, QuerySchema, TableDefaultQueryConfig, TableDefaultQueryConfigScope, TableDefaultQueryConfigLoadOptions, ListPresetConfig } from 'foggy-data-viewer'
+import type { SliceRequestDef, GroupRequestDef, QueryHooks, EnhancedColumnSchema, QueryMode, QuerySchema, TableDefaultQueryConfig, TableDefaultQueryConfigScope, TableDefaultQueryConfigLoadOptions, ListPresetConfig } from 'foggy-data-viewer'
 import type { FetchDataParams, FetchDataResult } from 'foggy-data-viewer'
 import { tableSchema } from './${prefix}.table.schema'
 import { querySchema } from './${prefix}.query.schema'
@@ -398,6 +401,7 @@ interface DataTableWithSearchExpose {
   clearSelection?: () => void
   getSelectedRows?: () => Record<string, unknown>[]
   getSelectedCount?: () => number
+  executeQuery?: (params?: Partial<FetchDataParams>) => Promise<FetchDataResult | undefined>
 }
 
 const slots = useSlots()
@@ -419,6 +423,8 @@ const props = withDefaults(defineProps<{
   columnOverrides?: Record<string, BusinessColumnOverride>
   queryHooks?: QueryHooks
   queryMode?: QueryMode
+  tableMode?: 'normal' | 'groupBy'
+  groupBy?: GroupRequestDef[]
   querySchemaOverride?: QuerySchema
   showQueryPanel?: boolean
   tableInstanceId?: string
@@ -456,7 +462,8 @@ defineExpose({
   reload: () => tableRef.value?.reload?.(),
   clearSelection: () => tableRef.value?.clearSelection?.(),
   getSelectedRows: () => tableRef.value?.getSelectedRows?.() ?? [],
-  getSelectedCount: () => tableRef.value?.getSelectedCount?.() ?? 0
+  getSelectedCount: () => tableRef.value?.getSelectedCount?.() ?? 0,
+  executeQuery: (params?: Partial<FetchDataParams>) => tableRef.value?.executeQuery?.(params)
 })
 </script>
 
@@ -467,6 +474,8 @@ defineExpose({
     :fetch-data="fetchData ?? query${prefix}"
     :query-schema="props.querySchemaOverride ?? querySchema"
     :query-mode="queryMode"
+    :table-mode="tableMode"
+    :group-by="groupBy"
     :show-query-panel="showQueryPanel"
     :qm-model="${constName}"
     :table-instance-id="tableInstanceId ?? tableSchema.tableInstanceId"

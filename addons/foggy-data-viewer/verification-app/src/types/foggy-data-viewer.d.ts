@@ -6,6 +6,7 @@ declare module 'foggy-data-viewer' {
     clearAllFilters: () => void
     getSelectedRows: () => Record<string, unknown>[]
     getSelectedCount: () => number
+    executeQuery: (overrides?: Partial<FetchDataParams>, options?: { trigger?: string }) => Promise<FetchDataResult | undefined>
   }
 
   export type SliceRequestDef = {
@@ -14,9 +15,12 @@ declare module 'foggy-data-viewer' {
     value?: unknown
   }
 
+  export type GroupRequestDef = { field: string; agg?: string }
+
   export type OrderRequestDef = {
     field: string
-    order: 'asc' | 'desc'
+    dir?: 'asc' | 'desc'
+    order?: 'asc' | 'desc'
   }
 
   export type ColumnSchema = {
@@ -63,12 +67,16 @@ declare module 'foggy-data-viewer' {
     pageSize: number
     columns: string[]
     slice: SliceRequestDef[]
+    having?: SliceRequestDef[]
+    groupBy?: GroupRequestDef[]
+    returnTotal?: boolean
     orderBy: OrderRequestDef[]
   }
 
   export type FetchDataResult = {
     items: Record<string, unknown>[]
     total: number
+    hasNext?: boolean
     totalData?: Record<string, unknown> | null
   }
 
@@ -101,6 +109,9 @@ declare module 'foggy-data-viewer' {
     columns?: string[]
     extData?: Record<string, unknown>
     slice?: SliceRequestDef[]
+    having?: SliceRequestDef[]
+    groupBy?: GroupRequestDef[]
+    returnTotal?: boolean
     orderBy?: OrderRequestDef[]
   }
 
@@ -108,6 +119,7 @@ declare module 'foggy-data-viewer' {
     success: boolean
     items: Record<string, unknown>[]
     total: number
+    hasNext?: boolean
     totalData?: Record<string, unknown> | null
     error?: string
   }
@@ -185,6 +197,7 @@ declare module 'foggy-data-viewer' {
   export function fetchQueryMeta(model: string, queryId: string): Promise<QueryMetaResponse>
   export function fetchQmSchema(model: string): Promise<ColumnSchema[]>
   export function fetchQueryData(model: string, queryId: string, request: ViewerQueryRequest): Promise<ViewerDataResponse>
+  export function fetchQueryDataDirect(model: string, request: ViewerQueryRequest): Promise<ViewerDataResponse>
 }
 
 declare module 'foggy-data-viewer/style.css' {}

@@ -172,6 +172,21 @@ const amountField = {
 
 `DataTableWithSearch` 在 `schema + fetchData` 服务端查询模式下默认 `localFilter=false`：列头筛选仍会提交给 `fetchData`，但返回数据不会再被前端二次过滤，避免聚合字段、派生字段、字典展示字段被简单本地比较误删。需要纯前端过滤时，可显式设置 `localFilter=true` 或 `schema.localFilter=true`。
 
+### 固定 groupBy 表
+
+使用 `tableMode="groupBy"` 和固定的 `groupBy` 配置。Schema 的可见列应只包含这些分组键和标记为 `measure: true` 的 QM 度量；每个分组键必须返回。表头条件会作为 `having` 传给 `fetchData`，页面固定业务条件仍可通过 `fixedSlice` 传入。分组模式不加载或显示查询方案，也不显示跨组合计。
+
+```vue
+<DataTableWithSearch
+  :schema="groupedSchema"
+  :fetch-data="queryGroupedOrders"
+  table-mode="groupBy"
+  :group-by="[{ field: 'stationId' }, { field: 'orderMonth' }]"
+/>
+```
+
+`fetchData` 应透传 `params.groupBy`、`params.having`、`params.returnTotal` 到 Viewer 直连接口，并返回 `hasNext: boolean`。分组模式以 `returnTotal=false` 查询，分页仅提供上一页和下一页；总条数留待独立计数能力。导出可使用组件 `executeQuery({ page, pageSize })` 逐页读取，直到 `hasNext=false`，并自行实施行数上限。
+
 ### DataTableWithSearch tableInstanceId 默认查询配置
 
 `schema + fetchData` 模式支持按 `tableInstanceId` 加载默认查询配置。默认查询配置只负责默认展示列、排序、分页和筛选；`requiredRuntimeColumns`、`lockedColumns` 由 TM/QM 产出的 `TableSchema` 提供。

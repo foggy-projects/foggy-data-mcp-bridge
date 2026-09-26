@@ -14,6 +14,13 @@
 - ✅ 汇总行显示
 - ✅ 行点击/双击事件
 - ✅ buildTableColumns 工具函数
+- ✅ 固定分组汇总页：HAVING 表头筛选、未知总数分页、逐页 CSV 导出
+
+## 固定分组汇总页
+
+首页选择“固定分组汇总表”。该页调用 `FactSalesQueryModel`，按销售年份、月份、门店分组，返回销售收入和记录数。运行前先构建 `../frontend`，再启动当前应用；真实接口通过 Vite 代理访问本机 7108 端口的 Foggy Viewer。演示数据源需要包含 `FactSalesQueryModel` 和电商演示表。
+
+独立浏览器合同测试使用请求拦截数据；真实后端测试需先启动本机 Foggy 演示服务，然后设置 `FOGGY_VIEWER_REAL_BACKEND=1`。本机端口被占用或保留时可设置 `FOGGY_VIEWER_E2E_PORT`；已安装 Edge 时可设置 `FOGGY_VIEWER_E2E_CHANNEL=msedge`。两个测试分别为 `tests/e2e/group-by-summary.spec.ts` 和 `tests/e2e/group-by-summary-real.spec.ts`。真实测试检查 Java 直连接口的 `groupBy`、`having`、`returnTotal=false`、`hasNext`、翻页及完整导出。
 
 ## 如何运行
 

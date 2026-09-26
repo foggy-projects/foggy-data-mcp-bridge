@@ -13,7 +13,8 @@ import type {
   AfterQueryHookFn,
   ErrorQueryHookFn,
   QueryExecutionOptions,
-  FetchDataParamsWithExtensions
+  FetchDataParamsWithExtensions,
+  GroupRequestDef
 } from '@/types'
 import { HookRegistry } from './hookRegistry'
 import { globalQueryHooks } from './globalQueryHooks'
@@ -70,6 +71,7 @@ export interface UseTableQueryReturn {
   // 状态
   data: ReturnType<typeof ref<Record<string, unknown>[]>>
   total: ReturnType<typeof ref<number>>
+  hasNext: ReturnType<typeof ref<boolean>>
   loading: ReturnType<typeof ref<boolean>>
   activeTrigger: ReturnType<typeof ref<QueryTrigger | null>>
   lastError: ReturnType<typeof ref<Error | null>>
@@ -79,6 +81,9 @@ export interface UseTableQueryReturn {
   currentPageSize: ReturnType<typeof ref<number>>
   currentOrderBy: ReturnType<typeof ref<OrderRequestDef[]>>
   currentSlice: ReturnType<typeof ref<SliceRequestDef[]>>
+  currentHaving: ReturnType<typeof ref<SliceRequestDef[]>>
+  currentGroupBy: ReturnType<typeof ref<GroupRequestDef[]>>
+  currentReturnTotal: ReturnType<typeof ref<boolean | undefined>>
   currentColumns: ReturnType<typeof ref<string[]>>
   currentTableInstanceId: ReturnType<typeof ref<string | undefined>>
 
@@ -91,6 +96,9 @@ export interface UseTableQueryReturn {
   setPage: (page: number, pageSize?: number) => void
   setSort: (orderBy: OrderRequestDef[]) => void
   setSlice: (slice: SliceRequestDef[]) => void
+  setHaving: (having: SliceRequestDef[]) => void
+  setGroupBy: (groupBy: GroupRequestDef[]) => void
+  setReturnTotal: (returnTotal?: boolean) => void
   setColumns: (columns: string[]) => void
   setTableInstanceId: (tableInstanceId?: string) => void
 
@@ -124,6 +132,7 @@ export function useTableQuery(
   // ========== 状态 ==========
   const data = ref<Record<string, unknown>[]>([])
   const total = ref(0)
+  const hasNext = ref(false)
   const loading = ref(false)
   const activeTrigger = ref<QueryTrigger | null>(null)
   const lastError = ref<Error | null>(null)
@@ -133,6 +142,9 @@ export function useTableQuery(
   const currentPageSize = ref(options.pageSize ?? 50)
   const currentOrderBy = ref<OrderRequestDef[]>([])
   const currentSlice = ref<SliceRequestDef[]>([])
+  const currentHaving = ref<SliceRequestDef[]>([])
+  const currentGroupBy = ref<GroupRequestDef[]>([])
+  const currentReturnTotal = ref<boolean | undefined>(undefined)
   const currentColumns = ref<string[]>([])
   const currentTableInstanceId = ref<string | undefined>(undefined)
 
@@ -209,6 +221,7 @@ export function useTableQuery(
       if (updateTableState) {
         data.value = result.items
         total.value = result.total
+        hasNext.value = result.hasNext ?? false
         serverSummary.value = result.totalData ?? null
         lastOutcome.value = 'success'
       }
@@ -247,6 +260,9 @@ export function useTableQuery(
       slice: cloneSliceTree(currentSlice.value),
       orderBy: [...currentOrderBy.value]
     }
+    if (currentHaving.value.length) params.having = cloneSliceTree(currentHaving.value)
+    if (currentGroupBy.value.length) params.groupBy = currentGroupBy.value.map(group => ({ ...group }))
+    if (currentReturnTotal.value !== undefined) params.returnTotal = currentReturnTotal.value
     if (currentTableInstanceId.value) {
       params.tableInstanceId = currentTableInstanceId.value
     }
@@ -286,6 +302,18 @@ export function useTableQuery(
     currentSlice.value = slice
   }
 
+  function setHaving(having: SliceRequestDef[]): void {
+    currentHaving.value = cloneSliceTree(having)
+  }
+
+  function setGroupBy(groupBy: GroupRequestDef[]): void {
+    currentGroupBy.value = groupBy.map(group => ({ ...group }))
+  }
+
+  function setReturnTotal(returnTotal?: boolean): void {
+    currentReturnTotal.value = returnTotal
+  }
+
   function setColumns(columns: string[]): void {
     currentColumns.value = normalizeColumns(columns)
   }
@@ -306,6 +334,7 @@ export function useTableQuery(
   return {
     data,
     total,
+    hasNext,
     loading,
     activeTrigger,
     lastError,
@@ -315,6 +344,9 @@ export function useTableQuery(
     currentPageSize,
     currentOrderBy,
     currentSlice,
+    currentHaving,
+    currentGroupBy,
+    currentReturnTotal,
     currentColumns,
     currentTableInstanceId,
     loadData,
@@ -324,6 +356,9 @@ export function useTableQuery(
     setPage,
     setSort,
     setSlice,
+    setHaving,
+    setGroupBy,
+    setReturnTotal,
     setColumns,
     setTableInstanceId,
     addHook,

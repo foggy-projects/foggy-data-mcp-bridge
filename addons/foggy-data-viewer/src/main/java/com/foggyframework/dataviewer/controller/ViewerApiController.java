@@ -396,13 +396,17 @@ public class ViewerApiController {
             String namespace = resolveNamespace(headerNamespace, request.getNamespace());
             DbQueryRequestDef queryDef = new DbQueryRequestDef();
             queryDef.setQueryModel(qmModel);
-            queryDef.setReturnTotal(true);
+            boolean returnTotal = !Boolean.FALSE.equals(request.getReturnTotal());
+            queryDef.setReturnTotal(returnTotal);
             queryDef.setExtData(request.getExtData());
             queryDef.setColumns(columns);
 
             // 直接使用前端传入的 slice / orderBy / groupBy
             if (request.getSlice() != null) {
                 queryDef.setSlice(request.getSlice());
+            }
+            if (request.getHaving() != null) {
+                queryDef.setHaving(request.getHaving());
             }
             if (request.getOrderBy() != null) {
                 queryDef.setOrderBy(request.getOrderBy());
@@ -414,10 +418,23 @@ public class ViewerApiController {
             PagingRequest<DbQueryRequestDef> pagingRequest = new PagingRequest<>();
             pagingRequest.setParam(queryDef);
             pagingRequest.setStart(request.getStart() != null ? request.getStart() : 0);
-            pagingRequest.setLimit(request.getLimit() != null ? request.getLimit() : 50);
+            int limit = request.getLimit() != null ? request.getLimit() : 50;
+            if (!returnTotal && (limit <= 0 || limit == Integer.MAX_VALUE)) {
+                String message = "无总数分页的 limit 必须在 1 到 Integer.MAX_VALUE-1 之间";
+                return RX.failB(message, ViewerDataResponse.error(message));
+            }
+            pagingRequest.setLimit(returnTotal ? limit : limit + 1);
 
             QueryFacadeResult result = queryFacade.query(
                     StableQueryFacadeRequestMapper.from(pagingRequest, authorization, namespace));
+
+            if (!returnTotal) {
+                boolean hasNext = result.getItems().size() > limit;
+                List<Map<String, Object>> items = hasNext
+                        ? result.getItems().subList(0, limit) : result.getItems();
+                return RX.ok(ViewerDataResponse.pageWithoutTotal(
+                        items, pagingRequest.getStart(), limit, hasNext));
+            }
 
             return RX.ok(ViewerDataResponse.success(
                     result.getItems(),

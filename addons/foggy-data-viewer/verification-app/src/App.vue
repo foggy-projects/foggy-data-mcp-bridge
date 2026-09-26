@@ -12,6 +12,7 @@ import {
   fetchQmSchema
 } from 'foggy-data-viewer'
 import PivotRawViewerDemo from './PivotRawViewerDemo.vue'
+import GroupBySummaryDemo from './GroupBySummaryDemo.vue'
 import type {
   EnhancedColumnSchema,
   SliceRequestDef,
@@ -25,7 +26,7 @@ import type {
 } from 'foggy-data-viewer'
 
 // ============ 场景切换 ============
-type SceneType = 'home' | 'dataviewer' | 'toolbar' | 'custom-actions' | 'combined' | 'schema-mode' | 'custom-list' | 'saved-query' | 'pivot-raw'
+type SceneType = 'home' | 'dataviewer' | 'toolbar' | 'custom-actions' | 'combined' | 'schema-mode' | 'custom-list' | 'saved-query' | 'pivot-raw' | 'group-by'
 const currentScene = ref<SceneType>('home')
 
 // ============ DataViewer 场景 ============
@@ -745,6 +746,11 @@ function goHome() {
             <li>独立于普通 flat table</li>
           </ul>
         </div>
+        <div class="scene-card highlight" @click="goToScene('group-by')">
+          <div class="scene-icon text-icon">Σ</div>
+          <h3>固定分组汇总表</h3>
+          <p>验证 HAVING 表头筛选、无总数分页和逐页导出</p>
+        </div>
       </div>
 
       <div class="info-section">
@@ -757,6 +763,16 @@ function goHome() {
     </div>
 
     <!-- DataViewer 场景 -->
+    <div v-else-if="currentScene === 'group-by'" class="scene-page">
+      <div class="scene-header">
+        <button class="back-btn" @click="goHome">← 返回首页</button>
+        <h2>固定分组汇总表</h2>
+      </div>
+      <div class="scene-content">
+        <GroupBySummaryDemo />
+      </div>
+    </div>
+
     <div v-else-if="currentScene === 'dataviewer'" class="scene-page">
       <div class="scene-header">
         <button class="back-btn" @click="goHome">← 返回首页</button>

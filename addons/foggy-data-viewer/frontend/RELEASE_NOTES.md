@@ -1,6 +1,6 @@
 # Foggy Data Viewer Release Notes
 
-## Next beta
+## 1.0.1-beta.58
 
 ### Changed
 
@@ -15,12 +15,16 @@
 
 ### Compatibility
 
+- `groupBy` tables require a Viewer/query-engine deployment that accepts `having`, `groupBy`, and `returnTotal=false` and returns `hasNext`; upgrading the npm package alone does not enable grouped queries against an older backend.
+- Grouped exports must page until `hasNext=false`. Export adapters that stop at `total` need to be updated before enabling group mode.
 - Upgrade direct-query callers to pass `columns`; blank or missing columns now fail fast before the backend query executes.
 - Direct-query empty-column errors now include the QM model name.
 - `queryId` / saved-query execution can still use the columns cached when the query was created.
 
 ### Added
 
+- Added `tableMode='groupBy'` to `DataTableWithSearch`, reusing the normal table with header filters sent as `having`, fixed grouping, stable group-key ordering, and pagination without a total count. Custom query plans and the total footer are hidden in this mode.
+- Added `groupBy`, `having`, `returnTotal`, and `hasNext` to the public query types and generated table/API pass-through.
 - Added a query-field `endOfDay` option for datetime ranges. It defaults the selected end date to 23:59 and serializes that day as an exclusive next-day midnight bound.
 - Existing inclusive datetime ranges with a midnight end now display and query through 23:59 when `endOfDay` is enabled.
 - Custom end times use the next minute as the exclusive query bound (for example, 13:59 becomes `< 14:00:00`) so the selected minute is complete.

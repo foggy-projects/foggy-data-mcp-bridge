@@ -52,6 +52,9 @@ public class ViewerDataResponse {
      */
     private boolean hasMore;
 
+    /** Explicit pagination hint for queries without a total. */
+    private Boolean hasNext;
+
     /**
      * 聚合结果汇总（聚合模式时使用）
      */
@@ -91,6 +94,19 @@ public class ViewerDataResponse {
                 .start(start)
                 .limit(limit)
                 .hasMore(total != null && (start + items.size()) < total)
+                .build();
+    }
+
+    public static ViewerDataResponse pageWithoutTotal(List<Map<String, Object>> items,
+                                                      Integer start, Integer limit, boolean hasNext) {
+        return ViewerDataResponse.builder()
+                .success(true)
+                .items(items)
+                .total(-1L)
+                .start(start)
+                .limit(limit)
+                .hasMore(hasNext)
+                .hasNext(hasNext)
                 .build();
     }
 

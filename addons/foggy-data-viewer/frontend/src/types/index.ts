@@ -118,6 +118,11 @@ export interface ViewerQueryRequest {
   extData?: Record<string, unknown>
   /** 过滤条件 (DSL slice 格式) */
   slice?: SliceRequestDef[]
+  /** 分组后过滤，字段须为分组维度或聚合度量 */
+  having?: SliceRequestDef[]
+  groupBy?: GroupRequestDef[]
+  /** false 时不计算总条数，由 hasNext 驱动分页 */
+  returnTotal?: boolean
   /** 排序条件 (DSL orderBy 格式) */
   orderBy?: OrderRequestDef[]
 }
@@ -146,6 +151,7 @@ export interface ViewerDataResponse {
   success: boolean
   items: Record<string, unknown>[]
   total: number
+  hasNext?: boolean
   start: number
   limit: number
   errorMessage?: string
@@ -319,7 +325,15 @@ export interface FetchDataParams {
   /** 当前显示/激活的业务列，不包含操作列等纯前端列 */
   columns: string[]
   slice: SliceRequestDef[]
+  having?: SliceRequestDef[]
+  groupBy?: GroupRequestDef[]
+  returnTotal?: boolean
   orderBy: OrderRequestDef[]
+}
+
+export interface GroupRequestDef {
+  field: string
+  agg?: string
 }
 
 /**
@@ -339,6 +353,7 @@ export type FetchDataParamsWithExtensions<Extensions extends object = Record<str
 export interface FetchDataResult<T = Record<string, unknown>> {
   items: T[]
   total: number
+  hasNext?: boolean
   /** 全量汇总数据（可选） */
   totalData?: Record<string, unknown>
 }

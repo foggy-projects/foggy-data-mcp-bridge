@@ -3,6 +3,7 @@ package com.foggyframework.dataset.model.plugins;
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.model.def.query.request.CondRequestDef;
 import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.model.def.query.request.GroupRequestDef;
 import com.foggyframework.dataset.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.model.ecommerce.EcommerceTestSupport;
@@ -36,6 +37,43 @@ class HavingClauseIT extends EcommerceTestSupport {
 
     @Resource
     private AdvancedQueryFacade queryFacade;
+
+    @Test
+    @DisplayName("显式分组维度可用于 HAVING，非分组维度被拒绝")
+    void testGroupedDimensionHaving() {
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setQueryModel("FactOrderQueryModel");
+        request.setColumns(List.of("customer$customerType", "sum(amount) as totalAmount",
+                "countd(customer$id) as uniqueCustomers"));
+        GroupRequestDef group = new GroupRequestDef();
+        group.setField("customer$customerType");
+        request.setGroupBy(List.of(group));
+        request.setReturnTotal(false);
+
+        SliceRequestDef condition = new SliceRequestDef();
+        condition.setField("customer$customerType");
+        condition.setOp("=");
+        condition.setValue("VIP");
+        request.setHaving(List.of(condition, new SliceRequestDef("uniqueCustomers", ">", 0)));
+
+        PagingResultImpl<?> result = queryFacade.queryModelData(
+                PagingRequest.buildPagingRequest(request, 100));
+        assertFalse(result.getItems().isEmpty());
+        for (Object row : result.getItems()) {
+            assertEquals("VIP", ((Map<?, ?>) row).get("customer$customerType"));
+            assertTrue(((Number) ((Map<?, ?>) row).get("uniqueCustomers")).longValue() > 0);
+        }
+
+        DbQueryRequestDef invalidRequest = new DbQueryRequestDef();
+        invalidRequest.setQueryModel("FactOrderQueryModel");
+        invalidRequest.setColumns(List.of("customer$customerType", "sum(amount) as totalAmount"));
+        invalidRequest.setGroupBy(List.of(group));
+        invalidRequest.setReturnTotal(false);
+        invalidRequest.setHaving(List.of(new SliceRequestDef("customer$gender", "=", "F")));
+        RuntimeException error = assertThrows(RuntimeException.class,
+                () -> queryFacade.queryModelData(PagingRequest.buildPagingRequest(invalidRequest, 100)));
+        assertTrue(error.getMessage().contains("HAVING_REQUIRES_GROUP_FIELD"), error.getMessage());
+    }
 
     @Test
     @Order(1)

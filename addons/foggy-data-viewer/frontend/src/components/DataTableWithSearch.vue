@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, useAttrs, useSlots } from 'vue'
-import type { EnhancedColumnSchema, SliceRequestDef, FilterOption, TableSchema, FetchDataParams, FetchDataResult, OrderRequestDef, QueryHooks, MemberQueryRequest, MemberQueryResponse, CellCopyConfig, QueryMode, ListViewState, ColumnViewSetting, ListPresetConfig, ListPresetDef, TableDensity, QueryTrigger, QueryExecutionOptions, SearchHookContext, SearchHooks, SearchSource, SearchTrigger, FetchDataParamsWithExtensions, TableDefaultQueryConfig, TableDefaultQueryConfigScope, TableDefaultQueryConfigLoadOptions } from '@/types'
+import type { EnhancedColumnSchema, SliceRequestDef, GroupRequestDef, FilterOption, TableSchema, FetchDataParams, FetchDataResult, OrderRequestDef, QueryHooks, MemberQueryRequest, MemberQueryResponse, CellCopyConfig, QueryMode, ListViewState, ColumnViewSetting, ListPresetConfig, ListPresetDef, TableDensity, QueryTrigger, QueryExecutionOptions, SearchHookContext, SearchHooks, SearchSource, SearchTrigger, FetchDataParamsWithExtensions, TableDefaultQueryConfig, TableDefaultQueryConfigScope, TableDefaultQueryConfigLoadOptions } from '@/types'
 import SearchToolbar from './SearchToolbar.vue'
 import QueryPanel from './QueryPanel.vue'
 import type { QueryPanelExpose, QuerySchema } from './QueryPanel.vue'
@@ -37,6 +37,10 @@ interface Props {
   schema?: TableSchema
   /** 数据加载函数 */
   fetchData?: (params: FetchDataParams) => Promise<FetchDataResult>
+  /** 普通明细表或固定分组表；分组模式将表头条件作为 HAVING */
+  tableMode?: 'normal' | 'groupBy'
+  /** 分组维度及聚合列，必须由业务配置固定 */
+  groupBy?: GroupRequestDef[]
   /** 执行依赖；隐式补入不展示/保存，用户主动选择时正常展示/保存。 */
   requiredFields?: string[]
   /** 执行依赖，与 requiredFields 同义，不限制用户选择。 */
@@ -53,6 +57,8 @@ interface Props {
   data?: Record<string, unknown>[]
   /** 总数据量 */
   total?: number
+  /** 受控分组表是否还有下一页 */
+  hasNext?: boolean
   /** 加载状态 */
   loading?: boolean
   /** 每页大小 */
@@ -128,6 +134,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   pageSize: 50,
+  tableMode: 'normal',
   showFilters: true,
   showPager: true,
   searchLayout: 'horizontal',
@@ -162,17 +169,29 @@ const parentSlots = useSlots()
 
 // ========== 判断工作模式 ==========
 const isSchemaMode = computed(() => !!props.schema && !!props.fetchData)
+const isGroupByMode = computed(() => props.tableMode === 'groupBy')
 
 // ========== useTableQuery（Schema 模式） ==========
 // 始终创建 query 对象，但只在 Schema 模式下调用 loadData
 const query = useTableQuery(
   async params => {
     if (!props.fetchData) throw new Error('fetchData is required')
-    return props.fetchData({
+    const columns = mergeColumnNames(params.columns, activeQueryColumns.value, activeRequiredQueryColumns.value)
+    if (isGroupByMode.value) validateGroupedColumns(columns)
+    const result = await props.fetchData({
       ...params,
+      ...(isGroupByMode.value ? {
+        groupBy: props.groupBy?.map(group => ({ ...group })),
+        returnTotal: false,
+        orderBy: withGroupedTieBreakers(params.orderBy)
+      } : {}),
       slice: [...cloneSliceTree(params.slice), ...cloneSliceTree(props.fixedSlice)],
-      columns: mergeColumnNames(params.columns, activeQueryColumns.value, activeRequiredQueryColumns.value)
+      columns
     })
+    if (isGroupByMode.value && typeof result.hasNext !== 'boolean') {
+      throw new Error('groupBy fetchData must return hasNext')
+    }
+    return result
   },
   {
     pageSize: props.schema?.pageSize ?? props.pageSize,
@@ -458,6 +477,7 @@ const usesPanelQueryEntrance = computed(() => {
 })
 
 const effectiveShowQueryPanel = computed(() => {
+  if (isGroupByMode.value) return false
   if (hasExplicitQueryMode.value) {
     return usesPanelQueryEntrance.value && !!props.querySchema
   }
@@ -465,6 +485,7 @@ const effectiveShowQueryPanel = computed(() => {
 })
 
 const effectiveShowFilters = computed(() => {
+  if (isGroupByMode.value) return props.showFilters
   if (hasExplicitQueryMode.value) {
     return effectiveQueryMode.value === 'column' || effectiveQueryMode.value === 'combined'
   }
@@ -482,6 +503,7 @@ const effectiveShowPager = computed(() => {
 })
 
 const effectiveShowSearchToolbar = computed(() => {
+  if (isGroupByMode.value) return false
   if (hasExplicitQueryMode.value) {
     return usesPanelQueryEntrance.value && !props.querySchema
   }
@@ -507,6 +529,37 @@ const effectiveInitialSlice = computed(() => {
   return source == null ? source : resolveRelativeDatesForDisplay(source, { timeZone: props.queryTimeZone })
 })
 
+function isGroupedOutputField(field: string): boolean {
+  if (props.groupBy?.some(group => group.field === field)) return true
+  const column = availableBaseColumns.value.find(item => item.name === field)
+  return column?.measure === true
+}
+
+function validateGroupedColumns(columns: string[] = activeQueryColumns.value) {
+  const selected = new Set(columns)
+  const missingKeys = (props.groupBy ?? [])
+    .filter(group => !group.agg && !selected.has(group.field))
+    .map(group => group.field)
+  if (missingKeys.length) {
+    throw new Error(`groupBy keys must be returned as columns: ${missingKeys.join(', ')}`)
+  }
+  const unsupported = columns.filter(field => !isGroupedOutputField(field))
+  if (unsupported.length) {
+    throw new Error(`groupBy table columns must be group keys or QM measures: ${unsupported.join(', ')}`)
+  }
+}
+
+function withGroupedTieBreakers(orderBy: OrderRequestDef[]): OrderRequestDef[] {
+  const result = orderBy.map(order => ({ ...order }))
+  const seen = new Set(result.map(order => order.field))
+  for (const group of props.groupBy ?? []) {
+    if (group.agg || seen.has(group.field)) continue
+    result.push({ field: group.field, dir: 'asc' })
+    seen.add(group.field)
+  }
+  return result
+}
+
 const effectiveLocalFilter = computed(() => {
   if (props.localFilter !== undefined) {
     return props.localFilter
@@ -525,6 +578,7 @@ const effectiveSearchLayout = computed(() => {
 })
 
 const normalizedListPresetConfig = computed<ListPresetConfig | null>(() => {
+  if (isGroupByMode.value) return null
   const config = props.listPreset
   if (props.enableSavedQuery === false || config === false) return null
 
@@ -712,13 +766,24 @@ function getDefaultSearchActionMeta(trigger: QueryTrigger): SearchActionMeta {
 
 function buildSearchParams(overrides: Partial<FetchDataParams> = {}): FetchDataParams {
   const userQuery = prepareCustomQuery(getListViewState(), { timeZone: props.queryTimeZone })
+  if (isGroupByMode.value && !props.groupBy?.length) {
+    throw new Error('groupBy table mode requires non-empty groupBy')
+  }
+  if (isGroupByMode.value) validateGroupedColumns()
   const base: FetchDataParams = {
     page: query.currentPage.value,
     pageSize: query.currentPageSize.value,
     tableInstanceId: effectiveTableInstanceId.value,
     columns: [...activeQueryColumns.value],
-    slice: userQuery.slice,
-    orderBy: [...query.currentOrderBy.value]
+    slice: isGroupByMode.value ? [] : userQuery.slice,
+    having: isGroupByMode.value
+      ? normalizeUserSlice(tableSlices.value, { timeZone: props.queryTimeZone })
+      : undefined,
+    groupBy: isGroupByMode.value ? props.groupBy?.map(group => ({ ...group })) : undefined,
+    returnTotal: isGroupByMode.value ? false : undefined,
+    orderBy: isGroupByMode.value
+      ? withGroupedTieBreakers(query.currentOrderBy.value)
+      : [...query.currentOrderBy.value]
   }
   return {
     ...base,
@@ -727,7 +792,14 @@ function buildSearchParams(overrides: Partial<FetchDataParams> = {}): FetchDataP
     slice: overrides.slice !== undefined
       ? normalizeUserSlice(overrides.slice, { timeZone: props.queryTimeZone })
       : base.slice,
-    orderBy: overrides.orderBy !== undefined ? overrides.orderBy.map(order => ({ ...order })) : base.orderBy
+    having: overrides.having !== undefined
+      ? normalizeUserSlice(overrides.having, { timeZone: props.queryTimeZone })
+      : base.having,
+    groupBy: isGroupByMode.value ? base.groupBy : overrides.groupBy?.map(group => ({ ...group })),
+    returnTotal: isGroupByMode.value ? false : overrides.returnTotal,
+    orderBy: overrides.orderBy !== undefined
+      ? (isGroupByMode.value ? withGroupedTieBreakers(overrides.orderBy) : overrides.orderBy.map(order => ({ ...order })))
+      : base.orderBy
   }
 }
 
@@ -755,7 +827,12 @@ function materializeSearchHookContext(ctx: SearchHookContext, updateTableState: 
     slice: normalizeUserSlice(ctx.slice ?? source?.slice ?? mergedSlices.value, {
       timeZone: props.queryTimeZone
     }),
-    orderBy: [...(ctx.orderBy ?? source?.orderBy ?? query.currentOrderBy.value)].map(order => ({ ...order }))
+    having: source?.having ? cloneSliceTree(source.having) : undefined,
+    groupBy: source?.groupBy?.map(group => ({ ...group })),
+    returnTotal: source?.returnTotal,
+    orderBy: isGroupByMode.value
+      ? withGroupedTieBreakers(ctx.orderBy ?? source?.orderBy ?? query.currentOrderBy.value)
+      : [...(ctx.orderBy ?? source?.orderBy ?? query.currentOrderBy.value)].map(order => ({ ...order }))
   }
   const params = cloneFetchDataParams({
     ...base,
@@ -768,6 +845,12 @@ function materializeSearchHookContext(ctx: SearchHookContext, updateTableState: 
     orderBy: base.orderBy
   }) as FetchDataParamsWithExtensions
 
+  if (isGroupByMode.value) {
+    params.groupBy = props.groupBy?.map(group => ({ ...group }))
+    params.returnTotal = false
+    params.orderBy = withGroupedTieBreakers(params.orderBy)
+  }
+
   ctx.params = params
   ctx.columns = params.columns
   ctx.slice = params.slice
@@ -778,6 +861,9 @@ function materializeSearchHookContext(ctx: SearchHookContext, updateTableState: 
     query.setColumns(params.columns)
     query.setTableInstanceId(params.tableInstanceId)
     query.setSlice(params.slice)
+    query.setHaving(params.having ?? [])
+    query.setGroupBy(params.groupBy ?? [])
+    query.setReturnTotal(params.returnTotal)
     query.setSort(params.orderBy)
   }
 
@@ -816,6 +902,7 @@ async function loadData(trigger: QueryTrigger = 'refresh', actionMeta?: SearchAc
       total: query.total.value,
       totalData: query.serverSummary.value ?? undefined
     }
+    if (isGroupByMode.value) result.hasNext = query.hasNext.value
     searchCtx.result = result
     await propsSearchRegistry.runAfter(searchCtx, result)
     await globalSearchRegistry.runAfter(searchCtx, result)
@@ -917,6 +1004,7 @@ function buildTableDefaultQueryConfigScope(): TableDefaultQueryConfigScope | nul
 }
 
 async function applyDefaultQueryConfigIfNeeded() {
+  if (isGroupByMode.value) return
   if (props.defaultQueryConfig) {
     applyTableDefaultQueryConfig(props.defaultQueryConfig)
     return
@@ -1051,6 +1139,7 @@ function handleFilterChange(actionMeta: SearchActionMeta = { source: 'column-fil
   // Schema 模式下，重置到第一页并重新加载
   if (isSchemaMode.value) {
     query.currentPage.value = 1
+    if (isGroupByMode.value) dataTableRef.value?.resetPagination()
     loadData('filter', actionMeta)
   }
 }
@@ -1073,6 +1162,10 @@ function handleSortChange(field: string | null, order: 'asc' | 'desc' | null) {
 
   // Schema 模式下，更新排序并重新加载
   if (isSchemaMode.value) {
+    if (isGroupByMode.value) {
+      query.currentPage.value = 1
+      dataTableRef.value?.resetPagination()
+    }
     if (field && order) {
       query.setSort([{ field, dir: order }])
     } else {
@@ -1097,7 +1190,7 @@ function getListViewState(): ListViewState {
   return {
     columns,
     columnSettings,
-    slice: cloneSliceTree(mergedSlices.value),
+    slice: isGroupByMode.value ? [] : cloneSliceTree(mergedSlices.value),
     orderBy: query.currentOrderBy.value ?? [],
     pageSize: effectivePageSize.value
   }
@@ -1107,6 +1200,9 @@ function applyListViewState(
   state: ListViewState,
   options: { reload?: boolean; validateLimits?: boolean } = {}
 ) {
+  if (isGroupByMode.value) {
+    throw new Error('groupBy table mode does not support custom query plans')
+  }
   if (options.validateLimits === true || (options.validateLimits !== false && isSchemaMode.value)) {
     validateListPresetLimits(state)
   }
@@ -1261,6 +1357,8 @@ const dataTableProps = computed(() => {
     columns: effectiveColumns.value,
     data: effectiveData.value,
     total: effectiveTotal.value,
+    paginationMode: 'total' as const,
+    hasNext: isSchemaMode.value ? query.hasNext.value : props.hasNext ?? false,
     loading: effectiveLoading.value,
     backgroundLoading: effectiveBackgroundLoading.value,
     backgroundLoadingText: effectiveBackgroundLoadingText.value,
@@ -1278,7 +1376,17 @@ const dataTableProps = computed(() => {
     customFilterComponents: props.customFilterComponents,
     cellCopy: effectiveCellCopy.value,
     density: effectiveDensity.value,
-    ...userProps
+    ...userProps,
+    ...(isGroupByMode.value ? {
+      columns: effectiveColumns.value.map(column => ({
+        ...column,
+        filterable: column.filterable !== false && isGroupedOutputField(column.name)
+      })),
+      paginationMode: 'hasNext' as const,
+      hasNext: isSchemaMode.value ? query.hasNext.value : props.hasNext ?? false,
+      localFilter: false,
+      serverSummary: null
+    } : {})
   }
 })
 

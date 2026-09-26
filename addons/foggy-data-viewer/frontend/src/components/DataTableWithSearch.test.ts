@@ -71,7 +71,7 @@ vi.mock('./DataTable.vue', () => ({
   default: {
     name: 'DataTable',
     template: '<div class="data-table-mock"><slot name="toolbar" /><slot name="toolbar-right" /><slot name="footer" /><slot name="empty" /><slot name="column-_actions" :row="{}" :column="{}" :value="null" /><slot name="column-name" :row="{ name: \'Test 1\' }" :column="{ name: \'name\' }" value="Test 1" /><slot /></div>',
-    props: ['columns', 'data', 'total', 'loading', 'backgroundLoading', 'backgroundLoadingText', 'backgroundLoadingError', 'pageSize', 'showFilters', 'showPager', 'initialSlice', 'serverSummary', 'cellCopy', 'localFilter', 'filterOptionsLoader', 'filterMemberLoader', 'qmModel', 'tableSchema', 'density'],
+    props: ['columns', 'data', 'total', 'paginationMode', 'hasNext', 'loading', 'backgroundLoading', 'backgroundLoadingText', 'backgroundLoadingError', 'pageSize', 'showFilters', 'showPager', 'initialSlice', 'serverSummary', 'cellCopy', 'localFilter', 'filterOptionsLoader', 'filterMemberLoader', 'qmModel', 'tableSchema', 'density'],
     emits: ['page-change', 'sort-change', 'filter-change', 'filter-commit', 'row-click', 'row-dblclick', 'checkbox-change', 'checkbox-all'],
     methods: {
       resetPagination() {
@@ -209,6 +209,62 @@ describe('DataTableWithSearch', () => {
     ...defaultProps,
     queryMode: 'panel' as const
   }
+
+  it('routes grouped header filters to HAVING and preserves them for export pages', async () => {
+    const fetchData = vi.fn().mockResolvedValue({ items: [{ id: 1, amount: 12000 }], total: -1, hasNext: true })
+    const wrapper = mount(DataTableWithSearch, { props: {
+      schema: { columns: [mockColumns[0], mockColumns[2]], qmModel: 'orders' }, fetchData,
+      tableMode: 'groupBy', groupBy: [{ field: 'id' }],
+      fixedSlice: [{ field: 'tenant', op: '=', value: 'T1' }],
+      queryHooks: { onBeforeQuery: (ctx: any) => {
+        ctx.params.groupBy = []
+        ctx.params.returnTotal = true
+      } },
+      listPreset: { userId: 'u1', model: 'orders' },
+      queryMode: 'combined', querySchema: { fields: [] }
+    } })
+    await flushPromises()
+    expect(wrapper.findComponent({ name: 'DataTable' }).props()).toMatchObject({
+      paginationMode: 'hasNext', hasNext: true, total: -1
+    })
+    expect(fetchData.mock.calls[0]![0].orderBy).toEqual([{ field: 'id', dir: 'asc' }])
+    expect(wrapper.find('.list-preset-manager-mock').exists()).toBe(false)
+    expect(wrapper.find('.query-panel-mock').exists()).toBe(false)
+    const condition = { field: 'amount', op: '>', value: 10000 }
+    wrapper.findComponent({ name: 'DataTable' }).vm.$emit('filter-commit', [condition])
+    await flushPromises()
+    expect(fetchData.mock.calls.at(-1)![0]).toMatchObject({
+      page: 1, groupBy: [{ field: 'id' }], having: [condition],
+      returnTotal: false, slice: [{ field: 'tenant', op: '=', value: 'T1' }]
+    })
+    expect((wrapper.vm as any).getListViewState().slice).toEqual([])
+    const exported = await (wrapper.vm as any).executeQuery({ page: 2, pageSize: 500 })
+    expect(exported.hasNext).toBe(true)
+    expect(fetchData.mock.calls.at(-1)![0]).toMatchObject({
+      page: 2, pageSize: 500, groupBy: [{ field: 'id' }], having: [condition], returnTotal: false
+    })
+    wrapper.findComponent({ name: 'DataTable' }).vm.$emit('sort-change', 'amount', 'desc')
+    await flushPromises()
+    expect(fetchData.mock.calls.at(-1)![0].orderBy).toEqual([
+      { field: 'amount', dir: 'desc' }, { field: 'id', dir: 'asc' }
+    ])
+    wrapper.unmount()
+  })
+
+  it('rejects detail columns that would change the fixed grouping grain', async () => {
+    const fetchData = vi.fn().mockResolvedValue({ items: [], total: -1, hasNext: false })
+    const wrapper = mount(DataTableWithSearch, { props: {
+      schema: { columns: mockColumns }, fetchData,
+      tableMode: 'groupBy', groupBy: [{ field: 'id' }]
+    } })
+    await flushPromises()
+    expect(fetchData).not.toHaveBeenCalled()
+    expect(wrapper.emitted('load-error')?.[0]?.[0]).toMatchObject({
+      message: expect.stringContaining('groupBy table columns must be group keys or QM measures: name')
+    })
+    expect(wrapper.findComponent({ name: 'DataTable' }).props('columns')[1].filterable).toBe(false)
+    wrapper.unmount()
+  })
 
   it('normalizes each execution before hooks and appends fixed business conditions without saving them', async () => {
     const fixedSlice = [{ field: 'status', op: '=', value: 'SIGNED' }]

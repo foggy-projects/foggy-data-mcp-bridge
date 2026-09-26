@@ -96,6 +96,19 @@ const VxeGridRenderStub = defineComponent({
 })
 
 describe('DataTable', () => {
+  it('shows only simple pagination for grouped results without a total', async () => {
+    const wrapper = mount(DataTable, { props: {
+      columns: [{ name: 'station', type: 'TEXT' }], data: [{ station: 'A' }],
+      total: -1, loading: false, paginationMode: 'hasNext', hasNext: true
+    } })
+    expect(wrapper.find('.data-table-simple-pager').exists()).toBe(true)
+    expect(wrapper.find('vxe-pager').exists()).toBe(false)
+    expect(wrapper.find('.data-table-simple-pager').text()).toContain('第 1 页')
+    await wrapper.find('.data-table-simple-pager el-button:nth-of-type(2)').trigger('click')
+    expect(wrapper.emitted('page-change')?.[0]).toEqual([2, 50])
+    wrapper.unmount()
+  })
+
   const mockColumns: EnhancedColumnSchema[] = [
     {
       name: 'id',

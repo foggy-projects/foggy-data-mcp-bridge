@@ -35,6 +35,9 @@ interface Props {
   data: Record<string, unknown>[]
   /** 总行数 */
   total: number
+  /** 分组表不计算总数时使用简单分页 */
+  paginationMode?: 'total' | 'hasNext'
+  hasNext?: boolean
   /** 加载状态 */
   loading: boolean
   /** 已有数据上的后台刷新状态 */
@@ -79,7 +82,9 @@ const props = withDefaults(defineProps<Props>(), {
   backgroundLoading: false,
   backgroundLoadingText: '',
   backgroundLoadingError: null,
-  density: 'compact'
+  density: 'compact',
+  paginationMode: 'total',
+  hasNext: false
 })
 
 const BOOLEAN_FILTER_MIN_WIDTH = 88
@@ -1269,7 +1274,7 @@ const gridOptions = computed<VxeGridProps>(() => {
       trigger: 'cell'
     },
     // footer 配置
-    showFooter: true,
+    showFooter: props.paginationMode === 'total',
     footerData: footerData.value,
     // 表头行高需要容纳过滤器
     headerRowClassName: props.showFilters ? 'header-with-filter' : '',
@@ -1286,7 +1291,12 @@ const gridOptions = computed<VxeGridProps>(() => {
   }
 
   // 合并：用户传入的属性覆盖默认值
-  return { ...defaultOptions, ...userProps }
+  return {
+    ...defaultOptions,
+    ...userProps,
+    // An unknown total cannot produce a meaningful full-table summary row.
+    ...(props.paginationMode === 'hasNext' ? { showFooter: false } : {})
+  }
 })
 
 // 事件处理（合并默认事件和用户传入的事件）
@@ -1360,6 +1370,16 @@ function handlePagerChange({ currentPage, pageSize }: { currentPage: number; pag
   emit('page-change', currentPage, pageSize)
 }
 
+function handleUnknownTotalPage(page: number) {
+  if (page < 1 || (page > pagination.value.currentPage && !props.hasNext)) return
+  handlePagerChange({ currentPage: page, pageSize: pagination.value.pageSize })
+}
+
+function handleUnknownTotalSize(size: number) {
+  if (!Number.isFinite(size) || size < 1) return
+  handlePagerChange({ currentPage: 1, pageSize: size })
+}
+
 // 重置分页
 function resetPagination() {
   pagination.value.currentPage = 1
@@ -1422,8 +1442,16 @@ provide('dataTableContext', {
           />
           <span class="data-table-query-status-text">{{ queryStatusText }}</span>
         </div>
+        <div v-if="props.showPager && props.paginationMode === 'hasNext'" class="data-table-simple-pager" aria-label="分页">
+          <el-button size="small" :disabled="pagination.currentPage <= 1 || props.loading" @click="handleUnknownTotalPage(pagination.currentPage - 1)">上一页</el-button>
+          <span>第 {{ pagination.currentPage }} 页</span>
+          <el-button size="small" :disabled="!props.hasNext || props.loading" @click="handleUnknownTotalPage(pagination.currentPage + 1)">下一页</el-button>
+          <el-select :model-value="pagination.pageSize" size="small" style="width: 88px" aria-label="每页条数" @change="handleUnknownTotalSize(Number($event))">
+            <el-option v-for="size in [20, 50, 100, 200]" :key="size" :label="`${size} 条/页`" :value="size" />
+          </el-select>
+        </div>
         <vxe-pager
-          v-if="props.showPager"
+          v-if="props.showPager && props.paginationMode === 'total'"
           :current-page="pagination.currentPage"
           :page-size="pagination.pageSize"
           :total="pagination.total"
@@ -1507,6 +1535,13 @@ provide('dataTableContext', {
   justify-content: flex-end;
   flex: 1;
   gap: 8px;
+}
+
+.data-table-simple-pager {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
 }
 
 .toolbar-right :deep(.vxe-pager) {

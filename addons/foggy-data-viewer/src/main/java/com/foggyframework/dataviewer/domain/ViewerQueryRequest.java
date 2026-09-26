@@ -53,6 +53,12 @@ public class ViewerQueryRequest {
      */
     private List<SliceRequestDef> slice;
 
+    /** Aggregated-row filters for grouped tables. */
+    private List<SliceRequestDef> having;
+
+    /** Null preserves the existing direct-query total and totalData behavior. */
+    private Boolean returnTotal;
+
     /**
      * 排序条件 (DSL orderBy 格式)
      */

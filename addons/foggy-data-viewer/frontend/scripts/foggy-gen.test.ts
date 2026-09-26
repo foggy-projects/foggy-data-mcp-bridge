@@ -118,7 +118,7 @@ describe('foggy-gen QueryTable template', () => {
 
       expect(tableVue).toContain("import { computed, ref, useSlots } from 'vue'")
       expect(tableVue).toContain(
-        "import type { SliceRequestDef, QueryHooks, EnhancedColumnSchema, QueryMode, QuerySchema, TableDefaultQueryConfig, TableDefaultQueryConfigScope, TableDefaultQueryConfigLoadOptions, ListPresetConfig } from 'foggy-data-viewer'"
+        "import type { SliceRequestDef, GroupRequestDef, QueryHooks, EnhancedColumnSchema, QueryMode, QuerySchema, TableDefaultQueryConfig, TableDefaultQueryConfigScope, TableDefaultQueryConfigLoadOptions, ListPresetConfig } from 'foggy-data-viewer'"
       )
       expect(tableVue).toContain("render?: EnhancedColumnSchema['customRender']")
       expect(tableVue).toContain('const slots = useSlots()')
@@ -131,6 +131,7 @@ describe('foggy-gen QueryTable template', () => {
       expect(exposeBlock).not.toMatch(/reload:[\s\S]*refresh/)
       expect(tableVue).toContain('clearSelection: () => tableRef.value?.clearSelection?.(),')
       expect(tableVue).toContain('getSelectedCount: () => tableRef.value?.getSelectedCount?.() ?? 0')
+      expect(tableVue).toContain('executeQuery: (params?: Partial<FetchDataParams>) => tableRef.value?.executeQuery?.(params)')
       expect(tableVue).toContain('ref="tableRef"')
       expect(tableVue).toContain('<template v-for="(_, name) in dynamicSlots" :key="name" #[name]="scope">')
       expect(tableVue).toContain('queryMode?: QueryMode')
@@ -144,6 +145,11 @@ describe('foggy-gen QueryTable template', () => {
       expect(tableVue).toContain('fetchData?: (params: FetchDataParams) => Promise<FetchDataResult>')
       expect(tableVue).toContain(':fetch-data="fetchData ?? queryFactOrder"')
       expect(tableVue).toContain(':query-mode="queryMode"')
+      expect(tableVue).toContain(':table-mode="tableMode"')
+      expect(tableVue).toContain(':group-by="groupBy"')
+      expect(apiTs).toContain('having: params.having')
+      expect(apiTs).toContain('groupBy: params.groupBy')
+      expect(apiTs).toContain('returnTotal: params.returnTotal')
       expect(tableVue).toContain(':query-schema="props.querySchemaOverride ?? querySchema"')
       expect(tableVue).toContain(':show-query-panel="showQueryPanel"')
       expect(tableVue).toContain(':table-instance-id="tableInstanceId ?? tableSchema.tableInstanceId"')

@@ -154,6 +154,7 @@ export type {
   ViewerQueryRequest,
   ViewerDataResponse,
   SliceRequestDef,
+  GroupRequestDef,
   OrderRequestDef,
   FilterOption,
   FetchDataParams,
