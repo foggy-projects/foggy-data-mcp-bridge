@@ -12,12 +12,18 @@ import com.foggyframework.fsscript.parser.spi.Fsscript;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 
 import java.io.IOException;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -89,8 +95,74 @@ class FsscriptImportBoundaryTest {
         }, "relative imports must stay within the owning bundle root");
     }
 
+    @Test
+    @EnabledOnOs(OS.LINUX)
+    void classpathStarBundleShouldAllowSiblingImportFromExplodedClasses() throws Exception {
+        Path classesRoot = tempDir.resolve("classes");
+        Path templatesRoot = classesRoot.resolve("foggy/templates");
+        Files.createDirectories(templatesRoot);
+        Files.writeString(templatesRoot.resolve("FactOrderSettlementModel.fsscript"), """
+                import {value} from './viewer.fsscript';
+                export var importedValue = value;
+                """);
+        Files.writeString(templatesRoot.resolve("viewer.fsscript"), "export var value = 7;");
+
+        try (URLClassLoader classLoader = classLoaderFor(classesRoot)) {
+            ExternalFileBundle classpathBundle = createClasspathBundle("classpath*:foggy/templates");
+            Resource mainScript = new ClassPathResource(
+                    "foggy/templates/FactOrderSettlementModel.fsscript", classLoader);
+
+            Fsscript fsscript = loadFromBundle(classpathBundle, mainScript);
+            ExpEvaluator evaluator = fsscript.eval(applicationContext);
+
+            assertEquals(7, ((Number) evaluator.getExportObject("importedValue")).intValue());
+        }
+    }
+
+    @Test
+    void classpathStarBundleShouldRejectRelativeImportEscapingRoot() throws Exception {
+        Path classesRoot = tempDir.resolve("classpath-escape-classes");
+        Path templatesRoot = classesRoot.resolve("foggy/templates/sub");
+        Files.createDirectories(templatesRoot);
+        Files.writeString(classesRoot.resolve("foggy/outside.fsscript"), "export var leaked = 99;");
+        Files.writeString(templatesRoot.resolve("main.fsscript"), """
+                import {leaked} from '../../outside.fsscript';
+                export var importedValue = leaked;
+                """);
+
+        try (URLClassLoader classLoader = classLoaderFor(classesRoot)) {
+            ExternalFileBundle classpathBundle = createClasspathBundle("classpath*:foggy/templates");
+            Resource mainScript = new ClassPathResource("foggy/templates/sub/main.fsscript", classLoader);
+
+            assertThrows(RuntimeException.class, () -> {
+                Fsscript fsscript = loadFromBundle(classpathBundle, mainScript);
+                fsscript.eval(applicationContext);
+            }, "relative imports must stay within a classpath-backed bundle root");
+        }
+    }
+
     private Fsscript loadFromBundle(Path scriptPath) {
-        BundleResource bundleResource = new BundleResource(bundle, new FileSystemResource(scriptPath));
+        return loadFromBundle(bundle, new FileSystemResource(scriptPath));
+    }
+
+    private Fsscript loadFromBundle(ExternalFileBundle owner, Resource scriptResource) {
+        BundleResource bundleResource = new BundleResource(owner, scriptResource);
         return FileFsscriptLoader.getInstance().findLoadFsscript(bundleResource);
+    }
+
+    private ExternalFileBundle createClasspathBundle(String rootPath) {
+        ExternalBundleDefinition definition = new ExternalBundleDefinition(
+                "classpath-import-boundary-bundle", rootPath, false);
+        ExternalFileBundle classpathBundle = new ExternalFileBundle(systemBundlesContext);
+        classpathBundle.setName("classpath-import-boundary-bundle");
+        classpathBundle.setBasePath(rootPath);
+        classpathBundle.setRootPath(rootPath);
+        classpathBundle.setBundleDefinition(definition);
+        return classpathBundle;
+    }
+
+    private URLClassLoader classLoaderFor(Path classesRoot) throws IOException {
+        URL classesUrl = classesRoot.toUri().toURL();
+        return new URLClassLoader(new URL[]{classesUrl}, ClassLoader.getPlatformClassLoader());
     }
 }
