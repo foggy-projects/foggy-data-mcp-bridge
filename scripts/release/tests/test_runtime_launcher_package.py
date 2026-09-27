@@ -18,6 +18,12 @@ import runtime_launcher_package as release  # noqa: E402
 
 class RuntimeLauncherPackageTest(unittest.TestCase):
 
+    def test_lite_start_scripts_keep_viewer_enabled_and_bind_loopback(self) -> None:
+        for name in ("start-foggy-runtime.ps1", "start-foggy-runtime.sh"):
+            script = (release.LAUNCHER_MODULE / "src" / "main" / "distribution" / name).read_text(encoding="utf-8")
+            self.assertNotIn("--foggy.data-viewer.enabled=false", script)
+            self.assertIn("--server.address=127.0.0.1", script)
+
     def test_release_sources_embed_console_as_standard_launcher_dependency(self) -> None:
         release.verify_release_sources()
 

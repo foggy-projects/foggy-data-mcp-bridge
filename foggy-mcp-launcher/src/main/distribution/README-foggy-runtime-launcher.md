@@ -15,6 +15,7 @@ The default remains the `lite` profile. Analytics Console is present in the JAR 
 The lite profile includes the DataViewer preview page without requiring MongoDB.
 Preview links use a bounded in-memory cache, expire after 60 minutes, and are
 lost when Runtime restarts. Keep this development-only HTTP service on loopback.
+The supplied start scripts bind the HTTP server to `127.0.0.1` by default.
 
 PowerShell:
 

@@ -50,12 +50,12 @@ nohup "$JAVA_EXE" \
   -Dfile.encoding=UTF-8 \
   -jar "$JAR" \
   --server.port="$PORT" \
+  --server.address=127.0.0.1 \
   --spring.profiles.active="$SPRING_PROFILES" \
   --foggy.runtime-api.enabled=true \
   --foggy.runtime-api.bundle-registry.path="$BUNDLE_REGISTRY_PATH" \
   --foggy.runtime-api.datasource-registry.path="$DATASOURCE_REGISTRY_PATH" \
   --foggy.datasource.config.dir="$LEGACY_DATASOURCE_CONFIG_DIR" \
-  --foggy.data-viewer.enabled=false \
   --foggy.mcp.audit.enabled=false \
   --foggy.demo.enabled=false \
   --spring.autoconfigure.exclude=com.foggyframework.odoo.bridge.OdooBridgeAutoConfiguration \
