@@ -49,7 +49,10 @@ async function loadMeta() {
 
     // 2. 获取 QM Schema
     if (meta.value.tableConfig.qmModel) {
-      qmSchema.value = await fetchQmSchema(meta.value.tableConfig.qmModel)
+      qmSchema.value = await fetchQmSchema(
+        meta.value.tableConfig.qmModel,
+        meta.value.namespace ? { headers: { 'X-NS': meta.value.namespace } } : undefined
+      )
 
       // 3. 使用 buildTableColumns 构建列配置
       columns.value = buildTableColumns(qmSchema.value, meta.value.tableConfig)

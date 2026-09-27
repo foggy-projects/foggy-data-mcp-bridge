@@ -38,9 +38,12 @@ spring:
 foggy:
   compose:
     dialect: sqlite
-  # 关闭 Data Viewer（强依赖 MongoDB）
+  # 本地开发预览：短期、限量的内存链接；重启后链接失效，不用于生产共享。
   data-viewer:
-    enabled: false
+    enabled: true
+    cache:
+      store: memory
+      max-entries: 256
 
   mcp:
     semantic:
@@ -54,7 +57,7 @@ foggy:
     audit:
       enabled: false
 
-    # 禁用依赖 Data Viewer 的 MCP 工具
+    # 首版只暴露 DataViewer REST 页面；MCP open_in_viewer 仍保持关闭。
     tools:
       - name: "dataset.open_in_viewer"
         enabled: false

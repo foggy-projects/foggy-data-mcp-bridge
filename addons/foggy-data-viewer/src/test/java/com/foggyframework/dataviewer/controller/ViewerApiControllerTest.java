@@ -75,6 +75,7 @@ class ViewerApiControllerTest {
                         .build())
                 .expiresAt(Instant.now().plus(30, ChronoUnit.MINUTES))
                 .estimatedRowCount(1000L)
+                .namespace("orders-dev")
                 .build();
     }
 
@@ -98,6 +99,7 @@ class ViewerApiControllerTest {
             assertEquals("orders", meta.tableConfig().getQmModel());
             assertEquals(3, meta.tableConfig().getVisibleColumns().size());
             assertEquals(1000L, meta.estimatedRowCount());
+            assertEquals("orders-dev", meta.namespace());
         }
 
         @Test

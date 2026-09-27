@@ -3,6 +3,9 @@
 The standard `foggy-mcp-launcher` executable JAR contains Analytics Runtime API and the
 Analytics Console backend, SPA, and FAP question Skill delivery. Both Analytics surfaces
 remain disabled under the default `lite` runtime profile.
+The lite profile includes a Mongo-free DataViewer preview page backed by a
+bounded, process-local cache. Its links are development previews, not durable
+result snapshots or production shares.
 
 ## Build and package
 

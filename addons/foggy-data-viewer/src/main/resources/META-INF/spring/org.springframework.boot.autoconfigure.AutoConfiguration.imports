@@ -1,1 +1,2 @@
 com.foggyframework.dataviewer.config.DataViewerAutoConfiguration
+com.foggyframework.dataviewer.config.DataViewerMemoryAutoConfiguration

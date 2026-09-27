@@ -56,6 +56,12 @@ public class DataViewerProperties {
 
     @Data
     public static class CacheProperties {
+        /** mongo for existing deployments; memory for the Mongo-free lite Runtime. */
+        private String store = "mongo";
+
+        /** Maximum number of live preview links in memory mode. */
+        private int maxEntries = 256;
+
         /**
          * 缓存过期时间（分钟）
          */

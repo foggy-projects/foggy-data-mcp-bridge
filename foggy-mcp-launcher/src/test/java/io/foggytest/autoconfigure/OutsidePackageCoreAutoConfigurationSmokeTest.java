@@ -19,6 +19,7 @@ class OutsidePackageCoreAutoConfigurationSmokeTest {
             "com.foggyframework.dataset.model.memorygrid.bridge.MemoryGridBridgeConfiguration",
             "com.foggyframework.odoo.bridge.OdooBridgeAutoConfiguration",
             "com.foggyframework.dataviewer.config.DataViewerAutoConfiguration",
+            "com.foggyframework.dataviewer.config.DataViewerMemoryAutoConfiguration",
             "com.foggyframework.dataset.mcp.storage.cloud.CloudStorageAutoConfiguration",
             "com.foggyframework.dataset.mongo.DataSetMongoAutoConfiguration",
             "com.foggyframework.dataset.model.mongo.MongoModelAutoConfiguration",

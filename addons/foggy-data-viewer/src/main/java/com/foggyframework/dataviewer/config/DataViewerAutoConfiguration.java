@@ -32,6 +32,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration;
 import org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -53,6 +54,7 @@ import org.springframework.util.StringUtils;
 @ConditionalOnClass(MongoTemplate.class)
 @ConditionalOnBean({MongoTemplate.class, QueryFacade.class})
 @ConditionalOnProperty(prefix = "foggy.data-viewer", name = "enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnExpression("'${foggy.data-viewer.cache.store:mongo}' == 'mongo'")
 @EnableConfigurationProperties(DataViewerProperties.class)
 @EnableMongoRepositories(basePackages = "com.foggyframework.dataviewer.repository")
 public class DataViewerAutoConfiguration {

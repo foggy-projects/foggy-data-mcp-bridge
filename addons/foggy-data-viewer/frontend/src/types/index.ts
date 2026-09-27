@@ -104,6 +104,8 @@ export interface QueryMetaResponse {
   expiresAt: string
   /** 初始过滤条件（来自缓存） */
   initialSlice?: SliceRequestDef[]
+  /** Namespace bound to this short-lived preview link. */
+  namespace?: string
 }
 
 /**

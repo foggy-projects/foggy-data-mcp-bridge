@@ -81,7 +81,8 @@ public class ViewerApiController {
                             ctx.getTableConfig(),
                             ctx.getEstimatedRowCount(),
                             ctx.getExpiresAt().toString(),
-                            ctx.getSlice()  // 返回初始过滤条件
+                            ctx.getSlice(),  // 返回初始过滤条件
+                            ctx.getNamespace()
                     ));
                 })
                 .orElse(RX.notFound().build());
@@ -692,6 +693,7 @@ public class ViewerApiController {
             CachedQueryContext.TableConfig tableConfig,
             Long estimatedRowCount,
             String expiresAt,
-            List<SliceRequestDef> initialSlice
+            List<SliceRequestDef> initialSlice,
+            String namespace
     ) {}
 }

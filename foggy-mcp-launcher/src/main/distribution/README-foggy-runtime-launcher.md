@@ -12,6 +12,9 @@ This package is the standard dev/test launcher for Foggy Runtime API, MCP, and t
 ## Quick start
 
 The default remains the `lite` profile. Analytics Console is present in the JAR but disabled.
+The lite profile includes the DataViewer preview page without requiring MongoDB.
+Preview links use a bounded in-memory cache, expire after 60 minutes, and are
+lost when Runtime restarts. Keep this development-only HTTP service on loopback.
 
 PowerShell:
 

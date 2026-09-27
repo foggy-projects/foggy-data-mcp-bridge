@@ -7,7 +7,6 @@ import com.foggyframework.dataset.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.model.def.query.request.GroupRequestDef;
 import com.foggyframework.dataset.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
@@ -20,11 +19,29 @@ import java.util.*;
  * 负责缓存查询参数并生成唯一的查询ID
  */
 @Slf4j
-@RequiredArgsConstructor
 public class QueryCacheService {
 
-    private final CachedQueryRepository repository;
+    private final CachedQueryStore repository;
     private final DataViewerProperties properties;
+
+    public QueryCacheService(CachedQueryStore repository, DataViewerProperties properties) {
+        this.repository = repository;
+        this.properties = properties;
+    }
+
+    public QueryCacheService(CachedQueryRepository repository, DataViewerProperties properties) {
+        this(new CachedQueryStore() {
+            @Override
+            public CachedQueryContext save(CachedQueryContext context) {
+                return repository.save(context);
+            }
+
+            @Override
+            public Optional<CachedQueryContext> findUnexpired(String queryId, Instant now) {
+                return repository.findByQueryIdAndExpiresAtAfter(queryId, now);
+            }
+        }, properties);
+    }
 
     /**
      * 缓存查询并生成唯一ID
@@ -66,7 +83,7 @@ public class QueryCacheService {
      * @return 查询上下文
      */
     public Optional<CachedQueryContext> getQuery(String queryId) {
-        return repository.findByQueryIdAndExpiresAtAfter(queryId, Instant.now());
+        return repository.findUnexpired(queryId, Instant.now());
     }
 
     /**
