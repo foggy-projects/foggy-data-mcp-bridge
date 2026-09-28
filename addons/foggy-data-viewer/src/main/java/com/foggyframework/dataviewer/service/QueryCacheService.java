@@ -47,7 +47,8 @@ public class QueryCacheService {
      * 缓存查询并生成唯一ID
      *
      * @param request       查询请求
-     * @param authorization 授权信息
+     * @param authorization Legacy compatibility parameter. Authorization is
+     *                      deliberately never stored in the cached context.
      * @return 缓存的查询上下文
      */
     public CachedQueryContext cacheQuery(OpenInViewerRequest request, String authorization) {
@@ -58,12 +59,12 @@ public class QueryCacheService {
                 .model(request.getModel())
                 .columns(request.getColumns())
                 .slice(request.getSlice())
+                .having(request.getHaving())
                 .groupBy(request.getGroupBy())
                 .orderBy(request.getOrderBy())
                 .calculatedFields(request.getCalculatedFields())
                 .extData(request.getExtData())
                 .title(request.getTitle())
-                .authorization(authorization)
                 .namespace(request.getNamespace())
                 .createdAt(Instant.now())
                 .expiresAt(Instant.now().plus(properties.getCache().getTtlMinutes(), ChronoUnit.MINUTES))
@@ -86,6 +87,19 @@ public class QueryCacheService {
         return repository.findUnexpired(queryId, Instant.now());
     }
 
+    /** Extend a still-live query when its one-time viewer link is redeemed. */
+    public boolean extendExpiry(String queryId, String model, String namespace, Instant now, Instant expiresAt) {
+        return repository.findUnexpired(queryId, now)
+                .filter(ctx -> Objects.equals(model, ctx.getModel())
+                        && Objects.equals(namespace, ctx.getNamespace()))
+                .map(ctx -> {
+                    ctx.setExpiresAt(expiresAt);
+                    repository.save(ctx);
+                    return true;
+                })
+                .orElse(false);
+    }
+
     /**
      * 更新预估行数
      *
@@ -103,7 +117,7 @@ public class QueryCacheService {
      * 生成安全的查询ID
      */
     private String generateSecureId() {
-        return UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+        return UUID.randomUUID().toString().replace("-", "");
     }
 
     /**
@@ -129,6 +143,7 @@ public class QueryCacheService {
         private String model;
         private List<String> columns;
         private List<SliceRequestDef> slice;
+        private List<SliceRequestDef> having;
         private List<GroupRequestDef> groupBy;
         private List<OrderRequestDef> orderBy;
         private List<CalculatedFieldDef> calculatedFields;

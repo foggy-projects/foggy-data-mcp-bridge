@@ -56,6 +56,8 @@ export interface ColumnSchema {
   memberLookup?: MemberLookupMeta
   format?: string
   measure?: boolean
+  /** 默认聚合方式，如 SUM / AVG / COUNT。 */
+  aggregation?: string
   uiConfig?: Record<string, unknown>
   /** 前端展示扩展；DataViewer 只解释显式声明的 viewer。 */
   extData?: FieldExtData
@@ -104,8 +106,23 @@ export interface QueryMetaResponse {
   expiresAt: string
   /** 初始过滤条件（来自缓存） */
   initialSlice?: SliceRequestDef[]
-  /** Namespace bound to this short-lived preview link. */
-  namespace?: string
+  /** 链接固定的汇总过滤条件；重查时由服务端自动应用。 */
+  initialHaving?: SliceRequestDef[]
+  /** 查询上下文创建时固定的 namespace；不代表用户授权。 */
+  namespace?: string | null
+  /** 查询上下文创建时间，不是数据刷新时间。 */
+  createdAt?: string | null
+  /** Cached query structure; runtime parameter values are deliberately omitted. */
+  initialDsl?: {
+    queryModel: string
+    columns?: string[]
+    slice?: SliceRequestDef[]
+    having?: SliceRequestDef[]
+    groupBy?: Record<string, unknown>[]
+    orderBy?: OrderRequestDef[]
+    calculatedFields?: Record<string, unknown>[]
+    hasRuntimeParameters?: boolean
+  }
 }
 
 /**

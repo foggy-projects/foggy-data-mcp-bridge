@@ -100,17 +100,22 @@ class ViewerApiControllerTest {
             assertEquals(3, meta.tableConfig().getVisibleColumns().size());
             assertEquals(1000L, meta.estimatedRowCount());
             assertEquals("orders-dev", meta.namespace());
+            assertEquals("status", meta.initialSlice().get(0).getField());
+            assertEquals("orders", meta.initialDsl().queryModel());
+            assertEquals(List.of("orderId", "customerId", "amount"), meta.initialDsl().columns());
+            assertEquals("status", meta.initialDsl().slice().get(0).getField());
+            assertFalse(meta.initialDsl().hasRuntimeParameters());
         }
 
         @Test
-        @DisplayName("应返回404当查询不存在时")
-        void shouldReturn404WhenQueryNotFound() {
+        @DisplayName("应返回410当查询上下文不存在或已过期时")
+        void shouldReturn410WhenQueryContextIsUnavailable() {
             when(cacheService.getQuery("non-existent"))
                     .thenReturn(Optional.empty());
 
             RX response = controller.getQueryMeta("orders", "non-existent");
 
-            assertEquals(404, response.getCode());
+            assertEquals(410, response.getCode());
         }
     }
 
@@ -225,7 +230,6 @@ class ViewerApiControllerTest {
         @DisplayName("应优先使用请求头namespace执行queryId查询")
         void shouldUseHeaderNamespaceForQueryData() {
             validContext.setNamespace("cached-ns");
-            validContext.setAuthorization("Bearer cached-token");
             when(cacheService.getQuery("test-query-id"))
                     .thenReturn(Optional.of(validContext));
 
@@ -251,7 +255,6 @@ class ViewerApiControllerTest {
         @DisplayName("应在未传请求namespace时使用缓存namespace")
         void shouldUseCachedNamespaceWhenRequestNamespaceMissing() {
             validContext.setNamespace("cached-ns");
-            validContext.setAuthorization("Bearer cached-token");
             when(cacheService.getQuery("test-query-id"))
                     .thenReturn(Optional.of(validContext));
 
@@ -267,7 +270,7 @@ class ViewerApiControllerTest {
             assertEquals(RX.SUCCESS, response.getCode());
             ArgumentCaptor<QueryFacadeRequest> captor = ArgumentCaptor.forClass(QueryFacadeRequest.class);
             verify(queryFacade).query(captor.capture());
-            assertEquals("Bearer cached-token", captor.getValue().getAuthorization());
+            assertNull(captor.getValue().getAuthorization());
             assertEquals("cached-ns", captor.getValue().getNamespace());
         }
 
@@ -316,6 +319,29 @@ class ViewerApiControllerTest {
             verify(queryFacade).query(captor.capture());
             assertEquals(Map.of("tenantRuntime", "T1", "suggestionSheetId", "2490136163"),
                     captor.getValue().getQuery().get("extData"));
+        }
+
+        @Test
+        void cachedHavingRemainsEffectiveAndRequestHavingIsAdditional() {
+            validContext.setHaving(List.of(new SliceRequestDef("waybillCount", "[]", List.of(1, 2))));
+            when(cacheService.getQuery("test-query-id")).thenReturn(Optional.of(validContext));
+            when(queryFacade.query(any(QueryFacadeRequest.class))).thenReturn(queryResult(1, 1));
+
+            ViewerApiController.QueryMetaResponse meta =
+                    (ViewerApiController.QueryMetaResponse) controller.getQueryMeta("orders", "test-query-id").getData();
+            assertEquals("waybillCount", meta.initialHaving().get(0).getField());
+
+            ViewerQueryRequest request = new ViewerQueryRequest();
+            request.setHaving(List.of(new SliceRequestDef("pieceCount", ">", 2)));
+            assertEquals(RX.SUCCESS, controller.queryData("orders", "test-query-id", null, null, request).getCode());
+            ArgumentCaptor<QueryFacadeRequest> captor = ArgumentCaptor.forClass(QueryFacadeRequest.class);
+            verify(queryFacade).query(captor.capture());
+            List<?> having = (List<?>) captor.getValue().getQuery().get("having");
+            assertEquals(2, having.size());
+            assertEquals("waybillCount", ((Map<?, ?>) having.get(0)).get("field"));
+            assertEquals("pieceCount", ((Map<?, ?>) having.get(1)).get("field"));
+            List<?> slice = (List<?>) captor.getValue().getQuery().get("slice");
+            assertEquals("status", ((Map<?, ?>) slice.get(0)).get("field"));
         }
     }
 

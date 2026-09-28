@@ -97,7 +97,8 @@ describe('fetchQmSchema', () => {
               name: '销售金额',
               type: 'MONEY',
               measure: true,
-              aggregatable: true
+              aggregatable: true,
+              aggregation: 'SUM'
             }
           }
         }
@@ -122,6 +123,8 @@ describe('fetchQmSchema', () => {
       expect.objectContaining({
         name: 'salesAmount',
         category: 'measure',
+        measure: true,
+        aggregation: 'SUM',
         groupKey: 'measure',
         groupTitle: '指标'
       })
@@ -166,6 +169,21 @@ describe('fetchQmSchema', () => {
       }
     })
     expect(field.extData).not.toHaveProperty('internalOnly')
+  })
+})
+
+describe('fetchQueryMeta', () => {
+  beforeEach(resetApiClientMock)
+
+  it('explains that an expired or missing query link must be reopened', async () => {
+    axiosMock.get.mockResolvedValue({ data: { code: 410, msg: 'gone' } })
+
+    const { fetchQueryMeta, QueryContextUnavailableError } = await import('./viewer')
+
+    await expect(fetchQueryMeta('Orders', 'expired-link')).rejects.toBeInstanceOf(QueryContextUnavailableError)
+    await expect(fetchQueryMeta('Orders', 'expired-link')).rejects.toThrow(
+      '查询链接已过期或不可用，请从 Harness 重新打开'
+    )
   })
 })
 
