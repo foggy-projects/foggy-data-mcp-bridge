@@ -53,6 +53,9 @@ public class ViewerQueryRequest {
      */
     private List<SliceRequestDef> slice;
 
+    /** 聚合后的过滤条件（HAVING）；明细字段过滤仍使用 slice。 */
+    private List<SliceRequestDef> having;
+
     /**
      * 排序条件 (DSL orderBy 格式)
      */

@@ -81,10 +81,20 @@ public class ViewerApiController {
                             ctx.getTableConfig(),
                             ctx.getEstimatedRowCount(),
                             ctx.getExpiresAt().toString(),
-                            ctx.getSlice()  // 返回初始过滤条件
+                            ctx.getSlice(), // 链接固定的明细条件
+                            ctx.getHaving(), // 链接固定的汇总条件
+                            ctx.getNamespace(),
+                            ctx.getCreatedAt() != null ? ctx.getCreatedAt().toString() : null,
+                            new QueryDslResponse(
+                                    ctx.getModel(), ctx.getColumns(), ctx.getSlice(), ctx.getHaving(),
+                                    ctx.getGroupBy(), ctx.getOrderBy(), ctx.getCalculatedFields(),
+                                    ctx.getExtData() != null
+                            )
                     ));
                 })
-                .orElse(RX.notFound().build());
+                .orElseGet(() -> new RX<>(410, null,
+                        "查询链接已过期或不可用，请从 Harness 重新打开",
+                        ViewerDataResponse.expired("查询链接已过期或不可用，请从 Harness 重新打开")));
     }
 
     /**
@@ -404,6 +414,9 @@ public class ViewerApiController {
             if (request.getSlice() != null) {
                 queryDef.setSlice(request.getSlice());
             }
+            if (request.getHaving() != null) {
+                queryDef.setHaving(request.getHaving());
+            }
             if (request.getOrderBy() != null) {
                 queryDef.setOrderBy(request.getOrderBy());
             }
@@ -462,7 +475,7 @@ public class ViewerApiController {
 
         try {
             String namespace = resolveNamespace(headerNamespace, firstNonBlank(request.getNamespace(), ctx.getNamespace()));
-            String effectiveAuthorization = firstNonBlank(authorization, ctx.getAuthorization());
+            String effectiveAuthorization = authorization;
 
             // 构建查询请求，合并缓存参数与用户覆盖
             DbQueryRequestDef queryDef = buildQueryDef(ctx, request);
@@ -527,6 +540,7 @@ public class ViewerApiController {
             request.setTitle(frontendRequest.getTitle());
             request.setColumns(payload.getColumns());
             request.setSlice(payload.getSlice());
+            request.setHaving(payload.getHaving());
             request.setGroupBy(payload.getGroupBy());
             request.setOrderBy(payload.getOrderBy());
             request.setCalculatedFields(payload.getCalculatedFields());
@@ -567,6 +581,7 @@ public class ViewerApiController {
     public static class CreateQueryPayload {
         private List<String> columns;
         private List<SliceRequestDef> slice;
+        private List<SliceRequestDef> having;
         private List<GroupRequestDef> groupBy;
         private List<OrderRequestDef> orderBy;
         private List<CalculatedFieldDef> calculatedFields;
@@ -595,6 +610,13 @@ public class ViewerApiController {
             mergedSlice.addAll(request.getSlice());
         }
         def.setSlice(mergedSlice);
+
+        if (request.getHaving() != null && !request.getHaving().isEmpty()) {
+            List<SliceRequestDef> mergedHaving = new ArrayList<>(
+                    def.getHaving() != null ? def.getHaving() : List.of());
+            mergedHaving.addAll(request.getHaving());
+            def.setHaving(mergedHaving);
+        }
 
         // 覆盖排序条件（如果用户指定）
         if (request.getOrderBy() != null && !request.getOrderBy().isEmpty()) {
@@ -675,6 +697,22 @@ public class ViewerApiController {
             CachedQueryContext.TableConfig tableConfig,
             Long estimatedRowCount,
             String expiresAt,
-            List<SliceRequestDef> initialSlice
+            List<SliceRequestDef> initialSlice,
+            List<SliceRequestDef> initialHaving,
+            String namespace,
+            String createdAt,
+            QueryDslResponse initialDsl
+    ) {}
+
+    /** Query structure for the viewer. Runtime parameters may contain secrets and are never returned. */
+    public record QueryDslResponse(
+            String queryModel,
+            List<String> columns,
+            List<SliceRequestDef> slice,
+            List<SliceRequestDef> having,
+            List<GroupRequestDef> groupBy,
+            List<OrderRequestDef> orderBy,
+            List<CalculatedFieldDef> calculatedFields,
+            boolean hasRuntimeParameters
     ) {}
 }

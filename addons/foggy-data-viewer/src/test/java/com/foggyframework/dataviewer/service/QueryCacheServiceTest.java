@@ -46,6 +46,23 @@ class QueryCacheServiceTest {
         service = new QueryCacheService(repository, properties);
     }
 
+    @Test
+    void redemptionExtendsOnlyTheMatchingLiveQuery() {
+        Instant now = Instant.parse("2026-09-27T08:00:00Z");
+        Instant newExpiry = now.plus(2, ChronoUnit.HOURS);
+        CachedQueryContext context = CachedQueryContext.builder()
+                .queryId("query-1").model("orders").namespace("demo")
+                .expiresAt(now.plus(30, ChronoUnit.MINUTES)).build();
+        when(repository.findByQueryIdAndExpiresAtAfter("query-1", now))
+                .thenReturn(Optional.of(context));
+
+        assertFalse(service.extendExpiry("query-1", "orders", "other", now, newExpiry));
+        verify(repository, never()).save(any());
+        assertTrue(service.extendExpiry("query-1", "orders", "demo", now, newExpiry));
+        assertEquals(newExpiry, context.getExpiresAt());
+        verify(repository).save(context);
+    }
+
     @Nested
     @DisplayName("查询缓存测试")
     class CacheQueryTests {
@@ -101,8 +118,8 @@ class QueryCacheServiceTest {
         }
 
         @Test
-        @DisplayName("应保存授权信息")
-        void shouldSaveAuthorization() {
+        @DisplayName("不得保存原始授权信息")
+        void shouldNotSaveAuthorization() {
             QueryCacheService.OpenInViewerRequest request = new QueryCacheService.OpenInViewerRequest();
             request.setModel("orders");
             request.setColumns(List.of("orderId"));
@@ -113,7 +130,8 @@ class QueryCacheServiceTest {
 
             CachedQueryContext result = service.cacheQuery(request, "Bearer my-token");
 
-            assertEquals("Bearer my-token", result.getAuthorization());
+            assertFalse(Arrays.stream(CachedQueryContext.class.getDeclaredFields())
+                    .anyMatch(field -> field.getName().equalsIgnoreCase("authorization")));
         }
 
         @Test
@@ -149,6 +167,24 @@ class QueryCacheServiceTest {
             assertEquals(Map.of("suggestionSheetId", "2490136163"), result.getExtData());
             assertEquals(Map.of("suggestionSheetId", "2490136163"),
                     result.toDbQueryRequestDef().getExtData());
+        }
+
+        @Test
+        void preservesExplicitHavingWithoutChangingDetailSlice() {
+            QueryCacheService.OpenInViewerRequest request = new QueryCacheService.OpenInViewerRequest();
+            request.setModel("orders");
+            request.setColumns(List.of("station", "waybillCount"));
+            request.setSlice(createSlice("businessDate", "=", "2026-09-26"));
+            request.setHaving(List.of(new SliceRequestDef("waybillCount", "[]", List.of(1, 2))));
+            request.setExtData(Map.of("runId", "demo"));
+            when(repository.save(any(CachedQueryContext.class)))
+                    .thenAnswer(invocation -> invocation.getArgument(0));
+
+            CachedQueryContext cached = service.cacheQuery(request, null);
+
+            assertEquals("businessDate", cached.toDbQueryRequestDef().getSlice().get(0).getField());
+            assertEquals("waybillCount", cached.toDbQueryRequestDef().getHaving().get(0).getField());
+            assertEquals(Map.of("runId", "demo"), cached.toDbQueryRequestDef().getExtData());
         }
     }
 
@@ -223,8 +259,8 @@ class QueryCacheServiceTest {
     class QueryIdGenerationTests {
 
         @Test
-        @DisplayName("应生成16字符的QueryId")
-        void shouldGenerate16CharQueryId() {
+        @DisplayName("应生成128位随机QueryId")
+        void shouldGenerate128BitQueryId() {
             QueryCacheService.OpenInViewerRequest request = new QueryCacheService.OpenInViewerRequest();
             request.setModel("orders");
             request.setColumns(List.of("id"));
@@ -235,7 +271,7 @@ class QueryCacheServiceTest {
 
             CachedQueryContext result = service.cacheQuery(request, null);
 
-            assertEquals(16, result.getQueryId().length());
+            assertEquals(32, result.getQueryId().length());
             assertTrue(result.getQueryId().matches("[a-f0-9]+"));
         }
     }
