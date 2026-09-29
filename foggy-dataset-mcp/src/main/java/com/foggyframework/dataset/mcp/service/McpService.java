@@ -113,7 +113,11 @@ public class McpService {
 
         log.info("tools/list for role {}: {} tools available", userRole, filteredDefinitions.size());
 
-        return McpResponse.success(request.getId(), Map.of("tools", filteredDefinitions));
+        return McpResponse.success(request.getId(), Map.of(
+                "resultType", "complete",
+                "ttlMs", 0,
+                "cacheScope", "private",
+                "tools", filteredDefinitions));
     }
 
     /**
@@ -288,6 +292,7 @@ public class McpService {
      */
     private Map<String, Object> buildToolsCallResult(String toolName, Object result) {
         Map<String, Object> toolCallResult = new HashMap<>();
+        toolCallResult.put("resultType", "complete");
         Map<String, Object> structuredFailure = structuredQueryModelFailure(toolName, result);
         toolCallResult.put("content", List.of(Map.of(
                 "type", "text",

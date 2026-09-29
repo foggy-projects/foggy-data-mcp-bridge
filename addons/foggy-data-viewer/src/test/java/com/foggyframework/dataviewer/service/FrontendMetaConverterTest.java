@@ -87,4 +87,17 @@ class FrontendMetaConverterTest {
         assertFalse(field.getUiHints().getVisible());
         assertNull(field.getMemberLookup());
     }
+
+    @Test
+    @DisplayName("模型专属说明优先于通用 purpose")
+    void convert_prefersModelDescriptionOverGenericPurpose() {
+        FrontendMeta result = new FrontendMetaConverter().convert(Map.of(
+                "models", Map.of("DemoModel", Map.of(
+                        "name", "演示模型",
+                        "purpose", "数据查询和分析",
+                        "description", "数据来自独立构造的合成数据。")),
+                "fields", Map.of()));
+
+        assertEquals("数据来自独立构造的合成数据。", result.getDescription());
+    }
 }

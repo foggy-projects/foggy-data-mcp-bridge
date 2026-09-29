@@ -21,26 +21,17 @@ import java.util.*;
 @Slf4j
 public class QueryCacheService {
 
-    private final CachedQueryStore repository;
+    private final QueryContextStore store;
     private final DataViewerProperties properties;
 
-    public QueryCacheService(CachedQueryStore repository, DataViewerProperties properties) {
-        this.repository = repository;
+    public QueryCacheService(QueryContextStore store, DataViewerProperties properties) {
+        this.store = store;
         this.properties = properties;
     }
 
+    /** Keeps existing embedders using the Mongo repository constructor working. */
     public QueryCacheService(CachedQueryRepository repository, DataViewerProperties properties) {
-        this(new CachedQueryStore() {
-            @Override
-            public CachedQueryContext save(CachedQueryContext context) {
-                return repository.save(context);
-            }
-
-            @Override
-            public Optional<CachedQueryContext> findUnexpired(String queryId, Instant now) {
-                return repository.findByQueryIdAndExpiresAtAfter(queryId, now);
-            }
-        }, properties);
+        this(new MongoQueryContextStore(repository), properties);
     }
 
     /**
@@ -74,7 +65,7 @@ public class QueryCacheService {
         ctx.setTableConfig(buildTableConfig(request));
 
         log.info("Cached query with ID: {} for model: {}", queryId, request.getModel());
-        return repository.save(ctx);
+        return store.save(ctx);
     }
 
     /**
@@ -84,20 +75,12 @@ public class QueryCacheService {
      * @return 查询上下文
      */
     public Optional<CachedQueryContext> getQuery(String queryId) {
-        return repository.findUnexpired(queryId, Instant.now());
+        return store.findActive(queryId, Instant.now());
     }
 
     /** Extend a still-live query when its one-time viewer link is redeemed. */
     public boolean extendExpiry(String queryId, String model, String namespace, Instant now, Instant expiresAt) {
-        return repository.findUnexpired(queryId, now)
-                .filter(ctx -> Objects.equals(model, ctx.getModel())
-                        && Objects.equals(namespace, ctx.getNamespace()))
-                .map(ctx -> {
-                    ctx.setExpiresAt(expiresAt);
-                    repository.save(ctx);
-                    return true;
-                })
-                .orElse(false);
+        return store.extendExpiry(queryId, model, namespace, now, expiresAt);
     }
 
     /**
@@ -107,10 +90,7 @@ public class QueryCacheService {
      * @param estimatedRowCount 预估行数
      */
     public void updateEstimatedRowCount(String queryId, Long estimatedRowCount) {
-        getQuery(queryId).ifPresent(ctx -> {
-            ctx.setEstimatedRowCount(estimatedRowCount);
-            repository.save(ctx);
-        });
+        store.updateEstimatedRowCount(queryId, estimatedRowCount, Instant.now());
     }
 
     /**

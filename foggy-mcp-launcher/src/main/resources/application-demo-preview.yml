@@ -1,0 +1,60 @@
+server:
+  port: 18172
+  address: ${SERVER_ADDRESS:127.0.0.1}
+
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.mongo.MongoRepositoriesAutoConfiguration
+
+foggy:
+  runtime-api:
+    enabled: true # Load the demo bundle registry into the Java model engine for Viewer re-queries.
+  auth:
+    mode: disabled # This profile is loopback-only; the demo login controls DataViewer access.
+  mcp:
+    audit:
+      enabled: false
+  dataset:
+    request:
+      default-namespace: harness_demo_logistics
+  data-viewer:
+    enabled: true
+    base-url: http://127.0.0.1:18172/data-viewer
+    security:
+      require-auth: false
+    cache:
+      storage: sqlite
+      sqlite-path: ${FOGGY_DATA_VIEWER_CACHE_SQLITE_PATH:${java.io.tmpdir}/foggy-demo-query-cache.sqlite}
+      ttl-minutes: 120
+    list-preset:
+      storage: file
+  demo-preview:
+    enabled: true
+    namespace: harness_demo_logistics
+    model: DemoWaybillQueryModel
+    internal-base-url: http://127.0.0.1:18172
+    public-open-url: http://127.0.0.1:18172/demo-preview/open
+    secure-cookie: false # HTTP is allowed only on the loopback-bound local demo profile.
+    absolute-session-ttl: 2h
+    idle-session-ttl: 2h
+    launch-ttl: 2h
+    policy-version: demo-logistics-v1
+    users:
+      north:
+        display-name: 北区运营演示用户
+        password: ${FOGGY_DEMO_PREVIEW_NORTH_PASSWORD:}
+        station-codes: [HZ-01, NB-01]
+      south:
+        display-name: 南区运营演示用户
+        password: ${FOGGY_DEMO_PREVIEW_SOUTH_PASSWORD:}
+        station-codes: [SZ-01, HF-01]
+      coordinator:
+        display-name: 运营主管演示用户
+        password: ${FOGGY_DEMO_PREVIEW_COORDINATOR_PASSWORD:}
+        station-codes: [HZ-01, SZ-01, NB-01, HF-01]
+    # Map the SHA-256 fingerprint of the full MCP Authorization header to a demo user.
+    # Use bracket map keys in external Spring configuration: [<fingerprint>]: coordinator
+    credential-principals: {}

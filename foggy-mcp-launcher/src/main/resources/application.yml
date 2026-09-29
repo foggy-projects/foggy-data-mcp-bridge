@@ -35,6 +35,9 @@ spring:
 
 # Foggy MCP Service Configuration
 foggy:
+  demo-preview:
+    # Local synthetic-data BFF/session is strictly opt-in via spring.profiles.active=demo-preview.
+    enabled: false
   # Authentication remains disabled unless a legacy token or an explicit OAuth mode is configured.
   auth:
     mode: ${FOGGY_AUTH_MODE:auto}
@@ -224,7 +227,7 @@ foggy:
       mongodb:
         collection: ${MCP_AUDIT_COLLECTION:mcp_tool_audit_log}
 
-  # 数据浏览器配置（需要 MongoDB）
+  # 数据浏览器配置：查询上下文默认保存在独立 SQLite 文件中
   data-viewer:
     # 是否启用（默认启用）
     enabled: ${DATA_VIEWER_ENABLED:true}
@@ -232,6 +235,8 @@ foggy:
     base-url: ${DATA_VIEWER_BASE_URL:}
 
     cache:
+      storage: ${DATA_VIEWER_CACHE_STORAGE:sqlite}
+      sqlite-path: ${DATA_VIEWER_CACHE_SQLITE_PATH:${java.io.tmpdir}/foggy-data-viewer-query-cache.sqlite}
       ttl-minutes: 240
       cleanup-interval: 3000000
 

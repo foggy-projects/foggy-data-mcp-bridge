@@ -1,0 +1,22 @@
+/**
+ * Query model for JSON-backed formula slice integration coverage.
+ */
+const fact = loadTableModel('FactJsonFormulaFilterModel');
+
+export const queryModel = {
+    name: 'FactJsonFormulaFilterQueryModel',
+    caption: 'JSON 公式筛选测试查询',
+    model: fact,
+
+    columnGroups: [
+        {
+            caption: '字段',
+            items: [
+                { ref: fact.id },
+                { ref: fact.mappedCityCode }
+            ]
+        }
+    ],
+
+    accesses: []
+};

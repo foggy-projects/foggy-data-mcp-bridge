@@ -164,6 +164,10 @@ class McpServiceTest extends BaseMcpTest {
             assertResponseSuccess(response);
             List<Map<String, Object>> tools = extractToolsList(response);
             assertEquals(2, tools.size());
+            Map<String, Object> result = extractResultMap(response);
+            assertEquals("complete", result.get("resultType"));
+            assertEquals(0, result.get("ttlMs"));
+            assertEquals("private", result.get("cacheScope"));
 
             verify(toolFilterService).filterToolDefinitionsByRole(allDefs, allTools, UserRole.ANALYST);
         }
@@ -373,6 +377,7 @@ class McpServiceTest extends BaseMcpTest {
 
             assertResponseSuccess(response);
             Map<String, Object> result = extractResultMap(response);
+            assertEquals("complete", result.get("resultType"));
             assertFalse(result.containsKey("status"));
 
             @SuppressWarnings("unchecked")

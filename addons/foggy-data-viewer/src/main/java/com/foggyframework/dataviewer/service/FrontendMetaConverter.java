@@ -41,7 +41,7 @@ public class FrontendMetaConverter {
             Map<String, Object> modelInfo = getMap(modelsMap, modelName);
             if (modelInfo != null) {
                 caption = getString(modelInfo, "name");
-                description = getFirstString(modelInfo, "purpose", "description", "desc", "describe");
+                description = getFirstString(modelInfo, "description", "desc", "describe", "purpose");
             }
         }
 

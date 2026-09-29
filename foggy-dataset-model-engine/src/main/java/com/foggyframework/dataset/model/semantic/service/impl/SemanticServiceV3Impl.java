@@ -2010,6 +2010,9 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         }
 
         modelInfo.put("purpose", "数据查询和分析");
+        if (queryModel.getDescription() != null && !queryModel.getDescription().isBlank()) {
+            modelInfo.put("description", queryModel.getDescription());
+        }
         modelInfo.put("scenarios", Arrays.asList("数据查询", "统计分析", "报表生成"));
         models.put(queryModel.getName(), modelInfo);
     }

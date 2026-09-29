@@ -38,12 +38,11 @@ spring:
 foggy:
   compose:
     dialect: sqlite
-  # 本地开发预览：短期、限量的内存链接；重启后链接失效，不用于生产共享。
+  # Lite Runtime 默认使用本地 SQLite 保存短期查询上下文。
   data-viewer:
-    enabled: true
+    enabled: ${DATA_VIEWER_ENABLED:true}
     cache:
-      store: memory
-      max-entries: 256
+      storage: sqlite
 
   mcp:
     semantic:
@@ -57,7 +56,7 @@ foggy:
     audit:
       enabled: false
 
-    # 首版只暴露 DataViewer REST 页面；MCP open_in_viewer 仍保持关闭。
+    # Data Viewer 工具与本地 SQLite 查询上下文一起启用
     tools:
       - name: "dataset.open_in_viewer"
-        enabled: false
+        enabled: true

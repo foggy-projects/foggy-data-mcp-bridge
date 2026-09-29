@@ -7,6 +7,7 @@ import com.foggyframework.dataviewer.domain.CachedQueryContext;
 import com.foggyframework.dataviewer.service.QueryCacheService;
 import com.foggyframework.dataviewer.service.QueryCacheService.OpenInViewerRequest;
 import com.foggyframework.dataviewer.service.QueryScopeConstraintService;
+import com.foggyframework.dataviewer.service.ViewerLaunchLinkProvider;
 import com.foggyframework.dataset.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.model.def.query.request.GroupRequestDef;
 import com.foggyframework.dataset.model.def.query.request.OrderRequestDef;
@@ -25,7 +26,7 @@ import java.util.*;
  * 用于处理大数据集的交互式浏览
  * <p>
  * 注意：此工具通过 {@link com.foggyframework.dataviewer.config.DataViewerAutoConfiguration}
- * 自动配置创建，不使用 @Component 注解，以确保只有在 MongoDB 可用时才加载。
+ * 自动配置创建，不使用 @Component 注解；可选用 MongoDB 或 SQLite 查询上下文存储。
  */
 @Slf4j
 public class OpenInViewerTool implements McpTool {
@@ -35,17 +36,28 @@ public class OpenInViewerTool implements McpTool {
     private final DataViewerProperties properties;
     private final ObjectMapper objectMapper;
     private final int serverPort;
+    private final ViewerLaunchLinkProvider launchLinkProvider;
+
+    public OpenInViewerTool(QueryCacheService cacheService,
+                            QueryScopeConstraintService constraintService,
+                            DataViewerProperties properties,
+                            ObjectMapper objectMapper,
+                            int serverPort,
+                            ViewerLaunchLinkProvider launchLinkProvider) {
+        this.cacheService = cacheService;
+        this.constraintService = constraintService;
+        this.properties = properties;
+        this.objectMapper = objectMapper;
+        this.serverPort = serverPort;
+        this.launchLinkProvider = launchLinkProvider;
+    }
 
     public OpenInViewerTool(QueryCacheService cacheService,
                             QueryScopeConstraintService constraintService,
                             DataViewerProperties properties,
                             ObjectMapper objectMapper,
                             int serverPort) {
-        this.cacheService = cacheService;
-        this.constraintService = constraintService;
-        this.properties = properties;
-        this.objectMapper = objectMapper;
-        this.serverPort = serverPort;
+        this(cacheService, constraintService, properties, objectMapper, serverPort, null);
     }
 
     @Override
@@ -75,27 +87,35 @@ public class OpenInViewerTool implements McpTool {
         request.setSlice(constrainedSlice);
 
         // 缓存查询
-        CachedQueryContext ctx = cacheService.cacheQuery(request, context.getAuthorization());
+        CachedQueryContext ctx = cacheService.cacheQuery(request, null);
 
         // 构建响应
-        String viewerUrl = getBaseUrl() + "/view/" + request.getModel() + "/" + ctx.getQueryId();
+        String defaultViewerUrl = getBaseUrl() + "/view/" + request.getModel() + "/" + ctx.getQueryId();
+        ViewerLaunchLinkProvider.ViewerLaunchLink link = launchLinkProvider == null
+                ? new ViewerLaunchLinkProvider.ViewerLaunchLink(defaultViewerUrl, ctx.getExpiresAt())
+                : launchLinkProvider.createViewerLink(ctx, context.getAuthorization(), defaultViewerUrl);
 
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("viewerUrl", viewerUrl);
+        result.put("viewerUrl", link.url());
         result.put("queryId", ctx.getQueryId());
         result.put("expiresAt", ctx.getExpiresAt().toString());
+        result.put("queryExpiresAt", ctx.getExpiresAt().toString());
+        if (link.expiresAt() != null) {
+            result.put("viewerLinkExpiresAt", link.expiresAt().toString());
+        }
 
         if (ctx.getEstimatedRowCount() != null) {
             result.put("estimatedRowCount", ctx.getEstimatedRowCount());
         }
 
-        result.put("message", String.format(
-                "Data viewer link created. The link expires at %s. " +
-                        "Users can browse, filter, sort, and export the data interactively.",
-                ctx.getExpiresAt()
-        ));
+        result.put("message", link.expiresAt() == null
+                ? "Data viewer link created. Query context expires at " + ctx.getExpiresAt() + "."
+                : "Data viewer link created. Open the link before " + link.expiresAt()
+                        + "; the query context currently expires at " + ctx.getExpiresAt()
+                        + ". A login-bound preview may extend the query context after sign-in.");
 
-        log.info("Created viewer link: {} for queryId: {}", viewerUrl, ctx.getQueryId());
+        // Demo launch URLs carry an opaque one-time code in their fragment. Never write the URL/code to logs.
+        log.info("Created viewer link.");
         return result;
     }
 
@@ -126,16 +146,20 @@ public class OpenInViewerTool implements McpTool {
                     new TypeReference<List<SliceRequestDef>>() {}));
         }
 
+        Object havingArg = payload.get("having");
+        if (havingArg != null) {
+            request.setHaving(objectMapper.convertValue(havingArg,
+                    new TypeReference<List<SliceRequestDef>>() {}));
+        }
+
         Object groupByArg = payload.get("groupBy");
         if (groupByArg != null) {
-            request.setGroupBy(objectMapper.convertValue(groupByArg,
-                    new TypeReference<List<GroupRequestDef>>() {}));
+            request.setGroupBy(parseGroupBy(groupByArg));
         }
 
         Object orderByArg = payload.get("orderBy");
         if (orderByArg != null) {
-            request.setOrderBy(objectMapper.convertValue(orderByArg,
-                    new TypeReference<List<OrderRequestDef>>() {}));
+            request.setOrderBy(parseOrderBy(orderByArg));
         }
 
         Object calculatedFieldsArg = payload.get("calculatedFields");
@@ -143,6 +167,7 @@ public class OpenInViewerTool implements McpTool {
             request.setCalculatedFields(objectMapper.convertValue(calculatedFieldsArg,
                     new TypeReference<List<CalculatedFieldDef>>() {}));
         }
+        request.setExtData(payload.get("extData"));
 
         // 验证必需参数
         if (request.getModel() == null || request.getModel().isBlank()) {
@@ -156,6 +181,74 @@ public class OpenInViewerTool implements McpTool {
         }
 
         return request;
+    }
+
+    private List<GroupRequestDef> parseGroupBy(Object value) {
+        if (!(value instanceof List<?> entries)) {
+            throw new IllegalArgumentException("payload.groupBy must be an array");
+        }
+        List<GroupRequestDef> result = new ArrayList<>(entries.size());
+        for (Object entry : entries) {
+            GroupRequestDef item;
+            if (entry instanceof String field) {
+                item = new GroupRequestDef();
+                item.setField(field.trim());
+            } else if (entry instanceof Map<?, ?>) {
+                item = objectMapper.convertValue(entry, GroupRequestDef.class);
+            } else {
+                throw new IllegalArgumentException("payload.groupBy entries must be field strings or objects");
+            }
+            if (item.getField() == null || item.getField().isBlank()) {
+                throw new IllegalArgumentException("payload.groupBy field is required");
+            }
+            result.add(item);
+        }
+        return result;
+    }
+
+    private List<OrderRequestDef> parseOrderBy(Object value) {
+        if (!(value instanceof List<?> entries)) {
+            throw new IllegalArgumentException("payload.orderBy must be an array");
+        }
+        List<OrderRequestDef> result = new ArrayList<>(entries.size());
+        for (Object entry : entries) {
+            OrderRequestDef item;
+            if (entry instanceof String shorthand) {
+                item = parseOrderByShorthand(shorthand);
+            } else if (entry instanceof Map<?, ?>) {
+                item = objectMapper.convertValue(entry, OrderRequestDef.class);
+            } else {
+                throw new IllegalArgumentException("payload.orderBy entries must be field strings or objects");
+            }
+            if (item.getField() == null || item.getField().isBlank()) {
+                throw new IllegalArgumentException("payload.orderBy field is required");
+            }
+            result.add(item);
+        }
+        return result;
+    }
+
+    private OrderRequestDef parseOrderByShorthand(String text) {
+        String shorthand = text.trim();
+        String field = shorthand;
+        String direction = "asc";
+        if (shorthand.startsWith("-")) {
+            field = shorthand.substring(1).trim();
+            direction = "desc";
+        } else {
+            int space = shorthand.lastIndexOf(' ');
+            if (space > 0) {
+                String suffix = shorthand.substring(space + 1).trim().toLowerCase(Locale.ROOT);
+                if ("asc".equals(suffix) || "desc".equals(suffix)) {
+                    field = shorthand.substring(0, space).trim();
+                    direction = suffix;
+                }
+            }
+        }
+        OrderRequestDef item = new OrderRequestDef();
+        item.setField(field);
+        item.setDir(direction);
+        return item;
     }
 
     private String resolveNamespace(ToolExecutionContext context, Map<String, Object> arguments) {

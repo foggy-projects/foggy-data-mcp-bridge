@@ -116,7 +116,7 @@
         },
         "slice": {
           "type": "array",
-          "description": "过滤条件（数组内条件默认 AND 连接，用 $or/$and 显式组合）。简写：{ \"field\": \"value\" } 等价于 { \"field\": \"field\", \"op\": \"=\", \"value\": \"value\" }",
+          "description": "输入明细行过滤（SQL WHERE；数组内条件默认 AND 连接，用 $or/$and 显式组合）。即使字段是 QM 聚合 measure，放在 slice 的条件仍保持行级语义，不自动改写成 HAVING；分组后过滤必须显式放入顶层 having。简写：{ \"field\": \"value\" } 等价于 { \"field\": \"field\", \"op\": \"=\", \"value\": \"value\" }",
           "items": {
             "oneOf": [
               {

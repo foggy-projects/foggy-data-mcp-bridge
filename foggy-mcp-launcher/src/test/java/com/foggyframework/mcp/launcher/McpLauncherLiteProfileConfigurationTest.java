@@ -29,6 +29,14 @@ class McpLauncherLiteProfileConfigurationTest {
     }
 
     @Test
+    void liteProfileEnablesSqliteBackedDataViewer() {
+        Properties properties = loadLiteProperties();
+        assertEquals("${DATA_VIEWER_ENABLED:true}", properties.getProperty("foggy.data-viewer.enabled"));
+        assertEquals("sqlite", properties.getProperty("foggy.data-viewer.cache.storage"));
+        assertEquals("true", properties.getProperty("foggy.mcp.tools[0].enabled"));
+    }
+
+    @Test
     void liteProfileExposesCoverageModelsForMediumMatrix() {
         Properties properties = loadLiteProperties();
 
