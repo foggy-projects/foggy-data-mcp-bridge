@@ -18,8 +18,6 @@ import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
@@ -53,7 +51,7 @@ class QueryCacheServiceTest {
         CachedQueryContext context = CachedQueryContext.builder()
                 .queryId("query-1").model("orders").namespace("demo")
                 .expiresAt(now.plus(30, ChronoUnit.MINUTES)).build();
-        when(repository.findByQueryIdAndExpiresAtAfter("query-1", now))
+        when(repository.findById("query-1"))
                 .thenReturn(Optional.of(context));
 
         assertFalse(service.extendExpiry("query-1", "orders", "other", now, newExpiry));
@@ -201,7 +199,7 @@ class QueryCacheServiceTest {
             context.setModel("orders");
             context.setExpiresAt(Instant.now().plus(30, ChronoUnit.MINUTES));
 
-            when(repository.findByQueryIdAndExpiresAtAfter(eq(queryId), any(Instant.class)))
+            when(repository.findById(queryId))
                     .thenReturn(Optional.of(context));
 
             Optional<CachedQueryContext> result = service.getQuery(queryId);
@@ -215,12 +213,42 @@ class QueryCacheServiceTest {
         void shouldReturnEmptyWhenQueryNotFound() {
             String queryId = "non-existent-id";
 
-            when(repository.findByQueryIdAndExpiresAtAfter(eq(queryId), any(Instant.class)))
+            when(repository.findById(queryId))
                     .thenReturn(Optional.empty());
 
             Optional<CachedQueryContext> result = service.getQuery(queryId);
 
             assertTrue(result.isEmpty());
+        }
+
+        @Test
+        @DisplayName("永久查询不受普通缓存时效限制")
+        void shouldGetPermanentQueryAfterOrdinaryCacheTtl() {
+            Instant createdAt = Instant.parse("2026-09-27T08:00:00Z");
+            CachedQueryContext context = CachedQueryContext.builder()
+                    .queryId("permanent-query").model("orders")
+                    .createdAt(createdAt).expiresAt(null).build();
+            when(repository.findById("permanent-query"))
+                    .thenReturn(Optional.of(context));
+
+            assertEquals(Optional.of(context),
+                    service.getQuery("permanent-query", createdAt.plus(30, ChronoUnit.DAYS)));
+        }
+
+        @Test
+        @DisplayName("查询到达有效期边界时不可使用或延长")
+        void shouldRejectQueryAtExpirationBoundary() {
+            Instant now = Instant.parse("2026-09-27T08:00:00Z");
+            CachedQueryContext context = CachedQueryContext.builder()
+                    .queryId("expired-query").model("orders").namespace("demo")
+                    .expiresAt(now).build();
+            when(repository.findById("expired-query"))
+                    .thenReturn(Optional.of(context));
+
+            assertTrue(service.getQuery("expired-query", now).isEmpty());
+            assertFalse(service.extendExpiry("expired-query", "orders", "demo", now,
+                    now.plus(1, ChronoUnit.DAYS)));
+            verify(repository, never()).save(any());
         }
     }
 
@@ -288,7 +316,7 @@ class QueryCacheServiceTest {
             context.setQueryId(queryId);
             context.setExpiresAt(Instant.now().plus(30, ChronoUnit.MINUTES));
 
-            when(repository.findByQueryIdAndExpiresAtAfter(eq(queryId), any(Instant.class)))
+            when(repository.findById(queryId))
                     .thenReturn(Optional.of(context));
             when(repository.save(any(CachedQueryContext.class)))
                     .thenAnswer(invocation -> invocation.getArgument(0));
@@ -302,7 +330,7 @@ class QueryCacheServiceTest {
         @Test
         @DisplayName("当查询不存在时不应更新")
         void shouldNotUpdateWhenQueryNotFound() {
-            when(repository.findByQueryIdAndExpiresAtAfter(anyString(), any(Instant.class)))
+            when(repository.findById("non-existent"))
                     .thenReturn(Optional.empty());
 
             service.updateEstimatedRowCount("non-existent", 5000L);
