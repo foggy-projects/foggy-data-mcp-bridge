@@ -1,25 +1,13 @@
 package com.foggyframework.mcp.launcher.demopreview;
-
-import com.foggyframework.dataviewer.service.QueryCacheService;
 import org.junit.jupiter.api.Test;
-
+import org.springframework.mock.web.MockHttpServletRequest;
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.mock;
-
 class DemoPreviewControllerTest {
-
-    @Test
-    void loginPagePreservesCssPercentSignsAndReplacesOnlyNoncePlaceholder() {
-        DemoPreviewProperties properties = new DemoPreviewProperties();
-        DemoPreviewController controller = new DemoPreviewController(
-                new DemoPreviewSessionService(properties, mock(QueryCacheService.class)), properties);
-
-        var response = controller.loginPage();
-
-        assertEquals(200, response.getStatusCode().value());
-        assertNotNull(response.getBody());
-        assertTrue(response.getBody().contains("width:100%;"));
-        assertTrue(response.getBody().contains("<script nonce=\""));
-        assertFalse(response.getBody().contains("%s"));
+    @Test void callbackRejectsRemoteHostAndUnknownCredential() {
+        var p=new DemoPreviewProperties(); var controller=new DemoPreviewController(new DemoPreviewSessionService(p,null),p);
+        var r=new MockHttpServletRequest(); r.setRemoteAddr("10.0.0.1");
+        var body=new DemoPreviewController.PermissionRequest(p.getNamespace(),p.getModel(),"EXECUTE");
+        assertEquals(403,controller.resolveModelPermissions(body,"invalid",r).getStatusCode().value());
+        r.setRemoteAddr("127.0.0.1"); assertFalse(controller.resolveModelPermissions(body,"invalid",r).getBody().allow());
     }
 }

@@ -18,22 +18,16 @@ public class DemoPreviewProperties {
     private String namespace = "harness_demo_logistics";
     private String model = "DemoWaybillQueryModel";
     private String internalBaseUrl = "http://127.0.0.1:18172";
-    private String publicOpenUrl = "http://127.0.0.1:18172/demo-preview/open";
-    private String cookieName = "foggy-demo-preview";
-    private boolean secureCookie = true;
-    private Duration launchTtl = Duration.ofHours(2);
-    private Duration absoluteSessionTtl = Duration.ofHours(2);
-    private Duration idleSessionTtl = Duration.ofHours(2);
+    private String publicOpenUrl = "http://127.0.0.1:18172/data-viewer/open";
     private String policyVersion = "demo-logistics-v1";
     /** SHA-256 hex fingerprint of the complete incoming Authorization header -> principal id. */
     private Map<String, String> credentialPrincipals = new LinkedHashMap<>();
-    /** User id -> login data and synthetic station scope; passwords must be supplied outside source control. */
+    /** Service scope id -> synthetic station scope. No personal users or passwords. */
     private Map<String, DemoUser> users = new LinkedHashMap<>();
 
     @Data
     public static class DemoUser {
         private String displayName;
-        private String password;
         private List<String> stationCodes = new ArrayList<>();
     }
 }

@@ -20,7 +20,8 @@ public class MongoQueryContextStore implements QueryContextStore {
 
     @Override
     public Optional<CachedQueryContext> findActive(String queryId, Instant now) {
-        return repository.findByQueryIdAndExpiresAtAfter(queryId, now);
+        return repository.findById(queryId)
+                .filter(context -> context.getExpiresAt() == null || context.getExpiresAt().isAfter(now));
     }
 
     @Override

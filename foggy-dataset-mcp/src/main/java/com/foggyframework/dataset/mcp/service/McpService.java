@@ -43,7 +43,7 @@ public class McpService {
                 : request.getParams().get("protocolVersion");
         result.put("protocolVersion", McpProtocolVersions.negotiateLegacy(requestedVersion));
         result.put("capabilities", Map.of(
-                "tools", Map.of("listChanged", true),
+                "tools", Map.of("listChanged", false),
                 "logging", Map.of()
         ));
         result.put("serverInfo", Map.of(
@@ -62,7 +62,8 @@ public class McpService {
         Map<String, Object> result = new HashMap<>();
         result.put("supportedVersions", McpProtocolVersions.SUPPORTED);
         result.put("capabilities", Map.of(
-                "tools", Map.of("listChanged", true),
+                // No subscriptions/listen stream is implemented by these stateless endpoints.
+                "tools", Map.of("listChanged", false),
                 "logging", Map.of()));
         result.put("serverInfo", Map.of(
                 "name", "foggy-data-mcp",

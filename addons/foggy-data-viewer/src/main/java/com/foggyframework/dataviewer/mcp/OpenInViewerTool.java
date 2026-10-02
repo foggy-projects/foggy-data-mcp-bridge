@@ -98,23 +98,19 @@ public class OpenInViewerTool implements McpTool {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("viewerUrl", link.url());
         result.put("queryId", ctx.getQueryId());
-        result.put("expiresAt", ctx.getExpiresAt().toString());
-        result.put("queryExpiresAt", ctx.getExpiresAt().toString());
-        if (link.expiresAt() != null) {
-            result.put("viewerLinkExpiresAt", link.expiresAt().toString());
-        }
+        result.put("expiresAt", link.expiresAt() == null ? null : link.expiresAt().toString());
+        result.put("queryExpiresAt", ctx.getExpiresAt() == null ? null : ctx.getExpiresAt().toString());
+        result.put("viewerLinkExpiresAt", link.expiresAt() == null ? null : link.expiresAt().toString());
 
         if (ctx.getEstimatedRowCount() != null) {
             result.put("estimatedRowCount", ctx.getEstimatedRowCount());
         }
 
         result.put("message", link.expiresAt() == null
-                ? "Data viewer link created. Query context expires at " + ctx.getExpiresAt() + "."
-                : "Data viewer link created. Open the link before " + link.expiresAt()
-                        + "; the query context currently expires at " + ctx.getExpiresAt()
-                        + ". A login-bound preview may extend the query context after sign-in.");
+                ? "Reusable data viewer link created with no expiry."
+                : "Reusable data viewer link created. Expires at " + link.expiresAt() + ".");
 
-        // Demo launch URLs carry an opaque one-time code in their fragment. Never write the URL/code to logs.
+        // Launch URLs carry an opaque reusable link secret in their fragment. Never log the URL/secret.
         log.info("Created viewer link.");
         return result;
     }

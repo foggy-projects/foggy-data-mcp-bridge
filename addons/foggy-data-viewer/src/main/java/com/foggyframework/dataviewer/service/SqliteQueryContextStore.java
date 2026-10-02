@@ -60,7 +60,7 @@ public final class SqliteQueryContextStore implements QueryContextStore {
             statement.setString(2, context.getModel());
             statement.setString(3, context.getNamespace());
             statement.setLong(4, context.getCreatedAt().toEpochMilli());
-            statement.setLong(5, context.getExpiresAt().toEpochMilli());
+            statement.setLong(5, expiryMillis(context.getExpiresAt()));
             if (context.getEstimatedRowCount() == null) {
                 statement.setNull(6, java.sql.Types.BIGINT);
             } else {
@@ -87,7 +87,8 @@ public final class SqliteQueryContextStore implements QueryContextStore {
                     return Optional.empty();
                 }
                 CachedQueryContext context = objectMapper.readValue(result.getString(1), CachedQueryContext.class);
-                context.setExpiresAt(Instant.ofEpochMilli(result.getLong(2)));
+                long expiry = result.getLong(2);
+                context.setExpiresAt(expiry == Long.MAX_VALUE ? null : Instant.ofEpochMilli(expiry));
                 long estimatedRowCount = result.getLong(3);
                 context.setEstimatedRowCount(result.wasNull() ? null : estimatedRowCount);
                 return Optional.of(context);
@@ -102,7 +103,7 @@ public final class SqliteQueryContextStore implements QueryContextStore {
         try (Connection connection = open(); PreparedStatement statement = connection.prepareStatement(
                 "UPDATE viewer_query_context SET expires_at = ? "
                         + "WHERE query_id = ? AND model = ? AND namespace IS ? AND expires_at > ?")) {
-            statement.setLong(1, expiresAt.toEpochMilli());
+            statement.setLong(1, expiryMillis(expiresAt));
             statement.setString(2, queryId);
             statement.setString(3, model);
             statement.setString(4, namespace);
@@ -140,6 +141,11 @@ public final class SqliteQueryContextStore implements QueryContextStore {
             throw e;
         }
         return connection;
+    }
+
+    // Keeps existing NOT NULL SQLite schemas compatible; the API exposes permanent expiry as null.
+    private static long expiryMillis(Instant expiry) {
+        return expiry == null ? Long.MAX_VALUE : expiry.toEpochMilli();
     }
 
     private void cleanupIfDue(Instant now) {

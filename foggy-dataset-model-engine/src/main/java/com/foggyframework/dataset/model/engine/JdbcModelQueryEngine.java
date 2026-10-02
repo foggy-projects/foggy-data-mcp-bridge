@@ -1800,7 +1800,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
         }
 
         boolean groupDimension = isRequestedGroupDimension(context, havingDef.getField());
-        if (!isAggregateCondition(havingDef.getField()) && !groupDimension) {
+        if (!isAggregateCondition(havingDef.getField()) && !isModelMeasureCondition(havingDef.getField()) && !groupDimension) {
             throw RX.throwAUserTip("HAVING_REQUIRES_GROUP_FIELD: request.having field '" + havingDef.getField()
                     + "' must be an aggregate measure or a dimension in request.groupBy.");
         }

@@ -39,6 +39,20 @@ public class DataViewerProperties {
      */
     private SecurityProperties security = new SecurityProperties();
 
+    private LinkAuthorizationProperties linkAuthorization = new LinkAuthorizationProperties();
+
+    @Data
+    public static class LinkAuthorizationProperties {
+        /** Opt-in; a host ViewerIdentityProvider is required. */
+        private boolean enabled;
+        /** Zero means permanent. Never limited by the query-cache TTL. */
+        private java.time.Duration linkTtl = java.time.Duration.ZERO;
+        /** Absolute lifetime from issuance; no idle timeout. */
+        private java.time.Duration sessionTtl = java.time.Duration.ofHours(24);
+        private String cookieName = "foggy-viewer";
+        private boolean secureCookie = true;
+    }
+
     /**
      * 查询范围约束配置
      */
@@ -68,8 +82,7 @@ public class DataViewerProperties {
         private Storage storage = Storage.SQLITE;
 
         /** Separate from the business datasource. Used only when storage is SQLITE. */
-        private String sqlitePath = java.nio.file.Path.of(System.getProperty("java.io.tmpdir"),
-                "foggy-data-viewer-query-cache.sqlite").toString();
+        private String sqlitePath = java.nio.file.Path.of("data-viewer", "query-context.sqlite").toString();
 
         /**
          * 缓存过期时间（分钟）

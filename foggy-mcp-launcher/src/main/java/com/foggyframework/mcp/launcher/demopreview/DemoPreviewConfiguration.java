@@ -25,16 +25,6 @@ public class DemoPreviewConfiguration {
     }
 
     @Bean
-    FilterRegistrationBean<DemoPreviewAuthorizationFilter> demoPreviewAuthorizationFilter(
-            DemoPreviewSessionService sessions, DemoPreviewProperties properties) {
-        FilterRegistrationBean<DemoPreviewAuthorizationFilter> registration = new FilterRegistrationBean<>();
-        registration.setFilter(new DemoPreviewAuthorizationFilter(sessions, properties));
-        registration.addUrlPatterns("/data-viewer/api/*");
-        registration.setOrder(-100);
-        return registration;
-    }
-
-    @Bean
     SmartInitializingSingleton demoPreviewLoopbackGuard(DemoPreviewProperties properties, Environment environment) {
         return () -> {
             String address = environment.getProperty("server.address", "").trim();
@@ -47,12 +37,13 @@ public class DemoPreviewConfiguration {
             if (!loopback) {
                 throw new IllegalStateException("foggy.demo-preview requires server.address to be loopback-only");
             }
-            if (!"http://127.0.0.1:18172".equals(properties.getInternalBaseUrl())
-                    || !properties.getPublicOpenUrl().startsWith("http://127.0.0.1:18172/")) {
-                throw new IllegalStateException("demo preview URLs must remain on 127.0.0.1:18172 HTTP");
+            String expectedOrigin = "http://127.0.0.1:" + environment.getRequiredProperty("server.port");
+            if (!expectedOrigin.equals(properties.getInternalBaseUrl())
+                    || !properties.getPublicOpenUrl().equals(expectedOrigin + "/data-viewer/open")) {
+                throw new IllegalStateException("demo preview URLs must use the configured loopback HTTP port");
             }
             if (properties.getUsers().isEmpty() || properties.getCredentialPrincipals().isEmpty()) {
-                throw new IllegalStateException("demo preview requires explicitly configured users and credential fingerprints");
+                throw new IllegalStateException("demo preview requires explicitly configured service scopes and credential fingerprints");
             }
         };
     }

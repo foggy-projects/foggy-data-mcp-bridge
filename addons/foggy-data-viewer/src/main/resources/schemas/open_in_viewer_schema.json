@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
-  "description": "为明细或聚合查询生成交互式浏览链接；部署方可能要求一次性交接和登录",
+  "description": "为明细或聚合查询生成交互式浏览链接；启用服务授权时免登录，链接可重复打开，默认永久有效，会话默认 24 小时",
   "properties": {
     "model": {
       "type": "string",

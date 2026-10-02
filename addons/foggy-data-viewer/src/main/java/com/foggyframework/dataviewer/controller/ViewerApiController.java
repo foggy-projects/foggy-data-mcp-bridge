@@ -66,6 +66,9 @@ public class ViewerApiController {
     private final FrontendMetaConverter frontendMetaConverter = new FrontendMetaConverter();
     private final MemberQueryService memberQueryService;
 
+    @Autowired(required = false)
+    private com.foggyframework.dataviewer.service.ViewerLaunchLinkProvider launchLinkProvider;
+
     /**
      * 获取查询元数据（用于初始页面加载）
      */
@@ -80,7 +83,7 @@ public class ViewerApiController {
                             ctx.getTitle(),
                             ctx.getTableConfig(),
                             ctx.getEstimatedRowCount(),
-                            ctx.getExpiresAt().toString(),
+                            ctx.getExpiresAt() == null ? null : ctx.getExpiresAt().toString(),
                             ctx.getSlice(), // 链接固定的明细条件
                             ctx.getHaving(), // 链接固定的汇总条件
                             ctx.getNamespace(),
@@ -178,6 +181,14 @@ public class ViewerApiController {
                 return RX.notFound().build();
             }
 
+            var access = com.foggyframework.dataviewer.security.ViewerSessionFilter.currentAccess();
+            if (access != null) {
+                // Do not send fields outside this view's granted projection, or broad model metadata.
+                com.fasterxml.jackson.databind.JsonNode node = new com.fasterxml.jackson.databind.ObjectMapper().valueToTree(response.getData());
+                com.fasterxml.jackson.databind.node.ObjectNode fields = new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode();
+                access.query().getColumns().forEach(name -> { if (node.path("fields").has(name)) fields.set(name,node.path("fields").get(name)); });
+                return (RX) RX.ok(Map.of("version","v3","fields",fields));
+            }
             return RX.ok(response.getData());
 
         } catch (Exception e) {
@@ -222,6 +233,13 @@ public class ViewerApiController {
             FrontendMeta meta = frontendMetaConverter.convert(response.getData());
             if (meta == null) {
                 return RX.notFound().build();
+            }
+
+            var access = com.foggyframework.dataviewer.security.ViewerSessionFilter.currentAccess();
+            if (access != null) {
+                meta.setFields(meta.getFields().stream().filter(field -> access.query().getColumns().contains(field.getName())).toList());
+                meta.setParams(null);
+                meta.setDefaults(null);
             }
 
             return RX.ok(meta);
@@ -336,6 +354,18 @@ public class ViewerApiController {
         }
 
         CachedQueryContext ctx = ctxOpt.get();
+        var access = com.foggyframework.dataviewer.security.ViewerSessionFilter.currentAccess();
+        if (access != null) {
+            // Query the original governed result instead of an unscoped synthetic member model.
+            // Base slice, having, grouping, parameters, field and row permissions all remain active.
+            if (!ctx.getColumns().contains(columnName)) return RX.failB("Field is outside the view scope",null);
+            PagingRequest<DbQueryRequestDef> page = new PagingRequest<>();
+            page.setParam(ctx.toDbQueryRequestDef()); page.setStart(0); page.setLimit(100);
+            QueryFacadeResult result = queryFacade.query(StableQueryFacadeRequestMapper.from(page,access.authorization(),ctx.getNamespace()));
+            var options = result.getItems().stream().map(row -> row.get(columnName)).filter(java.util.Objects::nonNull)
+                    .distinct().map(value -> Map.of("value",value,"label",String.valueOf(value))).toList();
+            return RX.ok(Map.of("options",options,"total",options.size()));
+        }
         String qmModel = ctx.getTableConfig() != null ? ctx.getTableConfig().getQmModel() : null;
         if (qmModel == null) {
             qmModel = model;
@@ -564,10 +594,14 @@ public class ViewerApiController {
             // 缓存查询
             CachedQueryContext ctx = cacheService.cacheQuery(request, authorization);
 
+            String defaultUrl = "/data-viewer/view/" + request.getModel() + "/" + ctx.getQueryId();
+            String viewerUrl = launchLinkProvider == null ? defaultUrl
+                    : launchLinkProvider.createViewerUrl(ctx,authorization,defaultUrl);
+
             return RX.ok(new CreateQueryResponse(
                     true,
                     ctx.getQueryId(),
-                    "/data-viewer/view/" + request.getModel() + "/" + ctx.getQueryId(),
+                    viewerUrl,
                     null
             ));
         } catch (Exception e) {

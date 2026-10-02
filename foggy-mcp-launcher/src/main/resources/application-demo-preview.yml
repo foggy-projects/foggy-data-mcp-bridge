@@ -13,7 +13,7 @@ foggy:
   runtime-api:
     enabled: true # Load the demo bundle registry into the Java model engine for Viewer re-queries.
   auth:
-    mode: disabled # This profile is loopback-only; the demo login controls DataViewer access.
+    mode: disabled # This profile is loopback-only; MCP service grants control DataViewer access.
   mcp:
     audit:
       enabled: false
@@ -22,9 +22,14 @@ foggy:
       default-namespace: harness_demo_logistics
   data-viewer:
     enabled: true
-    base-url: http://127.0.0.1:18172/data-viewer
+    base-url: http://127.0.0.1:${server.port}/data-viewer
+    link-authorization:
+      enabled: true
+      link-ttl: 0s # Permanent and reusable until revoked or service authorization changes.
+      session-ttl: 24h # Absolute lifetime from issuance; no idle limit.
+      secure-cookie: false # Loopback HTTP demo only. HTTPS deployments keep true.
     security:
-      require-auth: false
+      require-auth: true
     cache:
       storage: sqlite
       sqlite-path: ${FOGGY_DATA_VIEWER_CACHE_SQLITE_PATH:${java.io.tmpdir}/foggy-demo-query-cache.sqlite}
@@ -35,26 +40,19 @@ foggy:
     enabled: true
     namespace: harness_demo_logistics
     model: DemoWaybillQueryModel
-    internal-base-url: http://127.0.0.1:18172
-    public-open-url: http://127.0.0.1:18172/demo-preview/open
-    secure-cookie: false # HTTP is allowed only on the loopback-bound local demo profile.
-    absolute-session-ttl: 2h
-    idle-session-ttl: 2h
-    launch-ttl: 2h
+    internal-base-url: http://127.0.0.1:${server.port}
+    public-open-url: http://127.0.0.1:${server.port}/data-viewer/open
     policy-version: demo-logistics-v1
     users:
       north:
-        display-name: 北区运营演示用户
-        password: ${FOGGY_DEMO_PREVIEW_NORTH_PASSWORD:}
+        display-name: 北区 MCP 服务
         station-codes: [HZ-01, NB-01]
       south:
-        display-name: 南区运营演示用户
-        password: ${FOGGY_DEMO_PREVIEW_SOUTH_PASSWORD:}
+        display-name: 南区 MCP 服务
         station-codes: [SZ-01, HF-01]
       coordinator:
-        display-name: 运营主管演示用户
-        password: ${FOGGY_DEMO_PREVIEW_COORDINATOR_PASSWORD:}
+        display-name: 全站 MCP 服务
         station-codes: [HZ-01, SZ-01, NB-01, HF-01]
-    # Map the SHA-256 fingerprint of the full MCP Authorization header to a demo user.
+    # Map the SHA-256 fingerprint of the full MCP Authorization header to a demo service scope.
     # Use bracket map keys in external Spring configuration: [<fingerprint>]: coordinator
     credential-principals: {}

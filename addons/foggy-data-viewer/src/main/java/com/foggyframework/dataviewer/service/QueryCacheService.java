@@ -75,7 +75,11 @@ public class QueryCacheService {
      * @return 查询上下文
      */
     public Optional<CachedQueryContext> getQuery(String queryId) {
-        return store.findActive(queryId, Instant.now());
+        return getQuery(queryId, Instant.now());
+    }
+
+    public Optional<CachedQueryContext> getQuery(String queryId, Instant now) {
+        return store.findActive(queryId, now);
     }
 
     /** Extend a still-live query when its one-time viewer link is redeemed. */

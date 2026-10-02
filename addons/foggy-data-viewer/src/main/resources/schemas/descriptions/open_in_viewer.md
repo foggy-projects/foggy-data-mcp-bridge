@@ -18,9 +18,9 @@
 {
   "model": "DemoWaybillQueryModel",
   "payload": {
-    "columns": ["openingSite", "waybillCount", "pieceCount", "weightKg"],
+    "columns": ["workStation$caption", "waybillCount", "pieceCount", "weightKg"],
     "slice": [{"field": "businessDate", "op": "=", "value": "2026-09-26"}],
-    "groupBy": [{"field": "openingSite"}],
+    "groupBy": [{"field": "workStation$caption"}],
     "orderBy": [{"field": "waybillCount", "dir": "desc"}],
     "having": [{"field": "waybillCount", "op": "[]", "value": [1, 2]}]
   },
@@ -31,7 +31,7 @@
 ## 返回值
 
 ```json
-{"viewerUrl": "https://example.com/open#<one-time-code>", "queryId": "abc123", "expiresAt": "2026-09-27T10:00:00Z", "queryExpiresAt": "2026-09-27T10:00:00Z", "viewerLinkExpiresAt": "2026-09-27T09:00:00Z"}
+{"viewerUrl": "https://example.com/data-viewer/open#<opaque-link-secret>", "queryId": "abc123", "expiresAt": null, "queryExpiresAt": null, "viewerLinkExpiresAt": null}
 ```
 
-`expiresAt` 为兼容字段，等于 `queryExpiresAt`。`viewerLinkExpiresAt` 是已知时打开交接链接的截止时间；`queryExpiresAt` 是当前查询上下文的到期时间。启用登录交接的部署可在登录后延长查询上下文，网页以更新后的时间为准。交接链接可能一次性且绑定 MCP 凭证对应的用户；过期或已使用时从 Harness 重新生成。不要公开转发链接中的交接码。
+启用 `foggy.data-viewer.link-authorization` 时，链接关联经过验证的 MCP 服务身份及原查询范围，浏览器直接签发短期探查会话，无需账号密码。链接可以重复打开，默认永久有效，三个到期字段为 `null`；配置有限链接有效期后返回截止时间。浏览器会话默认从签发起 24 小时，到期可用原有效链接重新进入。链接到期、撤销或 MCP 服务身份/权限失效会阻止已签发会话的后续访问。不提供个人身份或个人级审计。原始 MCP token 不会返回给浏览器。不要公开转发链接密钥。
