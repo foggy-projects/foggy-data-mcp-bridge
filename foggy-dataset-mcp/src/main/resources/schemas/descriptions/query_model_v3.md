@@ -51,6 +51,7 @@
 - 如果模型说明提供 AR 业务指标（如 `arOverdueAmount`、`arOutstandingAmount`、`arOverdueCustomerCount`），优先直接作为 measure 使用；不要再包装 `sum(...)`，也不要同时加入不属于该分组口径的明细列。
 - `slice` 过滤输入明细行，语义对应 WHERE。即使字段在 QM 中定义为聚合 measure，放在 `slice` 的条件也保持行级语义；引擎不得仅凭字段元数据将其自动改写为 HAVING。日期、状态、站点等行级范围放在 `slice`。
 - 分组后的聚合阈值必须显式放入顶层 `having`，使用 QM measure 或聚合 alias，例如 `having: [{"field":"arOutstandingAmount","op":">","value":0}]`；自定义查询可先写 `sum(amountTotal) as totalSales`，再用 `having: [{"field":"totalSales","op":">","value":10000}]`。`having` 中支持聚合 measure 间 `$field` 比较，例如 `{"field":"salesAgg","op":">","value":{"$field":"costAgg"}}`。不要把聚合阈值写进 `slice`，也不要在一个 `$or` / `$and` 逻辑组内混合行级条件与聚合后条件；复杂二阶段结果过滤使用 `dataset.compose_script` 的 plan `.query({...})`。如果主查询已经返回 0 或空结果，直接回答。
+- 例如，`totalSales > 10000` 表示汇总后的销售额阈值，应写为 `having: [{"field":"totalSales","op":">","value":10000}]`；`amountTotal > 10000` 表示单笔金额阈值，只有用户明确要求先过滤明细再汇总时，才写为 `slice: [{"field":"amountTotal","op":">","value":10000}]`。
 - `columns` 只放简单单层聚合：`agg(field) as alias`。
 - 条件聚合统一写成 `sum/avg/count(if(条件, 满足时的值, 不满足时的值))`，不要生成 `count_if`、`sum_if` 或 SQL `case when`。
 

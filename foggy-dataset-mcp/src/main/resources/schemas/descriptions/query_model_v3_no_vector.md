@@ -53,6 +53,7 @@
 > - `slice` 过滤输入明细行，语义对应 WHERE。QM 中定义的聚合 measure 放在 `slice` 时也保持行级过滤，不会因为字段元数据自动改成 HAVING。分组后的聚合阈值必须显式放入顶层 `having`，例如 `having: [{"field":"arOutstandingAmount","op":">","value":0}]`；不要在同一个 `$or` / `$and` 逻辑组里混合行级条件与聚合后条件。如果主查询已经返回 0 或空结果，直接回答；复杂二阶段过滤使用 `dataset.compose_script` 在结果 plan 上 `.query({...})`。
 > - 分组后的聚合阈值必须放在顶层 `having`，不能用 `slice` 代替。用户说“按某维度汇总后，只显示销售额/金额/数量超过 N 的组”时，先写 `sum(amountTotal) as totalSales`，再用 `having: [{"field":"totalSales","op":">","value":10000}]`；只有明确要求先过滤单笔/单行金额再汇总时，才把明细条件写入 `slice`。
 > - Pivot 轴成员阈值同样是聚合后过滤。不要把原生度量阈值写入顶层 `slice`；顶层 `slice` 只用于聚合前的数据域过滤。优先使用 `pivot.rows[*].having` / `pivot.columns[*].having`，例如 `{"field": "partnerCountry$caption", "having": [{"metric": "amountTotal", "op": ">", "value": 10000}]}`；如果轴级 `having` 不适合，改用普通 `columns + groupBy` 并过滤聚合 alias，如 `sum(amountTotal) as totalSales` + `totalSales > 10000`。
+> - 例如，`totalSales > 10000` 表示汇总后的销售额阈值，应写为 `having: [{"field":"totalSales","op":">","value":10000}]`；`amountTotal > 10000` 表示单笔金额阈值，只有用户明确要求先过滤明细再汇总时，才写为 `slice: [{"field":"amountTotal","op":">","value":10000}]`。
 > - `columns` 仅用于简单的单层聚合：`agg(field) as alias`。
 > - **条件聚合** 统一使用 `sum/avg/count(if(条件, 满足时的值, 不满足时的值))` 写法，例如：`sum(if(state == "sale", amountTotal, 0)) as confirmed`。**绝对不要**生成 `count_if`、`sum_if` 之类的未定义函数，也绝对不要生成 SQL 风格的 `case when`。
 
