@@ -60,6 +60,7 @@ public class McpService {
     /** Stateless discovery used by MCP 2026-07-28 clients before direct requests. */
     public McpResponse handleServerDiscover(McpRequest request, UserRole userRole) {
         Map<String, Object> result = new HashMap<>();
+        result.put("resultType", "complete");
         result.put("supportedVersions", McpProtocolVersions.SUPPORTED);
         result.put("capabilities", Map.of(
                 "tools", Map.of("listChanged", true),
@@ -70,7 +71,7 @@ public class McpService {
                 "userRole", userRole.name(),
                 "roleDescription", userRole.getDescription()));
         result.put("ttlMs", 30_000);
-        result.put("cacheScope", "role:" + userRole.name().toLowerCase());
+        result.put("cacheScope", "private");
         return McpResponse.success(request.getId(), result);
     }
 
@@ -113,7 +114,9 @@ public class McpService {
 
         log.info("tools/list for role {}: {} tools available", userRole, filteredDefinitions.size());
 
-        return McpResponse.success(request.getId(), Map.of("tools", filteredDefinitions));
+        // The list depends on both identity and namespace; never share or retain it across requests.
+        return McpResponse.success(request.getId(), Map.of("resultType", "complete", "tools", filteredDefinitions,
+                "ttlMs", 0, "cacheScope", "private"));
     }
 
     /**
@@ -244,7 +247,7 @@ public class McpService {
      * 处理 ping 请求
      */
     public McpResponse handlePing(McpRequest request) {
-        return McpResponse.success(request.getId(), Map.of("status", "pong"));
+        return McpResponse.success(request.getId(), Map.of("resultType", "complete", "status", "pong"));
     }
 
     /**
@@ -291,6 +294,8 @@ public class McpService {
             return buildImageCallResult(imageResult);
         }
         Map<String, Object> toolCallResult = new HashMap<>();
+        // Required by MCP 2026-07-28 and accepted as an extension by legacy result schemas.
+        toolCallResult.put("resultType", "complete");
         Map<String, Object> structuredFailure = structuredQueryModelFailure(toolName, result);
         toolCallResult.put("content", List.of(Map.of(
                 "type", "text",
@@ -323,7 +328,7 @@ public class McpService {
             }
         }
         content.add(0, Map.of("type", "text", "text", toJsonString(metadata)));
-        return Map.of("content", content, "structuredContent", metadata,
+        return Map.of("resultType", "complete", "content", content, "structuredContent", metadata,
                 "isError", !Boolean.TRUE.equals(result.get("success")));
     }
 

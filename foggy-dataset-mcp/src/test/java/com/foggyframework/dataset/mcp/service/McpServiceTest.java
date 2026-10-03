@@ -63,6 +63,21 @@ class McpServiceTest extends BaseMcpTest {
                 .thenReturn(true);
     }
 
+    @Test
+    @DisplayName("现代 discovery 必须返回 complete 和私有缓存作用域")
+    void modernDiscoveryUsesCompletePrivateResult() {
+        McpRequest request = McpRequest.builder().id("discovery").method("server/discover").build();
+        for (UserRole role : UserRole.values()) {
+            McpResponse response = mcpService.handleServerDiscover(request, role);
+            assertResponseSuccess(response);
+            Map<String, Object> result = extractResultMap(response);
+            assertEquals("complete", result.get("resultType"));
+            assertEquals("private", result.get("cacheScope"));
+            assertTrue(((Number) result.get("ttlMs")).longValue() >= 0);
+            assertTrue(((List<?>) result.get("supportedVersions")).contains(McpProtocolVersions.MODERN_STATELESS));
+        }
+    }
+
     // ==================== handleInitialize 测试 ====================
 
     @Nested
@@ -80,6 +95,7 @@ class McpServiceTest extends BaseMcpTest {
             Map<String, Object> result = extractResultMap(response);
 
             assertEquals("2024-11-05", result.get("protocolVersion"));
+            assertFalse(result.containsKey("resultType"), "legacy initialize contract remains unchanged");
             assertNotNull(result.get("capabilities"));
             assertNotNull(result.get("serverInfo"));
 
@@ -245,6 +261,10 @@ class McpServiceTest extends BaseMcpTest {
             List<Map<String, Object>> tools = extractToolsList(response);
             assertEquals(1, tools.size());
             assertEquals("dataset.explain_query", tools.get(0).get("name"));
+            Map<String, Object> result = extractResultMap(response);
+            assertEquals("complete", result.get("resultType"));
+            assertEquals(0, result.get("ttlMs"));
+            assertEquals("private", result.get("cacheScope"));
         }
     }
 
@@ -267,6 +287,7 @@ class McpServiceTest extends BaseMcpTest {
 
             assertNotNull(response.getError());
             assertEquals(McpError.INVALID_PARAMS, response.getError().getCode());
+            assertNull(response.getResult(), "JSON-RPC errors must not become complete tool results");
             assertTrue(response.getError().getMessage().contains("Missing tool name"));
         }
 
@@ -373,6 +394,7 @@ class McpServiceTest extends BaseMcpTest {
 
             assertResponseSuccess(response);
             Map<String, Object> result = extractResultMap(response);
+            assertEquals("complete", result.get("resultType"));
             assertFalse(result.containsKey("status"));
 
             @SuppressWarnings("unchecked")
@@ -433,6 +455,7 @@ class McpServiceTest extends BaseMcpTest {
             assertResponseSuccess(response);
             Map<String, Object> result = extractResultMap(response);
             assertEquals("failed", result.get("status"));
+            assertEquals("complete", result.get("resultType"), "business failure is a completed tool invocation");
 
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> content = (List<Map<String, Object>>) result.get("content");
@@ -592,6 +615,7 @@ class McpServiceTest extends BaseMcpTest {
             assertResponseSuccess(response);
             Map<String, Object> result = extractResultMap(response);
             assertEquals("pong", result.get("status"));
+            assertEquals("complete", result.get("resultType"));
         }
     }
 }
