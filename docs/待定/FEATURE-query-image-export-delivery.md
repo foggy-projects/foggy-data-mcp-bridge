@@ -15,15 +15,16 @@ recorded_at: 2026-10-03
 
 ## 实现与维护仓库
 
-| 内容 | Canonical owner | 本项范围 |
-| --- | --- | --- |
-| Java 查询、权限、PNG、MCP | `foggy-data-mcp-bridge` | `QueryImageExportService`、`QueryImageRenderer`、`dataset.export_image`；Java 17 headless |
-| CLI 文件导出 | `foggy-runtime-cli` | `query export-image`，MCP 工具发现、inline PNG 校验、原子保存 |
-| 用户文档 | `foggy-data-mcp-docs` | EN/ZH `implementation/runtime-api-examples.md`、`mcp-operations.md` |
-| Skill 源 | `foggy-ai-analysis` | EN/ZH `runtime-cli-command-rules.md`、已有 `foggy-semantic-query` 的路由与 DSL reference |
+| 内容 | Canonical owner | 本项范围 | 配套 Draft PR |
+| --- | --- | --- | --- |
+| Java 查询、权限、PNG、MCP | `foggy-data-mcp-bridge` | `QueryImageExportService`、`QueryImageRenderer`、`dataset.export_image`；Java 17 headless | [#138](https://github.com/foggy-projects/foggy-data-mcp-bridge/pull/138) |
+| CLI 文件导出 | `foggy-runtime-cli` | `query export-image`，MCP 工具发现、inline PNG 校验、原子保存 | [#1](https://github.com/foggy-projects/foggy-runtime-cli/pull/1) |
+| 用户文档 | `foggy-data-mcp-docs` | EN/ZH `implementation/runtime-api-examples.md`、`mcp-operations.md` | [#1](https://github.com/foggy-projects/foggy-data-mcp-docs/pull/1) |
+| Skill 源 | `foggy-ai-analysis` | EN/ZH `runtime-cli-command-rules.md`、已有 `foggy-semantic-query` 的路由与 DSL reference | [#12](https://github.com/foggy-projects/foggy-ai-analysis/pull/12) |
 
-本轮文档与 Skill 源分别已提交为 `5a40907` 和 `ba5d1e0`；Java 生产代码的协议兼容修复
-提交为 `dc2c1e33`。配套评审使用相同开发分支，不将这些提交等同于正式发布。
+本轮文档与 Skill 源分别已提交为 `5a40907` 和 `ba5d1e0`；Java 开发分支合并最新
+`main`（`72e6ea86`）后的验收源码为 `605f0601`。配套评审使用相同开发分支，不将这些
+提交等同于正式发布。
 
 仓库内 `.codex/skills` 与用户 `~/.agents/skills` 是消费副本，不能替代上述 Skill 源仓库。
 Skill 同步仅修改既有入口和 reference，不增加重复 Skill，不打包或发布 Skill。
@@ -54,6 +55,7 @@ Docker、Node、浏览器或外部平台。本项不扩展 Python Runtime、AI �
 | 验证点 | 可复核证据 | 当前状态 |
 | --- | --- | --- |
 | 实际 SQLite 查询输入与图片一致 | `QueryImageExportIntegrationTest`，独立 SQL 对比与 `query-image-evidence.json` | Windows MVP 已通过 |
+| 合并最新 main 后的 Java 回归 | `.acceptance/query-images-delivery/merged-test-summary.json`，13 个 selector 的 Surefire XML | 113 项：112 通过、1 可选跨仓 CLI 跳过、0 失败/错误 |
 | 同名模型双 namespace 隔离 | 同一测试的两个 namespace，以及 `http-mcp-contract.json` / 两张 HTTP PNG | Windows MVP 已通过 |
 | 模型、语义字段、物理列、行权限 | 同一测试的拒绝路径及行谓词；`query-row-permission-rows.json` / 对应 PNG | Windows MVP 已通过 |
 | 查询失败、拒绝或空结果不渲染/保存 | 同一测试验证无 renderer/storage 调用 | Windows MVP 已通过 |
@@ -63,6 +65,7 @@ Docker、Node、浏览器或外部平台。本项不扩展 Python Runtime、AI �
 | Linux packaged JAR，无系统中文字体 | `.acceptance/query-images-delivery/linux/environment.json`、`checks.json`、包内字体/OFL 校验、双 namespace 三种 PNG | 最终 JAR 55 项通过；6 张 PNG 与逐张目视版本 SHA 一致 |
 | 隔离安装的 wheel/sdist 客户端 | CLI owner 的 `build/query-images-delivery/cli/receipt.json`、`server-association.json`、包校验值、8 张 PNG | 最终 JAR 14 项通过；8 张 PNG 与逐张目视版本 SHA 一致 |
 | 官方 MCP 客户端原生图片展示 | workspace 验收目录的 `inspector/client-acceptance.json`、三张 native PNG 和五张 UI 截图 | Inspector 2.9.0 / 协议 2026-07-28，5 项通过 |
+| 最终图片与验收源码、产物关联 | `.acceptance/query-images-delivery/merged-delivery-association.json`，17 张实际 PNG 的 SHA 复算 | 全部与既有逐张目视版本一致；绑定合并后的同一 JAR |
 | 文档及 Skill 合同同步 | 两个 canonical 源仓库 diff 与本地校验 | 已更新；校验结果见下方 |
 | 临时 fixture 清理 | Linux 证据目录的 `cleanup-linux.json`、`cleanup-windows.json` | 测试 Java/SSH 已关闭，端口不再监听，证据保留 |
 
@@ -81,19 +84,19 @@ classpath 拼装模拟交付产物。profile 是构建验收事实，不写入�
 跨平台可复用探针为 `scripts/verify-query-image-delivery.py`，说明在
 `scripts/README-query-image-delivery.md`；其输出位于 `.acceptance/query-images-delivery/linux/`。
 本轮 Linux 环境记录为 OpenJDK `17.0.20.1`，系统及隔离字体目录的中文字体计数均为 0。
-`runtime-api` profile 的最终 launcher 为 93,031,274 字节；打包字体为 8,331,336 字节，
+`runtime-api` profile 的最终 launcher 为 93,759,874 字节；打包字体为 8,331,336 字节，
 包内字体及 OFL 校验通过。两个 namespace 中同名模型的各 6 行与独立 SQLite SELECT
 逐行一致，三种原生 MCP PNG 均生成成功，模型/字段/行权限及空查询检查通过。
 最终 Linux 共 55 项检查通过；JAR SHA-256 为
-`b08ababbb7e68fd1198b07e5c208c13f06612022b3e06c4548849b0b7e9d8510`。
+`964cb1863250dc0c27a983249d48b01aa2dd309ba26fa140eb5b7cfdbef49665`。
 6 张 Linux PNG 已分别打开复核，中文、数字对齐、万元/笔单位、轴名称、边距及页脚正常；
 两个 namespace 的金额差异在图片中真实保留。独立视觉记录见本地
 `.acceptance/query-images-delivery/independent-delivery-visual-qa.md`。
 
 官方 MCP Inspector `2.9.0` 使用 `2026-07-28` 协议时，首次连接后发现工具列表缺少现代
 响应元数据。现已补充通用 list/call/discover/ping 的必要元数据，25 项聚焦回归通过，
-并完成最终 JAR 的 Linux 复验。最终 6 张 PNG 的 SHA 与已逐张目视复核的首轮图片一致。
-安装客户端和官方 Inspector 均已完成对最终 JAR 的真实复验。
+合并最新 `main` 后重新打包，并完成 Linux、安装客户端及官方 Inspector 对同一最终 JAR
+的真实复验。最终 6 张 Linux PNG 的 SHA 与已逐张目视复核的图片一致。
 本项只验证该客户端的真实工具与 PNG 互通，不声明完整现代 MCP 协议符合性。
 
 官方 MCP Inspector `2.9.0` 通过 `2026-07-28` 协议直接完成真实 `tools/list` 和
@@ -101,13 +104,19 @@ classpath 拼装模拟交付产物。profile 是构建验收事实，不写入�
 且自然尺寸正确；空查询返回 `NO_QUERY_DATA`、权限拒绝返回 `QUERY_FAILED`，均没有图片。
 三张已显示 DOM 图片分别保存为 `native-table.png`、`native-bar.png`、`native-line.png`，
 实际尺寸为 1200×595、1200×720、1200×720；原图逐张检查中文、数字对齐、单位、轴名和
-页脚通过。安全收据绑定 `dc2c1e33` 与最终 JAR SHA，并保留五张无请求头/凭据的 UI 截图。
+页脚通过。安全收据绑定完整 `605f0601` 源码提交与最终 JAR SHA，并保留五张无请求头/凭据
+的 UI 截图；三张原生 PNG 与合并前逐张目视版本的 SHA 一致。
 证据在 workspace 验收目录 `.acceptance/query-images-delivery/inspector/`。
 
 真实查询测试在 `foggy-dataset-mcp` 的
 `src/test/java/com/foggyframework/dataset/mcp/integration/QueryImageExportIntegrationTest.java`。
 设置 `foggy.image.evidence-dir` 生成图片和行数证据；可选 `foggy.image.cli-python` 和
 `foggy.image.cli-project` 启动既有 CLI 客户端。Python 在这里仅运行 CLI，不参与 Java 渲染。
+
+合并后的 13 个 Java selector 共 113 项：112 通过，1 项跳过，失败及错误均为 0。跳过项
+仅为未设置 `foggy.image.cli-python` / `foggy.image.cli-project` 的可选跨仓源码 CLI
+进程验证；实际查询、权限、渲染和 HTTP MCP 测试已执行。下述独立安装产物的 14 项真实
+CLI 联调已覆盖交付客户端，不把该跳过项记为通过。
 
 验收记录保留构建/安装来源、Java/CLI/客户端版本、namespace 名称、成功/拒绝状态、图片
 尺寸与字节数、实际行数及截断标志。图片交付前检查中文、标题、单位、数值对齐、null 空隙、
@@ -123,11 +132,11 @@ wheel/sdist 各 7 项通过：实际 CLI 生成三种 PNG、第二 namespace 返
 
 两种安装方式的 8 张输出 PNG 均已分别目视检查，中文、表头/轴、单位、零基线、字号及页脚
 正常；对应 PNG 的 SHA 一致。主表 1200×595、31,208 字节，主柱图/折线图 1200×700、
-27,593 / 28,079 字节；本批 CLI 往返 406–469 ms，仅是该环境的小结果记录，不作为冷启动
+27,593 / 28,079 字节；本批 CLI 往返 437–515 ms，仅是该环境的小结果记录，不作为冷启动
 或大数据量性能承诺。
 
-最终 CLI receipt 时间为 `2026-10-03T05:49:07.506946+00:00`，SHA-256 为
-`1fa544bf95bb50b6110066f052071996d5ff5a03ecd0a0d9950172b3eef225d9`。
+最终 CLI receipt 时间为 `2026-10-03T06:19:51.356181+00:00`，SHA-256 为
+`b7bbeb63b1ba54ce10f7bb9d3514b0e9babe34bd95c9dce99caab5d828ed7f9b`。
 `server-association.json` 将该 receipt、安全的 14 项检查和 8 张 PNG 关联到上述最终 JAR
 SHA，避免使用首次包的结果代替最终交付。原包及 venv 保持不变，重新生成的 8 张 PNG 与
 逐张目视版本的 SHA 完全一致。
@@ -146,10 +155,12 @@ SHA，避免使用首次包的结果代替最终交付。原包及 venv 保持�
   chunk 大小提示，没有构建或链接错误。
 - 两个 owner 的 `git diff --check` 已通过。文档明确开发中状态，不宣称 `0.1.24` 已发布本功能。
 
-交付验证已完成：最终 Linux 55 项、安装 CLI 14 项、官方 MCP 客户端 5 项均通过。独立视觉
-复核覆盖最终交付的 17 张 PNG，另保留 Windows 13 张边界输出的既有复核记录。正式版本、
-发布资产和网站上线仍未执行，不将本工作项的通过结论扩大为正式发行或完整协议符合性。
+合并最新 `main` 后的交付复验已完成：最终 Linux 55 项、安装 CLI 14 项、官方 MCP 客户端
+5 项均通过。独立视觉复核覆盖最终交付的 17 张 PNG，另保留 Windows 13 张边界输出的
+既有复核记录。正式版本、发布资产和网站上线仍未执行，不将本工作项的通过结论扩大为
+正式发行或完整协议符合性。
 
 验收结束后已关闭本任务的 Java 进程及 SSH 转发，Linux/Windows 测试端口均停止监听，
-清理收据全部通过，生成证据继续保留。探针始终生成自己的 synthetic identity，不读取或
-复用全局 Authorization；最终 helper 语法检查通过。
+清理收据全部通过，生成证据继续保留。Java packaged Runtime 探针自行生成 synthetic
+identity，不读取或复用全局 Authorization。CLI distribution helper 读取调用方明确提供的
+synthetic fixture 身份环境变量，用于已知测试 endpoint；最终 helper 语法检查通过。

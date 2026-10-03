@@ -192,6 +192,7 @@ export const queryModel = {{
                    "--spring.sql.init.mode=never", f"--spring.datasource.url=jdbc:sqlite:{self.db}",
                    f"--foggy.runtime-api.bundle-registry.path={state / 'bundles.json'}",
                    f"--foggy.runtime-api.datasource-registry.path={state / 'datasources.json'}",
+                   f"--foggy.data-viewer.cache.sqlite-path={state / 'viewer-query-cache.sqlite'}",
                    "--foggy.demo.enabled=false", "--foggy.dataset.show-sql=false",
                    "--foggy.dataset.show-sql-parameters=false",
                    "--logging.level.root=INFO", "--logging.level.org.springframework.ai=WARN",
