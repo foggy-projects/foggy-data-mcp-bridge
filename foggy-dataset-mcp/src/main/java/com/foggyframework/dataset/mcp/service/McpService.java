@@ -60,6 +60,7 @@ public class McpService {
     /** Stateless discovery used by MCP 2026-07-28 clients before direct requests. */
     public McpResponse handleServerDiscover(McpRequest request, UserRole userRole) {
         Map<String, Object> result = new HashMap<>();
+        result.put("resultType", "complete");
         result.put("supportedVersions", McpProtocolVersions.SUPPORTED);
         result.put("capabilities", Map.of(
                 // No subscriptions/listen stream is implemented by these stateless endpoints.
@@ -71,7 +72,7 @@ public class McpService {
                 "userRole", userRole.name(),
                 "roleDescription", userRole.getDescription()));
         result.put("ttlMs", 30_000);
-        result.put("cacheScope", "role:" + userRole.name().toLowerCase());
+        result.put("cacheScope", "private");
         return McpResponse.success(request.getId(), result);
     }
 
@@ -114,6 +115,7 @@ public class McpService {
 
         log.info("tools/list for role {}: {} tools available", userRole, filteredDefinitions.size());
 
+        // The list depends on both identity and namespace; never share or retain it across requests.
         return McpResponse.success(request.getId(), Map.of(
                 "resultType", "complete",
                 "ttlMs", 0,
@@ -249,7 +251,7 @@ public class McpService {
      * 处理 ping 请求
      */
     public McpResponse handlePing(McpRequest request) {
-        return McpResponse.success(request.getId(), Map.of("status", "pong"));
+        return McpResponse.success(request.getId(), Map.of("resultType", "complete", "status", "pong"));
     }
 
     /**
@@ -292,7 +294,11 @@ public class McpService {
      * <p>仅对 dataset.query_model 注入结构化状态，其他工具保持现有 content 兼容行为。</p>
      */
     private Map<String, Object> buildToolsCallResult(String toolName, Object result) {
+        if ("dataset.export_image".equals(toolName) && result instanceof Map<?, ?> imageResult) {
+            return buildImageCallResult(imageResult);
+        }
         Map<String, Object> toolCallResult = new HashMap<>();
+        // Required by MCP 2026-07-28 and accepted as an extension by legacy result schemas.
         toolCallResult.put("resultType", "complete");
         Map<String, Object> structuredFailure = structuredQueryModelFailure(toolName, result);
         toolCallResult.put("content", List.of(Map.of(
@@ -310,6 +316,24 @@ public class McpService {
         }
 
         return toolCallResult;
+    }
+
+    /** PNG lives in a native content block, not duplicated in JSON text or metadata. */
+    private Map<String, Object> buildImageCallResult(Map<?, ?> result) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        result.forEach((key, value) -> metadata.put(String.valueOf(key), value));
+        java.util.ArrayList<Map<String, Object>> content = new java.util.ArrayList<>();
+        if (Boolean.TRUE.equals(result.get("success")) && result.get("image") instanceof Map<?, ?> image) {
+            Map<String, Object> imageMetadata = new LinkedHashMap<>();
+            image.forEach((key, value) -> { if (!"data".equals(key)) imageMetadata.put(String.valueOf(key), value); });
+            metadata.put("image", imageMetadata);
+            if (image.get("data") instanceof String data) {
+                content.add(Map.of("type", "image", "mimeType", "image/png", "data", data));
+            }
+        }
+        content.add(0, Map.of("type", "text", "text", toJsonString(metadata)));
+        return Map.of("resultType", "complete", "content", content, "structuredContent", metadata,
+                "isError", !Boolean.TRUE.equals(result.get("success")));
     }
 
     private Map<String, Object> structuredQueryModelFailure(String toolName, Object result) {
