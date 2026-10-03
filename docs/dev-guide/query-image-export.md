@@ -13,7 +13,7 @@ Foggy CLI 调用这个 MCP 工具，因此两个入口共用查询、权限、�
 
 复用仓库已有的 XChart 绘制柱状图和折线图，使用 JDK Java2D/ImageIO 绘制表格、标题和页脚。
 这条路径无新增绘图库依赖，无需 Docker、Node、浏览器或远程渲染服务，支持 Java 17 headless。
-旧 `dataset.export_with_chart`、`chart.generate_xchart` 及可选 ECharts 适配器仍保留原有入口。
+旧 `dataset.export_with_xchart`、`dataset.export_with_echarts` 和 `chart.generate` 仍保留原有入口。
 
 中文使用随包交付的 Noto Sans SC 静态字体，原始字体约 8.3 MB，授权和来源在
 `foggy-dataset-mcp/src/main/resources/fonts/`。首次使用加载字体，后续复用；运行时不下载字体，
