@@ -5,6 +5,7 @@ import com.foggyframework.dataviewer.config.DataViewerProperties;
 import com.foggyframework.dataviewer.domain.CachedQueryContext;
 import com.foggyframework.dataviewer.service.QueryCacheService;
 import com.foggyframework.dataviewer.service.QueryScopeConstraintService;
+import com.foggyframework.dataviewer.service.ViewerLaunchLinkProvider;
 import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
 import com.foggyframework.mcp.spi.ToolCategory;
 import com.foggyframework.mcp.spi.ToolExecutionContext;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
@@ -24,7 +26,9 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 
 /**
  * OpenInViewerTool 单元测试
@@ -121,7 +125,7 @@ class OpenInViewerToolTest {
 
             when(constraintService.enforceConstraints(anyString(), anyList()))
                     .thenReturn(slice);
-            when(cacheService.cacheQuery(any(), anyString()))
+            when(cacheService.cacheQuery(any(), isNull()))
                     .thenReturn(cachedContext);
 
             Object result = tool.execute(arguments, context);
@@ -133,6 +137,70 @@ class OpenInViewerToolTest {
             Map<String, Object> resultMap = (Map<String, Object>) result;
             assertEquals("test-query-id", resultMap.get("queryId"));
             assertTrue(((String) resultMap.get("viewerUrl")).contains("test-query-id"));
+        }
+
+        @Test
+        void carriesHavingAndExtDataAndReportsDistinctExpiries() {
+            Instant queryExpiry = Instant.parse("2026-09-27T10:00:00Z");
+            Instant linkExpiry = Instant.parse("2026-09-27T09:00:00Z");
+            ViewerLaunchLinkProvider provider = new ViewerLaunchLinkProvider() {
+                @Override
+                public String createViewerUrl(CachedQueryContext query, String auth, String defaultUrl) {
+                    return "https://example.test/open#opaque";
+                }
+
+                @Override
+                public ViewerLaunchLink createViewerLink(CachedQueryContext query, String auth, String defaultUrl) {
+                    return new ViewerLaunchLink(createViewerUrl(query, auth, defaultUrl), linkExpiry);
+                }
+            };
+            OpenInViewerTool linkTool = new OpenInViewerTool(
+                    cacheService, constraintService, properties, objectMapper, 8080, provider);
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("columns", List.of("openingSite", "waybillCount"));
+            payload.put("slice", List.of(Map.of("field", "businessDate", "op", "=", "value", "2026-09-26")));
+            payload.put("having", List.of(Map.of("field", "waybillCount", "op", "[]", "value", List.of(1, 2))));
+            payload.put("extData", Map.of("runId", "demo"));
+            when(constraintService.enforceConstraints(anyString(), anyList()))
+                    .thenAnswer(invocation -> invocation.getArgument(1));
+            when(cacheService.cacheQuery(any(), isNull())).thenReturn(CachedQueryContext.builder()
+                    .queryId("query-1").expiresAt(queryExpiry).build());
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> result = (Map<String, Object>) linkTool.execute(
+                    Map.of("model", "DemoWaybillQueryModel", "payload", payload), context);
+            ArgumentCaptor<QueryCacheService.OpenInViewerRequest> captor =
+                    ArgumentCaptor.forClass(QueryCacheService.OpenInViewerRequest.class);
+            verify(cacheService).cacheQuery(captor.capture(), isNull());
+            assertEquals("businessDate", captor.getValue().getSlice().get(0).getField());
+            assertEquals("waybillCount", captor.getValue().getHaving().get(0).getField());
+            assertEquals(Map.of("runId", "demo"), captor.getValue().getExtData());
+            assertEquals(linkExpiry.toString(), result.get("viewerLinkExpiresAt"));
+            assertEquals(queryExpiry.toString(), result.get("queryExpiresAt"));
+        }
+
+        @Test
+        void acceptsQueryModelGroupAndOrderShorthands() {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("columns", List.of("workStation$caption", "waybillCount"));
+            payload.put("slice", List.of(Map.of("field", "businessDate", "op", "=", "value", "2026-09-26")));
+            payload.put("groupBy", List.of("workStation$caption"));
+            payload.put("orderBy", List.of("-waybillCount", "workStation$caption asc"));
+            when(constraintService.enforceConstraints(anyString(), anyList()))
+                    .thenAnswer(invocation -> invocation.getArgument(1));
+            when(cacheService.cacheQuery(any(), isNull())).thenReturn(CachedQueryContext.builder()
+                    .queryId("query-shortcuts").expiresAt(Instant.now().plus(1, ChronoUnit.HOURS)).build());
+
+            tool.execute(Map.of("model", "DemoWaybillQueryModel", "payload", payload), context);
+
+            ArgumentCaptor<QueryCacheService.OpenInViewerRequest> captor =
+                    ArgumentCaptor.forClass(QueryCacheService.OpenInViewerRequest.class);
+            verify(cacheService).cacheQuery(captor.capture(), isNull());
+            assertEquals("workStation$caption", captor.getValue().getGroupBy().get(0).getField());
+            assertEquals("waybillCount", captor.getValue().getOrderBy().get(0).getField());
+            assertEquals("desc", captor.getValue().getOrderBy().get(0).getDir());
+            assertEquals("workStation$caption", captor.getValue().getOrderBy().get(1).getField());
+            assertEquals("asc", captor.getValue().getOrderBy().get(1).getDir());
         }
 
         @Test

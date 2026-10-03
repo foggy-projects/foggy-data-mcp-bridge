@@ -66,6 +66,9 @@ public class ViewerApiController {
     private final FrontendMetaConverter frontendMetaConverter = new FrontendMetaConverter();
     private final MemberQueryService memberQueryService;
 
+    @Autowired(required = false)
+    private com.foggyframework.dataviewer.service.ViewerLaunchLinkProvider launchLinkProvider;
+
     /**
      * 获取查询元数据（用于初始页面加载）
      */
@@ -80,12 +83,21 @@ public class ViewerApiController {
                             ctx.getTitle(),
                             ctx.getTableConfig(),
                             ctx.getEstimatedRowCount(),
-                            ctx.getExpiresAt().toString(),
-                            ctx.getSlice(),  // 返回初始过滤条件
-                            ctx.getNamespace()
+                            ctx.getExpiresAt() == null ? null : ctx.getExpiresAt().toString(),
+                            ctx.getSlice(), // 链接固定的明细条件
+                            ctx.getHaving(), // 链接固定的汇总条件
+                            ctx.getNamespace(),
+                            ctx.getCreatedAt() != null ? ctx.getCreatedAt().toString() : null,
+                            new QueryDslResponse(
+                                    ctx.getModel(), ctx.getColumns(), ctx.getSlice(), ctx.getHaving(),
+                                    ctx.getGroupBy(), ctx.getOrderBy(), ctx.getCalculatedFields(),
+                                    ctx.getExtData() != null
+                            )
                     ));
                 })
-                .orElse(RX.notFound().build());
+                .orElseGet(() -> new RX<>(410, null,
+                        "查询链接已过期或不可用，请从 Harness 重新打开",
+                        ViewerDataResponse.expired("查询链接已过期或不可用，请从 Harness 重新打开")));
     }
 
     /**
@@ -169,6 +181,14 @@ public class ViewerApiController {
                 return RX.notFound().build();
             }
 
+            var access = com.foggyframework.dataviewer.security.ViewerSessionFilter.currentAccess();
+            if (access != null) {
+                // Do not send fields outside this view's granted projection, or broad model metadata.
+                com.fasterxml.jackson.databind.JsonNode node = new com.fasterxml.jackson.databind.ObjectMapper().valueToTree(response.getData());
+                com.fasterxml.jackson.databind.node.ObjectNode fields = new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode();
+                access.query().getColumns().forEach(name -> { if (node.path("fields").has(name)) fields.set(name,node.path("fields").get(name)); });
+                return (RX) RX.ok(Map.of("version","v3","fields",fields));
+            }
             return RX.ok(response.getData());
 
         } catch (Exception e) {
@@ -213,6 +233,13 @@ public class ViewerApiController {
             FrontendMeta meta = frontendMetaConverter.convert(response.getData());
             if (meta == null) {
                 return RX.notFound().build();
+            }
+
+            var access = com.foggyframework.dataviewer.security.ViewerSessionFilter.currentAccess();
+            if (access != null) {
+                meta.setFields(meta.getFields().stream().filter(field -> access.query().getColumns().contains(field.getName())).toList());
+                meta.setParams(null);
+                meta.setDefaults(null);
             }
 
             return RX.ok(meta);
@@ -327,6 +354,18 @@ public class ViewerApiController {
         }
 
         CachedQueryContext ctx = ctxOpt.get();
+        var access = com.foggyframework.dataviewer.security.ViewerSessionFilter.currentAccess();
+        if (access != null) {
+            // Query the original governed result instead of an unscoped synthetic member model.
+            // Base slice, having, grouping, parameters, field and row permissions all remain active.
+            if (!ctx.getColumns().contains(columnName)) return RX.failB("Field is outside the view scope",null);
+            PagingRequest<DbQueryRequestDef> page = new PagingRequest<>();
+            page.setParam(ctx.toDbQueryRequestDef()); page.setStart(0); page.setLimit(100);
+            QueryFacadeResult result = queryFacade.query(StableQueryFacadeRequestMapper.from(page,access.authorization(),ctx.getNamespace()));
+            var options = result.getItems().stream().map(row -> row.get(columnName)).filter(java.util.Objects::nonNull)
+                    .distinct().map(value -> Map.of("value",value,"label",String.valueOf(value))).toList();
+            return RX.ok(Map.of("options",options,"total",options.size()));
+        }
         String qmModel = ctx.getTableConfig() != null ? ctx.getTableConfig().getQmModel() : null;
         if (qmModel == null) {
             qmModel = model;
@@ -480,7 +519,7 @@ public class ViewerApiController {
 
         try {
             String namespace = resolveNamespace(headerNamespace, firstNonBlank(request.getNamespace(), ctx.getNamespace()));
-            String effectiveAuthorization = firstNonBlank(authorization, ctx.getAuthorization());
+            String effectiveAuthorization = authorization;
 
             // 构建查询请求，合并缓存参数与用户覆盖
             DbQueryRequestDef queryDef = buildQueryDef(ctx, request);
@@ -545,6 +584,7 @@ public class ViewerApiController {
             request.setTitle(frontendRequest.getTitle());
             request.setColumns(payload.getColumns());
             request.setSlice(payload.getSlice());
+            request.setHaving(payload.getHaving());
             request.setGroupBy(payload.getGroupBy());
             request.setOrderBy(payload.getOrderBy());
             request.setCalculatedFields(payload.getCalculatedFields());
@@ -554,10 +594,14 @@ public class ViewerApiController {
             // 缓存查询
             CachedQueryContext ctx = cacheService.cacheQuery(request, authorization);
 
+            String defaultUrl = "/data-viewer/view/" + request.getModel() + "/" + ctx.getQueryId();
+            String viewerUrl = launchLinkProvider == null ? defaultUrl
+                    : launchLinkProvider.createViewerUrl(ctx,authorization,defaultUrl);
+
             return RX.ok(new CreateQueryResponse(
                     true,
                     ctx.getQueryId(),
-                    "/data-viewer/view/" + request.getModel() + "/" + ctx.getQueryId(),
+                    viewerUrl,
                     null
             ));
         } catch (Exception e) {
@@ -585,6 +629,7 @@ public class ViewerApiController {
     public static class CreateQueryPayload {
         private List<String> columns;
         private List<SliceRequestDef> slice;
+        private List<SliceRequestDef> having;
         private List<GroupRequestDef> groupBy;
         private List<OrderRequestDef> orderBy;
         private List<CalculatedFieldDef> calculatedFields;
@@ -613,6 +658,13 @@ public class ViewerApiController {
             mergedSlice.addAll(request.getSlice());
         }
         def.setSlice(mergedSlice);
+
+        if (request.getHaving() != null && !request.getHaving().isEmpty()) {
+            List<SliceRequestDef> mergedHaving = new ArrayList<>(
+                    def.getHaving() != null ? def.getHaving() : List.of());
+            mergedHaving.addAll(request.getHaving());
+            def.setHaving(mergedHaving);
+        }
 
         // 覆盖排序条件（如果用户指定）
         if (request.getOrderBy() != null && !request.getOrderBy().isEmpty()) {
@@ -694,6 +746,21 @@ public class ViewerApiController {
             Long estimatedRowCount,
             String expiresAt,
             List<SliceRequestDef> initialSlice,
-            String namespace
+            List<SliceRequestDef> initialHaving,
+            String namespace,
+            String createdAt,
+            QueryDslResponse initialDsl
+    ) {}
+
+    /** Query structure for the viewer. Runtime parameters may contain secrets and are never returned. */
+    public record QueryDslResponse(
+            String queryModel,
+            List<String> columns,
+            List<SliceRequestDef> slice,
+            List<SliceRequestDef> having,
+            List<GroupRequestDef> groupBy,
+            List<OrderRequestDef> orderBy,
+            List<CalculatedFieldDef> calculatedFields,
+            boolean hasRuntimeParameters
     ) {}
 }

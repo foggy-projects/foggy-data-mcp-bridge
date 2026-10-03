@@ -43,7 +43,7 @@ public class McpService {
                 : request.getParams().get("protocolVersion");
         result.put("protocolVersion", McpProtocolVersions.negotiateLegacy(requestedVersion));
         result.put("capabilities", Map.of(
-                "tools", Map.of("listChanged", true),
+                "tools", Map.of("listChanged", false),
                 "logging", Map.of()
         ));
         result.put("serverInfo", Map.of(
@@ -63,7 +63,8 @@ public class McpService {
         result.put("resultType", "complete");
         result.put("supportedVersions", McpProtocolVersions.SUPPORTED);
         result.put("capabilities", Map.of(
-                "tools", Map.of("listChanged", true),
+                // No subscriptions/listen stream is implemented by these stateless endpoints.
+                "tools", Map.of("listChanged", false),
                 "logging", Map.of()));
         result.put("serverInfo", Map.of(
                 "name", "foggy-data-mcp",
@@ -115,8 +116,11 @@ public class McpService {
         log.info("tools/list for role {}: {} tools available", userRole, filteredDefinitions.size());
 
         // The list depends on both identity and namespace; never share or retain it across requests.
-        return McpResponse.success(request.getId(), Map.of("resultType", "complete", "tools", filteredDefinitions,
-                "ttlMs", 0, "cacheScope", "private"));
+        return McpResponse.success(request.getId(), Map.of(
+                "resultType", "complete",
+                "ttlMs", 0,
+                "cacheScope", "private",
+                "tools", filteredDefinitions));
     }
 
     /**

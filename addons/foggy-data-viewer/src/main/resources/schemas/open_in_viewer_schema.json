@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
-  "description": "生成可分享的浏览器链接，用于交互式浏览大数据集",
+  "description": "为明细或聚合查询生成交互式浏览链接；启用服务授权时免登录，链接可重复打开，默认永久有效，会话默认 24 小时",
   "properties": {
     "model": {
       "type": "string",
@@ -9,7 +9,7 @@
     },
     "payload": {
       "type": "object",
-      "description": "查询参数（与 dataset.query_model 格式完全一致）",
+      "description": "浏览器重查所需的查询参数；显式保留明细 slice 与聚合 having",
       "properties": {
         "columns": {
           "type": "array",
@@ -19,19 +19,53 @@
         "slice": {
           "type": "array",
           "minItems": 1,
-          "description": "过滤条件（必需）。至少需要一个过滤条件来限制查询范围"
+          "description": "明细过滤条件（WHERE，必需）。至少提供一个条件来限制查询范围；不会自动转为 HAVING"
+        },
+        "having": {
+          "type": "array",
+          "description": "显式聚合过滤条件（HAVING），例如对分组后的 waybillCount 设定范围"
         },
         "orderBy": {
           "type": "array",
-          "description": "排序配置"
+          "description": "排序规则，可用 query_model 简写 [\"-waybillCount\"]，也可用对象 [{\"field\":\"waybillCount\",\"dir\":\"desc\"}]",
+          "items": {
+            "oneOf": [
+              { "type": "string", "minLength": 1 },
+              {
+                "type": "object",
+                "properties": {
+                  "field": { "type": "string" },
+                  "dir": { "type": "string", "enum": ["asc", "desc"] }
+                },
+                "required": ["field"]
+              }
+            ]
+          }
         },
         "groupBy": {
           "type": "array",
-          "description": "分组/聚合字段"
+          "description": "分组字段，可用 query_model 简写 [\"workStation$caption\"]，也可用对象 [{\"field\":\"workStation$caption\"}]",
+          "items": {
+            "oneOf": [
+              { "type": "string", "minLength": 1 },
+              {
+                "type": "object",
+                "properties": {
+                  "field": { "type": "string" },
+                  "agg": { "type": "string" }
+                },
+                "required": ["field"]
+              }
+            ]
+          }
         },
         "calculatedFields": {
           "type": "array",
           "description": "计算字段定义"
+        },
+        "extData": {
+          "type": "object",
+          "description": "查询运行时扩展参数；不要放入凭证"
         }
       },
       "required": ["columns", "slice"]
@@ -39,6 +73,10 @@
     "title": {
       "type": "string",
       "description": "数据视图的标题（可选）"
+    },
+    "namespace": {
+      "type": "string",
+      "description": "可选 namespace；未指定时使用 MCP 上下文中的 namespace"
     }
   },
   "required": ["model", "payload"]

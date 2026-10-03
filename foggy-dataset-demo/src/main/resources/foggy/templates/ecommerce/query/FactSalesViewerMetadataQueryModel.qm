@@ -6,6 +6,7 @@ const fs = loadTableModel('FactSalesViewerMetadataModel');
 export const queryModel = {
     name: 'FactSalesViewerMetadataQueryModel',
     caption: 'Viewer metadata query model',
+    description: 'Synthetic sales rows for verifying trusted frontend metadata.',
     model: fs,
 
     columnGroups: [

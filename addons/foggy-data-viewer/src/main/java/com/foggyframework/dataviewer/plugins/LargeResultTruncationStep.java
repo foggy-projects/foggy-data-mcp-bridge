@@ -3,9 +3,9 @@ package com.foggyframework.dataviewer.plugins;
 import com.foggyframework.dataviewer.config.DataViewerProperties;
 import com.foggyframework.dataviewer.service.QueryCacheService;
 import com.foggyframework.dataviewer.domain.CachedQueryContext;
+import com.foggyframework.dataviewer.service.ViewerLaunchLinkProvider;
 import com.foggyframework.dataset.model.plugins.result_set_filter.DataSetResultStep;
 import com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
@@ -39,11 +39,22 @@ import java.util.Map;
  * @since 1.0.0
  */
 @Slf4j
-@RequiredArgsConstructor
 public class LargeResultTruncationStep implements DataSetResultStep {
 
     private final QueryCacheService queryCacheService;
     private final DataViewerProperties properties;
+    private final ViewerLaunchLinkProvider launchLinkProvider;
+
+    public LargeResultTruncationStep(QueryCacheService queryCacheService, DataViewerProperties properties) {
+        this(queryCacheService, properties, null);
+    }
+
+    public LargeResultTruncationStep(QueryCacheService queryCacheService, DataViewerProperties properties,
+                                     ViewerLaunchLinkProvider launchLinkProvider) {
+        this.queryCacheService = queryCacheService;
+        this.properties = properties;
+        this.launchLinkProvider = launchLinkProvider;
+    }
 
     @Override
     public int process(ModelResultContext ctx) {
@@ -139,17 +150,25 @@ public class LargeResultTruncationStep implements DataSetResultStep {
         String queryId = null;
         String viewerUrl = null;
         String apiUrl = null;
+        String queryExpiresAt = null;
+        String viewerLinkExpiresAt = null;
 
         try {
             // 构建缓存请求
             QueryCacheService.OpenInViewerRequest cacheRequest = buildCacheRequest(ctx);
-            CachedQueryContext cachedQuery = queryCacheService.cacheQuery(cacheRequest, ctx.getAuthorization());
+            CachedQueryContext cachedQuery = queryCacheService.cacheQuery(cacheRequest, null);
 
             queryId = cachedQuery.getQueryId();
-            viewerUrl = buildViewerUrl(queryId);
-            apiUrl = buildApiUrl(queryId);
+            String defaultViewerUrl = buildViewerUrl(cachedQuery.getModel(), queryId);
+            ViewerLaunchLinkProvider.ViewerLaunchLink link = launchLinkProvider == null
+                    ? new ViewerLaunchLinkProvider.ViewerLaunchLink(defaultViewerUrl, cachedQuery.getExpiresAt())
+                    : launchLinkProvider.createViewerLink(cachedQuery, ctx.getAuthorization(), defaultViewerUrl);
+            viewerUrl = link.url();
+            queryExpiresAt = cachedQuery.getExpiresAt() == null ? null : cachedQuery.getExpiresAt().toString();
+            viewerLinkExpiresAt = link.expiresAt() == null ? null : link.expiresAt().toString();
+            apiUrl = buildApiUrl(cachedQuery.getModel(), queryId);
 
-            log.info("Created query link for truncated result: queryId={}, viewerUrl={}", queryId, viewerUrl);
+            log.info("Created query link for truncated result.");
 
         } catch (Exception e) {
             log.error("Failed to create query link for truncated result", e);
@@ -178,6 +197,10 @@ public class LargeResultTruncationStep implements DataSetResultStep {
         if (viewerUrl != null) {
             truncationInfo.put("viewerUrl", viewerUrl);
             truncationInfo.put("apiUrl", apiUrl);
+            truncationInfo.put("queryExpiresAt", queryExpiresAt);
+            if (viewerLinkExpiresAt != null) {
+                truncationInfo.put("viewerLinkExpiresAt", viewerLinkExpiresAt);
+            }
             truncationInfo.put("hint", "您可以访问上述链接查看完整数据，或通过 API 分页获取（参数：start, limit）");
         }
 
@@ -201,9 +224,11 @@ public class LargeResultTruncationStep implements DataSetResultStep {
             request.setModel(model);
             request.setColumns(param.getColumns());
             request.setSlice(param.getSlice());
+            request.setHaving(param.getHaving());
             request.setGroupBy(param.getGroupBy());
             request.setOrderBy(param.getOrderBy());
             request.setCalculatedFields(param.getCalculatedFields());
+            request.setExtData(param.getExtData());
             request.setTitle("查询结果 - " + model);
             request.setNamespace(ctx.getNamespace());
         }
@@ -214,22 +239,22 @@ public class LargeResultTruncationStep implements DataSetResultStep {
     /**
      * 构建 data-viewer 链接
      */
-    private String buildViewerUrl(String queryId) {
+    private String buildViewerUrl(String model, String queryId) {
         String baseUrl = properties.getBaseUrl();
         if (baseUrl == null || baseUrl.isEmpty()) {
             baseUrl = "http://localhost:8080/data-viewer";
         }
-        return baseUrl + "/view/" + queryId;
+        return baseUrl + "/view/" + model + "/" + queryId;
     }
 
     /**
      * 构建 API 链接
      */
-    private String buildApiUrl(String queryId) {
+    private String buildApiUrl(String model, String queryId) {
         String baseUrl = properties.getBaseUrl();
         if (baseUrl == null || baseUrl.isEmpty()) {
             baseUrl = "http://localhost:8080/data-viewer";
         }
-        return baseUrl + "/api/query/" + queryId + "/data";
+        return baseUrl + "/api/query/" + model + "/" + queryId + "/data";
     }
 }

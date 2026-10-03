@@ -14,6 +14,13 @@ import type {
 
 const apiClient = createDataViewerHttpClient('/data-viewer/api')
 
+export class QueryContextUnavailableError extends Error {
+  constructor() {
+    super('查询链接已过期或不可用，请从 Harness 重新打开')
+    this.name = 'QueryContextUnavailableError'
+  }
+}
+
 type RawQmField = Record<string, unknown>
 
 const DIMENSION_GROUP_ORDER_BASE = 20
@@ -217,6 +224,9 @@ export async function fetchQueryMeta(model: string, queryId: string, options?: D
 
   // Handle RX response format: { code: 200, msg: "", data: {} }
   if (!response.data || response.data.code !== 200) {
+    if (response.data?.code === 404 || response.data?.code === 410) {
+      throw new QueryContextUnavailableError()
+    }
     throw new Error(response.data?.msg || '获取查询元数据失败')
   }
 
@@ -300,7 +310,8 @@ export async function fetchQmSchema(qmModel: string, options?: DataViewerHttpReq
       category,
       filterable: field.filterable !== false,
       aggregatable: field.aggregatable === true,
-      measure: field.measure === true,
+      measure: category === 'measure',
+      aggregation: pickText(field.aggregation),
       filterType: field.filterType as ColumnSchema['filterType'],
       dictId: pickText(field.dictId),
       dictItems: field.dictItems as ColumnSchema['dictItems'],

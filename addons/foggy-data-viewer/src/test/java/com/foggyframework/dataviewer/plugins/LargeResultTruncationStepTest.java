@@ -5,6 +5,7 @@ import com.foggyframework.dataviewer.domain.CachedQueryContext;
 import com.foggyframework.dataviewer.service.QueryCacheService;
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.model.plugins.result_set_filter.DataSetResultStep;
 import com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.model.spi.QueryModel;
@@ -54,6 +55,26 @@ class LargeResultTruncationStepTest {
         properties.setThresholds(thresholds);
 
         step = new LargeResultTruncationStep(queryCacheService, properties);
+    }
+
+    @Test
+    void automaticLinkCachesOriginalHavingAndExtData() {
+        ModelResultContext ctx = createContext(true, 200, 100);
+        DbQueryRequestDef original = ctx.getRequest().getParam();
+        original.setSlice(List.of(new SliceRequestDef("businessDate", "=", "2026-09-26")));
+        original.setHaving(List.of(new SliceRequestDef("waybillCount", "[]", List.of(1, 2))));
+        original.setExtData(Map.of("runId", "demo"));
+        when(queryCacheService.cacheQuery(any(), any())).thenReturn(CachedQueryContext.builder()
+                .queryId("query-1").model("test_model")
+                .expiresAt(Instant.now().plusSeconds(3600)).build());
+
+        step.process(ctx);
+
+        var captor = org.mockito.ArgumentCaptor.forClass(QueryCacheService.OpenInViewerRequest.class);
+        verify(queryCacheService).cacheQuery(captor.capture(), any());
+        assertEquals("businessDate", captor.getValue().getSlice().get(0).getField());
+        assertEquals("waybillCount", captor.getValue().getHaving().get(0).getField());
+        assertEquals(Map.of("runId", "demo"), captor.getValue().getExtData());
     }
 
     @Nested
@@ -334,8 +355,8 @@ class LargeResultTruncationStepTest {
             String viewerUrl = (String) truncationInfo.get("viewerUrl");
             String apiUrl = (String) truncationInfo.get("apiUrl");
 
-            assertEquals("https://example.com/viewer/view/abc123", viewerUrl);
-            assertEquals("https://example.com/viewer/api/query/abc123/data", apiUrl);
+            assertEquals("https://example.com/viewer/view/test_model/abc123", viewerUrl);
+            assertEquals("https://example.com/viewer/api/query/test_model/abc123/data", apiUrl);
         }
     }
 

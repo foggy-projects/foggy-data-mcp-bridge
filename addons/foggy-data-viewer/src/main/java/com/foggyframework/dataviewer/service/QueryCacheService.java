@@ -21,33 +21,25 @@ import java.util.*;
 @Slf4j
 public class QueryCacheService {
 
-    private final CachedQueryStore repository;
+    private final QueryContextStore store;
     private final DataViewerProperties properties;
 
-    public QueryCacheService(CachedQueryStore repository, DataViewerProperties properties) {
-        this.repository = repository;
+    public QueryCacheService(QueryContextStore store, DataViewerProperties properties) {
+        this.store = store;
         this.properties = properties;
     }
 
+    /** Keeps existing embedders using the Mongo repository constructor working. */
     public QueryCacheService(CachedQueryRepository repository, DataViewerProperties properties) {
-        this(new CachedQueryStore() {
-            @Override
-            public CachedQueryContext save(CachedQueryContext context) {
-                return repository.save(context);
-            }
-
-            @Override
-            public Optional<CachedQueryContext> findUnexpired(String queryId, Instant now) {
-                return repository.findByQueryIdAndExpiresAtAfter(queryId, now);
-            }
-        }, properties);
+        this(new MongoQueryContextStore(repository), properties);
     }
 
     /**
      * 缓存查询并生成唯一ID
      *
      * @param request       查询请求
-     * @param authorization 授权信息
+     * @param authorization Legacy compatibility parameter. Authorization is
+     *                      deliberately never stored in the cached context.
      * @return 缓存的查询上下文
      */
     public CachedQueryContext cacheQuery(OpenInViewerRequest request, String authorization) {
@@ -58,12 +50,12 @@ public class QueryCacheService {
                 .model(request.getModel())
                 .columns(request.getColumns())
                 .slice(request.getSlice())
+                .having(request.getHaving())
                 .groupBy(request.getGroupBy())
                 .orderBy(request.getOrderBy())
                 .calculatedFields(request.getCalculatedFields())
                 .extData(request.getExtData())
                 .title(request.getTitle())
-                .authorization(authorization)
                 .namespace(request.getNamespace())
                 .createdAt(Instant.now())
                 .expiresAt(Instant.now().plus(properties.getCache().getTtlMinutes(), ChronoUnit.MINUTES))
@@ -73,7 +65,7 @@ public class QueryCacheService {
         ctx.setTableConfig(buildTableConfig(request));
 
         log.info("Cached query with ID: {} for model: {}", queryId, request.getModel());
-        return repository.save(ctx);
+        return store.save(ctx);
     }
 
     /**
@@ -83,7 +75,16 @@ public class QueryCacheService {
      * @return 查询上下文
      */
     public Optional<CachedQueryContext> getQuery(String queryId) {
-        return repository.findUnexpired(queryId, Instant.now());
+        return getQuery(queryId, Instant.now());
+    }
+
+    public Optional<CachedQueryContext> getQuery(String queryId, Instant now) {
+        return store.findActive(queryId, now);
+    }
+
+    /** Extend a still-live query when its one-time viewer link is redeemed. */
+    public boolean extendExpiry(String queryId, String model, String namespace, Instant now, Instant expiresAt) {
+        return store.extendExpiry(queryId, model, namespace, now, expiresAt);
     }
 
     /**
@@ -93,17 +94,14 @@ public class QueryCacheService {
      * @param estimatedRowCount 预估行数
      */
     public void updateEstimatedRowCount(String queryId, Long estimatedRowCount) {
-        getQuery(queryId).ifPresent(ctx -> {
-            ctx.setEstimatedRowCount(estimatedRowCount);
-            repository.save(ctx);
-        });
+        store.updateEstimatedRowCount(queryId, estimatedRowCount, Instant.now());
     }
 
     /**
      * 生成安全的查询ID
      */
     private String generateSecureId() {
-        return UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+        return UUID.randomUUID().toString().replace("-", "");
     }
 
     /**
@@ -129,6 +127,7 @@ public class QueryCacheService {
         private String model;
         private List<String> columns;
         private List<SliceRequestDef> slice;
+        private List<SliceRequestDef> having;
         private List<GroupRequestDef> groupBy;
         private List<OrderRequestDef> orderBy;
         private List<CalculatedFieldDef> calculatedFields;

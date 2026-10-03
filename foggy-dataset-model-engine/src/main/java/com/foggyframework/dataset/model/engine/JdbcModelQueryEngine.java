@@ -1800,7 +1800,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
         }
 
         boolean groupDimension = isRequestedGroupDimension(context, havingDef.getField());
-        if (!isAggregateCondition(havingDef.getField()) && !groupDimension) {
+        if (!isAggregateCondition(havingDef.getField()) && !isModelMeasureCondition(havingDef.getField()) && !groupDimension) {
             throw RX.throwAUserTip("HAVING_REQUIRES_GROUP_FIELD: request.having field '" + havingDef.getField()
                     + "' must be an aggregate measure or a dimension in request.groupBy.");
         }
@@ -1844,7 +1844,9 @@ public class JdbcModelQueryEngine implements QueryEngine {
         validateDictionaryCaptionFilter(sliceDef.getField(), sliceDef.getOp(), jdbcColumn);
 
         // 判断是否为聚合条件
-        boolean isAggregateCondition = isAggregateCondition(sliceDef.getField());
+        boolean explicitModelMeasureHaving = forceCurrentListCondForAggregate
+                && isModelMeasureColumn(jdbcColumn);
+        boolean isAggregateCondition = isAggregateCondition(sliceDef.getField()) || explicitModelMeasureHaving;
 
         // 计算字段需要遍历其引用的列来触发 JOIN
         if (jdbcColumn.isCalculatedField()) {
@@ -1944,7 +1946,32 @@ public class JdbcModelQueryEngine implements QueryEngine {
         // 聚合条件需要添加到HAVING，否则添加到WHERE
         if (isAggregateCondition) {
             JdbcQuery.JdbcListCond target = forceCurrentListCondForAggregate ? listCond : jdbcQuery.getHaving();
-            sqlFormulaService.buildAndAddToJdbcCond(target, sliceDef.getOp(), jdbcColumn, alias,
+            DbColumn conditionColumn = jdbcColumn;
+            String conditionAlias = alias;
+            if (explicitModelMeasureHaving) {
+                String declare = jdbcColumn.getDeclare(null, alias, jdbcQueryModel.getDialect());
+                AggregationDbColumn aggregateColumn = buildAggColumn1(
+                        jdbcColumn.getQueryObject(), declare, jdbcColumn, jdbcColumn.getAggregation());
+                DbColumn measureColumn = jdbcColumn;
+                conditionColumn = new AggregationDbColumn(
+                        aggregateColumn.getQueryObject(),
+                        aggregateColumn.getAlias(),
+                        aggregateColumn.getDeclare(null, alias, jdbcQueryModel.getDialect()),
+                        aggregateColumn.getType(),
+                        aggregateColumn.getAggregation()) {
+                    @Override
+                    public ObjectTransFormatter<?> getFormatter() {
+                        return measureColumn.getFormatter();
+                    }
+
+                    @Override
+                    public ObjectTransFormatter<?> getFormatter(boolean errorIfNull) {
+                        return measureColumn.getFormatter(errorIfNull);
+                    }
+                };
+                conditionAlias = null;
+            }
+            sqlFormulaService.buildAndAddToJdbcCond(target, sliceDef.getOp(), conditionColumn, conditionAlias,
                     sliceDef.getValue(), parentLink, jdbcQueryModel.getDialect());
         } else {
             sqlFormulaService.buildAndAddToJdbcCond(listCond, sliceDef.getOp(), jdbcColumn, alias,
@@ -2514,6 +2541,8 @@ public class JdbcModelQueryEngine implements QueryEngine {
      * @return true 如果是聚合条件，需要放入HAVING；false 如果是普通条件，放入WHERE
      */
     private boolean isAggregateCondition(String fieldName) {
+        // Deliberately excludes plain QueryModel measures. A measure in slice is still
+        // a row-level predicate; only explicit having uses isModelMeasureCondition().
         if (parsedInlineExpressions != null
                 && parsedInlineExpressions.getColumnAggregations() != null
                 && parsedInlineExpressions.getColumnAggregations().containsKey(fieldName)) {
@@ -2522,6 +2551,28 @@ public class JdbcModelQueryEngine implements QueryEngine {
         CalculatedDbColumn calculatedColumn = findCalculatedColumn(fieldName);
         return calculatedColumn != null && calculatedColumn.hasAggregate();
     }
+
+    /**
+     * Model measures are aggregate values only when explicitly supplied in request.having.
+     * A measure referenced from request.slice remains a row-level predicate by design.
+     */
+    private boolean isModelMeasureCondition(String fieldName) {
+        if (fieldName == null) {
+            return false;
+        }
+        return isModelMeasureColumn(jdbcQueryModel.findJdbcColumnForCond(fieldName, false, true));
+    }
+
+    private boolean isModelMeasureColumn(DbColumn column) {
+        if (column == null || !column.isMeasure()) {
+            return false;
+        }
+        DbAggregation aggregation = column.getAggregation();
+        return aggregation != null
+                && aggregation != DbAggregation.NONE
+                && aggregation != DbAggregation.WINDOW;
+    }
+
 
     /**
      * 校验 OR 连接的条件组

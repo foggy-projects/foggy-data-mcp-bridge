@@ -500,6 +500,85 @@ class HavingClauseIT extends EcommerceTestSupport {
         }
     }
 
+    @Test
+    @Order(10)
+    @DisplayName("模型度量仅在 having 中按默认聚合过滤")
+    void testModelMeasureHavingUsesDeclaredAggregation() {
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setQueryModel("FactOrderQueryModel");
+        request.setColumns(List.of(
+                "customer$customerType",
+                "sum(amount) as totalAmount"
+        ));
+        request.setHaving(List.of(new SliceRequestDef("amount", ">", 1000)));
+        OrderRequestDef orderBy = new OrderRequestDef();
+        orderBy.setField("customer$customerType");
+        orderBy.setDir("asc");
+        request.setOrderBy(List.of(orderBy));
+
+        PagingResultImpl result = queryFacade.queryModelData(
+                PagingRequest.buildPagingRequest(request, 100));
+        List<Map<String, Object>> items = result.getItems();
+        List<Map<String, Object>> expected = executeQuery("""
+                SELECT dc.customer_type, SUM(fo.total_amount) AS sum_amount
+                FROM fact_order fo
+                LEFT JOIN dim_customer dc ON fo.customer_key = dc.customer_key
+                GROUP BY dc.customer_type
+                HAVING SUM(fo.total_amount) > 1000
+                ORDER BY dc.customer_type
+                """);
+
+        assertTrue(expected.size() > 0, "原生 HAVING 应返回符合条件的分组");
+        assertEquals(expected.size(), items.size(), "模型度量的 HAVING 应与原生聚合过滤行数一致");
+        for (int i = 0; i < items.size(); i++) {
+            Map<String, Object> item = items.get(i);
+            BigDecimal totalAmount = toBigDecimal(item.get("totalAmount"));
+            assertTrue(totalAmount.compareTo(BigDecimal.valueOf(1000)) > 0,
+                    "默认 SUM(amount) 应用于 HAVING，实际: " + totalAmount);
+            assertEquals(expected.get(i).get("customer_type"), item.get("customer$customerType"));
+            assertEquals(0, toBigDecimal(expected.get(i).get("sum_amount")).compareTo(totalAmount));
+        }
+    }
+
+    @Test
+    @Order(11)
+    @DisplayName("模型度量放在 slice 中仍按明细行过滤")
+    void testModelMeasureSliceRemainsRowLevel() {
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setQueryModel("FactOrderQueryModel");
+        request.setColumns(List.of(
+                "customer$customerType",
+                "sum(amount) as totalAmount"
+        ));
+        request.setSlice(List.of(new SliceRequestDef("amount", ">", 1000)));
+        OrderRequestDef orderBy = new OrderRequestDef();
+        orderBy.setField("customer$customerType");
+        orderBy.setDir("asc");
+        request.setOrderBy(List.of(orderBy));
+
+        PagingResultImpl result = queryFacade.queryModelData(
+                PagingRequest.buildPagingRequest(request, 100));
+        List<Map<String, Object>> items = result.getItems();
+        List<Map<String, Object>> expected = executeQuery("""
+                SELECT dc.customer_type, SUM(fo.total_amount) AS sum_amount
+                FROM fact_order fo
+                LEFT JOIN dim_customer dc ON fo.customer_key = dc.customer_key
+                WHERE fo.total_amount > 1000
+                GROUP BY dc.customer_type
+                ORDER BY dc.customer_type
+                """);
+
+        assertEquals(expected.size(), items.size(),
+                "slice(amount) 必须与明细 WHERE 过滤后的分组行数一致");
+        for (int i = 0; i < expected.size(); i++) {
+            Map<String, Object> expectedRow = expected.get(i);
+            Map<String, Object> actualRow = items.get(i);
+            assertEquals(expectedRow.get("customer_type"), actualRow.get("customer$customerType"));
+            assertEquals(0, toBigDecimal(expectedRow.get("sum_amount"))
+                    .compareTo(toBigDecimal(actualRow.get("totalAmount"))));
+        }
+    }
+
     // ==========================================
     // 辅助方法
     // ==========================================

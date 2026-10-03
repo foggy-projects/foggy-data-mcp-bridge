@@ -18,8 +18,6 @@ import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
@@ -44,6 +42,23 @@ class QueryCacheServiceTest {
         properties.getCache().setTtlMinutes(60);
 
         service = new QueryCacheService(repository, properties);
+    }
+
+    @Test
+    void redemptionExtendsOnlyTheMatchingLiveQuery() {
+        Instant now = Instant.parse("2026-09-27T08:00:00Z");
+        Instant newExpiry = now.plus(2, ChronoUnit.HOURS);
+        CachedQueryContext context = CachedQueryContext.builder()
+                .queryId("query-1").model("orders").namespace("demo")
+                .expiresAt(now.plus(30, ChronoUnit.MINUTES)).build();
+        when(repository.findById("query-1"))
+                .thenReturn(Optional.of(context));
+
+        assertFalse(service.extendExpiry("query-1", "orders", "other", now, newExpiry));
+        verify(repository, never()).save(any());
+        assertTrue(service.extendExpiry("query-1", "orders", "demo", now, newExpiry));
+        assertEquals(newExpiry, context.getExpiresAt());
+        verify(repository).save(context);
     }
 
     @Nested
@@ -101,8 +116,8 @@ class QueryCacheServiceTest {
         }
 
         @Test
-        @DisplayName("应保存授权信息")
-        void shouldSaveAuthorization() {
+        @DisplayName("不得保存原始授权信息")
+        void shouldNotSaveAuthorization() {
             QueryCacheService.OpenInViewerRequest request = new QueryCacheService.OpenInViewerRequest();
             request.setModel("orders");
             request.setColumns(List.of("orderId"));
@@ -113,7 +128,8 @@ class QueryCacheServiceTest {
 
             CachedQueryContext result = service.cacheQuery(request, "Bearer my-token");
 
-            assertEquals("Bearer my-token", result.getAuthorization());
+            assertFalse(Arrays.stream(CachedQueryContext.class.getDeclaredFields())
+                    .anyMatch(field -> field.getName().equalsIgnoreCase("authorization")));
         }
 
         @Test
@@ -150,6 +166,24 @@ class QueryCacheServiceTest {
             assertEquals(Map.of("suggestionSheetId", "2490136163"),
                     result.toDbQueryRequestDef().getExtData());
         }
+
+        @Test
+        void preservesExplicitHavingWithoutChangingDetailSlice() {
+            QueryCacheService.OpenInViewerRequest request = new QueryCacheService.OpenInViewerRequest();
+            request.setModel("orders");
+            request.setColumns(List.of("station", "waybillCount"));
+            request.setSlice(createSlice("businessDate", "=", "2026-09-26"));
+            request.setHaving(List.of(new SliceRequestDef("waybillCount", "[]", List.of(1, 2))));
+            request.setExtData(Map.of("runId", "demo"));
+            when(repository.save(any(CachedQueryContext.class)))
+                    .thenAnswer(invocation -> invocation.getArgument(0));
+
+            CachedQueryContext cached = service.cacheQuery(request, null);
+
+            assertEquals("businessDate", cached.toDbQueryRequestDef().getSlice().get(0).getField());
+            assertEquals("waybillCount", cached.toDbQueryRequestDef().getHaving().get(0).getField());
+            assertEquals(Map.of("runId", "demo"), cached.toDbQueryRequestDef().getExtData());
+        }
     }
 
     @Nested
@@ -165,7 +199,7 @@ class QueryCacheServiceTest {
             context.setModel("orders");
             context.setExpiresAt(Instant.now().plus(30, ChronoUnit.MINUTES));
 
-            when(repository.findByQueryIdAndExpiresAtAfter(eq(queryId), any(Instant.class)))
+            when(repository.findById(queryId))
                     .thenReturn(Optional.of(context));
 
             Optional<CachedQueryContext> result = service.getQuery(queryId);
@@ -179,12 +213,42 @@ class QueryCacheServiceTest {
         void shouldReturnEmptyWhenQueryNotFound() {
             String queryId = "non-existent-id";
 
-            when(repository.findByQueryIdAndExpiresAtAfter(eq(queryId), any(Instant.class)))
+            when(repository.findById(queryId))
                     .thenReturn(Optional.empty());
 
             Optional<CachedQueryContext> result = service.getQuery(queryId);
 
             assertTrue(result.isEmpty());
+        }
+
+        @Test
+        @DisplayName("永久查询不受普通缓存时效限制")
+        void shouldGetPermanentQueryAfterOrdinaryCacheTtl() {
+            Instant createdAt = Instant.parse("2026-09-27T08:00:00Z");
+            CachedQueryContext context = CachedQueryContext.builder()
+                    .queryId("permanent-query").model("orders")
+                    .createdAt(createdAt).expiresAt(null).build();
+            when(repository.findById("permanent-query"))
+                    .thenReturn(Optional.of(context));
+
+            assertEquals(Optional.of(context),
+                    service.getQuery("permanent-query", createdAt.plus(30, ChronoUnit.DAYS)));
+        }
+
+        @Test
+        @DisplayName("查询到达有效期边界时不可使用或延长")
+        void shouldRejectQueryAtExpirationBoundary() {
+            Instant now = Instant.parse("2026-09-27T08:00:00Z");
+            CachedQueryContext context = CachedQueryContext.builder()
+                    .queryId("expired-query").model("orders").namespace("demo")
+                    .expiresAt(now).build();
+            when(repository.findById("expired-query"))
+                    .thenReturn(Optional.of(context));
+
+            assertTrue(service.getQuery("expired-query", now).isEmpty());
+            assertFalse(service.extendExpiry("expired-query", "orders", "demo", now,
+                    now.plus(1, ChronoUnit.DAYS)));
+            verify(repository, never()).save(any());
         }
     }
 
@@ -223,8 +287,8 @@ class QueryCacheServiceTest {
     class QueryIdGenerationTests {
 
         @Test
-        @DisplayName("应生成16字符的QueryId")
-        void shouldGenerate16CharQueryId() {
+        @DisplayName("应生成128位随机QueryId")
+        void shouldGenerate128BitQueryId() {
             QueryCacheService.OpenInViewerRequest request = new QueryCacheService.OpenInViewerRequest();
             request.setModel("orders");
             request.setColumns(List.of("id"));
@@ -235,7 +299,7 @@ class QueryCacheServiceTest {
 
             CachedQueryContext result = service.cacheQuery(request, null);
 
-            assertEquals(16, result.getQueryId().length());
+            assertEquals(32, result.getQueryId().length());
             assertTrue(result.getQueryId().matches("[a-f0-9]+"));
         }
     }
@@ -252,7 +316,7 @@ class QueryCacheServiceTest {
             context.setQueryId(queryId);
             context.setExpiresAt(Instant.now().plus(30, ChronoUnit.MINUTES));
 
-            when(repository.findByQueryIdAndExpiresAtAfter(eq(queryId), any(Instant.class)))
+            when(repository.findById(queryId))
                     .thenReturn(Optional.of(context));
             when(repository.save(any(CachedQueryContext.class)))
                     .thenAnswer(invocation -> invocation.getArgument(0));
@@ -266,7 +330,7 @@ class QueryCacheServiceTest {
         @Test
         @DisplayName("当查询不存在时不应更新")
         void shouldNotUpdateWhenQueryNotFound() {
-            when(repository.findByQueryIdAndExpiresAtAfter(anyString(), any(Instant.class)))
+            when(repository.findById("non-existent"))
                     .thenReturn(Optional.empty());
 
             service.updateEstimatedRowCount("non-existent", 5000L);

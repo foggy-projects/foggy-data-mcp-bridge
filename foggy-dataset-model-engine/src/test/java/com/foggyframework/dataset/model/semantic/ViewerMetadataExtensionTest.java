@@ -62,6 +62,13 @@ class ViewerMetadataExtensionTest extends EcommerceTestSupport {
                 request, "json", SemanticRequestContext.empty());
 
         @SuppressWarnings("unchecked")
+        Map<String, Object> models = (Map<String, Object>) response.getData().get("models");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> modelInfo = (Map<String, Object>) models.get(QUERY_MODEL);
+        assertEquals("Synthetic sales rows for verifying trusted frontend metadata.",
+                modelInfo.get("description"));
+
+        @SuppressWarnings("unchecked")
         Map<String, Object> fields = (Map<String, Object>) response.getData().get("fields");
         @SuppressWarnings("unchecked")
         Map<String, Object> amount = (Map<String, Object>) fields.get("salesAmountMinor");

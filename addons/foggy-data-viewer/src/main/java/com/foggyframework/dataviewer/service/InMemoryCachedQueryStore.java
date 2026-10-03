@@ -20,7 +20,7 @@ public final class InMemoryCachedQueryStore implements CachedQueryStore {
     @Override
     public synchronized CachedQueryContext save(CachedQueryContext context) {
         Instant now = Instant.now();
-        entries.values().removeIf(entry -> !entry.getExpiresAt().isAfter(now));
+        entries.values().removeIf(entry -> entry.getExpiresAt() != null && !entry.getExpiresAt().isAfter(now));
         if (!entries.containsKey(context.getQueryId()) && entries.size() >= maxEntries) {
             entries.values().stream()
                     .min(Comparator.comparing(CachedQueryContext::getCreatedAt))
@@ -34,7 +34,7 @@ public final class InMemoryCachedQueryStore implements CachedQueryStore {
     public Optional<CachedQueryContext> findUnexpired(String queryId, Instant now) {
         CachedQueryContext context = entries.get(queryId);
         if (context == null) return Optional.empty();
-        if (!context.getExpiresAt().isAfter(now)) {
+        if (context.getExpiresAt() != null && !context.getExpiresAt().isAfter(now)) {
             entries.remove(queryId, context);
             return Optional.empty();
         }

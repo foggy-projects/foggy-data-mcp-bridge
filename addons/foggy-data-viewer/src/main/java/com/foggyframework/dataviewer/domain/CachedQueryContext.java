@@ -51,6 +51,9 @@ public class CachedQueryContext {
      */
     private List<SliceRequestDef> slice;
 
+    /** Explicit aggregate filters, kept separate from detail filters. */
+    private List<SliceRequestDef> having;
+
     /**
      * 分组条件
      */
@@ -75,11 +78,6 @@ public class CachedQueryContext {
      * 数据视图标题
      */
     private String title;
-
-    /**
-     * 原始用户授权上下文
-     */
-    private String authorization;
 
     /**
      * 创建查询链接时的命名空间。null 或空字符串表示默认命名空间。
@@ -172,6 +170,7 @@ public class CachedQueryContext {
         def.setQueryModel(this.model);
         def.setColumns(this.columns);
         def.setSlice(this.slice);
+        def.setHaving(this.having);
         def.setGroupBy(this.groupBy);
         def.setOrderBy(this.orderBy);
         def.setCalculatedFields(this.calculatedFields);

@@ -39,6 +39,20 @@ public class DataViewerProperties {
      */
     private SecurityProperties security = new SecurityProperties();
 
+    private LinkAuthorizationProperties linkAuthorization = new LinkAuthorizationProperties();
+
+    @Data
+    public static class LinkAuthorizationProperties {
+        /** Opt-in; a host ViewerIdentityProvider is required. */
+        private boolean enabled;
+        /** Zero means permanent. Never limited by the query-cache TTL. */
+        private java.time.Duration linkTtl = java.time.Duration.ZERO;
+        /** Absolute lifetime from issuance; no idle timeout. */
+        private java.time.Duration sessionTtl = java.time.Duration.ofHours(24);
+        private String cookieName = "foggy-viewer";
+        private boolean secureCookie = true;
+    }
+
     /**
      * 查询范围约束配置
      */
@@ -56,11 +70,19 @@ public class DataViewerProperties {
 
     @Data
     public static class CacheProperties {
-        /** mongo for existing deployments; memory for the Mongo-free lite Runtime. */
+        /** Legacy selector for the process-local memory Runtime; persistent storage uses storage below. */
         private String store = "mongo";
 
-        /** Maximum number of live preview links in memory mode. */
+        /** Maximum number of live preview links in legacy memory mode. */
         private int maxEntries = 256;
+
+        public enum Storage { MONGO, SQLITE }
+
+        /** SQLite is the single-instance default. MongoDB remains an explicit shared-store option. */
+        private Storage storage = Storage.SQLITE;
+
+        /** Separate from the business datasource. Used only when storage is SQLITE. */
+        private String sqlitePath = java.nio.file.Path.of("data-viewer", "query-context.sqlite").toString();
 
         /**
          * 缓存过期时间（分钟）
@@ -145,7 +167,7 @@ public class DataViewerProperties {
          * MONGO: 显式使用 Mongo，运行时不可用时降级到文件系统。
          * FILE: 只使用文件系统。
          */
-        private Storage storage = Storage.AUTO;
+        private Storage storage = Storage.FILE;
 
         /**
          * 文件系统降级存储根目录。

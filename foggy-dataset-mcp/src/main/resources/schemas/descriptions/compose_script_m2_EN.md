@@ -50,12 +50,15 @@ Common fields:
 | `model` | `string` | Query model name for base queries. Do not pass a QueryPlan here. |
 | `columns` | `string[] | object[]` | Projected columns and aliases |
 | `slice` | `object[]` | Filters: `{ field, op, value }` |
+| `having` | `object[]` | Explicit post-aggregation filters (SQL HAVING); use for grouped metric thresholds. |
 | `groupBy` | `string[]` | Grouping columns |
 | `orderBy` | `string[]` | Prefix `-` for descending |
 | `limit` | `number` | Row limit |
 | `start` | `number` | Offset |
 | `distinct` | `boolean` | SELECT DISTINCT |
 | `calculatedFields` | `object[]` | Post/base calculated fields when supported by the query model |
+
+`slice` filters input detail rows and keeps SQL WHERE semantics, including when a field is declared as a QM aggregate measure. The engine must not silently promote a `slice` condition to HAVING based on field metadata. Put grouped aggregate thresholds explicitly in the top-level `having` array. Keep row-level conditions and post-aggregation conditions out of the same `$or` / `$and` expression.
 | `timeWindow` | `object` | Time-window expansion |
 
 ## Derived Query
