@@ -287,6 +287,9 @@ public class McpService {
      * <p>仅对 dataset.query_model 注入结构化状态，其他工具保持现有 content 兼容行为。</p>
      */
     private Map<String, Object> buildToolsCallResult(String toolName, Object result) {
+        if ("dataset.export_image".equals(toolName) && result instanceof Map<?, ?> imageResult) {
+            return buildImageCallResult(imageResult);
+        }
         Map<String, Object> toolCallResult = new HashMap<>();
         Map<String, Object> structuredFailure = structuredQueryModelFailure(toolName, result);
         toolCallResult.put("content", List.of(Map.of(
@@ -304,6 +307,24 @@ public class McpService {
         }
 
         return toolCallResult;
+    }
+
+    /** PNG lives in a native content block, not duplicated in JSON text or metadata. */
+    private Map<String, Object> buildImageCallResult(Map<?, ?> result) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        result.forEach((key, value) -> metadata.put(String.valueOf(key), value));
+        java.util.ArrayList<Map<String, Object>> content = new java.util.ArrayList<>();
+        if (Boolean.TRUE.equals(result.get("success")) && result.get("image") instanceof Map<?, ?> image) {
+            Map<String, Object> imageMetadata = new LinkedHashMap<>();
+            image.forEach((key, value) -> { if (!"data".equals(key)) imageMetadata.put(String.valueOf(key), value); });
+            metadata.put("image", imageMetadata);
+            if (image.get("data") instanceof String data) {
+                content.add(Map.of("type", "image", "mimeType", "image/png", "data", data));
+            }
+        }
+        content.add(0, Map.of("type", "text", "text", toJsonString(metadata)));
+        return Map.of("content", content, "structuredContent", metadata,
+                "isError", !Boolean.TRUE.equals(result.get("success")));
     }
 
     private Map<String, Object> structuredQueryModelFailure(String toolName, Object result) {

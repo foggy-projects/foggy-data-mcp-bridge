@@ -80,6 +80,11 @@ provider 才能发布 capability。
 角色端点决定可发现和可执行的工具集合。MCP controller 负责协议适配和上下文建立，查询语义
 由下层服务与 QueryFacade/engine 完成。
 
+`dataset.export_image` 复用同一 QueryModel 查询入口，在查询完成后用 JVM 内的 XChart/Java2D
+生成 PNG。CLI 通过此 MCP 工具共用生成逻辑，namespace 和业务身份贯穿原查询链路。
+默认通过原生 MCP image 返回，不增加外部渲染服务或公开文件；显式链接模式沿用已有图表存储适配器。
+合同、资源限制和固定排版见 [查询结果 PNG 导出](../dev-guide/query-image-export.md)。
+
 ### Runtime API
 
 统一前缀为 `/api/v1`，覆盖：

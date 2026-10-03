@@ -429,6 +429,7 @@ public class McpProperties {
          */
         private List<String> tools = List.of(
                 "dataset.query_model",
+                "dataset.export_image",
                 "dataset.export_with_xchart",
                 "dataset.export_with_echarts"
         );

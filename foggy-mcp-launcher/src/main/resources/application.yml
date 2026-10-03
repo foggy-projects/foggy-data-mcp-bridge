@@ -190,6 +190,10 @@ foggy:
         enabled: true
         descriptionFile: "classpath:/schemas/descriptions/export_with_xchart.md"
         schemaFile: "classpath:/schemas/export_with_xchart_schema.json"
+      - name: "dataset.export_image"
+        enabled: true
+        descriptionFile: "classpath:/schemas/descriptions/export_image.md"
+        schemaFile: "classpath:/schemas/export_image_schema.json"
         category: EXPORT
       - name: "dataset.export_with_echarts"
         enabled: true
@@ -219,6 +223,7 @@ foggy:
       tools:
         - dataset.query_model
         - dataset.export_with_xchart
+        - dataset.export_image
         - dataset.export_with_echarts
       # MongoDB 配置
       mongodb:
