@@ -1,0 +1,18 @@
+const parent = loadTableModel('AggregateCountParentModel');
+const child = loadTableModel('AggregateCountChildModel');
+const counts = child.filterEq(child.valid, 1)
+    .groupBy(child.tenantId, child.orderId)
+    .count('childCount')
+    .count(child.label, 'labelCount')
+    .countDistinct(child.label, 'distinctLabels')
+    .avg(child.amount, 'averageAmount')
+    .as('counts');
+export const queryModel = {
+    name: 'AggregateCountRollupQuery', model: parent,
+    joins: [parent.leftJoin(counts).on(parent.tenantId, counts.tenantId).on(parent.orderId, counts.orderId)],
+    columnGroups: [{items: [
+        {ref: parent.tenantId}, {ref: parent.orderId}, {ref: parent.source}, {ref: parent.parentCount},
+        {ref: counts.childCount}, {ref: counts.labelCount},
+        {ref: counts.distinctLabels}, {ref: counts.averageAmount}
+    ]}], accesses: []
+};

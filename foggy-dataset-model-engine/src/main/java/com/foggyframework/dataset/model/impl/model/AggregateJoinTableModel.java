@@ -252,7 +252,7 @@ public class AggregateJoinTableModel extends TableModelSupport {
         for (OutputColumn outputColumn : outputColumns) {
             DbAggregation aggregation = outputColumn.measure() == null
                     ? null
-                    : toDbAggregation(outputColumn.measure().getFunction());
+                    : toOutputAggregation(outputColumn.measure().getFunction());
             DbColumnType type = resolveOutputType(outputColumn.measure(), outputColumn.sourceColumn());
             SimpleSqlJdbcColumn dbColumn = new AggregateOutputDbColumn(
                     queryObject,
@@ -761,13 +761,16 @@ public class AggregateJoinTableModel extends TableModelSupport {
         };
     }
 
-    private static DbAggregation toDbAggregation(AggregateJoinBuilder.AggregateFunction function) {
+    /** Aggregation of an already aggregated relation output in its parent query. */
+    private static DbAggregation toOutputAggregation(AggregateJoinBuilder.AggregateFunction function) {
         return switch (function) {
             case SUM -> DbAggregation.SUM;
             case AVG -> DbAggregation.AVG;
             case MIN -> DbAggregation.MIN;
             case MAX -> DbAggregation.MAX;
-            case COUNT -> DbAggregation.COUNT;
+            // The RHS still renders COUNT using AggregateMeasure. Its numeric
+            // output is additive; counting parent rows would discard that value.
+            case COUNT -> DbAggregation.SUM;
             case COUNT_DISTINCT -> DbAggregation.COUNT_DISTINCT;
             case GROUP_CONCAT -> DbAggregation.GROUP_CONCAT;
         };

@@ -289,8 +289,10 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
                 "salesLineCount 应来自 aggregate relation 输出列");
         assertEquals(DbColumnType.BIGINT, salesLineCountColumn.getType(),
                 "COUNT 输出应暴露为 BIGINT");
-        assertEquals("COUNT", salesLineCountColumn.getAggregation().name(),
-                "显式 count alias 应保留 COUNT 聚合元数据");
+        assertEquals("SUM", salesLineCountColumn.getAggregation().name(),
+                "已计算 COUNT 输出应暴露外层 SUM 聚合元数据");
+        assertEquals("count(*)", ((AggregateRelationOutputColumn) salesLineCountColumn)
+                .getAggregateRelationAggregateExpression(), "内层 COUNT 表达式应保留");
 
         DbColumn paymentMethodListColumn = queryModel.findJdbcColumnForCond("paymentMethodList", true, true);
         assertNotNull(paymentMethodListColumn, "显式 groupConcat alias 应注册为可筛选列");
