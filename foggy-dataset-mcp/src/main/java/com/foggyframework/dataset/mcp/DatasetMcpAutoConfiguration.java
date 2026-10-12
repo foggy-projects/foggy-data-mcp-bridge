@@ -13,6 +13,7 @@ import org.springframework.context.annotation.Import;
         com.foggyframework.dataset.mcp.chart.ChartRendererRegistry.class,
         com.foggyframework.dataset.mcp.chart.EChartsRenderer.class,
         com.foggyframework.dataset.mcp.chart.XChartRenderer.class,
+        com.foggyframework.dataset.mcp.chart.QueryImageRenderer.class,
         com.foggyframework.dataset.mcp.config.DatasetAccessorConfig.class,
         com.foggyframework.dataset.mcp.config.McpProperties.class,
         com.foggyframework.dataset.mcp.config.MultiPortConfig.class,
@@ -39,6 +40,7 @@ import org.springframework.context.annotation.Import;
         com.foggyframework.dataset.mcp.experience.JdbcExperienceRecipeRegistryStore.class,
         com.foggyframework.dataset.mcp.experience.RemoteHttpExperienceRecipeArtifactResolver.class,
         com.foggyframework.dataset.mcp.service.McpService.class,
+        com.foggyframework.dataset.mcp.service.QueryImageExportService.class,
         com.foggyframework.dataset.mcp.service.McpToolCallbackFactory.class,
         com.foggyframework.dataset.mcp.service.McpToolDispatcher.class,
         com.foggyframework.dataset.mcp.service.ModelCatalogService.class,
@@ -59,6 +61,7 @@ import org.springframework.context.annotation.Import;
         com.foggyframework.dataset.mcp.tools.ListModelsTool.class,
         com.foggyframework.dataset.mcp.tools.MetadataTool.class,
         com.foggyframework.dataset.mcp.tools.QueryModelTool.class,
+        com.foggyframework.dataset.mcp.tools.QueryImageExportTool.class,
         com.foggyframework.dataset.mcp.tools.SemanticLayerValidationTool.class,
         com.foggyframework.dataset.mcp.tools.TableInspectionTool.class,
         com.foggyframework.dataset.mcp.validation.SemanticLayerValidationService.class

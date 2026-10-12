@@ -74,6 +74,12 @@ public class QueryModelTool implements McpTool {
     @SuppressWarnings("unchecked")
     public RX<SemanticQueryResponse> executeQuery(String model, Map<String, Object> payload, String mode,
                                                    String traceId, String authorization) {
+        return executeQuery(model, payload, mode, traceId, authorization, null, null);
+    }
+
+    /** Typed query for exporters, preserving the same namespace and governance options as execute. */
+    public RX<SemanticQueryResponse> executeQuery(String model, Map<String, Object> payload, String mode,
+            String traceId, String authorization, String namespace, Map<String, Object> options) {
         if (model == null || model.isBlank()) {
             return RX.failB("缺少必要参数: model");
         }
@@ -84,6 +90,6 @@ public class QueryModelTool implements McpTool {
         log.info("Querying model: {}, mode={}, traceId={}, accessMode={}",
                 model, mode, traceId, datasetAccessor.getAccessMode());
 
-        return datasetAccessor.queryModel(model, payload, mode, traceId, authorization, null);
+        return datasetAccessor.queryModel(model, payload, mode, traceId, authorization, namespace, options);
     }
 }

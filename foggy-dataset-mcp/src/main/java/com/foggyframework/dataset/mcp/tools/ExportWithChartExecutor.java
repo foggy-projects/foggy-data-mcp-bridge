@@ -50,7 +50,9 @@ public class ExportWithChartExecutor {
                     request.payload(),
                     "execute",
                     traceId,
-                    context.getAuthorization()
+                    context.getAuthorization(),
+                    context.getNamespace(),
+                    arguments
             );
             if (!queryResult.isOk()) {
                 return queryResult;
@@ -98,7 +100,9 @@ public class ExportWithChartExecutor {
                         request.payload(),
                         "execute",
                         context.getTraceId(),
-                        context.getAuthorization()
+                        context.getAuthorization(),
+                        context.getNamespace(),
+                        arguments
                 );
                 if (!queryResult.isOk()) {
                     sink.next(ProgressEvent.error("QUERY_ERROR", queryResult.getMsg()));

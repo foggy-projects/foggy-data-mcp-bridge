@@ -91,6 +91,12 @@ public class XChartRenderer implements ChartRenderer {
 
     @Override
     public ChartRenderResult render(ChartRenderRequest request) {
+        return renderWithCustomizer(request, ignored -> { });
+    }
+
+    /** Shares binding/encoding with the bounded query-result renderer. */
+    ChartRenderResult renderWithCustomizer(
+            ChartRenderRequest request, java.util.function.Consumer<IChart> customizer) {
         Map<String, Object> config = request.config();
         String chartType = requiredString(config, "chartType");
         String normalizedChartType = normalizeChartType(chartType);
@@ -110,6 +116,8 @@ public class XChartRenderer implements ChartRenderer {
             default -> throw new IllegalArgumentException(
                     "XChart chartType 仅支持 CategoryChart、XYChart、PieChart，当前值: " + chartType);
         };
+
+        customizer.accept(chart);
 
         try {
             byte[] bytes = ChartEncoder.getBytes(chart, image.format());

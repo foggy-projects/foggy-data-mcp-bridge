@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "description": "查询真实语义数据，在 JVM 内生成中文 PNG；默认以内嵌 MCP 图片返回。",
+  "required": ["model", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "model": {"type":"string","minLength":1,"maxLength":160},
+    "payload": {"type":"object","additionalProperties":true},
+    "kind": {"type":"string","enum":["table","bar","line"],"default":"table"},
+    "title": {"type":"string","minLength":1,"maxLength":120},
+    "xField": {"type":"string","minLength":1,"maxLength":100},
+    "yField": {"type":"string","minLength":1,"maxLength":100},
+    "xLabel": {"type":"string","minLength":1,"maxLength":80},
+    "yLabel": {"type":"string","minLength":1,"maxLength":80},
+    "unit": {"type":"string","minLength":1,"maxLength":32},
+    "columns": {"type":"array","minItems":1,"maxItems":12,"items":{
+      "type":"object","required":["field"],"additionalProperties":false,
+      "properties":{
+        "field":{"type":"string","minLength":1,"maxLength":100},
+        "caption":{"type":"string","minLength":1,"maxLength":100},
+        "unit":{"type":"string","minLength":1,"maxLength":32}
+      }
+    }},
+    "maxRows": {"type":"integer","minimum":1,"maximum":100},
+    "width": {"type":"integer","minimum":640,"maximum":2400,"default":1200},
+    "height": {"type":"integer","minimum":360,"maximum":2400},
+    "delivery": {"type":"string","enum":["inline","link"],"default":"inline"}
+  },
+  "allOf": [
+    {"if":{"properties":{"kind":{"enum":["bar","line"]}},"required":["kind"]},
+     "then":{"required":["xField","yField"],"properties":{"height":{"minimum":520}}}},
+    {"if":{"properties":{"kind":{"const":"table"}}},"then":{"properties":{"maxRows":{"maximum":50}}}},
+    {"if":{"properties":{"kind":{"const":"bar"}},"required":["kind"]},"then":{"properties":{"maxRows":{"maximum":40}}}}
+  ]
+}
