@@ -15,6 +15,7 @@ recorded_at: 2026-08-01
 
 | Work item | 状态 | 目标 |
 |---|---|---|
+| [Mongo 逻辑条件组执行](workitems/BUG-mongo-logical-condition-groups.md) | LOCAL VERIFICATION | 修复多字段 OR 条件崩溃，保留范围与嵌套条件；3 项定向回归通过 | 
 | [Aggregate relation COUNT 外层汇总](workitems/BUG-aggregate-relation-count-rollup.md) | READY_FOR_REVIEW | COUNT 输出列外层改用 SUM，105 项定向回归与固定环境回读通过；显式聚合 alias 总计 null 单独记录 |
 | [Artifact/store 生命周期基础探针](workitems/SPIKE-runtime-artifact-store-lifecycle-foundations.md) | ACCEPTED | 双 store inventory、跨 store/live 引用图、中断 characterization 与安全后续边界已正式验收；未修改生产实现 |
 | [Artifact lifecycle 只读 inventory](workitems/FEATURE-runtime-artifact-lifecycle-inventory.md) | ACCEPTED | management-auth、redacted、cross-store/live 的只读容量、引用分类与 blocked reason 已正式验收；无 cleanup mutation |

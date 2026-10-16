@@ -184,79 +184,7 @@ public class MongoModelQueryEngine implements QueryEngine {
         AggregationOperation projectOp = ctx -> new Document("$project", projectDoc);
 
         //构建match
-        Criteria criteria = new Criteria();
-        for (JdbcQuery.JdbcCond cond : jdbcQuery.getWhere().getConds()) {
-            JdbcQuery.QueryTypeValueCond ql = (JdbcQuery.QueryTypeValueCond) cond;
-            DbColumn column = jdbcQueryModel.findJdbcColumn(ql.getName());
-            String name = column.getSqlColumnName();
-            if (StringUtils.equals("=", ql.getQueryType())) {
-                criteria.and(name).is(ql.getValue());
-            } else if (StringUtils.equals("<>", ql.getQueryType())
-                    || StringUtils.equals("!=", ql.getQueryType())
-            ) {
-                criteria.and(name).ne(ql.getValue());
-            } else if (StringUtils.equals("in", ql.getQueryType())) {
-                if (ql.getValue() instanceof List) {
-                    if (((List) ql.getValue()).isEmpty()) {
-                        continue;
-                    }
-                    criteria.and(name).in((List) ql.getValue());
-                } else {
-                    throw RX.throwAUserTip(DatasetMessages.mongoInArrayRequired());
-                }
-            } else if (StringUtils.equals("not in", ql.getQueryType())) {
-                if (ql.getValue() instanceof List) {
-                    if (((List) ql.getValue()).isEmpty()) {
-                        continue;
-                    }
-                    criteria.and(name).nin((List) ql.getValue());
-                } else {
-                    throw RX.throwAUserTip(DatasetMessages.mongoInArrayRequired());
-                }
-            } else if (StringUtils.equals("like", ql.getQueryType())) {
-//                criteria.and(name).regex(".*" + ql.getValue() + ".*");
-                criteria.and(name).regex(ql.getValue() + "");
-            } else if (StringUtils.equals("left_like", ql.getQueryType())) {
-                criteria.and(name).regex(Pattern.compile("^.*" + ql.getValue()));
-            } else if (StringUtils.equals("right_like", ql.getQueryType())) {
-                criteria.and(name).regex(Pattern.compile("^" + ql.getValue() + ".*"));
-            } else if (StringUtils.equals("[)", ql.getQueryType())||
-                    StringUtils.equals("[]", ql.getQueryType())) {
-
-                boolean lte = ql.getQueryType().endsWith("]");
-
-                if (ql.getValue() instanceof List) {
-                    Object v1 = ((List<?>) ql.getValue()).get(0);
-                    Object v2 = ((List<?>) ql.getValue()).get(1);
-                    if (StringUtils.equals(column.getType(), "DATETIME")) {
-                        v1 = DateTransFormatter.DATE_TRANSFORMATTERINSTANCE.format(v1);
-                        v2 = DateTransFormatter.DATE_TRANSFORMATTERINSTANCE.format(v2);
-                    }
-                    Criteria btc = null;
-
-                    if (v1 != null) {
-                        btc = criteria.and(name).gte(v1);
-                    }
-                    if (v2 != null) {
-                        if (btc == null) {
-                            if(lte){
-                                criteria.and(name).lt(v2);
-                            }else{
-                                criteria.and(name).lte(v2);
-                            }
-                        } else {
-                            if(lte){
-                                btc.lte(v2);
-                            }else{
-                                btc.lt(v2);
-                            }
-                        }
-                    }
-                }
-            } else {
-                throw RX.throwAUserTip(DatasetMessages.mongoQuerytypeUnsupported(ql.getQueryType()));
-            }
-        }
+        Criteria criteria = jdbcQuery.getWhere().getConds().isEmpty() ? new Criteria() : buildCondition(jdbcQuery.getWhere());
         //排序
         Sort sort = null;
         List<Sort.Order> orders = null;
@@ -280,6 +208,98 @@ public class MongoModelQueryEngine implements QueryEngine {
 
 
         return new Tuple3<>(criteria, projectOp, sort);
+    }
+
+    Criteria buildCondition(JdbcQuery.JdbcCond cond) {
+        if (cond instanceof JdbcQuery.JdbcListCond list) {
+            if (list.getConds().isEmpty()) throw new IllegalArgumentException("Empty Mongo condition group");
+            List<Criteria> children = new ArrayList<>();
+            String link = null;
+            for (JdbcQuery.JdbcCond child : list.getConds()) {
+                if (!children.isEmpty()) {
+                    String current = child.getLink() == null || child.getLink().isBlank() ? "and" : child.getLink().trim().toLowerCase(java.util.Locale.ROOT);
+                    if (!current.equals("and") && !current.equals("or")) throw new IllegalArgumentException("Unsupported Mongo condition link");
+                    if (link != null && !link.equals(current)) throw new IllegalArgumentException("Mixed Mongo links require explicit groups");
+                    link = current;
+                }
+                children.add(buildCondition(child));
+            }
+            if (children.size() == 1) return children.get(0);
+            return "or".equals(link) ? new Criteria().orOperator(children) : new Criteria().andOperator(children);
+        }
+        if (!(cond instanceof JdbcQuery.QueryTypeValueCond ql)) throw new IllegalArgumentException("Unsupported Mongo condition kind");
+        Criteria criteria = new Criteria();
+        DbColumn column = jdbcQueryModel.findJdbcColumn(ql.getName());
+        String name = column.getSqlColumnName();
+        if (StringUtils.equals("=", ql.getQueryType())) {
+            criteria.and(name).is(ql.getValue());
+        } else if (StringUtils.equals("<>", ql.getQueryType())
+                || StringUtils.equals("!=", ql.getQueryType())
+        ) {
+            criteria.and(name).ne(ql.getValue());
+        } else if (StringUtils.equals("in", ql.getQueryType())) {
+            if (ql.getValue() instanceof List) {
+                if (((List) ql.getValue()).isEmpty()) {
+                    throw new IllegalArgumentException("Empty Mongo membership condition");
+                }
+                criteria.and(name).in((List) ql.getValue());
+            } else {
+                throw RX.throwAUserTip(DatasetMessages.mongoInArrayRequired());
+            }
+        } else if (StringUtils.equals("not in", ql.getQueryType())) {
+            if (ql.getValue() instanceof List) {
+                if (((List) ql.getValue()).isEmpty()) {
+                    throw new IllegalArgumentException("Empty Mongo membership condition");
+                }
+                criteria.and(name).nin((List) ql.getValue());
+            } else {
+                throw RX.throwAUserTip(DatasetMessages.mongoInArrayRequired());
+            }
+        } else if (StringUtils.equals("like", ql.getQueryType())) {
+//                criteria.and(name).regex(".*" + ql.getValue() + ".*");
+            criteria.and(name).regex(ql.getValue() + "");
+        } else if (StringUtils.equals("left_like", ql.getQueryType())) {
+            criteria.and(name).regex(Pattern.compile("^.*" + ql.getValue()));
+        } else if (StringUtils.equals("right_like", ql.getQueryType())) {
+            criteria.and(name).regex(Pattern.compile("^" + ql.getValue() + ".*"));
+        } else if (StringUtils.equals("[)", ql.getQueryType())||
+                StringUtils.equals("[]", ql.getQueryType())) {
+
+            boolean lte = ql.getQueryType().endsWith("]");
+
+            if (ql.getValue() instanceof List) {
+                Object v1 = ((List<?>) ql.getValue()).get(0);
+                Object v2 = ((List<?>) ql.getValue()).get(1);
+                if (StringUtils.equals(column.getType(), "DATETIME")) {
+                    v1 = DateTransFormatter.DATE_TRANSFORMATTERINSTANCE.format(v1);
+                    v2 = DateTransFormatter.DATE_TRANSFORMATTERINSTANCE.format(v2);
+                }
+                Criteria btc = null;
+
+                if (v1 != null) {
+                    btc = criteria.and(name).gte(v1);
+                }
+                if (v2 != null) {
+                    if (btc == null) {
+                        if(lte){
+                            criteria.and(name).lt(v2);
+                        }else{
+                            criteria.and(name).lte(v2);
+                        }
+                    } else {
+                        if(lte){
+                            btc.lte(v2);
+                        }else{
+                            btc.lt(v2);
+                        }
+                    }
+                }
+            }
+        } else {
+            throw RX.throwAUserTip(DatasetMessages.mongoQuerytypeUnsupported(ql.getQueryType()));
+        }
+
+        return criteria;
     }
 
     public GroupOperation buildGroupOperation(SystemBundlesContext systemBundlesContext, Map<String, GroupRequestDef> groupByMap, DbQueryRequestDef queryRequest) {
@@ -363,16 +383,16 @@ public class MongoModelQueryEngine implements QueryEngine {
 
     private void buildSlice(MongoQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, SliceRequestDef sliceDef) {
 
-        buildSlice(jdbcQueryModel, jdbcQuery, jdbcQuery.getWhere(), sliceDef);
+        buildSlice(jdbcQueryModel, jdbcQuery, jdbcQuery.getWhere(), sliceDef, "and");
 
     }
 
-    private void buildSlice(MongoQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, JdbcQuery.JdbcListCond listCond, CondRequestDef sliceDef) {
+    private void buildSlice(MongoQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, JdbcQuery.JdbcListCond listCond, CondRequestDef sliceDef, String parentLink) {
         if (sliceDef._isLogicalGroup()) {
             //有子项~（$or 或 $and）
-            JdbcQuery.JdbcGroupCond gc = jdbcQuery.getWhere().newGroupCond("");
+            JdbcQuery.JdbcGroupCond gc = listCond.newGroupCond(parentLink);
             for (CondRequestDef child : sliceDef._getGroupChildren()) {
-                buildSlice(jdbcQueryModel, jdbcQuery, gc, child);
+                buildSlice(jdbcQueryModel, jdbcQuery, gc, child, sliceDef._getGroupLink());
             }
 
             listCond.addCond(gc);
@@ -381,7 +401,7 @@ public class MongoModelQueryEngine implements QueryEngine {
             if (jdbcColumn == null) {
                 throw RX.throwAUserTip(DatasetMessages.queryColumnNotfound(sliceDef.getField(), jdbcQueryModel.findDimension(sliceDef.getField())));
             }
-            jdbcQuery.andQueryTypeValueCond(jdbcColumn.getName(), sliceDef.getOp(), sliceDef.getValue());
+            listCond.addCond(jdbcQuery.new QueryTypeValueCond(parentLink, jdbcColumn.getName(), sliceDef.getOp(), sliceDef.getValue()));
 
         }
 
