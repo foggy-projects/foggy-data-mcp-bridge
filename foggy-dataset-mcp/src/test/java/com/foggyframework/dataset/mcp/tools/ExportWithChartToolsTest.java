@@ -136,7 +136,7 @@ class ExportWithChartToolsTest {
                 anyString(),
                 anyString(),
                 any()
-        );
+        , any(), any());
         Map<String, Object> submittedPivot =
                 castMap(payloadCaptor.getValue().get("pivot"));
         assertEquals("flat", submittedPivot.get("outputFormat"));
@@ -183,7 +183,7 @@ class ExportWithChartToolsTest {
         );
         assertTrue(((RX<?>) treeResult).getMsg().contains("hierarchyMode=tree"));
         verify(queryModelTool, never()).executeQuery(
-                anyString(), any(), anyString(), anyString(), any());
+                anyString(), any(), anyString(), anyString(), any(), any(), any());
     }
 
     @Test
@@ -218,7 +218,7 @@ class ExportWithChartToolsTest {
     @Test
     void queryFailureAndEmptyResultShouldSkipRendering() {
         when(queryModelTool.executeQuery(
-                anyString(), any(), anyString(), anyString(), any()))
+                anyString(), any(), anyString(), anyString(), any(), any(), any()))
                 .thenReturn(RX.failB("Model not found"));
 
         Object failed = xchartTool.execute(
@@ -282,7 +282,7 @@ class ExportWithChartToolsTest {
                 .expectNextMatches(event -> "complete".equals(event.getEventType()))
                 .verifyComplete();
         verify(queryModelTool, times(1)).executeQuery(
-                anyString(), any(), anyString(), anyString(), any());
+                anyString(), any(), anyString(), anyString(), any(), any(), any());
     }
 
     @Test
@@ -372,7 +372,7 @@ class ExportWithChartToolsTest {
 
     private void stubQuery(List<Map<String, Object>> items) {
         when(queryModelTool.executeQuery(
-                anyString(), any(), anyString(), anyString(), any()))
+                anyString(), any(), anyString(), anyString(), any(), any(), any()))
                 .thenReturn(RX.success(queryResponse(items, items.size())));
     }
 
