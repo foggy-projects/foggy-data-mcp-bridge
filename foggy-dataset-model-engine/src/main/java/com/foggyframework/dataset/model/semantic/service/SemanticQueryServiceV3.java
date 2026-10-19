@@ -118,7 +118,7 @@ public interface SemanticQueryServiceV3 extends ComposeSemanticPlanningPort, Com
     }
 
     /**
-     * Adapt the legacy raw-SQL method to the narrow Compose execution port.
+     * Adapt the namespace-aware raw-SQL method to the narrow Compose execution port.
      */
     static ComposeSqlExecutionPort composeExecutionPort(SemanticQueryServiceV3 service) {
         Objects.requireNonNull(service, "semanticService must not be null");
@@ -202,18 +202,30 @@ public interface SemanticQueryServiceV3 extends ComposeSemanticPlanningPort, Com
      * @param params      positional bind parameters
      * @param routeModel  optional base/query model name used to route raw SQL
      *                    to the same datasource as the compiled compose plan.
-     *                    Always null-safe; null falls back to the primary
-     *                    DataSource.
+     *                    Null selects the primary DataSource only when there
+     *                    is no named namespace. An unresolved supplied model
+     *                    must fail instead of falling back to the primary.
      * @return list of rows (Map&lt;column_name, value&gt;)
      * @throws RuntimeException with message prefix "executeSql failed:"
      *         when executor not configured / SQL syntax error / DB connection error
      */
     List<Map<String, Object>> executeSql(String sql, List<Object> params, String routeModel);
 
+    /**
+     * Execute with the same explicit namespace used for compilation. Null/blank
+     * denotes the default namespace, never an ambient Compose namespace.
+     * Legacy single-datasource implementations may use the three-argument
+     * method; namespace-aware implementations must override this overload.
+     */
+    default List<Map<String, Object>> executeSql(
+            String sql, List<Object> params, String routeModel, String namespace) {
+        return executeSql(sql, params, routeModel);
+    }
+
     @Override
     default List<Map<String, Object>> executeComposeSql(
-            String sql, List<Object> params, String routeModel) {
-        return executeSql(sql, params, routeModel);
+            String sql, List<Object> params, String routeModel, String namespace) {
+        return executeSql(sql, params, routeModel, namespace);
     }
 
     @Override

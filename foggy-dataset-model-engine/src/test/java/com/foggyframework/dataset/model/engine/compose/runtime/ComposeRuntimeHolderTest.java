@@ -60,7 +60,7 @@ class ComposeRuntimeHolderTest {
     void bundleAcceptsIndependentPlanningAndExecutionPorts() {
         ComposeSemanticPlanningPort planningPort = (model, request, context) ->
                 new ComposeSqlGeneration("select 1", List.of(), List.of(), java.util.Map.of());
-        ComposeSqlExecutionPort executionPort = (sql, params, routeModel) -> List.of();
+        ComposeSqlExecutionPort executionPort = (sql, params, routeModel, namespace) -> List.of();
 
         ComposeRuntimeBundle bundle = ComposeRuntimeBundle.builder()
                 .ctx(dummyCtx())

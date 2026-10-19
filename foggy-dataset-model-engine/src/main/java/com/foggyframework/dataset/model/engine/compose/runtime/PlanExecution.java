@@ -83,7 +83,7 @@ public final class PlanExecution {
         String routeModel = pickRouteModel(plan);
         try {
             return executionPort.executeComposeSql(
-                    composed.getSql(), composed.getParams(), routeModel);
+                    composed.getSql(), composed.getParams(), routeModel, ctx.namespace());
         } catch (Exception exc) {
             throw new RuntimeException(
                     "Plan execution failed at execute phase: " + exc.getMessage(), exc);

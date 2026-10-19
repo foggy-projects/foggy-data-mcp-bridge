@@ -985,7 +985,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         SqlGenerationResult compiled = generateDslCteSqlFromPlan(dslCtePlan, request, context);
         String executableSql = compiled.getAssembledSql();
         List<Object> executableParams = compiled.getAssembledParams();
-        List<Map<String, Object>> rows = executeSql(executableSql, executableParams, model);
+        List<Map<String, Object>> rows = executeSql(executableSql, executableParams, model, context.getNamespace());
 
         SemanticQueryResponse response = new SemanticQueryResponse();
         response.setItems(rows);
@@ -2312,7 +2312,13 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
 
     @Override
     public List<Map<String, Object>> executeSql(String sql, List<Object> params, String routeModel) {
-        DataSource executionDataSource = resolveRawSqlDataSource(routeModel);
+        return executeSql(sql, params, routeModel, currentComposeNamespace());
+    }
+
+    @Override
+    public List<Map<String, Object>> executeSql(
+            String sql, List<Object> params, String routeModel, String namespace) {
+        DataSource executionDataSource = resolveRawSqlDataSource(routeModel, namespace);
         if (executionDataSource == null) {
             throw new RuntimeException(
                 "executeSql failed: DataSource not injected into SemanticQueryServiceV3Impl;"
@@ -2328,22 +2334,29 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         }
     }
 
-    private DataSource resolveRawSqlDataSource(String routeModel) {
-        if (routeModel == null || routeModel.isBlank() || queryModelLoader == null) {
+    private DataSource resolveRawSqlDataSource(String routeModel, String namespace) {
+        String effectiveNamespace = namespace == null ? "" : namespace.trim();
+        if (routeModel == null || routeModel.isBlank()) {
+            if (!effectiveNamespace.isEmpty()) {
+                throw new IllegalArgumentException("executeSql route resolution failed: routeModel is required"
+                        + " for namespace='" + effectiveNamespace + "'");
+            }
             return dataSource;
         }
-        String namespace = currentComposeNamespace();
         try {
-            QueryModel queryModel = queryModelLoader.getJdbcQueryModel(routeModel, namespace);
+            if (queryModelLoader == null) {
+                throw new IllegalStateException("QueryModelLoader is not configured");
+            }
+            QueryModel queryModel = queryModelLoader.getJdbcQueryModel(routeModel, effectiveNamespace);
             if (queryModel instanceof JdbcQueryModel jdbcQueryModel
                     && jdbcQueryModel.getDataSource() != null) {
                 return jdbcQueryModel.getDataSource();
             }
+            throw new IllegalStateException("Model did not resolve to a JDBC datasource");
         } catch (Exception e) {
-            logger.debug("Falling back to primary DataSource for raw SQL routeModel={} namespace={}: {}",
-                    routeModel, namespace, e.getMessage());
+            throw new IllegalStateException("executeSql route resolution failed: model='" + routeModel
+                    + "', namespace='" + effectiveNamespace + "': " + e.getMessage(), e);
         }
-        return dataSource;
     }
 
     private static String currentComposeNamespace() {
