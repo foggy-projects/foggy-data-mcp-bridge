@@ -4,6 +4,10 @@ This runbook is for the `foggy-data-mcp-bridge` Java engine. It keeps the
 source commit, Maven Central deployment, annotated Git tag, and next
 development version traceable.
 
+The executable `foggy-mcp-launcher` distribution is released separately through
+`runtime_launcher_publish.py` as a GitHub Release. It is excluded from both Maven
+Central bundles and private snapshot deployments.
+
 ## Version and branch policy
 
 - `main` carries the next minor development line, for example

@@ -1,5 +1,10 @@
 # Standard Foggy Runtime Launcher release
 
+The launcher is an executable distribution, not a Maven library. Publish it with
+`runtime_launcher_publish.py` to the `foggy-runtime-launcher-v<version>` GitHub
+Release. The Maven reactor skips it for Maven Central and private snapshot deployment.
+GitHub Release is authoritative; company download and OBS mirrors are optional follow-up lanes.
+
 The standard `foggy-mcp-launcher` executable JAR contains Analytics Runtime API and the
 Analytics Console backend, SPA, and FAP question Skill delivery. Both Analytics surfaces
 remain disabled under the default `lite` runtime profile.

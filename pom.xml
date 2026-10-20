@@ -695,7 +695,7 @@
                             <autoPublish>true</autoPublish>
                             <!-- Build-support only: never add the coverage reporter
                                  component to a Central release bundle. -->
-                            <excludeArtifacts>foggy-coverage-report</excludeArtifacts>
+                            <excludeArtifacts>foggy-coverage-report,foggy-mcp-launcher</excludeArtifacts>
                         </configuration>
                     </plugin>
                 </plugins>

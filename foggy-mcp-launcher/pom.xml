@@ -16,6 +16,11 @@
     <name>Foggy MCP Launcher</name>
     <description>MCP 服务启动器 - 包含演示数据模型，可通过配置禁用</description>
 
+    <!-- The executable distribution is published through the standalone GitHub release lane. -->
+    <properties>
+        <maven.deploy.skip>true</maven.deploy.skip>
+    </properties>
+
     <dependencies>
         <!-- MCP 核心服务 -->
         <dependency>
