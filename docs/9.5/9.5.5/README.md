@@ -15,7 +15,7 @@ recorded_at: 2026-08-01
 
 | Work item | 状态 | 目标 |
 |---|---|---|
-| [#146 QM 字段命名与维度列元数据](workitems/BUG-146-qm-field-names.md) | LOCALLY_VERIFIED | 命名合同、维度列注册、元数据及权限回归完成；177 项专项、全量与五数据库验证通过，历史合同例外单列 |
+| [#146 QM 字段命名与维度列元数据](workitems/BUG-146-qm-field-names.md) | PUBLISHED | 命名合同、维度列注册、元数据及权限回归完成；专项、全量与五数据库验证通过，历史例外单列；Launcher 0.1.27 与私有 snapshot 已发布 |
 | [Launcher clean 范围](workitems/BUG-launcher-clean-scope.md) | LOCALLY VERIFIED | 限定 Console/Launcher 清理；真实 Maven 文件系统回归及 29 项打包/发布测试通过 |
 | [统一排序与字段绑定](workitems/REFACTOR-order-by-field-binding.md) | LOCALLY VERIFIED | 统一请求内投影绑定、排序优先级和去重；普通查询 SQL Server 重复排序修复，专项、五数据库及全量测试通过；Launcher 0.1.26 与私有 snapshot 已发布 |
 | [DISTINCT 排序丢失 #145](workitems/BUG-145-distinct-order-by.md) | LOCALLY VERIFIED | 59 项专项、Windows/Linux 全量、五数据库、前端及原始 Chinook 重放通过；含 SQL Server 重复默认排序修复 |

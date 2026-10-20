@@ -1,6 +1,6 @@
 ---
 doc_type: implementation-plan
-status: LOCALLY_VERIFIED
+status: PUBLISHED
 date: 2026-10-20
 intended_for: engine maintainers
 purpose: 明确 QM name/alias 合同，修复维度列注册和语义元数据不一致，并记录兼容性与验证。
@@ -9,7 +9,8 @@ purpose: 明确 QM name/alias 合同，修复维度列注册和语义元数据�
 # #146 QM 查询名称与输出别名
 
 目标迭代 9.5.5，直接在 main 实施；Java 坐标保持 9.3.0-SNAPSHOT。
-本次授权包括实现、专项回归和全量测试，不包括提交、推送或发布。
+初始实施授权包括实现、专项回归和全量测试；验证完成后，用户另行授权提交、推送、
+更新并关闭 issue，以及发布 Launcher 和私有 Maven。发布结果见文末。
 
 ## 根因与已有测试的边界
 
@@ -100,7 +101,7 @@ JSON/Markdown 公开新名称，validate/execute/explain 均成功，返回
 
 本地 Launcher SHA-256：
 `63f604fb29d860b52d43caad9e314505cf351329ab44fcad862f22a4fb1f5b66`。
-这是测试构建，未提交、推送、更新 issue 或发布新版本。
+这是发布前的测试构建；当时尚未提交、推送、更新 issue 或发布新版本。
 
 ### 证据与环境重试
 
@@ -123,3 +124,8 @@ JSON/Markdown 公开新名称，validate/execute/explain 均成功，返回
 - 额外扫描历史 `scripts/v950/tests`：Linux 13 项通过、1 项因冻结的 31 模块合同与当前
   43 模块 reactor 不符而报错；修复前 `92b26c47` 对照相同。未改写历史签收合同，
   当前主线 `scripts/current-main/verify_current_main.py` 已通过。该历史检查不计作当前门禁通过。
+
+## 发布结果（2026-10-20）
+
+修复已提交并推送 main（`40309be1`），#146 已更新并关闭。Launcher 0.1.27 与私有
+9.3.0-SNAPSHOT 已发布且下载核验通过；详见[发布记录](../../../release/launcher-0.1.27-publication.md)。
