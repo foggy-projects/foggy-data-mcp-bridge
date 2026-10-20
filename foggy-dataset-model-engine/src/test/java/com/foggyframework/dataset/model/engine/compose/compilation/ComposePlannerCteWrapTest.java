@@ -22,6 +22,17 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 @DisplayName("ComposePlanner CTE Flattening Test")
 class ComposePlannerCteWrapTest {
 
+    @Test
+    void approximateRatioFactorDoesNotChangeOrdinaryLiteralSemanticsOrShareItsCacheIdentity() {
+        var decimal = new com.foggyframework.dataset.model.engine.compose.plan.expr.LiteralExpr(1.0);
+        var approximate = com.foggyframework.dataset.model.engine.compose.plan.expr.LiteralExpr.approximate(1.0);
+        org.junit.jupiter.api.Assertions.assertEquals("1.0", ComposePlanner.compileExpression(decimal, "mysql", Map.of()));
+        org.junit.jupiter.api.Assertions.assertEquals("1.0E0", ComposePlanner.compileExpression(approximate, "mysql", Map.of()));
+        org.junit.jupiter.api.Assertions.assertNotEquals(PlanHash.canonical(decimal), PlanHash.canonical(approximate));
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> com.foggyframework.dataset.model.engine.compose.plan.expr.LiteralExpr.approximate(Double.NaN));
+    }
+
     private ComposedSql compile(QueryPlan plan, CompileTestHelpers.FakeSemanticService svc,
                                 Map<String, ModelBinding> bindings, String dialect) {
         return ComposeSqlCompiler.compilePlanToSql(

@@ -77,6 +77,11 @@ public class SemanticQueryPayloadMapper {
 
         request.setColumns(optionalStringList(payload.get("columns")));
         request.setCalculatedFields(convertList(payload.get("calculatedFields"), CalculatedFieldDef.class));
+        if (request.getCalculatedFields() != null) {
+            for (int i = 0; i < request.getCalculatedFields().size(); i++) {
+                request.getCalculatedFields().get(i).setSourcePath("calculatedFields[" + i + "]");
+            }
+        }
         request.setSlice(convertSliceItemsIfPresent(payload, "slice"));
         request.setHaving(convertSliceItemsIfPresent(payload, "having"));
         request.setPostSlice(convertSliceItemsIfPresent(payload, "postSlice"));

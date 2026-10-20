@@ -175,40 +175,16 @@ public class TimeWindowExpander {
             throw new IllegalArgumentException("Not a comparative time window: " + tw.comparison());
         }
 
-        int offset;
-        RelativeDateParser.OffsetUnit unit;
-        String shiftField;
-        String grainKeyField;
-
-        String baseField = tw.field();
-        if (baseField.endsWith("$id")) {
-            baseField = baseField.substring(0, baseField.length() - 3);
-        }
-
-        if ("yoy".equalsIgnoreCase(tw.comparison())) {
-            offset = -1;
-            unit = RelativeDateParser.OffsetUnit.YEAR;
-            shiftField = baseField + "$year";
-            if ("month".equalsIgnoreCase(tw.grain())) {
-                grainKeyField = baseField + "$month";
-            } else if ("quarter".equalsIgnoreCase(tw.grain())) {
-                grainKeyField = baseField + "$quarter";
-            } else {
-                grainKeyField = baseField + "$dayOfYear";
-            }
-        } else if ("mom".equalsIgnoreCase(tw.comparison())) {
-            offset = -1;
-            unit = RelativeDateParser.OffsetUnit.MONTH;
-            shiftField = baseField + "$month";
-            grainKeyField = baseField + "$id";
-        } else if ("wow".equalsIgnoreCase(tw.comparison())) {
-            offset = -1;
-            unit = RelativeDateParser.OffsetUnit.WEEK;
-            shiftField = baseField + "$week";
-            grainKeyField = baseField + "$dayOfWeek";
-        } else {
-            throw new IllegalArgumentException("Unsupported comparative mode: " + tw.comparison());
-        }
+        // Compatibility description only. Runtime periods and ranges have one implementation in ComparativePeriodResolver.
+        int offset = -1;
+        RelativeDateParser.OffsetUnit unit = switch (tw.comparison()) {
+            case "yoy" -> RelativeDateParser.OffsetUnit.YEAR;
+            case "mom" -> RelativeDateParser.OffsetUnit.MONTH;
+            case "wow" -> RelativeDateParser.OffsetUnit.WEEK;
+            default -> throw new IllegalArgumentException("Unsupported comparative mode: " + tw.comparison());
+        };
+        String shiftField = "__tw_period_key";
+        String grainKeyField = "__tw_period_key";
 
         List<String> metrics = resolveMetrics(tw, measureFields);
         List<ComparativeColumn> projectedCols = new ArrayList<>();
@@ -232,120 +208,15 @@ public class TimeWindowExpander {
         );
     }
 
-    public static QueryPlan buildComparativePlan(
-            BaseModelPlan basePlan,
-            ComparativeExpansionResult compResult,
-            TimeWindowDef tw) {
-        // Deduplicate: exclude dims that overlap with shiftField or grainKeyField
-        // (e.g. groupBy may contain salesDate$year which is also the shiftField)
-        List<String> dims = new ArrayList<>();
-        for (String d : compResult.dimensionFields()) {
-            if (!d.equals(compResult.shiftField()) && !d.equals(compResult.grainKeyField())) {
-                dims.add(d);
-            }
-        }
-
-        // 1. Base Derived Plan (Current Period)
-        List<String> baseCols = new ArrayList<>();
-        // Include all dimension fields for join
-        for (String dim : dims) {
-            baseCols.add(dim);
-        }
-        baseCols.add(compResult.shiftField());
-        baseCols.add(compResult.grainKeyField());
-        for (ComparativeColumn c : compResult.projectedColumns()) {
-            baseCols.add(c.currentAlias() + " AS " + c.currentAlias());
-        }
-        
-        DerivedQueryPlan baseDerived = DerivedQueryPlan.builder()
-                .source(basePlan)
-                .columns(baseCols)
-                .build();
-                
-        // 2. Prior Derived Plan (Prior Period)
-        List<Object> priorCols = new ArrayList<>();
-        // Include dimension fields for join (prior side)
-        for (String dim : dims) {
-            priorCols.add(dim);
-        }
-        priorCols.add(new ProjectedColumn(
-                new BinaryExpr(
-                        new ColumnExpr(compResult.shiftField()),
-                        "+",
-                        new LiteralExpr(-compResult.periodOffset())),
-                compResult.shiftField(),
-                null));
-        priorCols.add(compResult.grainKeyField());
-        for (ComparativeColumn c : compResult.projectedColumns()) {
-            priorCols.add(c.currentAlias() + " AS " + c.priorAlias());
-        }
-        
-        DerivedQueryPlan priorDerived = DerivedQueryPlan.builder()
-                .source(basePlan)
-                .columns(priorCols)
-                .build();
-
-        // 3. Join Plan — ON must cover ALL dimension fields + grain key
-        List<JoinOn> joinConditions = new ArrayList<>();
-        for (String dim : dims) {
-            joinConditions.add(JoinOn.builder()
-                    .left(dim).op("=").right(dim)
-                    .build());
-        }
-        joinConditions.add(JoinOn.builder()
-                .left(compResult.shiftField())
-                .op("=")
-                .right(compResult.shiftField())
-                .build());
-        joinConditions.add(JoinOn.builder()
-                .left(compResult.grainKeyField())
-                .op("=")
-                .right(compResult.grainKeyField())
-                .build());
-
-        JoinPlan joinPlan = JoinPlan.builder()
-                .left(baseDerived)
-                .right(priorDerived)
-                .type(JoinType.LEFT)
-                .on(joinConditions)
-                .build();
-                
-        // 4. Outer Projection (Calculates Diff and Ratio)
-        List<Object> finalCols = new ArrayList<>();
-        for (String dim : dims) {
-            finalCols.add(dim);
-        }
-        finalCols.add(compResult.shiftField());
-        finalCols.add(compResult.grainKeyField());
-        for (ComparativeColumn c : compResult.projectedColumns()) {
-            finalCols.add(c.currentAlias());
-            finalCols.add(c.priorAlias());
-            
-            ColumnExpr currExpr = new ColumnExpr(c.currentAlias());
-            ColumnExpr priorExpr = new ColumnExpr(c.priorAlias());
-            
-            // Diff: current - prior
-            BinaryExpr diffExpr = new BinaryExpr(currExpr, "-", priorExpr);
-            finalCols.add(new ProjectedColumn(diffExpr, c.diffAlias(), null));
-            
-            // Ratio: CASE WHEN prior IS NULL OR prior = 0 THEN NULL ELSE (current - prior) / prior END
-            BinaryExpr priorIsNull = new BinaryExpr(priorExpr, "IS", new LiteralExpr(null));
-            BinaryExpr priorIsZero = new BinaryExpr(priorExpr, "=", new LiteralExpr(0));
-            BinaryExpr isNullOrZero = new BinaryExpr(priorIsNull, "OR", priorIsZero);
-            
-            BinaryExpr ratioMath = new BinaryExpr(new BinaryExpr(currExpr, "-", priorExpr), "/", priorExpr);
-            
-            CaseWhenExpr ratioExpr = new CaseWhenExpr(
-                    List.of(new CaseWhenExpr.WhenThen(isNullOrZero, new LiteralExpr(null))),
-                    ratioMath
-            );
-            finalCols.add(new ProjectedColumn(ratioExpr, c.ratioAlias(), null));
-        }
-
-        return DerivedQueryPlan.builder()
-                .source(joinPlan)
-                .columns(finalCols)
-                .build();
+    /** Compatibility adapter; runtime callers resolve the typed model axis before building. */
+    @Deprecated
+    public static QueryPlan buildComparativePlan(BaseModelPlan basePlan,
+            ComparativeExpansionResult result, TimeWindowDef window) {
+        String dimension = window.field().contains("$")
+                ? window.field().substring(0, window.field().lastIndexOf('$')) : null;
+        return ComparativePlanBuilder.build(basePlan, window,
+                new TimeAxisResolver.Axis(window.field(), window.field(), dimension),
+                new LinkedHashSet<>(result.metrics()), java.time.Clock.systemUTC()).plan();
     }
 
     /**
@@ -393,27 +264,6 @@ public class TimeWindowExpander {
                 output.add(metric + "__prior");
                 output.add(metric + "__diff");
                 output.add(metric + "__ratio");
-            }
-            // Add grain key fields
-            String baseField = tw.field();
-            if (baseField.endsWith("$id")) {
-                baseField = baseField.substring(0, baseField.length() - 3);
-            }
-            if ("yoy".equalsIgnoreCase(tw.comparison())) {
-                output.add(baseField + "$year");
-                if ("month".equalsIgnoreCase(tw.grain())) {
-                    output.add(baseField + "$month");
-                } else if ("quarter".equalsIgnoreCase(tw.grain())) {
-                    output.add(baseField + "$quarter");
-                } else {
-                    output.add(baseField + "$dayOfYear");
-                }
-            } else if ("mom".equalsIgnoreCase(tw.comparison())) {
-                output.add(baseField + "$month");
-                output.add(baseField + "$id");
-            } else if ("wow".equalsIgnoreCase(tw.comparison())) {
-                output.add(baseField + "$week");
-                output.add(baseField + "$dayOfWeek");
             }
         } else if (tw.isRolling()) {
             for (String metric : metrics) {
@@ -501,42 +351,6 @@ public class TimeWindowExpander {
                         .valueMeaning("current relative to prior " + metric)
                         .lineage(Set.of(metric))
                         .build());
-            }
-            // Grain key fields as dimensions
-            String baseField = tw.field();
-            if (baseField.endsWith("$id")) {
-                baseField = baseField.substring(0, baseField.length() - 3);
-            }
-            List<String> grainKeys = new ArrayList<>();
-            if ("yoy".equalsIgnoreCase(tw.comparison())) {
-                grainKeys.add(baseField + "$year");
-                if ("month".equalsIgnoreCase(tw.grain())) {
-                    grainKeys.add(baseField + "$month");
-                } else if ("quarter".equalsIgnoreCase(tw.grain())) {
-                    grainKeys.add(baseField + "$quarter");
-                } else {
-                    grainKeys.add(baseField + "$dayOfYear");
-                }
-            } else if ("mom".equalsIgnoreCase(tw.comparison())) {
-                grainKeys.add(baseField + "$month");
-                grainKeys.add(baseField + "$id");
-            } else if ("wow".equalsIgnoreCase(tw.comparison())) {
-                grainKeys.add(baseField + "$week");
-                grainKeys.add(baseField + "$dayOfWeek");
-            }
-            for (String gk : grainKeys) {
-                // Only add if not already in dimensions
-                boolean alreadyAdded = false;
-                for (ColumnSpec s : specs) {
-                    if (s.name().equals(gk)) { alreadyAdded = true; break; }
-                }
-                if (!alreadyAdded) {
-                    specs.add(ColumnSpec.builder()
-                            .name(gk).expression(gk)
-                            .semanticKind(SemanticKind.BASE_FIELD)
-                            .referencePolicy(ReferencePolicy.DIMENSION_DEFAULT)
-                            .build());
-                }
             }
         } else if (tw.isRolling()) {
             for (String metric : metrics) {

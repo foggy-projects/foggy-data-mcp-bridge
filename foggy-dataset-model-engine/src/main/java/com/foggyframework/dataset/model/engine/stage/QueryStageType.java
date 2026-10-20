@@ -5,5 +5,6 @@ public enum QueryStageType {
     AGGREGATE_STAGE,
     POST_AGGREGATE_STAGE,
     WINDOW_RESULT_STAGE,
+    RESULT_CALC_STAGE,
     FINAL_STAGE
 }

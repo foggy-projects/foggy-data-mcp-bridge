@@ -186,10 +186,8 @@ class TimeWindowExpanderTest {
 
             assertEquals(-1, result.periodOffset());
             assertEquals(RelativeDateParser.OffsetUnit.YEAR, result.offsetUnit());
-            assertEquals("salesDate$month", result.grainKeyField(),
-                    "YoY + month grain → grain key is salesDate$month");
-            assertEquals("salesDate$year", result.shiftField(),
-                    "YoY → shift field is salesDate$year");
+            assertEquals("__tw_period_key", result.grainKeyField());
+            assertEquals("__tw_period_key", result.shiftField());
 
             assertEquals(1, result.projectedColumns().size());
             TimeWindowExpander.ComparativeColumn col = result.projectedColumns().get(0);
@@ -210,8 +208,8 @@ class TimeWindowExpanderTest {
             TimeWindowExpander.ComparativeExpansionResult result =
                     TimeWindowExpander.expandComparative(tw, Set.of("salesAmount", "costAmount"), List.of());
 
-            assertEquals("salesDate$quarter", result.grainKeyField());
-            assertEquals("salesDate$year", result.shiftField());
+            assertEquals("__tw_period_key", result.grainKeyField());
+            assertEquals("__tw_period_key", result.shiftField());
             // null targetMetrics → both measures
             assertEquals(2, result.metrics().size());
         }
@@ -229,9 +227,8 @@ class TimeWindowExpanderTest {
 
             assertEquals(-1, result.periodOffset());
             assertEquals(RelativeDateParser.OffsetUnit.MONTH, result.offsetUnit());
-            assertEquals("salesDate$id", result.grainKeyField(),
-                    "MoM → grain key uses date field itself (day grain)");
-            assertEquals("salesDate$month", result.shiftField());
+            assertEquals("__tw_period_key", result.grainKeyField());
+            assertEquals("__tw_period_key", result.shiftField());
         }
 
         @Test
@@ -247,8 +244,8 @@ class TimeWindowExpanderTest {
 
             assertEquals(-1, result.periodOffset());
             assertEquals(RelativeDateParser.OffsetUnit.WEEK, result.offsetUnit());
-            assertEquals("salesDate$dayOfWeek", result.grainKeyField());
-            assertEquals("salesDate$week", result.shiftField());
+            assertEquals("__tw_period_key", result.grainKeyField());
+            assertEquals("__tw_period_key", result.shiftField());
         }
 
         @Test
@@ -280,7 +277,9 @@ class TimeWindowExpanderTest {
                     "Should carry dimension fields through");
 
             // Build plan and verify join includes dimensions
-            BaseModelPlan base = salesPlan();
+            BaseModelPlan base = BaseModelPlan.builder().model("SalesQueryModel")
+                    .columns(List.of("product$category", "store$city", "salesDate$id", "salesAmount"))
+                    .groupBy(List.of("product$category", "store$city", "salesDate$id")).build();
             QueryPlan plan = TimeWindowExpander.buildComparativePlan(base, result, tw);
             assertNotNull(plan, "Comparative plan should not be null");
 
@@ -290,13 +289,12 @@ class TimeWindowExpanderTest {
             assertInstanceOf(JoinPlan.class, outerDerived.source());
 
             JoinPlan joinPlan = (JoinPlan) outerDerived.source();
-            // ON conditions: 2 dims + 1 shifted period key + 1 grain key = 4 conditions
-            assertEquals(4, joinPlan.on().size(),
-                    "JOIN ON should have 4 conditions (2 dims + shifted period key + grain key)");
-            assertEquals("product$category", joinPlan.on().get(0).left());
-            assertEquals("store$city", joinPlan.on().get(1).left());
-            assertEquals("salesDate$year", joinPlan.on().get(2).left());
-            assertEquals("salesDate$month", joinPlan.on().get(3).left());
+            // One complete period key, plus null-safe business keys.
+            assertEquals(3, joinPlan.on().size());
+            assertEquals("__tw_period_key", joinPlan.on().get(0).left());
+            assertEquals("product$category", joinPlan.on().get(1).left());
+            assertEquals("store$city", joinPlan.on().get(2).left());
+            assertTrue(joinPlan.on().get(1).nullSafe());
 
             // Outer projection should include dimension fields
             List<Object> cols = outerDerived.columns();
@@ -307,10 +305,8 @@ class TimeWindowExpanderTest {
         }
 
         @Test
-        @DisplayName("yoy + year grain uses dayOfYear as grain key (Java-specific behavior)")
+        @DisplayName("yoy + year uses a complete year identity")
         void yoyYear() {
-            // NOTE (parity gap): Python yoy+year uses [year] only (no grain sub-key).
-            // Java uses dayOfYear as the grain key field.
             // This is a documented cross-engine difference.
             TimeWindowDef tw = new TimeWindowDef(
                     "salesDate$id", "year", "yoy", "[)",
@@ -322,17 +318,13 @@ class TimeWindowExpanderTest {
 
             assertEquals(-1, result.periodOffset());
             assertEquals(RelativeDateParser.OffsetUnit.YEAR, result.offsetUnit());
-            assertEquals("salesDate$year", result.shiftField(),
-                    "YoY → shift field is salesDate$year");
-            assertEquals("salesDate$dayOfYear", result.grainKeyField(),
-                    "YoY + year grain → Java uses dayOfYear as grain key");
+            assertEquals("__tw_period_key", result.shiftField());
+            assertEquals("__tw_period_key", result.grainKeyField());
         }
 
         @Test
-        @DisplayName("yoy + week grain uses dayOfYear as grain key (Java-specific behavior)")
+        @DisplayName("yoy + week uses a complete ISO week identity")
         void yoyWeek() {
-            // NOTE (parity gap): Python yoy+week uses [year+1, week=week].
-            // Java uses dayOfYear as grain key instead of week number.
             TimeWindowDef tw = new TimeWindowDef(
                     "salesDate$id", "week", "yoy", "[)",
                     List.of("2024-01-01", "2025-01-01"),
@@ -341,17 +333,13 @@ class TimeWindowExpanderTest {
             TimeWindowExpander.ComparativeExpansionResult result =
                     TimeWindowExpander.expandComparative(tw, Set.of("salesAmount"), List.of());
 
-            assertEquals("salesDate$year", result.shiftField());
-            assertEquals("salesDate$dayOfYear", result.grainKeyField(),
-                    "YoY + week grain → Java falls through to dayOfYear " +
-                    "(Python uses week=week — documented parity gap GAP-1)");
+            assertEquals("__tw_period_key", result.shiftField());
+            assertEquals("__tw_period_key", result.grainKeyField());
         }
 
         @Test
-        @DisplayName("wow + day grain still uses week/dayOfWeek (Java-specific behavior)")
+        @DisplayName("wow + day uses a complete day identity")
         void wowDay() {
-            // NOTE (parity gap): Python wow+day uses id = id + 7.
-            // Java always uses week/dayOfWeek even for day grain.
             TimeWindowDef tw = new TimeWindowDef(
                     "salesDate$id", "day", "wow", "[)",
                     List.of("-2W", "now"),
@@ -362,11 +350,8 @@ class TimeWindowExpanderTest {
 
             assertEquals(-1, result.periodOffset());
             assertEquals(RelativeDateParser.OffsetUnit.WEEK, result.offsetUnit());
-            assertEquals("salesDate$week", result.shiftField(),
-                    "WoW + day grain → Java still uses salesDate$week as shift field");
-            assertEquals("salesDate$dayOfWeek", result.grainKeyField(),
-                    "WoW + day grain → Java uses dayOfWeek as grain key " +
-                    "(Python uses id+7 — documented parity gap GAP-4)");
+            assertEquals("__tw_period_key", result.shiftField());
+            assertEquals("__tw_period_key", result.grainKeyField());
         }
     }
 }

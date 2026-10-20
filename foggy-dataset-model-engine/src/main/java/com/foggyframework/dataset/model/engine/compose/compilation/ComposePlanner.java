@@ -224,6 +224,11 @@ public final class ComposePlanner {
         }
         if (expr instanceof LiteralExpr lit) {
             if (lit.value() == null) return "NULL";
+            if (lit.approximate()) {
+                String value = lit.value().toString();
+                // Only explicitly marked ratios opt in; ordinary literals keep their existing SQL type.
+                return value.toUpperCase(Locale.ROOT).contains("E") ? value : value + "E0";
+            }
             if (lit.value() instanceof Number) return lit.value().toString();
             if (lit.value() instanceof Boolean) return lit.value().toString().toUpperCase(Locale.ROOT);
             return "'" + lit.value().toString().replace("'", "''") + "'";
@@ -1939,8 +1944,9 @@ public final class ComposePlanner {
         for (JoinOn o : onList) {
             String left = needsQuoting(o.left(), dialect) ? quoteIdent(o.left(), dialect) : o.left();
             String right = needsQuoting(o.right(), dialect) ? quoteIdent(o.right(), dialect) : o.right();
-            frags.add(leftAlias + "." + left + " " + o.op() + " "
-                    + rightAlias + "." + right);
+            String predicate = leftAlias + "." + left + " " + o.op() + " " + rightAlias + "." + right;
+            frags.add(o.nullSafe() ? "(" + predicate + " OR (" + leftAlias + "." + left
+                    + " IS NULL AND " + rightAlias + "." + right + " IS NULL))" : predicate);
         }
         return String.join(" AND ", frags);
     }

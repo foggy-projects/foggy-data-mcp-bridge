@@ -189,7 +189,7 @@ public final class PlanHash {
 
     /** Canonical form of one {@link JoinOn} — {@code [left, op, right]}. */
     private static List<String> canonicalJoinOn(JoinOn o) {
-        return List.of(o.left(), o.op(), o.right());
+        return o.nullSafe() ? List.of(o.left(), o.op(), o.right(), "null-safe") : List.of(o.left(), o.op(), o.right());
     }
 
     /** Box {@code null} into the {@link #NULL_SENTINEL}; otherwise pass

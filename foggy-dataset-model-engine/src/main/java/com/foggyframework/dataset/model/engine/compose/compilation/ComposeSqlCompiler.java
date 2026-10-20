@@ -81,6 +81,14 @@ public final class ComposeSqlCompiler {
         QueryPlan effectivePlan = opts.normalizePlan
                 ? PlanNormalizePipeline.defaults().normalize(plan).normalizedPlan()
                 : plan;
+        if (context != null && context.requestContext() != null
+                && effectivePlan.baseModelPlans().stream().map(p -> p.model()).distinct().count() > 1) {
+            throw new IllegalArgumentException("A pinned request context cannot be shared across models");
+        }
+        if (context != null && context.requestContext() != null
+                && !com.foggyframework.dataset.model.lifecycle.identity.CatalogIdentity.canonicalNamespace(context.namespace()).equals(
+                    com.foggyframework.dataset.model.lifecycle.identity.CatalogIdentity.canonicalNamespace(context.requestContext().getNamespace())))
+            throw new IllegalArgumentException("Pinned request namespace differs from composition namespace");
         QueryPlan.validatePlanSliceValues(effectivePlan);
 
         Map<String, ModelBinding> bindings = opts.bindings;
@@ -109,6 +117,7 @@ public final class ComposeSqlCompiler {
     }
 
     static SemanticRequestContext semanticRequestContext(ComposeQueryContext context) {
+        if (context != null && context.requestContext() != null) return context.requestContext();
         if (context == null) {
             return SemanticRequestContext.empty()
                     .withPermissionAction(PermissionAction.EXECUTE);

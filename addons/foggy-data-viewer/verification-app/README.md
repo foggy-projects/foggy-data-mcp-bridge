@@ -22,6 +22,17 @@
 
 独立浏览器合同测试使用请求拦截数据；真实后端测试需先启动本机 Foggy 演示服务，然后设置 `FOGGY_VIEWER_REAL_BACKEND=1`。本机端口被占用或保留时可设置 `FOGGY_VIEWER_E2E_PORT`；已安装 Edge 时可设置 `FOGGY_VIEWER_E2E_CHANNEL=msedge`。两个测试分别为 `tests/e2e/group-by-summary.spec.ts` 和 `tests/e2e/group-by-summary-real.spec.ts`。真实测试检查 Java 直连接口的 `groupBy`、`having`、`returnTotal=false`、`hasNext`、翻页及完整导出。
 
+真实分页验收需要至少 40 个年月/门店分组，以及销售收入超过 10,000 的三月份分组。使用专用 MySQL 测试库，按顺序加载仓库 `foggy-dataset-demo/docker/mysql/init/` 下的 `01-schema.sql`、`02-dict-data.sql`、`03-test-data.sql`、`04-seed-2025-sales.sql`，再用该数据源启动 `foggy-mcp-launcher`（端口 7108、启用 demo 模型）。不要混入 `11-preagg-testdata.sql`：该脚本会清空销售事实表并改成另一套预聚合夹具。不要在共享或业务数据库上初始化这些脚本。
+
+服务就绪后，在本目录运行完整套件（PowerShell）：
+
+```powershell
+$env:FOGGY_VIEWER_REAL_BACKEND='1'
+npm run test:e2e
+```
+
+自定义查询用例通过“查询方案 → 自定义查询”配置并保存，通过“查询方案 → 查询管理”验证默认、应用和删除；使用请求拦截夹具，与上述真实后端用例分别验收。
+
 ## 如何运行
 
 ### 1. 构建组件库（如果还没有构建）

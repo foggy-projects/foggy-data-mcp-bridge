@@ -82,6 +82,8 @@ public class ModelResultContext {
 
     /** Explain-only request-local event collector; null on ordinary query paths. */
     ExplainTraceCollector explainTraceCollector;
+    @lombok.Setter(lombok.AccessLevel.NONE)
+    CatalogResolution<QueryModel> catalogResolution;
 
     public void mergeRequestExtData(Object requestExtData) {
         if (requestExtData == null) {
@@ -134,6 +136,7 @@ public class ModelResultContext {
         catalogIdentity = resolution.catalogIdentity();
         datasourceBindingIdentities = Map.copyOf(resolution.dependencyBindings());
         bindingIdentityComplete = resolution.bindingIdentityComplete();
+        catalogResolution = resolution;
     }
 
     /** Compatibility pin for a loader that cannot supply lifecycle identity. */
@@ -241,6 +244,11 @@ public class ModelResultContext {
      * </p>
      */
     DbQueryResult queryResult;
+
+    /** Deferred plans produce their real result before entering process, unlike cache hits. */
+    public enum ExecutionDisposition { NORMAL, DEFERRED, MATERIALIZED }
+    ExecutionDisposition executionDisposition = ExecutionDisposition.NORMAL;
+    java.util.function.Supplier<DbQueryResult> deferredQuery;
 
     /**
      * 是否跳过后续查询

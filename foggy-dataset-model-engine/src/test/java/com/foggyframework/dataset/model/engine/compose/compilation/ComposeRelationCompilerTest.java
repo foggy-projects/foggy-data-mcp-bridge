@@ -169,8 +169,8 @@ class ComposeRelationCompilerTest {
     // ------------------------------------------------------------------
 
     @Test
-    @DisplayName("timeWindowYoy_compilesToRelation · comparative timeWindow enriches schema")
-    void timeWindowYoy_compilesToRelation() {
+    @DisplayName("timeWindowYoy_metadataCannotInventUnprojectedColumns · comparative timeWindow enriches schema")
+    void timeWindowYoy_metadataCannotInventUnprojectedColumns() {
         FakeSemanticService svc = svc();
 
         Map<String, Object> twMap = new LinkedHashMap<>();
@@ -193,19 +193,17 @@ class ComposeRelationCompilerTest {
 
         assertNotNull(rel);
         OutputSchema schema = rel.outputSchema();
-        // YoY enriched schema should contain: storeName, salesAmount,
-        // salesAmount__prior, salesAmount__diff, salesAmount__ratio,
-        // salesDate$year, salesDate$month
+        // Metadata may annotate actual projections; it must never invent columns absent from SQL.
         assertTrue(schema.contains("storeName"));
         assertTrue(schema.contains("salesAmount"));
-        assertTrue(schema.contains("salesAmount__prior"));
-        assertTrue(schema.contains("salesAmount__diff"));
-        assertTrue(schema.contains("salesAmount__ratio"));
+        assertFalse(schema.contains("salesAmount__prior"));
+        assertFalse(schema.contains("salesAmount__diff"));
+        assertFalse(schema.contains("salesAmount__ratio"));
     }
 
     @Test
-    @DisplayName("timeWindowRolling_compilesToRelation · rolling timeWindow produces derived columns")
-    void timeWindowRolling_compilesToRelation() {
+    @DisplayName("timeWindowRolling_metadataCannotInventUnprojectedColumns · rolling timeWindow produces derived columns")
+    void timeWindowRolling_metadataCannotInventUnprojectedColumns() {
         FakeSemanticService svc = svc();
 
         Map<String, Object> twMap = new LinkedHashMap<>();
@@ -226,12 +224,12 @@ class ComposeRelationCompilerTest {
                         .build());
 
         assertNotNull(rel);
-        assertTrue(rel.outputSchema().contains("salesAmount__rolling_7d"));
+        assertFalse(rel.outputSchema().contains("salesAmount__rolling_7d"));
     }
 
     @Test
-    @DisplayName("timeWindowCumulative_compilesToRelation · cumulative timeWindow works")
-    void timeWindowCumulative_compilesToRelation() {
+    @DisplayName("timeWindowCumulative_metadataCannotInventUnprojectedColumns · cumulative timeWindow works")
+    void timeWindowCumulative_metadataCannotInventUnprojectedColumns() {
         FakeSemanticService svc = svc();
 
         Map<String, Object> twMap = new LinkedHashMap<>();
@@ -252,7 +250,7 @@ class ComposeRelationCompilerTest {
                         .build());
 
         assertNotNull(rel);
-        assertTrue(rel.outputSchema().contains("salesAmount__ytd"));
+        assertFalse(rel.outputSchema().contains("salesAmount__ytd"));
     }
 
     // ------------------------------------------------------------------

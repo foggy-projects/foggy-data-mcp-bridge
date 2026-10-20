@@ -75,6 +75,9 @@ public class CalculatedDbColumn extends AbstractDecorate implements DbQueryColum
      */
     private boolean hasRef;
 
+    /** 0 = source/aggregate, 1 = window, 2+ = scalar layers consuming previous results. */
+    private int resultStageDepth;
+
     /**
      * 查询对象（可选，用于某些场景）
      */

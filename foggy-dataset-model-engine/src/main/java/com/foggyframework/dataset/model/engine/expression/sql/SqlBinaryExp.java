@@ -54,6 +54,13 @@ public class SqlBinaryExp extends AbstractExp<String> {
         // 转换运算符（FSScript → SQL）
         String sqlOperator = AllowedFunctions.toSqlOperator(operator);
 
+        var context = (com.foggyframework.dataset.model.engine.expression.SqlExpContext)
+                evaluator.getVar(com.foggyframework.dataset.model.engine.expression.SqlExpContext.CONTEXT_KEY);
+        if ("/".equals(sqlOperator) && context != null && context.isResultStageReferences()) {
+            // Preserve SQL NULL and make zero denominators portable; force noninteger ratios.
+            var divisor = SqlFragment.customFunction("NULLIF(" + rightFrag.getSql() + ", 0)", "NULLIF", java.util.List.of(rightFrag));
+            return SqlFragment.binary(SqlFragment.binary(SqlFragment.ofLiteral("1e0"), "*", leftFrag), sqlOperator, divisor);
+        }
         return SqlFragment.binary(leftFrag, sqlOperator, rightFrag);
     }
 

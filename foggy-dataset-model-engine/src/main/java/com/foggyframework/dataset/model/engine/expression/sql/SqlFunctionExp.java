@@ -71,6 +71,26 @@ public class SqlFunctionExp extends AbstractExp<String> {
             }
         }
 
+        if ("PERIOD_START".equals(upper) || "PERIOD_KEY".equals(upper)) {
+            int required = "PERIOD_START".equals(upper) ? 2 : 3;
+            if (argFragments.size() != required || ctx == null || ctx.getDialect() == null) {
+                throw new IllegalArgumentException("TIMEWINDOW_PERIOD_EXPRESSION_INVALID");
+            }
+            String grain = argFragments.get(1).getSql();
+            if (!java.util.Set.of("'day'", "'week'", "'month'", "'quarter'", "'year'").contains(grain)) {
+                throw new IllegalArgumentException("TIMEWINDOW_GRAIN_INCOMPATIBLE: expected literal grain");
+            }
+            grain = grain.substring(1, grain.length() - 1);
+            String date = argFragments.get(0).getSql();
+            String sql = "PERIOD_START".equals(upper)
+                    ? com.foggyframework.dataset.db.dialect.CalendarPeriodSql.start(ctx.getDialect(), date, grain)
+                    : com.foggyframework.dataset.db.dialect.CalendarPeriodSql.key(ctx.getDialect(), date, grain,
+                        "'yoy'".equals(argFragments.get(2).getSql()));
+            SqlFragment result = SqlFragment.customFunction(sql, upper, argFragments);
+            result.setInferredType("PERIOD_START".equals(upper) ? DbColumnType.DATETIME : DbColumnType.INTEGER);
+            return result;
+        }
+
         // IF/IIF(cond, thenExpr, elseExpr) 在 JDBC 侧降级为标准 CASE WHEN，便于复用现有 DSL 语法支持条件聚合
         if ("IF".equals(upper) || "IIF".equals(upper)) {
             if (argFragments.size() != 3) {

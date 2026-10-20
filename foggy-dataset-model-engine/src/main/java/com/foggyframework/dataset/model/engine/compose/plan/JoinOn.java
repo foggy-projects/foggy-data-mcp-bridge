@@ -31,6 +31,7 @@ public final class JoinOn {
     private final String left;
     private final String op;
     private final String right;
+    private final boolean nullSafe;
 
     private JoinOn(Builder b) {
         if (b.left == null || b.left.isEmpty()) {
@@ -46,11 +47,14 @@ public final class JoinOn {
         this.left = b.left;
         this.op = b.op;
         this.right = b.right;
+        if (b.nullSafe && !"=".equals(b.op)) throw new IllegalArgumentException("nullSafe is supported only for equality");
+        this.nullSafe = b.nullSafe;
     }
 
     public String left() { return left; }
     public String op() { return op; }
     public String right() { return right; }
+    public boolean nullSafe() { return nullSafe; }
 
     public static Builder builder() { return new Builder(); }
 
@@ -95,6 +99,8 @@ public final class JoinOn {
         private String left;
         private String op;
         private String right;
+        private boolean nullSafe;
+        public Builder nullSafe(boolean v) { this.nullSafe = v; return this; }
 
         public Builder left(String v) { this.left = v; return this; }
         public Builder op(String v) { this.op = v; return this; }
@@ -110,12 +116,12 @@ public final class JoinOn {
         JoinOn j = (JoinOn) o;
         return Objects.equals(left, j.left)
                 && Objects.equals(op, j.op)
-                && Objects.equals(right, j.right);
+                && Objects.equals(right, j.right) && nullSafe == j.nullSafe;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(left, op, right);
+        return Objects.hash(left, op, right, nullSafe);
     }
 
     @Override

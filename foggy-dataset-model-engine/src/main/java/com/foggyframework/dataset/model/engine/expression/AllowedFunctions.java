@@ -150,6 +150,8 @@ public final class AllowedFunctions {
         date.add("CURRENT_TIME");
         date.add("CURRENT_TIMESTAMP");
         date.add("DATE_ADD");
+        date.add("PERIOD_START");
+        date.add("PERIOD_KEY");
         date.add("DATE_SUB");
         date.add("DATEDIFF");
         date.add("TIMESTAMPDIFF");

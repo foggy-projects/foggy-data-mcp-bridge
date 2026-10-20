@@ -157,6 +157,10 @@ public class CalculatedFieldDef {
     @JsonIgnore
     private transient Origin origin = Origin.USER_DECLARED;
 
+    /** Original payload location, retained through normalization/topological ordering. */
+    @JsonIgnore
+    private transient String sourcePath;
+
     /**
      * 便捷构造方法
      */

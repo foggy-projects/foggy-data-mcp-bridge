@@ -147,24 +147,14 @@ final class PerBaseCompiler {
         // ── CTE Wrapping: return flattened sibling CteUnits when structured stages exist ──
         if (buildResult.hasCteStages()) {
             List<CteUnit> units = new ArrayList<>();
+            Map<String, String> scopedNames = new java.util.LinkedHashMap<>();
             for (ComposeSqlGeneration.CteStage stage : buildResult.cteStages()) {
-                // Prerequisite CTE: alias is scoped to the base plan (e.g., cte_0_stage1)
                 String stageAlias = alias + "_" + stage.alias();
-                List<Object> stageParams = new ArrayList<>();
-                if (stage.params() != null) stageParams.addAll(stage.params());
-                units.add(new CteUnit(stageAlias, stage.sql(), stageParams, List.of()));
+                units.add(new CteUnit(stageAlias, CteAliasScope.rewrite(stage.sql(), scopedNames),
+                        new ArrayList<>(stage.params()), List.of()));
+                scopedNames.put(stage.alias(), stageAlias);
             }
-            // Outer SELECT: replace the original stage alias references with the scoped alias
-            String outerSql = buildResult.sql();
-            for (ComposeSqlGeneration.CteStage stage : buildResult.cteStages()) {
-                String scopedAlias = alias + "_" + stage.alias();
-                // Replace references: FROM stage1 → FROM cte_0_stage1, stage1."col" → cte_0_stage1."col"
-                // Using regex \b to prevent partial substring matches (e.g. percent_stage1)
-                outerSql = outerSql.replaceAll("(?i)\\b" + java.util.regex.Pattern.quote(stage.alias() + "."), 
-                        java.util.regex.Matcher.quoteReplacement(scopedAlias + "."));
-                outerSql = outerSql.replaceAll("(?i)\\bFROM\\s+" + java.util.regex.Pattern.quote(stage.alias()) + "\\b", 
-                        "FROM " + java.util.regex.Matcher.quoteReplacement(scopedAlias));
-            }
+            String outerSql = CteAliasScope.rewrite(buildResult.sql(), scopedNames);
             List<Object> outerParams = new ArrayList<>();
             outerParams.addAll(buildResult.params());
             units.add(new CteUnit(alias, outerSql, outerParams, selectColumns));
@@ -251,11 +241,26 @@ final class PerBaseCompiler {
     /** Plan-level slice → v1.3 {@link SemanticQueryRequest.SliceItem}.
      *  Accepted shapes are documented on {@link SliceShape#parse(Object)}. */
     private static SemanticQueryRequest.SliceItem toSliceItem(Object raw) {
+        if (raw instanceof Map<?, ?> map) {
+            SemanticQueryRequest.SliceItem item = new SemanticQueryRequest.SliceItem();
+            if (map.containsKey("$or") || map.containsKey("$and")) {
+                String key = map.containsKey("$or") ? "$or" : "$and";
+                if (!(map.get(key) instanceof List<?> children)) throw new IllegalArgumentException("Invalid logical slice");
+                var nested = children.stream().map(PerBaseCompiler::toSliceItem).toList();
+                if ("$or".equals(key)) item.setOr(nested); else item.setAnd(nested);
+                return item;
+            }
+            if (map.get("$expr") instanceof String expression) {
+                item.setExpr(expression);
+                return item;
+            }
+        }
         SliceShape s = SliceShape.parse(raw);
         SemanticQueryRequest.SliceItem item = new SemanticQueryRequest.SliceItem();
         item.setField(s.field);
         item.setOp(s.op);
         item.setValue(s.value);
+        if (raw instanceof Map<?, ?> map && map.get("maxDepth") instanceof Number depth) item.setMaxDepth(depth.intValue());
         return item;
     }
 
@@ -279,9 +284,14 @@ final class PerBaseCompiler {
         SemanticRequestContext base = baseRequestContext != null
                 ? baseRequestContext
                 : SemanticRequestContext.ofNamespace(namespace);
-        return base.withGovernance(
-                fieldAccess,
-                new ArrayList<>(binding.deniedColumns()),
-                binding.systemSlice().isEmpty() ? null : new ArrayList<>(binding.systemSlice()));
+        if (base.getFieldAccess() != null) {
+            if (fieldAccess == null) fieldAccess = new HashSet<>(base.getFieldAccess());
+            else fieldAccess.retainAll(base.getFieldAccess());
+        }
+        var denied = new ArrayList<>(binding.deniedColumns());
+        if (base.getDeniedColumns() != null) denied.addAll(base.getDeniedColumns());
+        var slices = new ArrayList<>(binding.systemSlice());
+        if (base.getSystemSlice() != null) slices.addAll(base.getSystemSlice());
+        return base.withGovernance(fieldAccess, denied, slices.isEmpty() ? null : slices);
     }
 }

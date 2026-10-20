@@ -141,6 +141,8 @@ public enum DbColumnType {
      * @return 格式化器，如果无法获取则返回默认透传格式化器
      */
     public ObjectTransFormatter<?> getFormatter() {
+        // Preserve civil-date identity through JDBC binding; DATETIME still carries a time component.
+        if (this == DAY) return DATE_ONLY_FORMATTER;
         try {
             ObjectTransFormatter<?> formatter = RequestBeanInjecter.getInstance().getObjectTransFormatter(javaType);
             return formatter != null ? formatter : PASSTHROUGH_FORMATTER;
@@ -155,6 +157,16 @@ public enum DbColumnType {
      * 用于 UNKNOWN 类型或无法推断类型时，直接返回原始值不做任何转换。
      * </p>
      */
+    private static final ObjectTransFormatter<java.sql.Date> DATE_ONLY_FORMATTER = new ObjectTransFormatter<>() {
+        @Override
+        public java.sql.Date format(Object object) {
+            Date value = ObjectTransFormatter.DATE_TRANSFORMATTERINSTANCE.format(object);
+            return value == null ? null : new java.sql.Date(value.getTime());
+        }
+        @Override
+        public Class<java.sql.Date> type() { return java.sql.Date.class; }
+    };
+
     public static final ObjectTransFormatter<Object> PASSTHROUGH_FORMATTER = new ObjectTransFormatter<Object>() {
         @Override
         public Object format(Object object) {

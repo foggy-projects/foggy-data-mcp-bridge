@@ -8,7 +8,7 @@ DROP TABLE IF EXISTS dim_date;
 CREATE TABLE dim_date
 (
     date_key       INTEGER NOT NULL PRIMARY KEY,
-    full_date      TEXT    NOT NULL,
+    full_date      DATE    NOT NULL,
     year           INTEGER NOT NULL,
     quarter        INTEGER NOT NULL,
     month          INTEGER NOT NULL,
@@ -473,7 +473,7 @@ DROP TABLE IF EXISTS dim_historical_waybill_date;
 CREATE TABLE dim_historical_waybill_date
 (
     date_key  INTEGER PRIMARY KEY,
-    full_date TEXT NOT NULL,
+    full_date DATE NOT NULL,
     year      INTEGER NOT NULL
 );
 

@@ -165,13 +165,23 @@ public class QueryFacadeImpl implements AdvancedQueryFacade {
 
             // 3. 检查是否跳过查询（如 L1 缓存命中，或 TimeWindow 拦截）
             if (context.isSkipQuery()) {
+                if (context.getQueryResult() == null
+                        && context.getExecutionDisposition() == ModelResultContext.ExecutionDisposition.DEFERRED) {
+                    if (context.getDeferredQuery() == null) {
+                        throw new IllegalStateException("Deferred query has no execution handler");
+                    }
+                    DbQueryResult deferred = context.getDeferredQuery().get();
+                    context.setQueryResult(deferred);
+                    context.setPagingResult(deferred.getPagingResult());
+                    context.setExecutionDisposition(ModelResultContext.ExecutionDisposition.MATERIALIZED);
+                }
                 if (context.getQueryResult() == null) {
                     context.setPagingResult(new com.foggyframework.dataset.model.PagingResultImpl());
                     context.setQueryResult(DbQueryResult.of(context.getPagingResult(), null));
                 }
                 // 执行 process Step（缓存结果也需要经过结果处理）
                 dataSetResultFilterManager.process(context);
-                return context.getQueryResult();
+                return DbQueryResult.of(context.getPagingResult(), context.getQueryResult().getQueryEngine());
             }
 
             // 4. 执行查询（内部包含 L2 缓存逻辑）
@@ -220,6 +230,7 @@ public class QueryFacadeImpl implements AdvancedQueryFacade {
 
     @Override
     public SqlGenerationResult buildSqlOnly(ModelResultContext context) {
+        context.setCacheConfig(ModelResultContext.QueryCacheConfig.disabled());
         try (NamespaceScope ignored = openNamespaceScope(context, true)) {
             String effectiveNamespace = context.getNamespace();
 

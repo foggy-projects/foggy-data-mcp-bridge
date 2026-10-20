@@ -33,36 +33,36 @@ test('custom query preset can be saved, applied, set as default, deleted, and re
   await page.getByText('自定义查询（新）').click()
 
   await expect(page.getByRole('heading', { name: '自定义查询功能测试（新功能）' })).toBeVisible()
-  await expect(page.getByTestId('list-preset-open')).toBeVisible()
-
-  await page.getByTestId('list-preset-open').click()
+  await openCustomQueries(page)
   const dialog = page.getByTestId('list-preset-dialog')
   await expect(dialog).toBeVisible()
 
   await fillPresetTitle(dialog, 'P2 默认查询')
   await page.getByTestId('list-preset-save').click()
   await expectLatestMessage(page, '自定义查询已保存')
+  await page.getByRole('button', { name: '关闭此对话框' }).click()
+  await openCustomQueries(page, '查询管理')
 
   const defaultItem = dialog.getByTestId('list-preset-item').filter({ hasText: 'P2 默认查询' })
   await expect(defaultItem).toBeVisible()
-  await defaultItem.getByTestId('list-preset-more').click()
-  await page.getByRole('menuitem', { name: /设为默认/ }).click()
+  await defaultItem.getByTestId('list-preset-default').click()
   await expectLatestMessage(page, '默认查询已更新')
   await expect(defaultItem).toContainText('默认')
 
   await defaultItem.getByTestId('list-preset-apply').click()
   await expectLatestMessage(page, '已应用: P2 默认查询')
 
-  await page.getByTestId('list-preset-open').click()
+  await openCustomQueries(page)
   await fillPresetTitle(dialog, 'P2 临时查询')
   await page.getByTestId('list-preset-save').click()
   await expectLatestMessage(page, '自定义查询已保存')
+  await page.getByRole('button', { name: '关闭此对话框' }).click()
+  await openCustomQueries(page, '查询管理')
 
   const temporaryItem = dialog.getByTestId('list-preset-item').filter({ hasText: 'P2 临时查询' })
   await expect(temporaryItem).toBeVisible()
-  await temporaryItem.getByTestId('list-preset-more').click()
-  await page.getByRole('menuitem', { name: /删除/ }).click()
-  await page.getByRole('button', { name: '删除' }).click()
+  await temporaryItem.getByTestId('list-preset-delete').click()
+  await page.getByRole('button', { name: '删除', exact: true }).last().click()
   await expectLatestMessage(page, '自定义查询已删除')
   await expect(temporaryItem).toHaveCount(0)
 
@@ -80,14 +80,22 @@ test('custom query preset can be saved, applied, set as default, deleted, and re
   expect(defaultIndex).toBeGreaterThanOrEqual(0)
   expect(dataIndex).toBeGreaterThan(defaultIndex)
 
-  await page.getByTestId('list-preset-open').click()
+  await openCustomQueries(page, '查询管理')
   await expect(dialog.getByTestId('list-preset-item').filter({ hasText: 'P2 默认查询' })).toContainText('默认')
   expect(backend.dataRequests.length).toBeGreaterThan(0)
 })
 
+async function openCustomQueries(page: Page, name = '自定义查询') {
+  await page.getByTestId('query-plan-dropdown').click()
+  await page.getByRole('menuitem', { name, exact: true }).click()
+}
+
 async function fillPresetTitle(dialog: Locator, title: string) {
-  await dialog.getByTestId('list-preset-save-tab').click()
+  await dialog.getByTestId('wizard-step-save').click()
   await dialog.getByTestId('list-preset-title').locator('input').fill(title)
+  const applyAfterSave = dialog.getByTestId('list-preset-apply-after-save')
+  if (await applyAfterSave.getByRole('checkbox').isChecked()) await applyAfterSave.click()
+  await expect(applyAfterSave.getByRole('checkbox')).not.toBeChecked()
 }
 
 async function installMockBackend(page: Page): Promise<MockBackendState> {

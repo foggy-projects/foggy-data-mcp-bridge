@@ -71,6 +71,7 @@ public final class ResultStageRenderer {
             ResultStagePlan.Stage stage = graph.stages().get(i);
             if (stage.type() == QueryStageType.FINAL_STAGE) {
                 finalStage = stage;
+                finalFilters.addAll(stage.filters());
                 continue;
             }
             if (!isResultStage(stage.type())) {
@@ -127,6 +128,7 @@ public final class ResultStageRenderer {
         for (int i = rootIndex + 1; i < executable.graph().stages().size(); i++) {
             ResultStagePlan.Stage stage = executable.graph().stages().get(i);
             if (stage.type() == QueryStageType.FINAL_STAGE) {
+                if (!stage.filters().isEmpty()) return null;
                 continue;
             }
             if (!isResultStage(stage.type())) {
@@ -192,6 +194,7 @@ public final class ResultStageRenderer {
             ResultStagePlan.Stage stage = graph.stages().get(i);
             if (stage.type() == QueryStageType.FINAL_STAGE) {
                 finalStage = stage;
+                finalFilters.addAll(stage.filters());
                 continue;
             }
             if (!isResultStage(stage.type())) {
@@ -303,6 +306,7 @@ public final class ResultStageRenderer {
 
     private boolean isResultStage(QueryStageType type) {
         return type == QueryStageType.WINDOW_RESULT_STAGE
+                || type == QueryStageType.RESULT_CALC_STAGE
                 || type == QueryStageType.POST_AGGREGATE_STAGE;
     }
 

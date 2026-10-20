@@ -302,7 +302,10 @@ public class SqlServerDialect extends FDialect {
             case "MONTH":
                 return "DATEFROMPARTS(YEAR(" + column + "), MONTH(" + column + "), 1)";
             case "WEEK":
-                return "DATEADD(DAY, -(DATEPART(WEEKDAY, " + column + ") - 1), CAST(" + column + " AS DATE))";
+                // 1900-01-01 was Monday. Normalize the remainder for dates before the epoch,
+                // without depending on the connection's DATEFIRST setting.
+                return "DATEADD(DAY, -((DATEDIFF(DAY, '19000101', " + column
+                        + ") % 7 + 7) % 7), CAST(" + column + " AS DATE))";
             case "DAY":
                 return "CAST(" + column + " AS DATE)";
             case "HOUR":

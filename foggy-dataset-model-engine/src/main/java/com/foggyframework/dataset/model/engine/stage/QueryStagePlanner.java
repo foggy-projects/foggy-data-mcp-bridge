@@ -28,8 +28,10 @@ public class QueryStagePlanner {
                                FDialect dialect,
                                List<CalculatedDbColumn> calculatedColumns,
                                List<SliceRequestDef> postAggregateSlice) {
+        boolean compiledCalculationsAvailable = calculatedColumns != null;
+        calculatedColumns = requiredCalculations(request, jdbcQuery, calculatedColumns);
         boolean hasWindowCalculatedFields = hasWindowCalculatedFields(calculatedColumns)
-                || hasWindowCalculatedFields(request);
+                || (!compiledCalculationsAvailable && hasWindowCalculatedFields(request));
         boolean hasPostAggregateCalculations = hasPostAggregateCalculations(request);
         boolean hasPostSlice = hasPostSlice(request);
         boolean aggregateStageRequired = (request != null && request.hasGroupBy()) || hasAggregateSelect(jdbcQuery);
@@ -63,11 +65,23 @@ public class QueryStagePlanner {
 
         List<QueryStagePlan.Stage> stages = new ArrayList<>();
         List<String> selectAliases = selectedAliases(jdbcQuery);
-        List<String> finalOutputAliases = finalOutputAliases(selectAliases, request);
+        List<String> finalOutputAliases = hasWindowCalculatedFields ? selectAliases : finalOutputAliases(selectAliases, request);
+        Set<String> baseAliases = new LinkedHashSet<>(selectAliases);
+        if (hasWindowCalculatedFields) {
+            for (CalculatedDbColumn column : calculatedColumns) if (column.hasWindow()) baseAliases.remove(column.getAlias());
+            for (CalculatedDbColumn column : calculatedColumns) if (column.hasWindow()) {
+                for (var ref : column.getReferencedColumns()) {
+                    if (!(ref instanceof CalculatedDbColumn calc) || !calc.hasWindow())
+                        baseAliases.add(com.foggyframework.dataset.model.engine.JdbcModelQueryEngine.getCteProjectionAlias(ref));
+                }
+            }
+        }
+        List<String> aggregateAliases = hasWindowCalculatedFields ? List.copyOf(baseAliases) : selectAliases;
         List<String> rowFilters = filterAliases(request != null ? request.getSlice() : null);
         List<String> rowOutputs = aggregateStageRequired
                 ? unique(concat(rowFilters, requestColumns(request), groupByFields(request)))
-                : selectAliases;
+                : aggregateAliases;
+        if (hasWindowCalculatedFields) rowOutputs = unique(concat(rowFilters, aggregateAliases, groupByFields(request)));
         stages.add(new QueryStagePlan.Stage(
                 "row",
                 QueryStageType.ROW_STAGE,
@@ -88,13 +102,13 @@ public class QueryStagePlanner {
                     QueryStageType.AGGREGATE_STAGE,
                     multiStageRequired ? "stage1" : "base",
                     unique(concat(previousOutputs, groupByFields(request))),
-                    selectAliases,
+                    aggregateAliases,
                     aggregateFilters,
                     List.of(),
                     multiStageRequired,
                     parameterCount(request != null ? request.getHaving() : null)
             ));
-            previousOutputs = selectAliases;
+            previousOutputs = aggregateAliases;
         }
 
         if (postAggregateStageRequired) {
@@ -113,20 +127,36 @@ public class QueryStagePlanner {
             previousOutputs = postAggregateOutputs;
         }
 
+        int scalarDepth = calculatedColumns == null ? 1 : calculatedColumns.stream()
+                .mapToInt(CalculatedDbColumn::getResultStageDepth).max().orElse(1);
         if (windowResultStageRequired) {
-            List<String> windowOutputs = unique(concat(previousOutputs, windowAliases(calculatedColumns), finalOutputAliases));
+            List<String> windowLayer = calculatedColumns.stream().filter(c -> c.hasWindow() && c.getResultStageDepth() <= 1)
+                    .map(CalculatedDbColumn::getAlias).toList();
+            List<String> windowOutputs = hasWindowCalculatedFields ? unique(concat(previousOutputs, windowLayer))
+                    : unique(concat(previousOutputs, finalOutputAliases));
             stages.add(new QueryStagePlan.Stage(
                     "window_result",
                     QueryStageType.WINDOW_RESULT_STAGE,
                     "stage" + stages.size(),
                     previousOutputs,
                     windowOutputs,
-                    filterAliases(request != null ? request.getPostSlice() : null),
+                    !hasWindowCalculatedFields ? filterAliases(request != null ? request.getPostSlice() : null) : List.of(),
                     List.of(),
                     true,
-                    parameterCount(request != null ? request.getPostSlice() : null)
+                    !hasWindowCalculatedFields ? parameterCount(request != null ? request.getPostSlice() : null) : 0
             ));
             previousOutputs = windowOutputs;
+        }
+
+        for (int depth = 2; depth <= scalarDepth; depth++) {
+            int currentDepth = depth;
+            List<String> outputs = calculatedColumns.stream().filter(c -> c.getResultStageDepth() == currentDepth)
+                    .map(CalculatedDbColumn::getName).toList();
+            List<String> nextOutputs = unique(concat(previousOutputs, outputs));
+            stages.add(new QueryStagePlan.Stage("result_calc_" + depth, QueryStageType.RESULT_CALC_STAGE,
+                    "stage" + stages.size(), previousOutputs, nextOutputs,
+                    List.of(), List.of(), true, 0));
+            previousOutputs = nextOutputs;
         }
 
         stages.add(new QueryStagePlan.Stage(
@@ -135,10 +165,10 @@ public class QueryStagePlanner {
                 "final",
                 previousOutputs,
                 finalOutputAliases,
-                List.of(),
+                hasWindowCalculatedFields ? filterAliases(request.getPostSlice()) : List.of(),
                 orderAliases(request),
                 false,
-                0
+                hasWindowCalculatedFields ? parameterCount(request.getPostSlice()) : 0
         ));
 
         String returnTotalStrategy = request != null && request.isReturnTotal()
@@ -154,6 +184,32 @@ public class QueryStagePlanner {
                 fallbacks,
                 unsupported
         );
+    }
+
+    public static List<CalculatedDbColumn> requiredCalculations(DbQueryRequestDef request, JdbcQuery query,
+                                                               List<CalculatedDbColumn> calculations) {
+        if (calculations == null || calculations.isEmpty()) return List.of();
+        Set<String> required = new LinkedHashSet<>();
+        if (query != null && query.getSelect() != null) query.getSelect().getColumns().forEach(c -> required.add(c.getAlias()));
+        if (request != null) {
+            if (request.getOrderBy() != null) request.getOrderBy().forEach(o -> required.add(o.getField()));
+            if (request.getPostSlice() != null) request.getPostSlice().forEach(s -> collectResultFilter(s, required));
+        }
+        boolean changed;
+        do {
+            changed = false;
+            for (CalculatedDbColumn column : calculations) {
+                if (required.contains(column.getAlias()) || required.contains(column.getName())) {
+                    for (var ref : column.getReferencedColumns()) changed |= required.add(ref.getName());
+                }
+            }
+        } while (changed);
+        return calculations.stream().filter(c -> required.contains(c.getAlias()) || required.contains(c.getName())).toList();
+    }
+
+    private static void collectResultFilter(CondRequestDef filter, Set<String> fields) {
+        if (filter._isLogicalGroup()) filter._getGroupChildren().forEach(child -> collectResultFilter(child, fields));
+        else if (filter.getField() != null) fields.add(filter.getField());
     }
 
     private boolean hasAggregateSelect(JdbcQuery jdbcQuery) {

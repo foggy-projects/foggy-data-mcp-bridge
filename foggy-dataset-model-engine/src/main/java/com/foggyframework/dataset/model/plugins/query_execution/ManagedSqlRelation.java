@@ -34,6 +34,12 @@ public class ManagedSqlRelation {
      */
     private final boolean wrappable;
 
+    /** Derived-table composition does not require CTE support (notably MySQL 5.7). */
+    public boolean isDerivedWrappable() {
+        return permissionValidated && queryEngine != null && queryEngine.getCteStages().isEmpty()
+                && (dialect.supportsCte() || dialect.getDbType() == com.foggyframework.dataset.db.dialect.DbType.MYSQL);
+    }
+
     /**
      * 物理列权限是否已校验通过
      * <p>如果为 false，外层不得直接执行包装后的 SQL。</p>

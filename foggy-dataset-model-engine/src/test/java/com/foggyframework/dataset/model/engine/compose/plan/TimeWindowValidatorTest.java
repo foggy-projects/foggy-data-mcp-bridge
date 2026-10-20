@@ -179,7 +179,7 @@ class TimeWindowValidatorTest {
         }
 
         @Test
-        @DisplayName("GRAIN_FIELD_NOT_FOUND — model missing required grain property")
+        @DisplayName("Typed time axes need no predeclared month property")
         void grainFieldNotFound() {
             // Use a fields set that does NOT include salesDate$month
             Set<String> limitedFields = Set.of("salesDate$id", "salesDate$year", "salesAmount");
@@ -187,8 +187,7 @@ class TimeWindowValidatorTest {
                     "salesDate$id", "month", "yoy", "[)",
                     List.of("2024-01-01", "2025-01-01"),
                     List.of("salesAmount"), null);
-            assertEquals(TimeWindowValidator.GRAIN_FIELD_NOT_FOUND,
-                    TimeWindowValidator.validate(tw, limitedFields, TIME_FIELDS, MEASURES));
+            assertNull(TimeWindowValidator.validate(tw, limitedFields, TIME_FIELDS, MEASURES));
         }
     }
 

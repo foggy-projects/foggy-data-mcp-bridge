@@ -139,9 +139,10 @@ class McpToolsIT extends McpIntegrationTestSupport {
                 String catalog = assertInstanceOf(String.class, catalogData.get("content"),
                         "catalog content 应为 markdown");
                 long modelCount = catalog.lines().filter(line -> line.startsWith("- **")).count();
-                assertEquals(32, modelCount, "curated ecommerce catalog 应精确装载 32 个 QM");
+                assertEquals(33, modelCount, "curated ecommerce catalog 应精确装载 33 个 QM（含 Viewer metadata 模型）");
                 assertTrue(catalog.contains("FactSalesQueryModel"), "catalog 应包含销售模型");
                 assertTrue(catalog.contains("FactOrderQueryModel"), "catalog 应包含订单模型");
+                assertTrue(catalog.contains("FactSalesViewerMetadataQueryModel"), "catalog 应包含现有 Viewer metadata 模型");
                 assertFalse(catalog.contains("FactSalesDemoAuthQueryModel"),
                         "catalog 不应装载依赖 demoAuthorizationService 的销售演示模型");
                 assertFalse(catalog.contains("FactOrderDemoAuthQueryModel"),

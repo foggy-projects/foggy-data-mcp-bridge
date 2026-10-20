@@ -109,34 +109,7 @@ public final class TimeWindowValidator {
             return GRAIN_INCOMPATIBLE;
         }
 
-        // 5b. grain field strict check — verify the model has the required
-        //     grain-level property (e.g. salesDate$month for yoy+month).
-        //     Only applies to comparative modes that need grain fields.
-        //     Guard: only enforce if the model has exposed at least one
-        //     dimension property beyond $id/$caption (i.e. the caller has
-        //     populated availableFields with property-level names).
-        if (tw.isComparative()) {
-            String grainProp = GRAIN_TO_PROPERTY.get(tw.grain());
-            if (grainProp != null && !"id".equals(grainProp)) {
-                String baseField = tw.field();
-                if (baseField.endsWith("$id")) {
-                    baseField = baseField.substring(0, baseField.length() - 3);
-                }
-                final String baseDim = baseField;
-                String expectedGrainField = baseDim + "$" + grainProp;
-                // Only enforce if the model has ANY property fields for this dimension
-                // (beyond $id and $caption). If no properties are exposed, the v1.3
-                // engine will derive grain fields at query time.
-                String dimPrefix = baseDim + "$";
-                boolean hasPropertyFields = availableFields.stream()
-                        .anyMatch(f -> f.startsWith(dimPrefix)
-                                && !f.equals(baseDim + "$id")
-                                && !f.equals(baseDim + "$caption"));
-                if (hasPropertyFields && !availableFields.contains(expectedGrainField)) {
-                    return GRAIN_FIELD_NOT_FOUND;
-                }
-            }
-        }
+        // Calendar identities are derived from a typed time axis, not required model suffixes.
 
         // 6. range validity
         if (!VALID_RANGES.contains(tw.range())) {

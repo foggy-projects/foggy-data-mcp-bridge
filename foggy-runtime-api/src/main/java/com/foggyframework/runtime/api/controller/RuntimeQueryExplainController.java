@@ -115,6 +115,15 @@ public class RuntimeQueryExplainController {
             return fail(e.getCode(), e.getMessage(), normalizedModel,
                     "Use an identity authorized for this model operation.", false);
         } catch (Exception e) {
+            var calculation = com.foggyframework.dataset.model.engine.expression.QueryCalculationException.find(e);
+            if (calculation != null) {
+                httpResponse.setStatus(HttpStatus.BAD_REQUEST.value());
+                return responses.fail(new com.foggyframework.runtime.api.dto.RuntimeError(
+                        calculation.getCode(), "query.validate", calculation.getMessage(), normalizedModel,
+                        calculation.getField(), calculation.getPath(), calculation.getSuggestion(), false, null, null),
+                        new com.foggyframework.runtime.api.dto.RuntimeDiagnostics(null, null, java.util.List.of(),
+                                calculation.getDetails()));
+            }
             String message = blankToNull(e.getMessage());
             boolean modelNotFound = message != null
                     && message.toLowerCase().contains("model not found");

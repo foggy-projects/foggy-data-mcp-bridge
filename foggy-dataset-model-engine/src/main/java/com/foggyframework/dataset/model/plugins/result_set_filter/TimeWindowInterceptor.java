@@ -18,6 +18,12 @@ import java.util.stream.Collectors;
 @Component
 @Order(-22)
 public class TimeWindowInterceptor implements DataSetResultStep {
+    private java.time.Clock clock;
+    @org.springframework.beans.factory.annotation.Value("${foggy.dataset.query.time-zone:UTC}")
+    private String timeZone = "UTC";
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setClock(java.time.Clock clock) { this.clock = clock; }
 
     @Override
     public int beforeQuery(ModelResultContext ctx) {
@@ -76,9 +82,21 @@ public class TimeWindowInterceptor implements DataSetResultStep {
                 }
             }
         }
-        // Always add the field itself to availableFields as fallback
-        availableFields.add(twDef.field());
-        timeFields.add(twDef.field());
+        TimeAxisResolver.Axis axis = null;
+        if (queryModel != null && queryModel.getJdbcQueryColumns() != null) {
+            for (var column : queryModel.getJdbcQueryColumns()) {
+                availableFields.add(column.getName());
+                if (column.getType() == com.foggyframework.dataset.model.spi.DbColumnType.DAY
+                        || column.getType() == com.foggyframework.dataset.model.spi.DbColumnType.DATETIME) {
+                    timeFields.add(column.getName());
+                }
+            }
+        }
+        if (twDef.isComparative()) {
+            axis = TimeAxisResolver.resolve(queryModel, twDef.field());
+            // The requested surrogate is accepted only after resolving a typed date mapping.
+            timeFields.add(axis.requestedField());
+        }
 
         // Validate
         String errorCode = TimeWindowValidator.validate(twDef, availableFields, timeFields, measureFields);
@@ -101,7 +119,7 @@ public class TimeWindowInterceptor implements DataSetResultStep {
         if (ctx.getRequest() != null && ctx.getRequest().getParam() != null
                 && ctx.getRequest().getParam().getCalculatedFields() != null) {
             for (var cf : ctx.getRequest().getParam().getCalculatedFields()) {
-                if (cf != null && cf.getName() != null) {
+                if (cf != null && cf.getName() != null && cf.getOrigin() == CalculatedFieldDef.Origin.USER_DECLARED) {
                     calcFieldOutputNames.add(cf.getName());
                 }
             }
@@ -116,6 +134,15 @@ public class TimeWindowInterceptor implements DataSetResultStep {
             }
         }
         
+        if (twDef.isComparative() && (twDef.targetMetrics() == null || twDef.targetMetrics().isEmpty())) {
+            Set<String> requested = new LinkedHashSet<>(ctx.getRequest().getParam().getColumns());
+            if (ctx.getRequest().getParam().getCalculatedFields() != null) {
+                for (CalculatedFieldDef cf : ctx.getRequest().getParam().getCalculatedFields())
+                    requested.addAll(com.foggyframework.dataset.model.engine.expression.CalculatedFieldService.extractColumnReferences(cf.getExpression()));
+            }
+            measureFields.removeIf(metric -> requested.stream().noneMatch(name -> name.equals(metric) || name.startsWith(metric + "__")));
+            if (measureFields.isEmpty()) throw new IllegalArgumentException("TIMEWINDOW_TARGET_REQUIRED: select an aggregate measure or provide targetMetrics");
+        }
         for (String metric : targetMetrics(twDef, measureFields)) {
             if (!originalColumns.contains(metric)) {
                 originalColumns.add(metric);
@@ -126,9 +153,14 @@ public class TimeWindowInterceptor implements DataSetResultStep {
                 .model(ctx.getRequest() != null && ctx.getRequest().getParam() != null ? ctx.getRequest().getParam().getQueryModel() : "unknown")
                 .columns(originalColumns)
                 .groupBy(groupByFields)
-                .slice(ctx.getRequest() != null && ctx.getRequest().getParam() != null && ctx.getRequest().getParam().getSlice() != null ? new ArrayList<>(ctx.getRequest().getParam().getSlice()) : List.of())
+                .calculatedFields(ctx.getRequest().getParam().getCalculatedFields() == null ? List.of() :
+                        ctx.getRequest().getParam().getCalculatedFields().stream()
+                                .filter(cf -> cf.getOrigin() != CalculatedFieldDef.Origin.USER_DECLARED).toList())
+                .slice(planConditions(ctx.getRequest().getParam().getSlice()))
+                .having(planConditions(ctx.getRequest().getParam().getHaving()))
                 .build();
 
+        Set<String> actualOutputs = null;
         if (twDef.isRolling() || twDef.isCumulative()) {
             TimeWindowExpander.ExpansionResult expResult;
             if (twDef.isRolling()) {
@@ -151,8 +183,15 @@ public class TimeWindowInterceptor implements DataSetResultStep {
             ctx.setSkipQuery(true);
 
         } else if (twDef.isComparative()) {
-            TimeWindowExpander.ComparativeExpansionResult compResult = TimeWindowExpander.expandComparative(twDef, measureFields, groupByFields);
-            QueryPlan compPlan = TimeWindowExpander.buildComparativePlan(basePlan, compResult, twDef);
+            ComparativePlanBuilder.Result built = ComparativePlanBuilder.build(basePlan, twDef, axis, measureFields, clock != null ? clock : java.time.Clock.system(java.time.ZoneId.of(timeZone)));
+            QueryPlan compPlan = built.plan();
+            actualOutputs = built.outputs();
+            if (!built.warnings().isEmpty()) {
+                List<String> warnings = new ArrayList<>();
+                if (extData.get("engineWarnings") instanceof List<?> existing) existing.forEach(w -> warnings.add(String.valueOf(w)));
+                warnings.addAll(built.warnings());
+                extData.put("engineWarnings", warnings);
+            }
             
             extData.put("comparativePlan", compPlan);
             extData.put("timeWindowPlan", compPlan);
@@ -202,10 +241,8 @@ public class TimeWindowInterceptor implements DataSetResultStep {
 
         if (!calcFieldNames.isEmpty()) {
             // Compute timeWindow output columns for validation
-            Set<String> twOutputCols = TimeWindowExpander.getOutputColumns(
-                    twDef, groupByFields, measureFields);
-            // Also add any original columns from the request
-            twOutputCols.addAll(originalColumns);
+            Set<String> twOutputCols = actualOutputs != null ? new LinkedHashSet<>(actualOutputs)
+                    : TimeWindowExpander.getOutputColumns(twDef, groupByFields, measureFields);
 
             String calcError = TimeWindowValidator.validateCalculatedFieldInteraction(
                     twDef, calcFieldNames, calcFields, twOutputCols);
@@ -244,6 +281,7 @@ public class TimeWindowInterceptor implements DataSetResultStep {
         }
 
         applyFinalControls(ctx, extData);
+        ctx.setExecutionDisposition(ModelResultContext.ExecutionDisposition.DEFERRED);
 
         // Resolve dialect for downstream plan execution.
         // ctx.getQueryModel() is JdbcQueryModelImpl at runtime, which implements JdbcQueryModel.
@@ -273,13 +311,12 @@ public class TimeWindowInterceptor implements DataSetResultStep {
         List<String> orderBy = toPlanOrderBy(request.getOrderBy());
         Integer limit = extData.get("timeWindowLimit") instanceof Number n ? n.intValue() : null;
         Integer start = extData.get("timeWindowStart") instanceof Number n ? n.intValue() : null;
-        if (orderBy.isEmpty() && limit == null && start == null) {
-            return;
-        }
-
         QueryPlan finalPlan = DerivedQueryPlan.builder()
                 .source(timeWindowPlan)
-                .columns(List.of())
+                .columns(request.getColumns() == null ? List.of() : request.getColumns().stream().map(column -> {
+                    String[] parts = column.split("(?i)\\s+AS\\s+");
+                    return (Object) parts[parts.length - 1].trim();
+                }).toList())
                 .orderBy(orderBy)
                 .limit(limit)
                 .start(start)
@@ -301,6 +338,24 @@ public class TimeWindowInterceptor implements DataSetResultStep {
             }
             String dir = item.getDir() == null ? "asc" : item.getDir().trim().toLowerCase(Locale.ROOT);
             result.add("desc".equals(dir) ? "-" + item.getField() : item.getField());
+        }
+        return result;
+    }
+
+    private static List<Object> planConditions(List<? extends com.foggyframework.dataset.model.def.query.request.CondRequestDef> conditions) {
+        if (conditions == null) return List.of();
+        List<Object> result = new ArrayList<>();
+        for (var condition : conditions) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            if (condition._isLogicalGroup()) item.put(condition._isOrGroup() ? "$or" : "$and", planConditions(condition._getGroupChildren()));
+            else if (condition.getExpr() != null) item.put("$expr", condition.getExpr());
+            else {
+                item.put("field", condition.getField());
+                item.put("op", condition.getOp());
+                item.put("value", condition.getValue());
+                if (condition.getMaxDepth() != null) item.put("maxDepth", condition.getMaxDepth());
+            }
+            result.add(item);
         }
         return result;
     }

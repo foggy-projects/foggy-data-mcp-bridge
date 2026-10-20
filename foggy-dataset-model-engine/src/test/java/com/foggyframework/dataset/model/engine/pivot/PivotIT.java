@@ -191,13 +191,10 @@ class PivotIT extends EcommerceTestSupport {
         assertTrue(((Number) cacheIdentity.get("bindingCount")).intValue() > 0);
         assertEquals(Boolean.FALSE, cacheIdentity.get("manualTokenPresent"));
         assertEquals(64, String.valueOf(cacheIdentity.get("identityHash")).length());
-        Map<String, Object> cacheLookup = diagnosticEvent(diagnostics, "pivot.cache.lookup");
-        assertEquals("E1a", cacheLookup.get("eligibilityStage"));
-        assertEquals("flat", cacheLookup.get("shapeClass"));
-        assertNotNull(cacheLookup.get("keyHash"));
-        Map<String, Object> cacheMiss = diagnosticEvent(diagnostics, "pivot.cache.miss");
-        assertEquals("telemetry_only", cacheMiss.get("reason"));
-        assertEquals(cacheLookup.get("keyHash"), cacheMiss.get("keyHash"));
+        Map<String, Object> cacheRefusal = diagnosticEvent(diagnostics, "pivot.cache.refused");
+        assertEquals("E1a", cacheRefusal.get("eligibilityStage"));
+        assertEquals("flat", cacheRefusal.get("shapeClass"));
+        assertEquals("missing_authorization_signature", cacheRefusal.get("reason"));
         assertDiagnosticEvent(diagnostics, "pivot.sql_pushdown.skipped");
         Map<String, Object> executionPath = diagnosticEvent(diagnostics, "pivot.execution_path");
         assertEquals(Boolean.FALSE, executionPath.get("sqlPushdownUsed"));
@@ -330,7 +327,7 @@ class PivotIT extends EcommerceTestSupport {
             Map<String, Object> userALookup = diagnosticEvent(pivotDiagnostics(userAFirst), "pivot.cache.lookup");
             Map<String, Object> userBLookup = diagnosticEvent(pivotDiagnostics(userBFirst), "pivot.cache.lookup");
             assertNotEquals(userALookup.get("keyHash"), userBLookup.get("keyHash"),
-                    "different security contexts must not share cache keys");
+                    "different effective field permissions must not share cache keys");
             assertEquals("cache_not_found",
                     diagnosticEvent(pivotDiagnostics(userBFirst), "pivot.cache.miss").get("reason"));
             assertFalse(hasDiagnosticEvent(pivotDiagnostics(userBFirst), "pivot.cache.hit"));
@@ -377,7 +374,7 @@ class PivotIT extends EcommerceTestSupport {
         PivotPipeline pipeline = outerCachePipeline(60_000L);
         PivotDiagnosticCollector diagnostics = new PivotDiagnosticCollector(TEST_MODEL);
         PivotOuterCacheTelemetry.Evaluation evaluation = new PivotOuterCacheTelemetry.Evaluation(
-                "v2:" + "1".repeat(64), "flat", null,
+                "v3:" + "1".repeat(64), "flat", null,
                 "0".repeat(64), PivotOuterCacheStrongIdentity.STATUS_COMPLETE, 1, false);
         SemanticQueryResponse response = new SemanticQueryResponse();
         response.setItems(List.of(Map.of("product$categoryName", "Category", "salesAmount", 1)));
@@ -2059,8 +2056,12 @@ class PivotIT extends EcommerceTestSupport {
                 .tenantId("tenant-main")
                 .attributes(Map.of("scope", "pivot-cache-test"))
                 .build();
+        // Public-model cache authorization is based on effective permissions, not opaque bearer identity.
+        Set<String> fields = "user-b".equals(userId)
+                ? Set.of("product$categoryName", "salesAmount", "quantity")
+                : Set.of("product$categoryName", "salesAmount");
         return SemanticRequestContext.of(null, securityContext,
-                Set.of("product$categoryName", "salesAmount"),
+                fields,
                 List.of(new DeniedPhysicalColumn(null, "fact_sales", "profit_amount")));
     }
 

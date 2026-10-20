@@ -252,6 +252,9 @@ public class SqliteDialect extends FDialect {
      */
     @Override
     public Object convertParameterValue(Object value) {
+        if (value instanceof java.sql.Date date) {
+            return date.toLocalDate().toString();
+        }
         if (value instanceof Date) {
             // 将 Date 对象转换为 SQLite TEXT 格式
             return DATETIME_FORMAT.get().format((Date) value);

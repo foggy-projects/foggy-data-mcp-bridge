@@ -39,6 +39,10 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
     private SqlExpContext context;
     private CalculateQueryContext calculateQueryContext;
     private boolean groupedQuery;
+    private final Map<String, Integer> originalIndexes = new LinkedHashMap<>();
+    private final List<CalculatedDbColumn> liftedColumns = new ArrayList<>();
+    private int hiddenSequence;
+
 
     public SqlCalculatedFieldProcessor(JdbcQueryModel queryModel, FDialect dialect) {
         this.queryModel = queryModel;
@@ -59,13 +63,51 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
 
         List<CalculatedFieldDef> normalizedFields = deduplicateQueryModelPredefinedFields(calculatedFields);
 
+        originalIndexes.clear();
+        for (int i = 0; i < normalizedFields.size(); i++) {
+            originalIndexes.putIfAbsent(normalizedFields.get(i).getName(), i);
+        }
+        liftedColumns.clear();
+        hiddenSequence = 0;
         // 按依赖关系排序（委托 CalculatedFieldService）
-        List<CalculatedFieldDef> sortedFields = CalculatedFieldService.sortByDependencies(normalizedFields);
+        Set<String> declaredNames = new HashSet<>();
+        for (CalculatedFieldDef field : normalizedFields) {
+            if (!declaredNames.add(field.getName())) throw diagnostic(field, "CALCULATED_FIELD_DUPLICATE",
+                    "Calculated field name is declared more than once.", "Use a unique name for each calculated field.");
+            Set<String> refs;
+            try { refs = new LinkedHashSet<>(CalculatedFieldService.extractColumnReferences(field.getExpression())); }
+            catch (RuntimeException failure) {
+                var error = diagnostic(field, "CALCULATED_FIELD_EXPRESSION_INVALID",
+                        "Calculated expression could not be parsed.", "Check expression syntax and supported functions.");
+                error.initCause(failure);
+                throw error;
+            }
+            if (field.getPartitionBy() != null) refs.addAll(field.getPartitionBy());
+            if (field.getWindowOrderBy() != null) field.getWindowOrderBy().forEach(order -> refs.add(order.getField()));
+            if (refs.contains(field.getName()) && context.tryResolveModelColumn(field.getName()) == null)
+                throw diagnostic(field, "CALCULATED_FIELD_DEPENDENCY_CYCLE", "Field references itself without a model source binding.",
+                        "Remove the self-reference or reference an existing model field.");
+        }
+        List<CalculatedFieldDef> sortedFields;
+        try { sortedFields = CalculatedFieldService.sortByDependencies(normalizedFields); }
+        catch (CalculatedFieldService.DependencyCycleException failure) {
+            CalculatedFieldDef source = normalizedFields.stream()
+                    .filter(field -> failure.cycleFields.contains(field.getName())).findFirst().orElseThrow();
+            var base = diagnostic(source, "CALCULATED_FIELD_DEPENDENCY_CYCLE", failure.getMessage(),
+                    "Remove the cycle between calculated fields, including partitionBy/windowOrderBy references.");
+            Map<String,Object> details = new LinkedHashMap<>(base.getDetails());
+            details.put("cycleFields", failure.cycleFields);
+            details.put("blockedFields", failure.blockedFields);
+            throw new QueryCalculationException(base.getCode(), base.getField(), base.getPath(), failure.getMessage(),
+                    base.getSuggestion(), details);
+        }
 
         List<CalculatedDbColumn> result = new ArrayList<>(sortedFields.size());
 
         for (CalculatedFieldDef fieldDef : sortedFields) {
             CalculatedDbColumn column = doProcessCalculatedField(fieldDef, appCtx);
+            result.addAll(liftedColumns);
+            liftedColumns.clear();
             result.add(column);
         }
 
@@ -116,26 +158,69 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
             }
             CalculateExpressionAnalyzer.validate(compiledExp);
 
-            // 2. 执行表达式得到 SQL 片段（委托 CalculatedFieldService）
-            boolean aggregateMeasureFormula = isGroupedMeasureFormula(fieldDef);
+            boolean windowClause = fieldDef.getPartitionBy() != null || fieldDef.getWindowOrderBy() != null
+                    || StringUtils.isNotEmpty(fieldDef.getWindowFrame());
+            boolean directWindow = windowClause && WindowExpressionLowering.windowCall(compiledExp);
+            int dependencyDepth = dependencyDepth(compiledExp);
+            if (windowClause) {
+                if (!dialect.supportsWindowFunctions() || !dialect.supportsCte()) throw diagnostic(fieldDef,
+                        "WINDOW_DIALECT_UNSUPPORTED", "This datasource cannot execute the required window result stages.",
+                        "Use a datasource with window and CTE support; for calendar comparisons use a supported timeWindow query.");
+                validateWindowDependencies(fieldDef, compiledExp);
+                if (!directWindow) {
+                    final int before = liftedColumns.size();
+                    compiledExp = WindowExpressionLowering.lift(compiledExp, function -> {
+                        validateWindowCall(fieldDef, function);
+                        SqlFragment windowFragment = evaluateAtResultStage(function, appCtx);
+                        windowFragment = wrapWithWindowClause(windowFragment, fieldDef, context, appCtx);
+                        String hidden;
+                        do { hidden = "__foggy_window_" + hiddenSequence++; }
+                        while (context.hasColumn(hidden) || originalIndexes.containsKey(hidden));
+                        CalculatedDbColumn lifted = new CalculatedDbColumn(hidden, hidden, windowFragment);
+                        lifted.setResultStageDepth(1);
+                        lifted.setNeedsCteWrapping(true);
+                        context.registerCalculatedColumn(hidden, lifted);
+                        liftedColumns.add(lifted);
+                        return new com.foggyframework.dataset.model.engine.expression.sql.SqlColumnRefExp(hidden);
+                    });
+                    if (liftedColumns.size() == before) throw diagnostic(fieldDef, "WINDOW_FUNCTION_REQUIRED",
+                            "Window options require a window or aggregate function node.", "Remove the window options from this scalar field.");
+                    dependencyDepth = dependencyDepth(compiledExp);
+                } else {
+                    validateWindowCall(fieldDef, (com.foggyframework.dataset.model.engine.expression.sql.SqlFunctionExp)
+                            WindowExpressionLowering.unwrap(compiledExp));
+                }
+            }
+            if (!windowClause && dependencyDepth == 0) {
+                WindowExpressionLowering.lift(compiledExp, function -> {
+                    if (AllowedFunctions.isWindowFunction(function.getFunctionName())) throw diagnostic(fieldDef,
+                            "WINDOW_SPECIFICATION_REQUIRED", "Window function requires windowOrderBy or partitionBy options.",
+                            "Add windowOrderBy with an existing ordering field (and partitionBy when required).");
+                    return function;
+                });
+            }
+            boolean resultStage = windowClause || dependencyDepth > 0;
+            if (!windowClause && dependencyDepth > 0 && WindowExpressionLowering.containsCall(compiledExp)) {
+                throw diagnostic(fieldDef, "WINDOW_RESULT_REAGGREGATION_UNSUPPORTED",
+                        "An aggregate/window call cannot consume a window result in this query.",
+                        "Use a scalar calculated field over the window output; use a separate query for reaggregation.");
+            }
+            boolean aggregateMeasureFormula = !resultStage && isGroupedMeasureFormula(fieldDef);
             context.setAggregateMeasureReferences(aggregateMeasureFormula);
+            context.setResultStageReferences(resultStage);
             SqlFragment sqlFragment;
             try {
                 sqlFragment = CalculatedFieldService.evaluateExpression(compiledExp, context, appCtx);
             } finally {
                 context.setAggregateMeasureReferences(false);
+                context.setResultStageReferences(false);
             }
-
-            // 2.1 如果有 partitionBy/windowOrderBy，包装窗口子句
-            boolean wrappedWithWindowClause = false;
-            if (fieldDef.getPartitionBy() != null || fieldDef.getWindowOrderBy() != null) {
-                if (log.isDebugEnabled()) {
-                    log.debug("Window clause for {}: partitionBy={}, windowOrderBy={}, windowFrame={}",
-                            fieldDef.getName(), fieldDef.getPartitionBy(),
-                            fieldDef.getWindowOrderBy(), fieldDef.getWindowFrame());
-                }
-                sqlFragment = wrapWithWindowClause(sqlFragment, fieldDef, context, appCtx);
-                wrappedWithWindowClause = true;
+            if (directWindow) sqlFragment = wrapWithWindowClause(sqlFragment, fieldDef, context, appCtx);
+            int stageDepth = directWindow ? 1 : dependencyDepth > 0 ? dependencyDepth + 1 : 0;
+            if (stageDepth > 0) {
+                sqlFragment.setHasWindow(true);
+                sqlFragment.setHasAggregate(false);
+                sqlFragment.setAggregationType(null);
             }
 
             // 2.2 如果推断了聚合类型，传递到 SqlFragment
@@ -161,7 +246,8 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
             );
 
             // Mark the column as needing CTE wrapping if it went through wrapWithWindowClause
-            if (wrappedWithWindowClause) {
+            if (stageDepth > 0) {
+                column.setResultStageDepth(stageDepth);
                 column.setNeedsCteWrapping(true);
             }
 
@@ -175,13 +261,71 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
 
             return column;
 
+        } catch (QueryCalculationException e) {
+            throw e;
         } catch (SecurityException e) {
             throw e;
         } catch (Exception e) {
-            String errorMsg = "CALCULATED_FIELD_EXPRESSION_INVALID: 编译计算字段表达式失败 ["
-                    + fieldDef.getName() + "]: " + e.getMessage();
-            throw RX.throwAUserTip(errorMsg, errorMsg, null, e);
+            QueryCalculationException typed = QueryCalculationException.find(e);
+            if (typed != null) throw typed;
+            throw diagnostic(fieldDef, "CALCULATED_FIELD_EXPRESSION_INVALID", e.getMessage(),
+                    "Check the expression and its model/previous-stage field references.");
         }
+    }
+
+    private SqlFragment evaluateAtResultStage(Exp expression, ApplicationContext appCtx) {
+        context.setResultStageReferences(true);
+        try { return CalculatedFieldService.evaluateExpression(expression, context, appCtx); }
+        finally { context.setResultStageReferences(false); }
+    }
+
+    private int dependencyDepth(Exp expression) {
+        Set<String> refs = new LinkedHashSet<>();
+        CalculatedFieldService.extractColumnReferences(expression, refs);
+        int depth = 0;
+        for (String ref : refs) {
+            DbQueryColumn resolved = context.tryResolveColumn(ref);
+            if (resolved instanceof CalculatedDbColumn calculated) depth = Math.max(depth, calculated.getResultStageDepth());
+        }
+        return depth;
+    }
+
+    private void validateWindowDependencies(CalculatedFieldDef field, Exp expression) {
+        Set<String> refs = new LinkedHashSet<>();
+        CalculatedFieldService.extractColumnReferences(expression, refs);
+        if (field.getPartitionBy() != null) refs.addAll(field.getPartitionBy());
+        if (field.getWindowOrderBy() != null) field.getWindowOrderBy().forEach(order -> refs.add(order.getField()));
+        for (String ref : refs) {
+            DbQueryColumn resolved = context.tryResolveColumn(ref);
+            boolean staged = resolved instanceof CalculatedDbColumn calculated && calculated.getResultStageDepth() > 0;
+            if (resolved == null || staged) {
+                String member = "expression";
+                if (field.getPartitionBy() != null && field.getPartitionBy().contains(ref)) member = "partitionBy[" + field.getPartitionBy().indexOf(ref) + "]";
+                if (field.getWindowOrderBy() != null) for (int i = 0; i < field.getWindowOrderBy().size(); i++)
+                    if (ref.equals(field.getWindowOrderBy().get(i).getField())) member = "windowOrderBy[" + i + "].field";
+                String code = staged ? "WINDOW_ON_WINDOW_UNSUPPORTED" : "COMPOSE_WINDOW_ORDER_BY_UNRESOLVABLE";
+                String base = field.getSourcePath() == null ? "calculatedFields[" + originalIndexes.getOrDefault(field.getName(), 0) + "]" : field.getSourcePath();
+                throw new QueryCalculationException(code, field.getName(), base + "." + member,
+                        "Window field cannot consume '" + ref + "' at this stage.",
+                        "Use an existing source/grouped field for window arguments, partitionBy and windowOrderBy; scalar dependents may follow the window.",
+                        Map.of("dependency", ref, "producerStage", staged ? "window_result" : "unresolved", "consumerStage", "window_result"));
+            }
+        }
+    }
+
+    private void validateWindowCall(CalculatedFieldDef field,
+            com.foggyframework.dataset.model.engine.expression.sql.SqlFunctionExp function) {
+        for (Exp arg : function.getArgs()) {
+            if (WindowExpressionLowering.containsCall(arg)) throw diagnostic(field, "WINDOW_NESTED_AGGREGATE_UNSUPPORTED",
+                    "Nested aggregate/window syntax inside " + function.getFunctionName() + " is unsupported in calculatedFields.",
+                    "Select the grouped aggregate with an alias, then use that alias as the window argument (for example lag(amount)).");
+        }
+    }
+
+    private QueryCalculationException diagnostic(CalculatedFieldDef field, String code, String message, String suggestion) {
+        return new QueryCalculationException(code, field.getName(),
+                (field.getSourcePath() == null ? "calculatedFields[" + originalIndexes.getOrDefault(field.getName(), 0) + "]" : field.getSourcePath()) + ".expression", message, suggestion,
+                Map.of("consumerStage", "window_result", "field", field.getName(), "safeToAutoRepair", false));
     }
 
     private boolean isInlineAggregateAlias(CalculatedFieldDef fieldDef) {
@@ -313,7 +457,7 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
         // In two-stage CTE architecture, the base expression (before OVER) must reference
         // columns by their projected alias from Stage 1, not physical table expressions.
         // e.g., AVG(t1.sales_amount) → AVG("salesAmount")
-        String rewrittenBaseSql = rewriteBaseExpressionForCte(baseSql, context, appCtx);
+        String rewrittenBaseSql = baseSql.getSql();
 
         return SqlFragment.windowFunction(
                 rewrittenBaseSql,
@@ -365,35 +509,6 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
      * Falls back to the original SQL if no replacements can be made.
      * </p>
      */
-    private String rewriteBaseExpressionForCte(SqlFragment baseSql, SqlExpContext context, ApplicationContext appCtx) {
-        String sql = baseSql.getSql();
-        Set<DbQueryColumn> refs = baseSql.getReferencedColumns();
-        if (refs == null || refs.isEmpty()) {
-            return sql;
-        }
-
-        for (DbQueryColumn col : refs) {
-            String tableAlias = context.getAlias(col);
-            // Get the physical SQL declare (e.g., "t1.sales_amount")
-            String physicalSql = resolveColumnSql(col, tableAlias, appCtx, false);
-            // Get the alias-based SQL declare (e.g., "\"salesAmount\"")
-            String aliasSql = resolveColumnSql(col, tableAlias, appCtx, true);
-
-            if (physicalSql != null && aliasSql != null && !physicalSql.equals(aliasSql)) {
-                // Use lookaround assertions to prevent substring matching.
-                // Ensures we only match the physical SQL if it's not immediately preceded or followed by an identifier character [\\p{L}0-9_$].
-                String regex = "(?<![\\\\p{L}0-9_$])" + Pattern.quote(physicalSql) + "(?![\\\\p{L}0-9_$])";
-                sql = sql.replaceAll(regex, Matcher.quoteReplacement(aliasSql));
-            }
-        }
-
-        if (log.isDebugEnabled() && !sql.equals(baseSql.getSql())) {
-            log.debug("CTE rewrite: {} → {}", baseSql.getSql(), sql);
-        }
-
-        return sql;
-    }
-
     /**
      * 获取 SQL 表达式上下文
      */

@@ -53,6 +53,11 @@ public class SqlColumnRefExp extends AbstractExp<String> {
 
         // 解析列名 → JdbcQueryColumn
         DbQueryColumn column = ctx.resolveColumn(value);
+        if (ctx.isResultStageReferences()) {
+            // A stage reference is a symbol, not a macro expansion of its producer's SQL.
+            return SqlFragment.ofColumn(column, ctx.getDialect().quoteIdentifier(
+                    com.foggyframework.dataset.model.engine.JdbcModelQueryEngine.getCteProjectionAlias(column)));
+        }
         if (ctx.isInsideAggregateFunctionArgument()
                 && column instanceof CalculatedDbColumn calcColumn
                 && calcColumn.hasAggregate()) {

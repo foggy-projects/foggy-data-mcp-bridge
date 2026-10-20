@@ -48,6 +48,21 @@ class RuntimeQueryExplainControllerTest {
     }
 
     @Test
+    void explainPreservesTypedCalculationPlanningFailure() throws Exception {
+        when(explainService.explain(eq("OrderModel"), any(), any())).thenThrow(
+                new com.foggyframework.dataset.model.engine.expression.QueryCalculationException(
+                        "WINDOW_NESTED_AGGREGATE_UNSUPPORTED", "previous", "calculatedFields[1].expression",
+                        "Nested aggregate", "Use lag of a selected aggregate alias.", java.util.Map.of()));
+        String json = mockMvc.perform(post("/api/v1/query/OrderModel/explain")
+                .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+        JsonNode error = objectMapper.readTree(json).path("error");
+        assertThat(error.path("code").asText()).isEqualTo("WINDOW_NESTED_AGGREGATE_UNSUPPORTED");
+        assertThat(error.path("phase").asText()).isEqualTo("query.validate");
+        assertThat(error.path("path").asText()).isEqualTo("calculatedFields[1].expression");
+    }
+
+    @Test
     void definitionRequestDoesNotRequirePayload() throws Exception {
         when(explainService.explain(eq("OrderModel"), any(), any()))
                 .thenReturn(response(SemanticExplainResponse.Basis.DEFINITION));

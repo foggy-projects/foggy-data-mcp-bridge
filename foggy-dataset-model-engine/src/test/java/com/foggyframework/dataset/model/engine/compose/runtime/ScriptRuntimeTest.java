@@ -872,12 +872,12 @@ class ScriptRuntimeTest {
     // ---- Safety red-line scans (compile-time, not runtime) ----
 
     private static final java.nio.file.Path SCRIPT_RUNTIME_SRC = java.nio.file.Path.of(
-            "src/main/java/com/foggyframework/dataset/db/model/engine/compose/runtime/ScriptRuntime.java");
+            "src/main/java/com/foggyframework/dataset/model/engine/compose/runtime/ScriptRuntime.java");
 
     private static String readScriptRuntimeSource() throws Exception {
-        org.junit.jupiter.api.Assumptions.assumeTrue(
+        assertTrue(
                 java.nio.file.Files.exists(SCRIPT_RUNTIME_SRC),
-                "Skipping source-scan test: source file not found at " + SCRIPT_RUNTIME_SRC
+                "Source-scan target must exist at " + SCRIPT_RUNTIME_SRC
                         + " (CWD=" + System.getProperty("user.dir") + ")");
         return new String(java.nio.file.Files.readAllBytes(SCRIPT_RUNTIME_SRC));
     }
