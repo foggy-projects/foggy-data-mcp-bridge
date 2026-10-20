@@ -47,7 +47,11 @@ mvn -Pruntime-api -pl foggy-mcp-launcher -am package -DskipITs=true
 The scoped `clean` is mandatory. It avoids deleting repository-owned evidence below the
 aggregator's `target/`, while forcing `foggy-analytics-console` to run `npm ci`, typecheck,
 frontend unit tests, and the Vite build before the addon JAR is nested in the executable
-launcher. A Console source change therefore cannot reuse an older `target/classes` SPA.
+launcher. The second command must not include `clean`: with `-am`, Maven also selects
+the root aggregator and upstream dependencies. Their `target/` directories, including
+ignored/untracked evidence and upstream test reports, must be retained. Only the two
+explicitly selected artifact modules are cleaned. A Console source change therefore cannot
+reuse an older `target/classes` SPA.
 The command fails on a dirty worktree, a non-empty output directory, or any build-induced
 change to tracked files.
 

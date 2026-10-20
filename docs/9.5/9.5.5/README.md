@@ -15,6 +15,7 @@ recorded_at: 2026-08-01
 
 | Work item | 状态 | 目标 |
 |---|---|---|
+| [Launcher clean 范围](workitems/BUG-launcher-clean-scope.md) | LOCALLY VERIFIED | 限定 Console/Launcher 清理；真实 Maven 文件系统回归及 29 项打包/发布测试通过 |
 | [统一排序与字段绑定](workitems/REFACTOR-order-by-field-binding.md) | LOCALLY VERIFIED | 统一请求内投影绑定、排序优先级和去重；普通查询 SQL Server 重复排序修复，专项、五数据库及全量测试通过；Launcher 0.1.26 与私有 snapshot 已发布 |
 | [DISTINCT 排序丢失 #145](workitems/BUG-145-distinct-order-by.md) | LOCALLY VERIFIED | 59 项专项、Windows/Linux 全量、五数据库、前端及原始 Chinook 重放通过；含 SQL Server 重复默认排序修复 |
 | [Mongo 逻辑条件组执行](workitems/BUG-mongo-logical-condition-groups.md) | LOCALLY VERIFIED | 修复多字段 OR 条件崩溃；3 项定向回归及下游 4 组真实查询通过 |

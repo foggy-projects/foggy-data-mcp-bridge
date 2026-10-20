@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import io
 import json
+import os
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -40,19 +43,97 @@ class RuntimeLauncherPackageTest(unittest.TestCase):
             ],
         )
         self.assertEqual(
-            package[:7],
+            package[:6],
             [
                 "mvn",
                 "-Pruntime-api",
                 "-pl",
                 "foggy-mcp-launcher",
                 "-am",
-                "clean",
                 "package",
             ],
         )
+        self.assertNotIn("clean", package)
+        self.assertNotIn("-am", clean)
         self.assertNotIn("-Dfoggy.analytics-console.frontend.skip=true", package)
         self.assertIn("-Dfoggy.analytics-console.frontend.test.skip=true", package)
+
+    @unittest.skipUnless(
+        shutil.which("mvn.cmd" if os.name == "nt" else "mvn") and shutil.which("git"),
+        "Maven and Git are required for the clean-scope filesystem regression",
+    )
+    def test_maven_commands_preserve_root_and_upstream_evidence(self) -> None:
+        # Use a real, dependency-free POM reactor: mocking clean would not catch
+        # Maven's -am expansion deleting ignored or untracked evidence.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            console = "addons/foggy-analytics-console"
+            launcher = "foggy-mcp-launcher"
+            upstream = "foggy-dataset-model-engine"
+            (root / "pom.xml").write_text(f"""<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.foggy.release.test</groupId><artifactId>release-clean-fixture</artifactId>
+  <version>1.0-SNAPSHOT</version><packaging>pom</packaging>
+  <modules><module>{console}</module><module>{upstream}</module><module>{launcher}</module></modules>
+  <profiles><profile><id>runtime-api</id></profile></profiles>
+  <build><plugins><plugin>
+    <groupId>org.apache.maven.plugins</groupId><artifactId>maven-clean-plugin</artifactId>
+    <version>3.4.1</version>
+  </plugin></plugins></build>
+</project>
+""", encoding="utf-8")
+            for module in (console, upstream, launcher):
+                folder = root / module
+                folder.mkdir(parents=True)
+                parent = Path(os.path.relpath(root / "pom.xml", folder)).as_posix()
+                dependencies = ""
+                if module == launcher:
+                    dependencies = "<dependencies>" + "".join(
+                        "<dependency><groupId>com.foggy.release.test</groupId>"
+                        f"<artifactId>{Path(dep).name}</artifactId>"
+                        "<version>1.0-SNAPSHOT</version><type>pom</type></dependency>"
+                        for dep in (console, upstream)
+                    ) + "</dependencies>"
+                (folder / "pom.xml").write_text(f"""<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <parent><groupId>com.foggy.release.test</groupId><artifactId>release-clean-fixture</artifactId>
+    <version>1.0-SNAPSHOT</version><relativePath>{parent}</relativePath></parent>
+  <artifactId>{folder.name}</artifactId><packaging>pom</packaging>{dependencies}
+</project>
+""", encoding="utf-8")
+
+            retained = {
+                "target/evidence/tracked.json": b'{"tracked":true}\n',
+                "target/evidence/ignored.bin": b"\x00ignored-report\xff",
+                upstream + "/target/surefire-reports/TEST-upstream.xml": b"<testsuite/>\n",
+            }
+            stale_outputs = [console + "/target/classes/old.js", launcher + "/target/old.jar"]
+            for name, content in {**retained, **dict.fromkeys(stale_outputs, b"stale")}.items():
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(content)
+            (root / ".gitignore").write_text("target/\n", encoding="utf-8")
+
+            def run(command: list[str]) -> None:
+                result = subprocess.run(
+                    command, cwd=root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                    text=True, encoding="utf-8", errors="replace", timeout=120,
+                )
+                self.assertEqual(result.returncode, 0, result.stdout)
+
+            run(["git", "init", "-q"])
+            run(["git", "add", "-f", "target/evidence/tracked.json"])
+            run(["git", "check-ignore", "target/evidence/ignored.bin"])
+            maven = shutil.which("mvn.cmd" if os.name == "nt" else "mvn")
+            clean, package = release.maven_build_commands(maven, skip_java_tests=False)
+            run([clean[0], "-B", "-ntp", *clean[1:]])
+            for name in stale_outputs:
+                self.assertFalse((root / name).exists(), name)
+            run([package[0], "-B", "-ntp", *package[1:]])
+            for name, content in retained.items():
+                with self.subTest(evidence=name):
+                    self.assertTrue((root / name).is_file(), name)
+                    self.assertEqual((root / name).read_bytes(), content, name)
 
     def test_candidate_build_runs_focused_java_lane_and_keeps_frontend_build(self) -> None:
         _, package = release.maven_build_commands(
@@ -67,6 +148,7 @@ class RuntimeLauncherPackageTest(unittest.TestCase):
         )
         self.assertNotIn("-Dfoggy.analytics-console.frontend.skip=true", package)
         self.assertNotIn("-Dmaven.test.skip=true", package)
+        self.assertNotIn("clean", package)
 
     def test_fap_delivery_reuses_configured_maven_executable(self) -> None:
         command = release.fap_question_delivery_command("C:/tools/maven/mvn.cmd")

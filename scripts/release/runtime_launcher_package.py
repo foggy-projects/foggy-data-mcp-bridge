@@ -550,6 +550,8 @@ def maven_build_commands(
         maven_executable: str,
         skip_java_tests: bool,
         candidate: bool = False) -> tuple[list[str], list[str]]:
+    # Never combine clean with -am: it also selects the aggregator and upstream
+    # modules, whose target directories contain retained test/release evidence.
     clean = [
         maven_executable,
         "-pl",
@@ -562,7 +564,6 @@ def maven_build_commands(
         "-pl",
         "foggy-mcp-launcher",
         "-am",
-        "clean",
         "package",
         "-DskipITs=true",
     ]
@@ -661,7 +662,7 @@ def validate_authorized_docs_only_release(base_ref: str) -> dict[str, object]:
 
 
 def _snapshot_tracked_root_target_files() -> dict[Path, tuple[bytes, int]]:
-    """Preserve committed release evidence that Maven's root clean removes."""
+    """Defensively preserve committed root-target evidence around release builds."""
     relative_paths = _git_output("ls-files", "--", "target").splitlines()
     snapshot: dict[Path, tuple[bytes, int]] = {}
     for relative_path in relative_paths:

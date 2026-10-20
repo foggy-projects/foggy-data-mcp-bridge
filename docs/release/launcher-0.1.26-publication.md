@@ -51,3 +51,6 @@ Linux 全量、常规 IT 和六条外部服务报告保留并重新核验；Wind
 
 发布日志和下载核验在 `D:/workspace/foggy-data-mcp/releases/issue145-release-evidence/`；
 精简 receipt 副本在 `target/order-binding/publication/`。这些目录均不提交真实凭据或运行配置。
+
+后续已按用户授权修复 [Launcher clean 范围](../9.5/9.5.5/workitems/BUG-launcher-clean-scope.md)：
+保留两个产物模块的 scoped clean，移除受影响 reactor package 命令中的 clean；真实 Maven 回归通过。
