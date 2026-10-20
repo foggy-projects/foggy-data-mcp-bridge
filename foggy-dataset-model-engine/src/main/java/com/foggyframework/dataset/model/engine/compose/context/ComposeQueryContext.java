@@ -29,8 +29,10 @@ public final class ComposeQueryContext {
     private final String traceId;
     private final Map<String, Object> params;
     private final Map<String, String> extensions;
+    private final com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext requestContext;
 
     private ComposeQueryContext(Builder b) {
+        this.requestContext = b.requestContext;
         this.principal = Objects.requireNonNull(b.principal,
                 "ComposeQueryContext.principal is required");
         this.namespace = b.namespace == null ? "" : b.namespace;
@@ -49,6 +51,8 @@ public final class ComposeQueryContext {
     }
 
     public Principal principal() { return principal; }
+    /** Server-only single-model bridge. Never populate this for a cross-model script. */
+    public com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext requestContext() { return requestContext; }
     public String namespace() { return namespace; }
     public AuthorityResolver authorityResolver() { return authorityResolver; }
     public String traceId() { return traceId; }
@@ -73,6 +77,11 @@ public final class ComposeQueryContext {
     public static Builder builder() { return new Builder(); }
 
     public static final class Builder {
+        private com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext requestContext;
+        public Builder requestContext(com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext value) {
+            this.requestContext = value;
+            return this;
+        }
         private Principal principal;
         private String namespace;
         private AuthorityResolver authorityResolver;

@@ -189,11 +189,12 @@ class DateTruncateTest {
         }
 
         @Test
-        @DisplayName("WEEK → DATEADD + WEEKDAY")
+        @DisplayName("WEEK uses a Monday anchor independent of DATEFIRST")
         void week() {
             String expr = dialect.buildDateTruncateExpression(COL, "WEEK");
             assertTrue(expr.contains("DATEADD"), "Should use DATEADD");
-            assertTrue(expr.contains("WEEKDAY"), "Should reference WEEKDAY");
+            assertTrue(expr.contains("DATEDIFF(DAY, '19000101'"), "Should use the Monday anchor");
+            assertFalse(expr.contains("WEEKDAY"), "Must not depend on the session DATEFIRST setting");
         }
 
         @Test

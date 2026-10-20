@@ -279,6 +279,42 @@ class QueryFacadeCatalogIdentityTest {
         assertEquals(true, context.isBindingIdentityComplete());
     }
 
+    @Test
+    void deferredResultIsMaterializedBeforeExactlyOneProcessAndCachedResultDoesNotExecute() {
+        for (boolean cached : new boolean[]{false, true}) {
+            String modelName = "FactOrderQueryModel";
+            QueryModel model = mock(QueryModel.class);
+            QueryModelLoader loader = mock(QueryModelLoader.class);
+            var pinned = resolution(modelName, model, "tenant-a", "a", "a", "a");
+            when(loader.resolveJdbcQueryModel(modelName, "tenant-a")).thenReturn(pinned);
+            DataSetResultFilterManager filters = mock(DataSetResultFilterManager.class);
+            ModelResultContext context = context(modelName, "tenant-a");
+            PagingResultImpl real = new PagingResultImpl();
+            real.setTotal(23);
+            java.util.concurrent.atomic.AtomicInteger executions = new java.util.concurrent.atomic.AtomicInteger();
+            context.setDeferredQuery(() -> { executions.incrementAndGet(); return DbQueryResult.of(real, null); });
+            doAnswer(invocation -> {
+                context.setExecutionDisposition(ModelResultContext.ExecutionDisposition.DEFERRED);
+                context.setSkipQuery(true);
+                if (cached) { context.setQueryResult(DbQueryResult.of(real, null)); context.setPagingResult(real); }
+                return null;
+            }).when(filters).beforeQuery(context);
+            PagingResultImpl processed = new PagingResultImpl();
+            processed.setTotal(23);
+            doAnswer(invocation -> {
+                assertSame(real, context.getPagingResult());
+                assertEquals(23, context.getQueryResult().getPagingResult().getTotal());
+                context.setPagingResult(processed);
+                return null;
+            }).when(filters).process(context);
+            var result = facade(loader, filters).queryModelResult(context);
+            assertSame(processed, result.getPagingResult());
+            assertEquals(cached ? 0 : 1, executions.get());
+            verify(filters).process(context);
+            verify(model, never()).query(any(SystemBundlesContext.class), any(ModelResultContext.class));
+        }
+    }
+
     private CatalogResolution<QueryModel> resolution(String modelName,
                                                      QueryModel model,
                                                      String namespace,

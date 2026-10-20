@@ -73,8 +73,8 @@ class TimeWindowOutputSchemaTest {
                 "__ratio must NOT include aggregatable");
 
         // Grain keys
-        assertTrue(schema.contains("salesDate$year"), "yoy must include $year");
-        assertTrue(schema.contains("salesDate$month"), "yoy+month must include $month");
+        assertFalse(schema.contains("salesDate$year"), "Do not fabricate unprojected year");
+        assertFalse(schema.contains("salesDate$month"), "Do not fabricate unprojected month");
     }
 
     @Test

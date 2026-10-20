@@ -146,6 +146,9 @@ public class AutoGroupByStep implements DataSetResultStep {
 
         // 构建 SELECT 列名集合（用于快速查找）
         Set<String> selectColumns = new HashSet<>(columns);
+        // Keep declared calculation orders for the stage planner to validate after dependency binding.
+        if (queryRequest.getCalculatedFields() != null)
+            queryRequest.getCalculatedFields().forEach(field -> selectColumns.add(field.getName()));
 
         // 检查并移除不合法的 orderBy 字段
         List<OrderRequestDef> validOrderBy = new ArrayList<>();

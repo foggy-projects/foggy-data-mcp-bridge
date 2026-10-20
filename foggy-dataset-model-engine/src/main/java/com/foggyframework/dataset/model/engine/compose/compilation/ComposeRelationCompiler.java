@@ -192,10 +192,13 @@ public final class ComposeRelationCompiler {
         if (opts.timeWindowDef() != null
                 && opts.dimensionFields() != null
                 && opts.measureFields() != null) {
-            return TimeWindowExpander.getOutputSchema(
+            OutputSchema metadata = TimeWindowExpander.getOutputSchema(
                     opts.timeWindowDef(),
                     opts.dimensionFields(),
                     opts.measureFields());
+            OutputSchema actual = SchemaDerivation.derive(plan);
+            return OutputSchema.of(actual.columns().stream()
+                    .map(column -> metadata.contains(column.name()) ? metadata.get(column.name()) : column).toList());
         }
         return SchemaDerivation.derive(plan);
     }

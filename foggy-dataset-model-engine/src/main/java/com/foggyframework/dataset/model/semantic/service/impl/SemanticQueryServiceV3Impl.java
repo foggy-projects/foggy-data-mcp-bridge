@@ -266,50 +266,12 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
 
         // 3. 创建ModelResultContext，标记为语义查询，设置SecurityContext、Namespace和列权限
         ModelResultContext resultContext = buildSemanticResultContext(jdbcRequest, request, reqContext);
+        resultContext.setDeferredQuery(() -> executeTimeWindow(resultContext, reqContext, request, model));
 
         // 4. 使用 QueryFacade 执行完整查询生命周期（beforeQuery -> query -> process）
         DbQueryResult dbQueryResult = queryFacade.queryModelResult(resultContext);
         PagingResultImpl queryResult = resultContext.getPagingResult();
         context.extData = resultContext.getExtData();
-
-        if (resultContext.isSkipQuery() && context.extData != null
-                && (context.extData.containsKey("timeWindowPlan") || context.extData.containsKey("comparativePlan"))) {
-            com.foggyframework.dataset.model.engine.compose.plan.QueryPlan compPlan =
-                    (com.foggyframework.dataset.model.engine.compose.plan.QueryPlan) context.extData.getOrDefault(
-                            "timeWindowPlan", context.extData.get("comparativePlan"));
-            com.foggyframework.dataset.model.engine.compose.context.Principal principal = com.foggyframework.dataset.model.engine.compose.context.Principal.builder()
-                .userId(securityContext != null && securityContext.getUserId() != null ? securityContext.getUserId() : "system")
-                .deptId(securityContext != null ? securityContext.getDeptId() : null)
-                .tenantId(securityContext != null ? securityContext.getTenantId() : null)
-                .build();
-            com.foggyframework.dataset.model.engine.compose.context.ComposeQueryContext compCtx = com.foggyframework.dataset.model.engine.compose.context.ComposeQueryContext.builder()
-                .principal(principal)
-                .namespace(namespace)
-                .authorityResolver(req -> {
-                    Map<String, com.foggyframework.dataset.model.engine.compose.security.ModelBinding> bindings = new java.util.HashMap<>();
-                    for (String m : req.modelNames()) {
-                        bindings.put(m, com.foggyframework.dataset.model.engine.compose.security.ModelBinding.builder().build());
-                    }
-                    return com.foggyframework.dataset.model.engine.compose.security.AuthorityResolution.builder().bindings(bindings).build();
-                })
-                .build();
-                
-            try {
-                // Read dialect resolved by TimeWindowInterceptor
-                String dialect = context.extData != null && context.extData.containsKey("timeWindowDialect")
-                        ? (String) context.extData.get("timeWindowDialect")
-                        : "mysql";
-                List<Map<String, Object>> rows = com.foggyframework.dataset.model.engine.compose.runtime.PlanExecution.executePlan(compPlan, compCtx, this, dialect);
-                
-                queryResult = new PagingResultImpl();
-                queryResult.setItems(new ArrayList<>(rows));
-                queryResult.setTotal((long)rows.size());
-                
-                dbQueryResult = DbQueryResult.of(queryResult, dbQueryResult != null ? dbQueryResult.getQueryEngine() : null);
-            } catch (Exception e) {
-                throw com.foggyframework.core.ex.RX.throwB("执行比较分析(Comparative)计划失败: " + e.getMessage(), e);
-            }
-        }
 
         // 6. 构建响应
         SemanticQueryResponse response = buildResponse(
@@ -408,7 +370,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                     (com.foggyframework.dataset.model.engine.compose.plan.QueryPlan) resultContext.getExtData().getOrDefault(
                             "timeWindowPlan", resultContext.getExtData().get("comparativePlan"));
             com.foggyframework.dataset.model.engine.compose.ComposedSql composedSql =
-                    compileTimeWindowPlan(timeWindowPlan, context, resultContext.getExtData());
+                    compileTimeWindowPlan(timeWindowPlan, pinnedTimeWindowContext(context, resultContext), resultContext.getExtData());
             return new SqlGenerationResult(composedSql.getSql(), composedSql.getParams(), null);
         }
         return result;
@@ -492,7 +454,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                                         "timeWindowPlan",
                                         resultContext.getExtData().get("comparativePlan"));
                 com.foggyframework.dataset.model.engine.compose.ComposedSql composedSql =
-                        compileTimeWindowPlan(timeWindowPlan, safeContext, resultContext.getExtData());
+                        compileTimeWindowPlan(timeWindowPlan, pinnedTimeWindowContext(safeContext, resultContext), resultContext.getExtData());
                 finalSql = composedSql.getSql();
                 finalParams = composedSql.getParams();
                 sourceOfTruth = "ComposeSqlCompiler.output";
@@ -1186,6 +1148,59 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         return null;
     }
 
+    private SemanticRequestContext pinnedTimeWindowContext(SemanticRequestContext request, ModelResultContext result) {
+        SemanticRequestContext pinned = request.withGovernance(result.getFieldAccess(), result.getDeniedColumns(), result.getSystemSlice())
+                .withPermissionAction(result.getPermissionAction());
+        if (result.getCatalogResolution() != null) {
+            pinned = result.getExecutionBundlesContext() != null
+                    ? pinned.withCandidateExecution(result.getCatalogResolution(), result.getExecutionBundlesContext())
+                    : pinned.withCatalogResolution(result.getCatalogResolution());
+        }
+        return pinned;
+    }
+
+    private DbQueryResult executeTimeWindow(ModelResultContext result, SemanticRequestContext requestContext,
+                                           SemanticQueryRequest request, String model) {
+        if (Boolean.TRUE.equals(request.getWithSubtotals())) {
+            throw new IllegalArgumentException("TIMEWINDOW_SUBTOTAL_UNSUPPORTED: comparison-derived values have no additive subtotal contract");
+        }
+        var plan = (com.foggyframework.dataset.model.engine.compose.plan.QueryPlan) result.getExtData().get("timeWindowPlan");
+        if (plan == null) throw new IllegalStateException("Deferred timeWindow has no plan");
+        var pinned = pinnedTimeWindowContext(requestContext, result);
+        var sql = compileTimeWindowPlan(plan, pinned, result.getExtData());
+        // Compile the count before any business query; a bad final plan never partially executes.
+        com.foggyframework.dataset.model.engine.compose.ComposedSql countSql = null;
+        if (Boolean.TRUE.equals(request.getReturnTotal())) {
+            if (!(plan instanceof com.foggyframework.dataset.model.engine.compose.plan.DerivedQueryPlan finalPlan)) {
+                throw new IllegalStateException("timeWindow final controls must be a derived relation");
+            }
+            var unpaged = com.foggyframework.dataset.model.engine.compose.plan.DerivedQueryPlan.builder()
+                    .source(finalPlan.source()).columns(finalPlan.columns()).slice(finalPlan.slice())
+                    .groupBy(finalPlan.groupBy()).distinct(finalPlan.distinct()).build();
+            var count = com.foggyframework.dataset.model.engine.compose.plan.DerivedQueryPlan.builder()
+                    .source(unpaged).columns(List.of("COUNT(*) AS tw_count")).build();
+            countSql = compileTimeWindowPlan(count, pinned, result.getExtData());
+        }
+        if (!(result.getQueryModel() instanceof JdbcQueryModel pinnedModel)
+                || pinnedModel.getDataSource() == null) {
+            throw new IllegalStateException("timeWindow execution requires the request-pinned JDBC datasource");
+        }
+        DataSource executionDataSource = pinnedModel.getDataSource();
+        var rows = executeSqlOnDataSource(sql.getSql(), sql.getParams(), executionDataSource);
+        PagingResultImpl paging = new PagingResultImpl();
+        paging.setItems(new ArrayList<>(rows));
+        paging.setStart(request.getStart() == null ? 0 : request.getStart());
+        paging.setLimit(request.getLimit() == null ? rows.size() : request.getLimit());
+        paging.setTotal(-1);
+        if (countSql != null) {
+            var counts = executeSqlOnDataSource(countSql.getSql(), countSql.getParams(), executionDataSource);
+            Number total = (Number) counts.get(0).values().iterator().next();
+            paging.setTotal(total.longValue());
+            result.getExtData().put("timeWindowTotalKnown", true);
+        }
+        return DbQueryResult.of(paging, null);
+    }
+
     private com.foggyframework.dataset.model.engine.compose.ComposedSql compileTimeWindowPlan(
             com.foggyframework.dataset.model.engine.compose.plan.QueryPlan plan,
             SemanticRequestContext requestContext,
@@ -1202,6 +1217,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         com.foggyframework.dataset.model.engine.compose.context.ComposeQueryContext composeContext =
                 com.foggyframework.dataset.model.engine.compose.context.ComposeQueryContext.builder()
                         .principal(principal)
+                        .requestContext(requestContext)
                         .namespace(requestContext.getNamespace())
                         .authorityResolver(req -> {
                             Map<String, com.foggyframework.dataset.model.engine.compose.security.ModelBinding> bindings = new HashMap<>();
@@ -1220,9 +1236,47 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                 plan,
                 composeContext,
                 com.foggyframework.dataset.model.engine.compose.compilation.ComposeSqlCompiler.CompileOptions.builder()
-                        .semanticService(this)
+                        .planningPort(new com.foggyframework.dataset.model.semantic.port.ComposeSemanticPlanningPort() {
+                            @Override
+                            public com.foggyframework.dataset.model.semantic.port.ComposeSqlGeneration generateComposeSql(
+                                    String model, SemanticQueryRequest request, SemanticRequestContext context) {
+                                return prepareTimeWindowLeaf(model, request, context);
+                            }
+                            @Override
+                            public java.util.Optional<String> resolveFieldSqlExpression(String model, String field, String namespace) {
+                                return SemanticQueryServiceV3Impl.this.resolveFieldSqlExpression(model, field, namespace);
+                            }
+                        })
                         .dialect(dialect)
                         .build());
+    }
+
+    private com.foggyframework.dataset.model.semantic.port.ComposeSqlGeneration prepareTimeWindowLeaf(
+            String model, SemanticQueryRequest request, SemanticRequestContext context) {
+        QueryContextV3 queryContext = new QueryContextV3();
+        queryContext.model = model;
+        queryContext.originalRequest = request;
+        var jdbcRequest = buildJdbcRequest(model, request, queryContext, context.getNamespace(), context);
+        var result = buildSemanticResultContext(jdbcRequest, request, context);
+        result.setCacheConfig(ModelResultContext.QueryCacheConfig.disabled());
+        var relation = queryFacade.prepareManagedRelation(result, ManagedRelationOptions.builder()
+                .purpose("time-window-leaf").disableInnerCacheShortCircuit(true).requireStableAliases(true).build());
+        if (!relation.isPermissionValidated() || (!relation.isWrappable() && !relation.isDerivedWrappable())) {
+            throw new IllegalArgumentException("TIMEWINDOW_BASE_PREPARATION_UNSUPPORTED: governed relation required");
+        }
+        var engine = relation.getQueryEngine();
+        if (!engine.getCteStages().isEmpty()) {
+            if (!Objects.equals(engine.getSql(), relation.getSql()) || !Objects.equals(engine.getValues(), relation.getParams()))
+                throw new IllegalArgumentException("TIMEWINDOW_CTE_REWRITE_UNSUPPORTED: prepared SQL differs from structured stages");
+            var generated = engine.toSqlGenerationResult(result.getExtData());
+            var stages = generated.getCteStages().stream()
+                    .map(stage -> new com.foggyframework.dataset.model.semantic.port.ComposeSqlGeneration.CteStage(
+                            stage.alias(), stage.sql(), stage.params())).toList();
+            return new com.foggyframework.dataset.model.semantic.port.ComposeSqlGeneration(
+                    generated.getSql(), generated.getParams(), stages, result.getExtData());
+        }
+        return new com.foggyframework.dataset.model.semantic.port.ComposeSqlGeneration(
+                relation.getSql(), relation.getParams(), List.of(), result.getExtData());
     }
 
     private SemanticQueryResponse validateQueryInternal(String model, SemanticQueryRequest request,
@@ -1257,6 +1311,10 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         resultContext.setPermissionAction(
                 com.foggyframework.dataset.model.semantic.permission.PermissionAction.VALIDATE);
         queryFacade.buildSqlOnly(resultContext);
+
+        if (resultContext.getExtData().get("timeWindowPlan") instanceof com.foggyframework.dataset.model.engine.compose.plan.QueryPlan plan) {
+            compileTimeWindowPlan(plan, pinnedTimeWindowContext(requestContext, resultContext), resultContext.getExtData());
+        }
 
         if (resultContext.getExtData() != null && resultContext.getExtData().containsKey("engineWarnings")) {
             @SuppressWarnings("unchecked")
@@ -1344,6 +1402,9 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
     private void validateTimeWindowResultStageBoundary(SemanticQueryRequest request) {
         if (request == null || request.getTimeWindow() == null || request.getTimeWindow().isEmpty()) {
             return;
+        }
+        if (Boolean.TRUE.equals(request.getWithSubtotals())) {
+            throw new IllegalArgumentException("TIMEWINDOW_SUBTOTAL_UNSUPPORTED: derived values have no additive subtotal contract");
         }
         if (request.getHaving() != null && !request.getHaving().isEmpty()) {
             throw RX.throwB(
@@ -1664,7 +1725,10 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         // 获取实际使用的分页参数
         int actualStart = queryResult.getStart();
         int actualLimit = queryResult.getLimit();
-        Long totalCount = queryResult.getTotal() > 0 ? queryResult.getTotal() : null;
+        Long totalCount = queryResult.getTotal() > 0
+                || (context.originalRequest != null && context.originalRequest.getTimeWindow() != null
+                    && Boolean.TRUE.equals(context.originalRequest.getReturnTotal()))
+                ? queryResult.getTotal() : null;
 
         // 判断是否有更多数据
         boolean hasMore = false;
@@ -2319,6 +2383,11 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
     public List<Map<String, Object>> executeSql(
             String sql, List<Object> params, String routeModel, String namespace) {
         DataSource executionDataSource = resolveRawSqlDataSource(routeModel, namespace);
+        return executeSqlOnDataSource(sql, params, executionDataSource);
+    }
+
+    private List<Map<String, Object>> executeSqlOnDataSource(String sql, List<Object> params,
+                                                           DataSource executionDataSource) {
         if (executionDataSource == null) {
             throw new RuntimeException(
                 "executeSql failed: DataSource not injected into SemanticQueryServiceV3Impl;"

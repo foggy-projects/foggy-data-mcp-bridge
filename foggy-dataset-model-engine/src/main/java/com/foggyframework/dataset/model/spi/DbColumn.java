@@ -62,9 +62,11 @@ public interface DbColumn extends DbObject {
     SqlColumn getSqlColumn();
 
     default ObjectTransFormatter<?> getFormatter() {
+        if (getType() == DbColumnType.DAY) return DbColumnType.DAY.getFormatter();
         return getSqlColumn().getFormatter();
     }
     default ObjectTransFormatter<?> getFormatter(boolean errorIfNull) {
+        if (getType() == DbColumnType.DAY) return DbColumnType.DAY.getFormatter();
         if (errorIfNull && getSqlColumn().getFormatter() == null) {
             throw new RuntimeException("column " + getSqlColumn().getName() + " formatter is null,可能是该字段使用了系统不支持的类型~");
         }

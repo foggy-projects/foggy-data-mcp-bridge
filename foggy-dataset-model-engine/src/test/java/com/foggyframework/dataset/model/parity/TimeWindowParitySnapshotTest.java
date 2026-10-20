@@ -121,9 +121,9 @@ class TimeWindowParitySnapshotTest extends EcommerceTestSupport {
         return buildSnapshot(
                 "mom-month-happy",
                 List.of(
-                        "salesDate$month", "salesDate$id", "salesAmount",
+                        "salesDate$year", "salesDate$month", "salesDate$id", "salesAmount",
                         "salesAmount__prior", "salesAmount__diff", "salesAmount__ratio"),
-                List.of("salesDate$month", "salesDate$id"),
+                List.of("salesDate$year", "salesDate$month", "salesDate$id"),
                 Map.of(
                         "field", "salesDate$id",
                         "grain", "month",
@@ -205,15 +205,15 @@ class TimeWindowParitySnapshotTest extends EcommerceTestSupport {
         return buildSnapshot(
                 "wow-week-happy",
                 List.of(
-                        "salesDate$week", "salesDate$dayOfWeek", "salesAmount",
+                        "salesDate$id", "salesAmount",
                         "salesAmount__prior", "salesAmount__diff", "salesAmount__ratio"),
-                List.of("salesDate$week", "salesDate$dayOfWeek"),
+                List.of("salesDate$id"),
                 Map.of(
                         "field", "salesDate$id",
                         "grain", "week",
                         "comparison", "wow",
                         "range", "[)",
-                        "value", List.of("-2W", "now"),
+                        "value", List.of("2024-12-23", "2025-01-06"),
                         "targetMetrics", List.of("salesAmount")),
                 List.of());
     }
