@@ -33,13 +33,17 @@ public class DbQueryColumnImpl extends DbObjectSupport implements DbQueryColumn 
      * <p>作用：
      * <ul>
      *   <li>在 SQL SELECT 子句中作为列别名（AS alias）</li>
-     *   <li>在查询条件中作为字段名（WHERE alias = ?）</li>
+     *   <li>已选列的 ORDER BY 可以使用输出别名；columns/slice/groupBy 使用 name</li>
      *   <li>在返回结果中作为字段名</li>
      * </ul>
      */
     String alias;
 
     boolean hasRef;
+
+    /** Source reference when a concrete QM item overrides its query name or output alias.
+     * Internal provenance only; never changes the referenced TM column. */
+    String namingSourceReference;
 
     protected ObjectTransFormatter<?> valueFormatter;
 

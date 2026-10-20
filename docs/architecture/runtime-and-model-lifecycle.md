@@ -314,3 +314,11 @@ semantic scale 和聚合表达式的差异。这不是公共 SPI 或可跨模型
 
 禁止通过选择“第一个 provider”、回退空 namespace、忽略未知权限表达式或继续使用半更新状态来
 掩盖错误。
+
+## QM 具体列的命名与来源
+
+`ref`、查询 `name`、输出 `alias` 分别承担来源、输入标识、结果键；合同见
+[QM 字段命名](../dev-guide/qm-field-names.md)。Loader 保留具体维度列的命名投影，同时维护旧维度路径。
+`QmColumnNaming` 是引擎内部的具体列命名信息，不是跨 generation 身份或公共 SPI；不会修改缓存 TM。
+语义 JSON 和两种 Markdown 视图共享命名字段元数据，物理列映射按绑定的 SELECT/condition 来源补全。
+TM/QM 字段隐藏与 runtime 白名单仍在规划前执行，改名不得使原物理列权限失效。

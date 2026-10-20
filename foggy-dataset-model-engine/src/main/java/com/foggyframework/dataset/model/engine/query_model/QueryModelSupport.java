@@ -494,7 +494,7 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
      *
      * <p>这里有两条不同的注册路径，后续修改时不要混在一起：
      *
-     * <p>1. 普通业务 QM 的维度列不能直接按当前列名落入 {@code dbQueryColumns}。
+     * <p>1. 未配置具体列名称覆盖的业务 QM 维度列不能直接按当前列名落入 {@code dbQueryColumns}。
      * 这类列通常先经过维度展开，最终对外暴露为 {@code dim$id}、{@code dim$caption}、
      * 以及嵌套维度路径等稳定别名；如果这里直接注册，会把原有维度语义顶掉，
      * 之前出现过 {@code customer$id -> customer} 这类回归。
@@ -508,10 +508,17 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
             dbQueryColumns = new ArrayList<>();
         }
 
+        // Explicit concrete-column naming is already a complete QM projection.
+        // Register it before compatibility paths so an alias-only override is retained.
+        boolean namedProjection = dbQueryColumn instanceof DbQueryColumnImpl impl
+                && impl.getNamingSourceReference() != null;
+        if (namedProjection) {
+            registerJdbcQueryColumnDirectly(dbQueryColumn);
+        }
         boolean syntheticMemberRuntimeColumn = dbQueryColumn.getSelectColumn() instanceof SyntheticMemberRuntimeColumn;
 
         // 普通 QM 的维度列走旧的维度别名注册逻辑，保持 $id/$caption 和嵌套路径兼容。
-        // 只有 synthetic member-QM 的运行时列才允许直接注册。
+        // 具体列命名投影已在上方注册；synthetic member-QM 同样直接注册。
         if (dbQueryColumn.isDimension() && !syntheticMemberRuntimeColumn) {
             DbDimensionColumn dimensionColumn = dbQueryColumn.getSelectColumn().getDecorate(DbDimensionColumn.class);
             DbDimensionSupport.DimensionCaptionDbColumn support = dbQueryColumn.getSelectColumn().getDecorate(DbDimensionSupport.DimensionCaptionDbColumn.class);
@@ -531,7 +538,9 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
             return;
         }
 
-        registerJdbcQueryColumnDirectly(dbQueryColumn);
+        if (!namedProjection) {
+            registerJdbcQueryColumnDirectly(dbQueryColumn);
+        }
     }
 
     private DbColumn bindDimensionForeignKeyToOwnerAlias(DbColumn foreignKeyJdbcColumn, DbQueryColumn sourceQueryColumn) {

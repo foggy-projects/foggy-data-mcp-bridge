@@ -1095,7 +1095,9 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
             String condColumnName = dbQueryColumn.getName();
             DbColumn jdbcColumn = dbQueryColumn.getSelectColumn();
             DbDimensionColumn dimensionColumn = jdbcColumn.getDecorate(DbDimensionColumn.class);
-            if (dimensionColumn != null && dimensionColumn.isCaptionColumn()) {
+            boolean concreteNaming = dbQueryColumn instanceof DbQueryColumnImpl named
+                    && named.getNamingSourceReference() != null;
+            if (dimensionColumn != null && dimensionColumn.isCaptionColumn() && !concreteNaming) {
                 //这里比较特殊,如果是维度的标题列，则应当用id列来查，但是，如果条件中已经定义了condColumnName这个查询条件，则以查询条件中定义的为准！
                 DbQueryCondition dbQueryCondition = qm.findJdbcQueryCondByName(condColumnName);
                 if (dbQueryCondition == null) {
@@ -1286,6 +1288,12 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                             ? resolveDimensionForItem(qm, item, dimRef)
                             : null;
                     if (dimension != null) {
+                        if (!StringUtils.equals(item.getName(), columnName)
+                                || !StringUtils.equals(item.getAlias(), columnName)) {
+                            log.warn("QM_DIMENSION_NAME_OVERRIDE_IGNORED: model={}, ref={}; name/alias on a whole dimension "
+                                    + "do not rename expanded fields. Configure concrete $id/$caption items instead.",
+                                    qm.getName(), columnName);
+                        }
                         TableModel ownerModel = resolveOwnerModelForItem(qm, item);
                         //维度，自动展开 $id + $caption + 所有属性 + 嵌套子维度（递归）
                         expandDimension(qm, group, ownerModel, dimension, columnName, item, hasRef,
@@ -1556,6 +1564,10 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
         String queryColumnName = StringUtils.isNotEmpty(item.getName()) ? item.getName() : columnName;
         DbQueryColumnImpl dbQueryColumn = new DbQueryColumnImpl(
                 jdbcColumn, queryColumnName, item.getCaption(), item.getAlias());
+        if (!StringUtils.equals(queryColumnName, columnName)
+                || (StringUtils.isNotEmpty(item.getAlias()) && !StringUtils.equals(item.getAlias(), columnName))) {
+            dbQueryColumn.setNamingSourceReference(columnName);
+        }
         dbQueryColumn.setExtData(item.getExtData());
         dbQueryColumn.setHasRef(hasRef);
         return dbQueryColumn;

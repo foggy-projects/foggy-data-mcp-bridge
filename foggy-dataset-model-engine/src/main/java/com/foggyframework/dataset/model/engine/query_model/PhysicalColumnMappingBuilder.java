@@ -5,6 +5,7 @@ import com.foggyframework.dataset.model.engine.expression.CalculatedFieldService
 import com.foggyframework.dataset.model.impl.dimension.DbDimensionSupport;
 import com.foggyframework.dataset.model.impl.model.AggregateRelationOutputColumn;
 import com.foggyframework.dataset.model.impl.utils.TableQueryObject;
+import com.foggyframework.dataset.model.impl.query.QmColumnNaming;
 import com.foggyframework.dataset.model.spi.*;
 import lombok.extern.slf4j.Slf4j;
 
@@ -65,6 +66,24 @@ public final class PhysicalColumnMappingBuilder {
         // 4. aggregate relation 输出列（映射到 RHS 源表物理列）
         processAggregateRelationOutputColumns(qm.getJdbcQueryColumns(), qmToPhysical, physicalToQm);
 
+        // Concrete QM names/outputs retain the SELECT and condition provenance.
+        // Resolve actual bound columns, not a name-based lookup into another TM instance.
+        for (DbQueryColumn column : QmColumnNaming.overrides(qm)) {
+            mapNamedSource(column, column.getSelectColumn(), qmToPhysical, physicalToQm);
+            if (column.getDbQueryCond() != null) {
+                mapNamedSource(column, column.getDbQueryCond().getColumn(), qmToPhysical, physicalToQm);
+            }
+            DbDimensionColumn dimension = column.getSelectColumn().getDecorate(DbDimensionColumn.class);
+            if (dimension != null && !dimension.isCaptionColumn()
+                    && dimension.getDimension() instanceof DbDimensionSupport support) {
+                TableQueryObject table = support.getQueryObject().getDecorate(TableQueryObject.class);
+                if (table != null && support.getPrimaryKey() != null) {
+                    addMappingIfNotBlank(qmToPhysical, physicalToQm, column.getName(), table.getTableName(), support.getPrimaryKey());
+                    addMappingIfNotBlank(qmToPhysical, physicalToQm, column.getAlias(), table.getTableName(), support.getPrimaryKey());
+                }
+            }
+        }
+
         // 5. QM 预定义计算字段（传递解析到基础字段的物理列）
         processCalculatedFields(qm.getPredefinedCalculatedFields(), qmToPhysical, physicalToQm);
 
@@ -99,6 +118,15 @@ public final class PhysicalColumnMappingBuilder {
             addMappingIfNotBlank(qmToPhysical, physicalToQm, queryColumn.getAlias(), sourceTable, sourcePhysicalColumn);
             addMappingIfNotBlank(qmToPhysical, physicalToQm, queryColumn.getField(), sourceTable, sourcePhysicalColumn);
         }
+    }
+
+    private static void mapNamedSource(DbQueryColumn projection, DbColumn source,
+                                       Map<String, List<PhysicalColumnRef>> qmToPhysical,
+                                       Map<String, List<String>> physicalToQm) {
+        String table = resolvePhysicalTable(source);
+        if (table == null || source.getSqlColumnName() == null) return;
+        addMappingIfNotBlank(qmToPhysical, physicalToQm, projection.getName(), table, source.getSqlColumnName());
+        addMappingIfNotBlank(qmToPhysical, physicalToQm, projection.getAlias(), table, source.getSqlColumnName());
     }
 
     private static String resolvePhysicalTable(DbColumn column) {

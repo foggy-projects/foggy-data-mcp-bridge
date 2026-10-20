@@ -7,6 +7,7 @@ import com.foggyframework.dataset.model.def.dict.DbDictDef;
 import com.foggyframework.dataset.model.def.dict.DbDictItemDef;
 import com.foggyframework.dataset.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.model.impl.AiObject;
+import com.foggyframework.dataset.model.impl.query.QmColumnNaming;
 import com.foggyframework.dataset.model.engine.dictionary.DictionaryCaptionDbColumn;
 import com.foggyframework.dataset.model.impl.dimension.DbDimensionSupport;
 import com.foggyframework.dataset.model.impl.dimension.DbModelParentChildDimensionImpl;
@@ -520,6 +521,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         if (queryProperties != null && !queryProperties.isEmpty()) {
             List<DbQueryProperty> filteredProperties = queryProperties.stream()
                     .filter(qp -> !dimensionFieldNames.contains(qp.getName()))
+                    .filter(qp -> !QmColumnNaming.overridesProperty(queryModel, qp.getProperty()))
                     .filter(qp -> isFieldInLevels(qp.getAi(), request.getLevels()))
                     .filter(qp -> effectiveFieldAccess == null
                             || effectiveFieldAccess.contains(qp.getProperty().getName()))
@@ -751,6 +753,8 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                 md.append("\n");
             }
         }
+
+        appendNamedColumnMarkdown(md, queryModel, request, effectiveFieldAccess, context);
 
         // ========== 字典定义 ==========
         if (!referencedDictIds.isEmpty() || !referencedDictClasses.isEmpty()) {
@@ -1153,6 +1157,69 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
     private void processModelFieldsV3(QueryModel queryModel, Map<String, Object> fields,
                                       List<String> fieldFilter, List<Integer> levels,
                                       Set<String> fieldAccess, SemanticRequestContext context) {
+        Map<String, Object> local = new LinkedHashMap<>();
+        processLegacyModelFieldsV3(queryModel, local, fieldFilter, levels, fieldAccess, context);
+        local.putAll(namedColumnMetadata(queryModel, fieldFilter, levels, fieldAccess, context));
+        local.forEach((name, value) -> mergeFieldInfo(fields, name, (Map<String, Object>) value));
+    }
+
+    /** Shared names and output keys for JSON and both Markdown views. No TM mutation. */
+    private Map<String, Object> namedColumnMetadata(QueryModel model, List<String> filter, List<Integer> levels,
+                                                   Set<String> access, SemanticRequestContext context) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        for (DbQueryColumn column : QmColumnNaming.overrides(model)) {
+            String name = column.getName();
+            if (!isFieldInLevels(column.getAi(), levels)
+                    || (filter != null && !filter.contains(name))
+                    || (access != null && !access.contains(QmColumnNaming.permissionName(name)))) continue;
+            DbPropertyColumn property = column.getSelectColumn().getDecorate(DbPropertyColumn.class);
+            DbDimensionColumn dimension = column.getSelectColumn().getDecorate(DbDimensionColumn.class);
+            Map<String, Object> info;
+            if (dimension != null && property == null) {
+                info = dimension.isCaptionColumn()
+                        ? createDimensionCaptionFieldInfo(dimension.getDimension(), model.getName())
+                        : createDimensionIdFieldInfo(dimension.getDimension(), model.getName());
+            } else if (property != null) {
+                info = createPropertyFieldInfo(property.getProperty(), model.getName(), name, context);
+            } else if (column.isMeasure()) {
+                info = createQueryMeasureFieldInfo(column, model.getName());
+            } else {
+                continue;
+            }
+            info.put("fieldName", name);
+            info.put("outputName", column.getAlias());
+            Map<String, Object> usages = (Map<String, Object>) info.get("models");
+            if (usages != null && usages.get(model.getName()) instanceof Map<?, ?> usage) {
+                ((Map<String, Object>) usage).put("outputName", column.getAlias());
+            }
+            if (column.getCaption() != null) info.put("name", column.getCaption());
+            addViewerExtension(info, column);
+            result.put(name, info);
+        }
+        return result;
+    }
+
+    private void appendNamedColumnMarkdown(StringBuilder md, QueryModel model, SemanticMetadataRequest request,
+                                            Set<String> access, SemanticRequestContext context) {
+        Map<String, Object> fields = namedColumnMetadata(model, request.getFields(), request.getLevels(), access, context);
+        if (fields.isEmpty()) return;
+        md.append("## QM 自定义字段\n")
+                .append("使用查询字段名构造 DSL；输出键用于读取结果，已选列可按输出键排序。\n\n")
+                .append("| 字段名 | 输出键 | 名称 | 类型 |\n|--------|--------|------|------|\n");
+        fields.forEach((name, value) -> {
+            Map<?, ?> info = (Map<?, ?>) value;
+            md.append("| ").append(escapeMarkdownTable(name))
+                    .append(" | ").append(escapeMarkdownTable(String.valueOf(info.get("outputName"))))
+                    .append(" | ").append(escapeMarkdownTable(String.valueOf(info.get("name"))))
+                    .append(" | ").append(escapeMarkdownTable(String.valueOf(info.get("meta"))))
+                    .append(" |\n");
+        });
+        md.append("\n");
+    }
+
+    private void processLegacyModelFieldsV3(QueryModel queryModel, Map<String, Object> fields,
+                                      List<String> fieldFilter, List<Integer> levels,
+                                      Set<String> fieldAccess, SemanticRequestContext context) {
         TableModel jdbcModel = queryModel.getJdbcModel();
 
         // 收集维度字段名，用于在属性字段中排除（与 markdown 方法对齐）
@@ -1235,6 +1302,9 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
 
         // 处理属性（排除已在维度字段中输出的，与 markdown buildSingleModelMarkdown 对齐）
         for (DbQueryProperty queryProperty : queryModel.getQueryProperties()) {
+            if (QmColumnNaming.overridesProperty(queryModel, queryProperty.getProperty())) {
+                continue;
+            }
             if (!isFieldInLevels(queryProperty.getAi(), levels)) {
                 continue;
             }
@@ -1766,6 +1836,9 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
 
         // 收集属性信息
         for (DbQueryProperty queryProperty : queryModel.getQueryProperties()) {
+            if (QmColumnNaming.overridesProperty(queryModel, queryProperty.getProperty())) {
+                continue;
+            }
             if (!isFieldInLevels(queryProperty.getAi(), levels)) {
                 continue;
             }
@@ -1851,6 +1924,16 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             FieldInfoV3 fieldInfo = allFields.computeIfAbsent(fieldName, k -> new FieldInfoV3());
             fieldInfo.addCalculatedField(calc, queryModel.getName());
         }
+        namedColumnMetadata(queryModel, fieldFilter, levels, fieldAccess, context).forEach((name, value) -> {
+            Map<?, ?> info = (Map<?, ?>) value;
+            FieldInfoV3 field = allFields.computeIfAbsent(name, key -> new FieldInfoV3());
+            field.displayName = String.valueOf(info.get("name"));
+            field.meta = String.valueOf(info.get("meta"));
+            field.fieldType = Boolean.TRUE.equals(info.get("measure")) ? "measure" : "property";
+            FieldInfoV3.ModelUsage usage = new FieldInfoV3.ModelUsage();
+            usage.setDescription("输出键: " + info.get("outputName") + "; " + info.get("meta"));
+            field.modelUsages.put(queryModel.getName(), usage);
+        });
     }
 
     /**

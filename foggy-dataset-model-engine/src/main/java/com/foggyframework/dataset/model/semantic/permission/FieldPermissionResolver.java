@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.model.semantic.permission;
 
 import com.foggyframework.core.ex.RX;
+import com.foggyframework.dataset.model.impl.query.QmColumnNaming;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.model.def.permission.FieldPermissionRuleDef;
 import com.foggyframework.dataset.model.def.permission.FieldPermissionsDef;
@@ -72,6 +73,21 @@ public class FieldPermissionResolver {
         EffectiveLayer qmLayer = evaluateLayer(queryModel.getFieldPermissions(), allFields, evalContext,
                 "QM " + queryModel.getName());
 
+        // A hidden source remains hidden when a QM adds a business query name.
+        // Visible rules still use QM names, so defaultVisible=false can explicitly admit one projection.
+        if (qmLayer.constrained && queryModel.getFieldPermissions() != null) {
+            Set<String> hidden = new LinkedHashSet<>();
+            collectMatchedRuleFields(hidden, queryModel.getFieldPermissions().getHiddenFields(), allFields,
+                    evalContext, "QM " + queryModel.getName(), "hiddenFields");
+            for (DbQueryColumn column : QmColumnNaming.overrides(queryModel)) {
+                if (hidden.contains(normalizeFieldName(QmColumnNaming.sourceMetadataName(column)))
+                        || hidden.contains(normalizeFieldName(column.getName()))) {
+                    qmLayer.allowed.remove(normalizeFieldName(column.getName()));
+                    qmLayer.allowed.remove(normalizeFieldName(column.getAlias()));
+                }
+            }
+        }
+
         boolean constrained = false;
         Set<String> effective = new LinkedHashSet<>();
 
@@ -89,6 +105,16 @@ public class FieldPermissionResolver {
         }
 
         Set<String> normalizedRuntimeFieldAccess = normalizeRuntimeFieldAccess(runtimeFieldAccess);
+        if (normalizedRuntimeFieldAccess != null) {
+            normalizedRuntimeFieldAccess = new LinkedHashSet<>(normalizedRuntimeFieldAccess);
+            for (DbQueryColumn column : QmColumnNaming.overrides(queryModel)) {
+                if (normalizedRuntimeFieldAccess.contains(normalizeFieldName(column.getName()))
+                        || normalizedRuntimeFieldAccess.contains(normalizeFieldName(QmColumnNaming.sourceMetadataName(column)))) {
+                    addNormalized(normalizedRuntimeFieldAccess, column.getName());
+                    addNormalized(normalizedRuntimeFieldAccess, column.getAlias());
+                }
+            }
+        }
         if (normalizedRuntimeFieldAccess != null) {
             if (!constrained) {
                 effective.addAll(normalizedRuntimeFieldAccess);
@@ -131,7 +157,7 @@ public class FieldPermissionResolver {
             if (!layer.constrained) {
                 continue;
             }
-            constrainedLayers.add(new TableModelLayer(tableModelFields, layer.allowed));
+            constrainedLayers.add(new TableModelLayer(tableModel, tableModelFields, layer.allowed));
         }
 
         if (constrainedLayers.isEmpty()) {
@@ -144,11 +170,20 @@ public class FieldPermissionResolver {
             boolean ownedByConstrainedTableModel = false;
             boolean fieldAllowed = true;
             for (TableModelLayer layer : constrainedLayers) {
-                if (!layer.fields.contains(field)) {
+                String sourceField = field;
+                for (DbQueryColumn column : QmColumnNaming.overrides(queryModel)) {
+                    if ((Objects.equals(field, normalizeFieldName(column.getName()))
+                            || Objects.equals(field, normalizeFieldName(column.getAlias())))
+                            && QmColumnNaming.belongsTo(column, layer.model)) {
+                        sourceField = normalizeFieldName(QmColumnNaming.sourceMetadataName(column));
+                        break;
+                    }
+                }
+                if (!layer.fields.contains(sourceField)) {
                     continue;
                 }
                 ownedByConstrainedTableModel = true;
-                if (!layer.allowed.contains(field)) {
+                if (!layer.allowed.contains(sourceField)) {
                     fieldAllowed = false;
                     break;
                 }
@@ -587,7 +622,7 @@ public class FieldPermissionResolver {
         }
     }
 
-    private record TableModelLayer(Set<String> fields, Set<String> allowed) {
+    private record TableModelLayer(TableModel model, Set<String> fields, Set<String> allowed) {
     }
 
     private static class EvalContext {
