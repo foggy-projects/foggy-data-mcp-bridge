@@ -1,6 +1,6 @@
 ---
 doc_type: implementation-plan
-status: DONE
+status: PUBLISHED
 date: 2026-10-21
 intended_for: engine maintainers
 purpose: 统一计算、聚合及 pivot 字段绑定与权限依赖，修复八类已复现问题并验证兼容性。
@@ -127,3 +127,8 @@ LLM 分支未启用。当前主线测试清单是本次门禁，历史版本冻�
 
 改动直接位于 main 工作树；全量验收完成后进入用户授权的提交与发布流程。测试服务仅使用带本轮归属标记的
 临时容器，验收后清理容器与网络，保留证据及既有服务，清理记录见同目录 `cleanup.json`。
+
+## 发布交付
+
+修复提交 `5c4f0e01` 已推送 main，Launcher 0.1.28 与私有 Maven 已发布并核验。
+详见[发布记录](../../../release/launcher-0.1.28-publication.md)。后续结构优化独立记录。
