@@ -40,4 +40,3 @@ date: 2026-10-20
 - 不重复发布已有 Launcher 0.1.26，不触发私有 Maven 上传；本次仅修改后续发布流程。
 
 原始 red/green 日志在本地忽略目录 `target/release-clean-regression/`。
-
