@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "releaseLine": "9.5",
   "activeIteration": "9.5.5",
-  "mavenCoordinateVersion": "9.3.0",
+  "mavenCoordinateVersion": "9.3.0-SNAPSHOT",
   "artifacts": {
     "foggy-runtime-console": "9.5.2",
     "foggy-analytics-console": "0.1.0",
