@@ -10,6 +10,7 @@ import com.foggyframework.dataset.model.engine.compose.schema.AliasExtractor;
 import com.foggyframework.dataset.model.engine.compose.schema.ColumnAliasParts;
 import com.foggyframework.dataset.model.engine.expression.CalculatedFieldService;
 import com.foggyframework.dataset.model.engine.expression.CalculatedFieldDependencies;
+import com.foggyframework.dataset.model.engine.expression.CalculatedDependencyGraph;
 import com.foggyframework.dataset.model.engine.expression.InlineExpressionParser;
 import com.foggyframework.dataset.model.semantic.domain.DeniedPhysicalColumn;
 import com.foggyframework.dataset.model.spi.PhysicalColumnMapping;
@@ -61,8 +62,14 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
         DbQueryRequestDef request = ctx.getRequest().getParam();
 
         // 构建计算字段名→表达式映射，用于传递依赖展开
-        Map<String, CalculatedFieldDef> calcFieldMap = buildCalculatedFieldMap(request.getCalculatedFields());
-        if (ctx.getQueryModel() != null) calcFieldMap.putAll(CalculatedFieldDependencies.index(ctx.getQueryModel().getPredefinedCalculatedFields()));
+        Map<String, CalculatedFieldDef> definitions = buildCalculatedFieldMap(request.getCalculatedFields());
+        if (ctx.getQueryModel() != null) definitions.putAll(CalculatedFieldDependencies.index(ctx.getQueryModel().getPredefinedCalculatedFields()));
+        CalculatedDependencyGraph calcFieldMap;
+        try {
+            calcFieldMap = CalculatedDependencyGraph.forQuery(ctx.getQueryModel(), request.getCalculatedFields());
+        } catch (RuntimeException failure) {
+            throw RX.throwB("表达式依赖无法解析，已拒绝访问（fail-closed）: " + failure.getMessage());
+        }
 
         // 1. 校验 columns
         validateColumns(request.getColumns(), fieldAccess, deniedQmFields, calcFieldMap);
@@ -77,11 +84,11 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
         // 4. 校验 orderBy
         Map<String, String> orderBindings = new LinkedHashMap<>();
         if (request.getColumns() != null) for (String column : request.getColumns()) {
-            ColumnAliasParts parts = AliasExtractor.extract(column);
-            String outputName = com.foggyframework.dataset.model.impl.query.QueryFieldBindings.outputName(
-                    ctx.getQueryModel(), column, new ArrayList<>(calcFieldMap.values()));
-            if (!outputName.equals(parts.expression()) && !orderBindings.containsKey(outputName)) {
-                orderBindings.put(outputName, parts.expression());
+            var binding = com.foggyframework.dataset.model.impl.query.QueryFieldBindings.bind(
+                    ctx.getQueryModel(), column, new ArrayList<>(definitions.values()));
+            String outputName = binding.outputName();
+            if (!outputName.equals(binding.expression()) && !orderBindings.containsKey(outputName)) {
+                orderBindings.put(outputName, binding.expression());
             }
         }
         validateOrderBy(request.getOrderBy(), fieldAccess, deniedQmFields, calcFieldMap, orderBindings);
@@ -131,7 +138,7 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
      * 函数表达式 {@code "SUM(x) AS y"} 由 {@code parse()} 接管，不走到此分支。
      */
     private void validateColumns(List<String> columns, Set<String> fieldAccess,
-                                  Set<String> deniedQmFields, Map<String, CalculatedFieldDef> calcFieldMap) {
+                                  Set<String> deniedQmFields, CalculatedDependencyGraph calcFieldMap) {
         if (columns == null || columns.isEmpty()) {
             return;
         }
@@ -175,7 +182,7 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
      * 校验 calculatedFields 列表
      */
     private void validateCalculatedFields(List<CalculatedFieldDef> calculatedFields, Set<String> fieldAccess,
-                                           Set<String> deniedQmFields, Map<String, CalculatedFieldDef> calcFieldMap) {
+                                           Set<String> deniedQmFields, CalculatedDependencyGraph calcFieldMap) {
         if (calculatedFields == null || calculatedFields.isEmpty()) {
             return;
         }
@@ -197,7 +204,7 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
      * 校验 slice 条件列表（只校验用户 slice，不含 system_slice）
      */
     private void validateSlice(List<SliceRequestDef> slice, Set<String> fieldAccess,
-                                Set<String> deniedQmFields, Map<String, CalculatedFieldDef> calcFieldMap,
+                                Set<String> deniedQmFields, CalculatedDependencyGraph calcFieldMap,
                                 String clause) {
         if (slice == null || slice.isEmpty()) {
             return;
@@ -209,7 +216,7 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
 
     private void validateCondItem(com.foggyframework.dataset.model.def.query.request.CondRequestDef item,
                                   Set<String> fieldAccess, Set<String> deniedQmFields,
-                                  Map<String, CalculatedFieldDef> calcFieldMap, String clause) {
+                                  CalculatedDependencyGraph calcFieldMap, String clause) {
         if (item == null) {
             return;
         }
@@ -238,7 +245,7 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
      * 校验 orderBy 列表
      */
     private void validateOrderBy(List<OrderRequestDef> orderBy, Set<String> fieldAccess,
-                                  Set<String> deniedQmFields, Map<String, CalculatedFieldDef> calcFieldMap,
+                                  Set<String> deniedQmFields, CalculatedDependencyGraph calcFieldMap,
                                   Map<String, String> outputBindings) {
         if (orderBy == null || orderBy.isEmpty()) {
             return;
@@ -270,7 +277,7 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
      * 校验 groupBy 列表
      */
     private void validateGroupBy(List<GroupRequestDef> groupBy, Set<String> fieldAccess,
-                                  Set<String> deniedQmFields, Map<String, CalculatedFieldDef> calcFieldMap) {
+                                  Set<String> deniedQmFields, CalculatedDependencyGraph calcFieldMap) {
         if (groupBy == null || groupBy.isEmpty()) {
             return;
         }
@@ -290,10 +297,10 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
      */
     private void validateExpressionDeps(String expression, String displayName, String clause,
                                         Set<String> fieldAccess, Set<String> deniedQmFields,
-                                        Map<String, CalculatedFieldDef> calcFieldMap) {
+                                        CalculatedDependencyGraph calcFieldMap) {
         Set<String> deps;
         try {
-            deps = CalculatedFieldDependencies.base(expression, calcFieldMap);
+            deps = calcFieldMap.base(expression);
         } catch (Exception e) {
             // fail-closed：无法解析依赖时拒绝
             throw RX.throwB("表达式依赖无法解析，已拒绝访问（fail-closed）: '" + displayName

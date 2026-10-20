@@ -118,6 +118,19 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
      */
     protected List<CalculatedFieldDef> predefinedCalculatedFields = new ArrayList<>();
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @lombok.Setter(lombok.AccessLevel.NONE)
+    @lombok.EqualsAndHashCode.Exclude
+    @lombok.ToString.Exclude
+    private transient com.foggyframework.dataset.model.engine.expression.CalculatedDependencyGraph calculatedDependencyGraph;
+
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public synchronized com.foggyframework.dataset.model.engine.expression.CalculatedDependencyGraph getCalculatedDependencyGraph() {
+        calculatedDependencyGraph = com.foggyframework.dataset.model.engine.expression.CalculatedDependencyGraph
+                .recompileIfChanged(calculatedDependencyGraph, getPredefinedCalculatedFields());
+        return calculatedDependencyGraph;
+    }
+
     protected  List<TableModel> jdbcModelList;
 
     /**

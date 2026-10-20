@@ -728,7 +728,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         List<CalculatedFieldDef> predefinedCalcs = queryModel.getPredefinedCalculatedFields();
         if (predefinedCalcs != null && !predefinedCalcs.isEmpty()) {
             List<CalculatedFieldDef> filteredCalcs = new ArrayList<>();
-            Map<String, CalculatedFieldDef> calcFieldMap = buildPredefinedCalcFieldMap(predefinedCalcs);
+            var calcFieldMap = com.foggyframework.dataset.model.engine.expression.CalculatedDependencyGraph.forModel(queryModel);
             for (CalculatedFieldDef calc : predefinedCalcs) {
                 if (!isCalculatedFieldAccessible(calc, effectiveFieldAccess, calcFieldMap)) {
                     continue;
@@ -1417,7 +1417,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
 
         // 处理 QM 预定义计算字段
         List<CalculatedFieldDef> predefinedCalcs = queryModel.getPredefinedCalculatedFields();
-        Map<String, CalculatedFieldDef> calcFieldMap = buildPredefinedCalcFieldMap(predefinedCalcs);
+        var calcFieldMap = com.foggyframework.dataset.model.engine.expression.CalculatedDependencyGraph.forModel(queryModel);
         for (CalculatedFieldDef calc : predefinedCalcs) {
             String fieldName = calc.getName();
             if (fieldFilter != null && !fieldFilter.contains(fieldName)) {
@@ -1914,7 +1914,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
 
         // 收集 QM 预定义计算字段信息
         List<CalculatedFieldDef> predefinedCalcs = queryModel.getPredefinedCalculatedFields();
-        Map<String, CalculatedFieldDef> calcFieldMap = buildPredefinedCalcFieldMap(predefinedCalcs);
+        var calcFieldMap = com.foggyframework.dataset.model.engine.expression.CalculatedDependencyGraph.forModel(queryModel);
         for (CalculatedFieldDef calc : predefinedCalcs) {
             String fieldName = calc.getName();
             if (fieldFilter != null && !fieldFilter.contains(fieldName)) {
@@ -2002,13 +2002,6 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
     }
 
     /**
-     * 构建预定义计算字段名→表达式映射（用于传递依赖展开）
-     */
-    private Map<String, CalculatedFieldDef> buildPredefinedCalcFieldMap(List<CalculatedFieldDef> predefinedCalcs) {
-        return com.foggyframework.dataset.model.engine.expression.CalculatedFieldDependencies.index(predefinedCalcs);
-    }
-
-    /**
      * 判断计算字段的所有基础依赖源字段是否都在 fieldAccess 白名单内。
      * <p>
      * 支持传递依赖展开：如果计算字段引用了其他计算字段，递归解析到基础字段。
@@ -2016,7 +2009,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
      * 解析失败时 fail-closed（视为不可访问）。
      */
     private boolean isCalculatedFieldAccessible(CalculatedFieldDef calc, Set<String> fieldAccess,
-                                                 Map<String, CalculatedFieldDef> calcFieldMap) {
+                                                 com.foggyframework.dataset.model.engine.expression.CalculatedDependencyGraph calcFieldMap) {
         if (fieldAccess == null || calc.getExpression() == null) {
             return true;
         }
@@ -2025,8 +2018,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             return false;
         }
         try {
-            Set<String> baseDeps = com.foggyframework.dataset.model.engine.expression
-                    .CalculatedFieldDependencies.base(calc, calcFieldMap);
+            Set<String> baseDeps = calcFieldMap.base(calc);
             for (String dep : baseDeps) {
                 // 维度后缀剥离：product$categoryName → product
                 String baseDep = com.foggyframework.dataset.model.plugins.result_set_filter

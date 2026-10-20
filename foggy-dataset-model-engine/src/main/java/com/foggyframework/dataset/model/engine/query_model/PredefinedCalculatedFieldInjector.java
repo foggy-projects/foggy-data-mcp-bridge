@@ -79,12 +79,11 @@ public final class PredefinedCalculatedFieldInjector {
         }
 
         Set<String> referencedColumns = collectReferences(queryRequest);
-        var definitions = com.foggyframework.dataset.model.engine.expression.CalculatedFieldDependencies.index(queryRequest.getCalculatedFields());
-        definitions.putAll(com.foggyframework.dataset.model.engine.expression.CalculatedFieldDependencies.index(predefined));
+        var dependencies = com.foggyframework.dataset.model.engine.expression.CalculatedDependencyGraph.forQuery(queryModel, queryRequest.getCalculatedFields());
         if (queryRequest.getCalculatedFields() != null) for (CalculatedFieldDef field : queryRequest.getCalculatedFields()) {
             referencedColumns.addAll(com.foggyframework.dataset.model.engine.expression.CalculatedFieldDependencies.direct(field));
         }
-        com.foggyframework.dataset.model.engine.expression.CalculatedFieldDependencies.includeDependencies(referencedColumns, definitions);
+        dependencies.includeDependencies(referencedColumns);
 
         List<CalculatedFieldDef> toInject = new ArrayList<>();
         for (CalculatedFieldDef calc : predefined) {

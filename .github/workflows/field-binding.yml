@@ -1,0 +1,108 @@
+name: Field Binding Contracts
+
+on:
+  pull_request:
+    paths:
+      - 'foggy-dataset-model-engine/**'
+      - 'foggy-dataset/**'
+      - 'scripts/field-binding/**'
+      - 'scripts/release/**'
+      - '.github/workflows/field-binding.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'foggy-dataset-model-engine/**'
+      - 'foggy-dataset/**'
+      - 'scripts/field-binding/**'
+      - 'scripts/release/**'
+      - '.github/workflows/field-binding.yml'
+  workflow_dispatch:
+    inputs:
+      launcher_tag:
+        description: Published launcher tag to verify
+        required: true
+        default: foggy-runtime-launcher-v0.1.28
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: field-binding-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  database-contracts:
+    if: github.event_name != 'release'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        database: [sqlite, mysql57, mysql8, postgres, sqlserver]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Ensure shell test dependency
+        run: command -v jq || (sudo apt-get update && sudo apt-get install -y jq)
+      - name: Verify gate failure handling
+        run: |
+          python -m unittest discover -s scripts/field-binding/tests -v
+          python -m unittest discover -s scripts/release/tests -v
+      - name: Run isolated database contract
+        run: python scripts/field-binding/run_gate.py --database ${{ matrix.database }} --output target/field-binding-ci
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: field-binding-${{ matrix.database }}
+          path: target/field-binding-ci/summary.json
+          if-no-files-found: warn
+
+  released-artifact:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'release' && startsWith(github.event.release.tag_name, 'foggy-runtime-launcher-v'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Download and exercise the published JAR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.launcher_tag }}
+        shell: bash
+        run: |
+          case "$RELEASE_TAG" in foggy-runtime-launcher-v*) ;; *) exit 1 ;; esac
+          gh release download "$RELEASE_TAG" --pattern '*.jar' --pattern SHA256SUMS --dir target/released
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib, subprocess, sys
+          folder = Path('target/released')
+          jars = list(folder.glob('*.jar'))
+          if len(jars) != 1:
+              raise SystemExit('Expected exactly one launcher JAR')
+          expected = {line.split()[1]: line.split()[0] for line in (folder/'SHA256SUMS').read_text().splitlines() if line.strip()}
+          if expected.get(jars[0].name) != hashlib.sha256(jars[0].read_bytes()).hexdigest():
+              raise SystemExit('Published launcher checksum mismatch')
+          subprocess.run([sys.executable, 'scripts/field-binding/artifact_smoke.py', '--jar', str(jars[0]), '--output', 'target/field-binding-artifact'], check=True)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: released-field-binding-artifact
+          path: target/field-binding-artifact/summary.json
+          if-no-files-found: warn

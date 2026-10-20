@@ -26,11 +26,12 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 PACKAGER = Path(__file__).with_name("runtime_launcher_package.py")
 DEFAULT_REPOSITORY = "foggy-projects/foggy-data-mcp-bridge"
-OBS_INDEX = "https://obs-fe55.obs.cn-north-4.myhuaweicloud.com/foggy-runtime/latest.json"
+OBS_INDEX = (
+    "https://obs-fe55.obs.cn-north-4.myhuaweicloud.com/foggy-runtime/latest.json"
+)
 VERSION_PATTERN = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[._-][A-Za-z0-9._-]+)?$")
 
 
@@ -131,7 +132,9 @@ def parse_checksums(path: Path) -> dict[str, str]:
 
 def verify_package(package_dir: Path, version: str, commit: str) -> dict[str, Any]:
     assets = expected_assets(version)
-    actual = tuple(sorted(path.name for path in package_dir.iterdir() if path.is_file()))
+    actual = tuple(
+        sorted(path.name for path in package_dir.iterdir() if path.is_file())
+    )
     if set(actual) != set(assets):
         raise ReleaseError(
             f"release directory must contain exactly {list(assets)}; found {list(actual)}"
@@ -389,7 +392,12 @@ def smoke_mode(package_dir: Path, port: int, console_enabled: bool) -> dict[str,
 
             initialize_status, initialize_body = http_request(
                 f"{runtime_url}/mcp/analyst/rpc",
-                payload={"jsonrpc": "2.0", "id": 0, "method": "initialize", "params": {}},
+                payload={
+                    "jsonrpc": "2.0",
+                    "id": 0,
+                    "method": "initialize",
+                    "params": {},
+                },
                 headers={"X-NS": "default"},
             )
             initialize = json.loads(initialize_body)
@@ -398,16 +406,24 @@ def smoke_mode(package_dir: Path, port: int, console_enabled: bool) -> dict[str,
                 or initialize.get("id") != 0
                 or isinstance(initialize.get("id"), bool)
             ):
-                raise ReleaseError("MCP initialize did not preserve numeric JSON-RPC id")
+                raise ReleaseError(
+                    "MCP initialize did not preserve numeric JSON-RPC id"
+                )
 
             tools_status, tools_body = http_request(
                 f"{runtime_url}/mcp/analyst/rpc",
-                payload={"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}},
+                payload={
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "tools/list",
+                    "params": {},
+                },
                 headers={"X-NS": "default"},
             )
             tools_payload = json.loads(tools_body)
             tool_names = {
-                item.get("name") for item in tools_payload.get("result", {}).get("tools", [])
+                item.get("name")
+                for item in tools_payload.get("result", {}).get("tools", [])
             }
             if tools_status != 200 or "dataset.list_models" not in tool_names:
                 raise ReleaseError("MCP tools/list does not expose dataset.list_models")
@@ -422,7 +438,11 @@ def smoke_mode(package_dir: Path, port: int, console_enabled: bool) -> dict[str,
                 path: http_request(f"{runtime_url}{path}")[0] for path in console_paths
             }
             if console_enabled:
-                failed = [path for path, route_status in route_statuses.items() if route_status != 200]
+                failed = [
+                    path
+                    for path, route_status in route_statuses.items()
+                    if route_status != 200
+                ]
                 if failed:
                     raise ReleaseError(f"Console opt-in routes failed: {failed}")
                 publication_status, publication_body = http_request(
@@ -449,7 +469,9 @@ def smoke_mode(package_dir: Path, port: int, console_enabled: bool) -> dict[str,
                     if 200 <= route_status < 300
                 ]
                 if exposed:
-                    raise ReleaseError(f"Console routes are exposed by default: {exposed}")
+                    raise ReleaseError(
+                        f"Console routes are exposed by default: {exposed}"
+                    )
 
             return {
                 "status": "passed",
@@ -475,6 +497,37 @@ def run_smoke(package_dir: Path, requested_port: int) -> list[dict[str, Any]]:
     log(f"smoke: Analytics Console opt-in on port {console_port}")
     console = smoke_mode(package_dir, console_port, True)
     return [default, console]
+
+
+def run_field_binding_smoke(package_dir: Path, version: str) -> dict[str, Any]:
+    evidence_root = REPOSITORY_ROOT / ".foggy-runtime" / "field-binding-smoke"
+    evidence_root.mkdir(parents=True, exist_ok=True)
+    evidence = (
+        Path(tempfile.mkdtemp(prefix=f"{version}-", dir=evidence_root)) / "checks"
+    )
+    jar = package_dir / f"foggy-runtime-launcher-{version}.jar"
+    log("smoke: field binding, permissions, pivot and model refresh")
+    run(
+        [
+            sys.executable,
+            str(REPOSITORY_ROOT / "scripts" / "field-binding" / "artifact_smoke.py"),
+            "--jar",
+            str(jar),
+            "--output",
+            str(evidence),
+        ]
+    )
+    summary = json.loads((evidence / "summary.json").read_text(encoding="utf-8"))
+    if (
+        summary.get("status") != "passed"
+        or len(summary.get("checks", [])) < 13
+        or not summary.get("processStopped")
+        or summary.get("jarSha256") != hashlib.sha256(jar.read_bytes()).hexdigest()
+    ):
+        raise ReleaseError(
+            "field binding artifact smoke returned incomplete or mismatched evidence"
+        )
+    return {"profile": "field-binding", "evidence": str(evidence), **summary}
 
 
 def release_notes(
@@ -596,7 +649,11 @@ def publish_release(
 
     remote_commit = remote_tag_commit(tag)
     existing_release = gh_release(tag, repository)
-    if remote_commit and remote_commit != commit and not (replace_existing and retarget_tag):
+    if (
+        remote_commit
+        and remote_commit != commit
+        and not (replace_existing and retarget_tag)
+    ):
         raise ReleaseError(
             f"remote tag {tag} points to {remote_commit}; explicit replacement and "
             "retarget approval are required"
@@ -712,11 +769,15 @@ def verify_obs(package_dir: Path, version: str, timeout_seconds: int) -> dict[st
                             "OBS launcher asset set mismatch: "
                             f"expected={sorted(expected)} actual={sorted(remote_assets)}"
                         )
-                    with tempfile.TemporaryDirectory(prefix="foggy-launcher-obs-") as temporary:
+                    with tempfile.TemporaryDirectory(
+                        prefix="foggy-launcher-obs-"
+                    ) as temporary:
                         replay_dir = Path(temporary)
                         for name, metadata in remote_assets.items():
                             url = metadata.get("url")
-                            if not isinstance(url, str) or not url.startswith("https://"):
+                            if not isinstance(url, str) or not url.startswith(
+                                "https://"
+                            ):
                                 raise ReleaseError(f"invalid OBS asset URL for {name}")
                             with urllib.request.urlopen(url, timeout=120) as response:
                                 destination = replay_dir / name
@@ -725,7 +786,9 @@ def verify_obs(package_dir: Path, version: str, timeout_seconds: int) -> dict[st
                                         output.write(chunk)
                             expected_digest = sha256_file(package_dir / name)
                             if sha256_file(destination) != expected_digest:
-                                raise ReleaseError(f"OBS replay checksum mismatch for {name}")
+                                raise ReleaseError(
+                                    f"OBS replay checksum mismatch for {name}"
+                                )
                         verify_package(replay_dir, version, commit)
                     return launcher
             last_error = f"latest launcher in OBS is not {tag}"
@@ -733,9 +796,7 @@ def verify_obs(package_dir: Path, version: str, timeout_seconds: int) -> dict[st
             last_error = str(exc)
         log(f"waiting for OBS sync: {last_error}")
         time.sleep(10)
-    raise ReleaseError(
-        f"OBS sync did not pass within {timeout_seconds}s: {last_error}"
-    )
+    raise ReleaseError(f"OBS sync did not pass within {timeout_seconds}s: {last_error}")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -797,7 +858,9 @@ def main() -> int:
         version = normalize_version(args.release_version)
         commit = command_output("git", "rev-parse", "HEAD")
         if args.target_commit:
-            requested = command_output("git", "rev-parse", f"{args.target_commit}^{{commit}}")
+            requested = command_output(
+                "git", "rev-parse", f"{args.target_commit}^{{commit}}"
+            )
             if requested != commit:
                 raise ReleaseError(
                     f"target commit {requested} is not checked-out HEAD {commit}; "
@@ -857,6 +920,7 @@ def main() -> int:
         smokes: list[dict[str, Any]] = []
         if not args.skip_smoke:
             smokes = run_smoke(package_dir, args.port)
+            smokes.append(run_field_binding_smoke(package_dir, version))
         checksums = parse_checksums(package_dir / "SHA256SUMS")
         notes = release_notes(version, commit, manifest, checksums)
 
@@ -894,7 +958,12 @@ def main() -> int:
                 indent=2,
             )
         )
-    except (ReleaseError, subprocess.CalledProcessError, OSError, json.JSONDecodeError) as exc:
+    except (
+        ReleaseError,
+        subprocess.CalledProcessError,
+        OSError,
+        json.JSONDecodeError,
+    ) as exc:
         print(f"runtime launcher publication failed: {exc}", file=sys.stderr)
         return 1
     return 0

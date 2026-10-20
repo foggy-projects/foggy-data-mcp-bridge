@@ -170,3 +170,15 @@ FAP publication is a separate host-owned operation. Use
 [`fap-analytics-question-publication.md`](fap-analytics-question-publication.md) and the read-only
 `fap_question_publication_gate.py`; the launcher release workflow intentionally has no FAP apply
 credential or management call.
+
+## Field binding artifact gate
+
+Before creating or publishing any tag/release, the publisher also runs
+`scripts/field-binding/artifact_smoke.py` against the packaged executable JAR. This gate exercises
+real Runtime API queries with isolated SQLite data: field/alias contracts, result schema, window
+permissions, transitive formulas, ordering, pivot totals/TopN and model refresh. It verifies the JAR
+SHA-256 and complete success evidence. Failure prevents publication. Evidence remains outside the
+six-asset release directory under `.foggy-runtime/field-binding-smoke/`.
+
+The `Field Binding Contracts` workflow additionally covers SQLite and four SQL databases and can
+replay the runtime gate against a published release downloaded and checked against SHA256SUMS.

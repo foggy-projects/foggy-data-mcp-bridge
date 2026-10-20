@@ -169,5 +169,9 @@ class FieldBindingDependenciesRegressionTest extends EcommerceTestSupport {
   assertEquals("groupKey",response.path("schema").path("columns").get(0).path("queryName").asText());
   assertTrue(response.path("schema").path("summary").asText().contains("分组"));
  }
+ @Test void selectedAggregateSelfAliasWithPredefinedFormulasKeepsItsStage() {
+  var response=result("Formula",Map.of("columns",List.of("category","sum(amount) AS amount"),"groupBy",List.of("category"),"orderBy",List.of("amount")),SemanticRequestContext.empty());
+  assertEquals(2,response.path("items").size());assertEquals(30,response.path("items").get(0).path("amount").asInt());
+ }
  @AfterAll void cleanup(){if(bundles.containBundle("naming-followup-audit"))bundles.removeBundle("naming-followup-audit");queryModelLoader.clearByNamespace("");jdbcTemplate.execute("DROP TABLE IF EXISTS naming_followup");}
 }

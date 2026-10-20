@@ -30,6 +30,7 @@ class InlineExpressionPreprocessStepTest {
         predefined.setAgg("SUM");
         
         QueryModelSupport qm = mock(QueryModelSupport.class);
+        when(qm.getCalculatedDependencyGraph()).thenCallRealMethod();
         when(qm.getPredefinedCalculatedFields()).thenReturn(Arrays.asList(predefined));
 
         DbQueryRequestDef request = new DbQueryRequestDef();
@@ -59,6 +60,7 @@ class InlineExpressionPreprocessStepTest {
         predefined.setExpression("IF(number - plannedPieceCount > 0, number - plannedPieceCount, 0)");
 
         QueryModelSupport qm = mock(QueryModelSupport.class);
+        when(qm.getCalculatedDependencyGraph()).thenCallRealMethod();
         when(qm.getPredefinedCalculatedFields()).thenReturn(List.of(predefined));
 
         DbQueryRequestDef request = new DbQueryRequestDef();
@@ -92,6 +94,7 @@ class InlineExpressionPreprocessStepTest {
         predefined.setAgg("SUM");
         
         QueryModelSupport qm = mock(QueryModelSupport.class);
+        when(qm.getCalculatedDependencyGraph()).thenCallRealMethod();
         when(qm.getPredefinedCalculatedFields()).thenReturn(Arrays.asList(predefined));
 
         DbQueryRequestDef request = new DbQueryRequestDef();
@@ -116,6 +119,7 @@ class InlineExpressionPreprocessStepTest {
         predefined.setExpression("number - plannedPieceCount");
 
         QueryModelSupport qm = mock(QueryModelSupport.class);
+        when(qm.getCalculatedDependencyGraph()).thenCallRealMethod();
         when(qm.getPredefinedCalculatedFields()).thenReturn(List.of(predefined));
 
         DbQueryRequestDef request = new DbQueryRequestDef();
@@ -142,6 +146,7 @@ class InlineExpressionPreprocessStepTest {
         predefined.setExpression("number - plannedPieceCount");
 
         QueryModelSupport qm = mock(QueryModelSupport.class);
+        when(qm.getCalculatedDependencyGraph()).thenCallRealMethod();
         when(qm.getPredefinedCalculatedFields()).thenReturn(List.of(predefined));
 
         DbQueryRequestDef request = new DbQueryRequestDef();

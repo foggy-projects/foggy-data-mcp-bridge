@@ -8,7 +8,6 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-
 SCRIPT = Path(__file__).resolve().parents[1] / "runtime_launcher_publish.py"
 SPEC = importlib.util.spec_from_file_location("runtime_launcher_publish", SCRIPT)
 assert SPEC is not None and SPEC.loader is not None
@@ -103,15 +102,15 @@ class RuntimeLauncherPublishTest(unittest.TestCase):
         self.assertEqual(
             "0.1.18", release.normalize_version("foggy-runtime-launcher-v0.1.18")
         )
-        with self.assertRaisesRegex(release.ReleaseError, "invalid launcher release version"):
+        with self.assertRaisesRegex(
+            release.ReleaseError, "invalid launcher release version"
+        ):
             release.normalize_version("latest")
 
     def test_obs_replay_is_opt_in(self) -> None:
         parser = release.build_parser()
         default = parser.parse_args(["--release-version", "0.1.19"])
-        requested = parser.parse_args(
-            ["--release-version", "0.1.19", "--verify-obs"]
-        )
+        requested = parser.parse_args(["--release-version", "0.1.19", "--verify-obs"])
 
         self.assertFalse(default.verify_obs)
         self.assertTrue(requested.verify_obs)
@@ -131,9 +130,7 @@ class RuntimeLauncherPublishTest(unittest.TestCase):
 
         self.assertEqual("C:/tools/maven/mvn.cmd", args.maven_executable)
         self.assertTrue(args.authorized_docs_only_skip_tests)
-        self.assertEqual(
-            "foggy-runtime-launcher-v0.1.20", args.docs_only_base_ref
-        )
+        self.assertEqual("foggy-runtime-launcher-v0.1.20", args.docs_only_base_ref)
 
     @mock.patch.object(release, "run")
     def test_verifies_exact_release_package(self, verify_jar: mock.Mock) -> None:
@@ -168,6 +165,71 @@ class RuntimeLauncherPublishTest(unittest.TestCase):
             with self.assertRaisesRegex(release.ReleaseError, "releaseReady"):
                 release.verify_package(package_dir, "0.1.18", commit)
             verify_jar.assert_not_called()
+
+    def test_field_binding_smoke_failure_prevents_publication(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(
+            release.sys,
+            "argv",
+            [
+                "publish",
+                "--release-version",
+                "0.1.28",
+                "--reuse-package",
+                "--output-dir",
+                temporary,
+            ],
+        ), mock.patch.object(
+            release, "command_output", return_value="a" * 40
+        ), mock.patch.object(
+            release, "verify_package", return_value={}
+        ), mock.patch.object(
+            release, "run_smoke", return_value=[]
+        ), mock.patch.object(
+            release,
+            "run_field_binding_smoke",
+            side_effect=release.ReleaseError("binding rejected"),
+        ), mock.patch.object(
+            release, "publish_release"
+        ) as publish:
+            self.assertEqual(1, release.main())
+            publish.assert_not_called()
+
+    def test_field_binding_smoke_requires_complete_matching_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = root / "package"
+            package.mkdir()
+            jar = package / "foggy-runtime-launcher-0.1.28.jar"
+            jar.write_bytes(b"fixture jar")
+            summary = {
+                "status": "passed",
+                "checks": [],
+                "processStopped": True,
+                "jarSha256": hashlib.sha256(jar.read_bytes()).hexdigest(),
+            }
+
+            def fake_run(command):
+                output = Path(command[-1])
+                output.mkdir(parents=True)
+                (output / "summary.json").write_text(json.dumps(summary))
+
+            with mock.patch.object(release, "REPOSITORY_ROOT", root), mock.patch.object(
+                release, "run", side_effect=fake_run
+            ):
+                with self.assertRaises(release.ReleaseError):
+                    release.run_field_binding_smoke(package, "0.1.28")
+                summary["checks"] = [str(n) for n in range(13)]
+                summary["jarSha256"] = "wrong"
+                with self.assertRaises(release.ReleaseError):
+                    release.run_field_binding_smoke(package, "0.1.28")
+                summary["jarSha256"] = hashlib.sha256(jar.read_bytes()).hexdigest()
+                result = release.run_field_binding_smoke(package, "0.1.28")
+                self.assertEqual("passed", result["status"])
+                self.assertEqual(
+                    1,
+                    len(list(package.iterdir())),
+                    "smoke evidence must not alter release assets",
+                )
 
     @staticmethod
     def _write_package(

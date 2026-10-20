@@ -35,3 +35,6 @@ artifact-sqlserver-verified/summary.json、engine-artifact-comparison.json、evi
 
 升级通过隔离运行时的真实模型刷新验证；本轮未接触用户业务运行实例。私有 Maven 消费方
 按既有流程使用 -U 更新 snapshot。旧版本 0.1.27 制品保留，可作为部署回退依据。
+
+独立 Maven 消费项目使用精确引擎快照 `9.3.0-20261020.170208-5` 成功解析 62 个依赖，
+下载引擎 JAR 的 SHA-256 与发布核验值一致。消费侧证据见上述目录的 `consumer/summary.json`。

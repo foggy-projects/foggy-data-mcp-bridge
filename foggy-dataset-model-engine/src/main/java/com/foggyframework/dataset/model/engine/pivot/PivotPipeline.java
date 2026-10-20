@@ -691,10 +691,9 @@ public class PivotPipeline {
             logger.warn("以下 Pivot calculatedFields 为 QM 预定义计算字段，已使用模型预定义公式覆盖: {}", replaced);
         }
 
-        var definitions = com.foggyframework.dataset.model.engine.expression.CalculatedFieldDependencies.index(current);
-        definitions.putAll(com.foggyframework.dataset.model.engine.expression.CalculatedFieldDependencies.index(predefined));
+        var dependencies = com.foggyframework.dataset.model.engine.expression.CalculatedDependencyGraph.forQuery(queryModel, current);
         for (CalculatedFieldDef field : current) referencedFields.addAll(com.foggyframework.dataset.model.engine.expression.CalculatedFieldDependencies.direct(field));
-        com.foggyframework.dataset.model.engine.expression.CalculatedFieldDependencies.includeDependencies(referencedFields, definitions);
+        dependencies.includeDependencies(referencedFields);
         Set<String> existingNames = current.stream()
                 .filter(Objects::nonNull)
                 .map(CalculatedFieldDef::getName)

@@ -85,7 +85,7 @@ public final class PhysicalColumnMappingBuilder {
         }
 
         // 5. QM 预定义计算字段（传递解析到基础字段的物理列）
-        processCalculatedFields(qm.getPredefinedCalculatedFields(), qmToPhysical, physicalToQm);
+        processCalculatedFields(qm, qm.getPredefinedCalculatedFields(), qmToPhysical, physicalToQm);
 
         if (log.isDebugEnabled()) {
             log.debug("Built physical column mapping: {} QM fields, {} physical columns",
@@ -200,20 +200,20 @@ public final class PhysicalColumnMappingBuilder {
     /**
      * 处理计算字段：传递解析表达式依赖，收集所有基础字段的物理列
      */
-    private static void processCalculatedFields(List<CalculatedFieldDef> calcFields,
+    private static void processCalculatedFields(QueryModelSupport qm, List<CalculatedFieldDef> calcFields,
                                                   Map<String, List<PhysicalColumnRef>> qmToPhysical,
                                                   Map<String, List<String>> physicalToQm) {
         if (calcFields == null || calcFields.isEmpty()) {
             return;
         }
 
-        var calcFieldMap = com.foggyframework.dataset.model.engine.expression.CalculatedFieldDependencies.index(calcFields);
+        var dependencies = qm.getCalculatedDependencyGraph();
 
         for (CalculatedFieldDef calc : calcFields) {
             if (calc.getExpression() == null) continue;
             try {
                 // 传递解析到基础字段
-                Set<String> baseDeps = com.foggyframework.dataset.model.engine.expression.CalculatedFieldDependencies.base(calc, calcFieldMap);
+                Set<String> baseDeps = dependencies.base(calc);
                 // 收集所有基础字段的物理列
                 for (String baseDep : baseDeps) {
                     List<PhysicalColumnRef> baseRefs = qmToPhysical.get(baseDep);

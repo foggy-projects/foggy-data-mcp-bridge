@@ -26,3 +26,22 @@ pivot 主数据、domain、属性查询、层级 skeleton、非可加总计及 S
 
 当前实现及兼容说明见[字段名称合同](../dev-guide/qm-field-names.md)和
 [修复工作项](../9.5/9.5.5/workitems/BUG-field-binding-dependencies.md)。
+
+## 编译与复用边界
+
+`QueryFieldBindings.Projection` 在一次投影入口编译不可变绑定列表，保存查询表达式、输出键和
+实际来源列；结果映射不再逐行查找模型。编译产物只用于该投影，不跨模型共享。
+
+`CalculatedDependencyGraph` 在模型加载时编译直接依赖、基础依赖闭包与拓扑顺序。
+`QueryModelSupport` 持有所属实例的图，按表达式及窗口字段的语义快照检测现有可变 DTO 的变化；
+变化时先成功构建新图再替换。旧图不随 DTO 修改而变化，失败时不会返回旧图冒充新定义。
+新模型实例具有独立图，不引入按名称缓存，也不改变 namespace/generation/refresh 的身份体系。
+
+请求定义创建独立覆盖图，模型预定义公式继续优先。覆盖基础字段时重新计算传递闭包；
+不能直接复用模型原有的闭包结果。模型循环在加载时拒绝；请求内临时 AS 自引用在注入阶段
+只收集边，在实际权限依赖展开或后续 SQL 阶段按既有规则校验，避免拒绝合法聚合投影。
+该图不保存 fieldAccess/deniedColumns 的权限决定；权限仍对每次请求独立求值。
+
+SQLite/四数据库合同及实际 Launcher 冒烟入口见
+[字段绑定门禁](../../scripts/field-binding/README.md)。正式发布脚本在创建 tag/release 之前执行
+制品检查；失败、缺失报告或不匹配的 JAR 摘要均阻止发布。
