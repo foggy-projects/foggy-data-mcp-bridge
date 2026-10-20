@@ -14,6 +14,26 @@
     <description>Definition parsing and validation foundation for Analytics Bundles</description>
     <url>https://github.com/foggy-projects/foggy-data-mcp-bridge</url>
 
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <name>JianguangFeng</name>
+            <email>oldseasoul@163.com</email>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:git://github.com/foggy-projects/foggy-data-mcp-bridge.git</connection>
+        <developerConnection>scm:git:ssh://github.com:foggy-projects/foggy-data-mcp-bridge.git</developerConnection>
+        <url>https://github.com/foggy-projects/foggy-data-mcp-bridge</url>
+    </scm>
+
     <properties>
         <maven.compiler.release>17</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
