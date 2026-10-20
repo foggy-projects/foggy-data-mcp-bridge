@@ -273,6 +273,9 @@ public class RedisCrossJvmCacheIT {
 
         ModelResultContext context = new ModelResultContext(pagingRequest, null);
         context.setNamespace(NAMESPACE);
+        // This fixture bypasses the query pipeline; supply its final effective permission identity.
+        context.setAuthorizationSignature(new com.foggyframework.dataset.model.semantic.permission.AuthorizationSignature(
+                "test:cross-jvm-permission-snapshot", false, null));
         context.setSecurityContext(ModelResultContext.SecurityContext.builder()
                 .authorization(AUTHORIZATION)
                 .userId("cross-jvm-user")

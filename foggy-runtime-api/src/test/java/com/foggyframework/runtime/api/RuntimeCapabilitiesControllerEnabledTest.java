@@ -839,7 +839,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
     void shouldExecuteComposeThroughRuntimeEnvelope() {
         when(semanticQueryServiceV3.generateSql(eq("FactOrderQueryModel"), any(SemanticQueryRequest.class), any()))
                 .thenReturn(new SqlGenerationResult("SELECT order_id FROM fact_order", List.of(), null));
-        when(semanticQueryServiceV3.executeSql(any(), any(), eq("FactOrderQueryModel")))
+        when(semanticQueryServiceV3.executeSql(any(), any(), eq("FactOrderQueryModel"), any()))
                 .thenReturn(List.of(Map.of("orderId", "FO-001")));
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
@@ -858,7 +858,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(body.path("data").path("mode").asText()).isEqualTo("execute");
         assertThat(body.path("data").path("value").path("plans").get(0).path("orderId").asText())
                 .isEqualTo("FO-001");
-        verify(semanticQueryServiceV3).executeSql(any(), any(), eq("FactOrderQueryModel"));
+        verify(semanticQueryServiceV3).executeSql(any(), any(), eq("FactOrderQueryModel"), any());
     }
 
     @Test
