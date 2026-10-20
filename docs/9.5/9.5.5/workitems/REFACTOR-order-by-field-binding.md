@@ -160,3 +160,10 @@ Launcher 使用下一个补丁版本 0.1.26，沿用既有 prerelease 渠道；�
 按 distributionManagement 发布新的时间戳快照，排除 Launcher 与 coverage-report。
 Launcher 发布执行标准 packager、运行时 smoke 和 GitHub 六资产摘要校验。
 最终外部发布结果以 GitHub Release、issue 修复说明和后续发布记录为准。
+
+## 发布完成
+
+修复已提交并推送 main（`8c8e461b`），#145 已更新并关闭；Launcher 0.1.26 和私有
+9.3.0-SNAPSHOT 已发布。发布门禁、下载校验和首次 clean 导致的临时证据副本损失，
+详见[发布记录](../../../release/launcher-0.1.26-publication.md)。
+本地验收时“未提交/推送”的描述为当时状态；此处为后续发布结果。
