@@ -43,6 +43,7 @@ public class SimpleSqlJdbcQueryVisitor implements JdbcQueryVisitor {
      * ORDER BY 子句开始位置，用于生成不含排序的SQL
      */
     private int orderByStartIndex = -1;
+    private JdbcQuery.JdbcSelect projection;
 
     public SimpleSqlJdbcQueryVisitor(ApplicationContext appCtx, JdbcQueryModel jdbcQueryModel, DbQueryRequestDef queryRequest) {
         this.appCtx = appCtx;
@@ -61,6 +62,7 @@ public class SimpleSqlJdbcQueryVisitor implements JdbcQueryVisitor {
     @Override
     public void acceptSelect(JdbcQuery.JdbcSelect select) {
         RX.notNull(select, "select不得为空");
+        this.projection = select;
         sb.append("select\t");
         if (select.distinct) {
             sb.append(" distinct \t");
@@ -195,6 +197,22 @@ public class SimpleSqlJdbcQueryVisitor implements JdbcQueryVisitor {
             return;
         }
 
+        // SQL Server rejects the CASE null-rank expression in a DISTINCT ORDER BY.
+        // Sort an outer relation instead: retain exactly the original DISTINCT
+        // projection and parameters, with no hidden columns changing its grain.
+        boolean outerOrder = projection != null && projection.isDistinct()
+                && !dialect.supportsNativeNullsOrdering()
+                && order.getOrders().stream().anyMatch(o -> o.isNullFirst() || o.isNullLast());
+        String outerAlias = "__foggy_distinct_order";
+        if (outerOrder) {
+            String inner = sb.toString();
+            sb = new StringBuilder("select ");
+            sb.append(projection.getColumns().stream()
+                    .map(c -> outerAlias + "." + dialect.quoteIdentifier(c.getAlias()))
+                    .collect(Collectors.joining(", ")));
+            sb.append(" from (").append(inner).append(") ").append(outerAlias);
+        }
+
         // 记录 ORDER BY 子句开始位置
         this.orderByStartIndex = sb.length();
 
@@ -206,18 +224,11 @@ public class SimpleSqlJdbcQueryVisitor implements JdbcQueryVisitor {
                 sb.append(",\t");
             }
             DbColumn column = orderOrder.getSelectColumn();
-            String cn = column.getDeclareOrder(appCtx, getAlias(column.getQueryObject()), dialect);
+            String cn = outerOrder ? outerAlias + "." + dialect.quoteIdentifier(column.getAlias())
+                    : column.getDeclareOrder(appCtx, getAlias(column.getQueryObject()), dialect);
 
-            // 使用 dialect.buildNullOrderClause() 处理 NULL 排序
-            if (orderOrder.isNullLast() || orderOrder.isNullFirst()) {
-                sb.append(dialect.buildNullOrderClause(cn, orderOrder.isNullFirst()));
-            } else {
-                sb.append(cn);
-            }
-
-            if (StringUtils.isNotEmpty(orderOrder.getOrder())) {
-                sb.append(" ").append(orderOrder.getOrder());
-            }
+            sb.append(OrderBySqlRenderer.render(cn, orderOrder.getOrder(),
+                    orderOrder.isNullFirst(), orderOrder.isNullLast(), dialect));
             i++;
         }
     }

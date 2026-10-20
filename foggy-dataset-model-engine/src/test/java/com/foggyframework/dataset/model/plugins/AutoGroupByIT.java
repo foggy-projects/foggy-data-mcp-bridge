@@ -650,7 +650,7 @@ class AutoGroupByIT extends EcommerceTestSupport {
 
     // ==========================================
     // Engine 层 orderBy 处理测试
-    // 测试 addOrderByForGroupBy 方法
+    // 测试统一 OrderByPlanner
     // ==========================================
 
     @Test
@@ -658,7 +658,7 @@ class AutoGroupByIT extends EcommerceTestSupport {
     @DisplayName("Engine层orderBy - 普通维度字段排序")
     void testEngineOrderBy_DimensionField() {
         // 测试：普通维度字段在 GROUP BY 场景下的排序
-        // 验证 Engine 层 addOrderByForGroupBy 正确处理维度字段
+        // 验证 Engine 层 OrderByPlanner 正确处理维度字段
 
         // 1. 原生 SQL 查询（按品类名称降序）
         String nativeSql = """
@@ -711,7 +711,7 @@ class AutoGroupByIT extends EcommerceTestSupport {
     @DisplayName("Engine层orderBy - 聚合字段排序")
     void testEngineOrderBy_AggregateField() {
         // 测试：聚合字段在 GROUP BY 场景下的排序
-        // 验证 Engine 层 addOrderByForGroupBy 正确处理聚合字段
+        // 验证 Engine 层 OrderByPlanner 正确处理聚合字段
 
         // 1. 原生 SQL 查询（按销售额降序）
         String nativeSql = """
@@ -964,60 +964,15 @@ class AutoGroupByIT extends EcommerceTestSupport {
 
     @Test
     @Order(16)
-    @DisplayName("Engine层orderBy - 不在SELECT中的字段被忽略")
-    void testEngineOrderBy_FieldNotInSelect_Ignored() {
-        // 测试：orderBy 字段不在 SELECT 中时应被忽略
-        // 这验证了 Engine 层的最后一道防线
-
-        // 1. 原生 SQL 查询（只按品类名称排序，因为 orderId 不在 SELECT 中）
-        String nativeSql = """
-                SELECT
-                    dp.category_name as category_name,
-                    SUM(fs.sales_amount) as total_sales
-                FROM fact_sales fs
-                LEFT JOIN dim_product dp ON fs.product_key = dp.product_key
-                GROUP BY dp.category_name
-                ORDER BY dp.category_name ASC
-                """;
-        List<Map<String, Object>> nativeResults = executeQuery(nativeSql);
-        log.info("原生 SQL 结果: {} 条", nativeResults.size());
-
-        // 2. QueryModel 查询 - 请求按 orderId 排序（不在 SELECT 中）
+    @DisplayName("Engine层orderBy - 自动分组拒绝未投影字段")
+    void testEngineOrderBy_FieldNotInSelect_Rejected() {
         DbQueryRequestDef request = new DbQueryRequestDef();
         request.setQueryModel("FactSalesQueryModel");
-        request.setColumns(Arrays.asList(
-                "product$categoryName",
-                "sum(salesAmount) as salesAmount2"
-        ));
-
-        // 故意添加一个不在 SELECT 中的排序字段
-        List<OrderRequestDef> orders = new ArrayList<>();
-        orders.add(createOrder("product$categoryName", "ASC"));
-        orders.add(createOrder("orderId", "DESC"));  // orderId 不在 SELECT 中
-        request.setOrderBy(orders);
-
-        PagingResultImpl result = queryFacade.queryModelData(
-                PagingRequest.buildPagingRequest(request, 100));
-        List<Map<String, Object>> items = result.getItems();
-
-        log.info("QueryModel 查询结果 (含无效排序字段): {} 条", items.size());
-
-        // 3. 验证结果：应该成功执行，只是 orderId 排序被忽略
-        assertEquals(nativeResults.size(), items.size(), "结果行数应一致");
-
-        for (int i = 0; i < nativeResults.size(); i++) {
-            Map<String, Object> nativeRow = nativeResults.get(i);
-            Map<String, Object> row = items.get(i);
-
-            String categoryName = (String) nativeRow.get("category_name");
-            log.info("行 {}: categoryName={}, salesAmount2={}",
-                    i, categoryName, row.get("salesAmount2"));
-
-            assertEquals(categoryName, row.get("product$categoryName"),
-                    "品类名称应一致: 行 " + i);
-            assertDecimalEquals(nativeRow.get("total_sales"), row.get("salesAmount2"),
-                    "salesAmount2 应一致: " + categoryName);
-        }
+        request.setColumns(Arrays.asList("product$categoryName", "sum(salesAmount) as salesAmount2"));
+        request.setOrderBy(List.of(createOrder("product$categoryName", "ASC"), createOrder("orderId", "DESC")));
+        RuntimeException failure = assertThrows(RuntimeException.class,
+                () -> queryFacade.queryModelData(PagingRequest.buildPagingRequest(request, 100)));
+        assertTrue(failure.getMessage().contains("GROUP_BY_ORDER_BY_NOT_SELECTED"), failure.toString());
     }
 
     @Test

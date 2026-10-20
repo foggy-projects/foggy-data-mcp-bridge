@@ -260,6 +260,31 @@ Compose、pivot、semantic planner 和 memory-grid routing 是 engine 能力，�
 脚本能力，必须放在作者/管理面并由管理凭据保护；普通查询身份不能借该入口执行 `get/post` 或
 导入宿主 Bean。
 
+### JDBC 排序与字段绑定
+
+排序属于 engine 查询编译阶段。`AutoGroupByStep` 只补充分组，不按请求字符串删排序。
+`OrderByFieldBindings` 在当前请求内保存 SELECT 源表达式与分组后投影的 lineage；
+公开名称是解析入口，不作为表达式身份。只解开纯 QM alias 包装，保留表实例、计算、
+semantic scale 和聚合表达式的差异。这不是公共 SPI 或可跨模型 generation 持久化的身份。
+
+`OrderByPlanner` 为普通、DISTINCT、GROUP BY 共享绑定、优先级和去重：
+
+- 保留脚本预置排序的既有优先级，其后依次为请求排序、QM 默认排序（含隐式主键）。
+  同一绑定表达式只保留首项的方向与 null 选项，不修改共享 QM order 对象。
+- 请求先按计算字段 / SELECT 字段语义解析；普通查询仍兼容仅有 condition 定义的名称。
+  条件解析器不得覆盖同名 SELECT 字段的排序含义。
+- 普通查询允许非投影排序；DISTINCT / GROUP BY 按当前投影和结果阶段边界校验，
+  非法显式排序报错，非投影模型默认项可省略，不能为了排序扩充 DISTINCT 投影。
+- 默认排序导致的 JOIN 仍保留，避免改变 INNER JOIN 的行过滤语义。JOIN 裁剪属于独立优化。
+- window 排序消费绑定后的表达式；postAggregate 排序在结果阶段按输出 alias 去重。
+  `OrderBySqlRenderer` 统一方向与 native/emulated NULL 排序的拼接。
+  非 native 方言的 DISTINCT + NULL 位置排序在保持原投影的派生关系外层执行，
+  避免把 CASE null rank 加入 DISTINCT 投影或生成 SQL Server 不接受的 ORDER BY。
+
+自动分组过去可能静默删除的非法显式排序现改为编译错误；调用方需删除该排序或显式选择
+合法的分组/聚合字段。给 DISTINCT 增加投影字段会改变去重粒度，不能作为自动迁移。
+具体影响与验证见 [统一排序 workitem](../9.5/9.5.5/workitems/REFACTOR-order-by-field-binding.md)。
+
 ## 8. 缓存与失效
 
 查询缓存 provider 当前只声明 `CACHE_INVALIDATION`。这表示它实现按契约触发失效，不表示它

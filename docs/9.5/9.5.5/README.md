@@ -15,6 +15,8 @@ recorded_at: 2026-08-01
 
 | Work item | 状态 | 目标 |
 |---|---|---|
+| [统一排序与字段绑定](workitems/REFACTOR-order-by-field-binding.md) | LOCALLY VERIFIED | 统一请求内投影绑定、排序优先级和去重；普通查询 SQL Server 重复排序修复，专项、五数据库及全量测试通过 |
+| [DISTINCT 排序丢失 #145](workitems/BUG-145-distinct-order-by.md) | LOCALLY VERIFIED | 59 项专项、Windows/Linux 全量、五数据库、前端及原始 Chinook 重放通过；含 SQL Server 重复默认排序修复 |
 | [Mongo 逻辑条件组执行](workitems/BUG-mongo-logical-condition-groups.md) | LOCALLY VERIFIED | 修复多字段 OR 条件崩溃；3 项定向回归及下游 4 组真实查询通过 |
 | [Aggregate relation COUNT 外层汇总](workitems/BUG-aggregate-relation-count-rollup.md) | READY_FOR_REVIEW | COUNT 输出列外层改用 SUM，105 项定向回归与固定环境回读通过；显式聚合 alias 总计 null 单独记录 |
 | [Artifact/store 生命周期基础探针](workitems/SPIKE-runtime-artifact-store-lifecycle-foundations.md) | ACCEPTED | 双 store inventory、跨 store/live 引用图、中断 characterization 与安全后续边界已正式验收；未修改生产实现 |

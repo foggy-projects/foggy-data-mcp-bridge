@@ -10,6 +10,7 @@ import com.foggyframework.dataset.model.def.query.request.PostAggregateCalculati
 import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.model.engine.expression.BoundSqlExpression;
 import com.foggyframework.dataset.model.engine.query.JdbcQuery;
+import com.foggyframework.dataset.model.engine.query.OrderBySqlRenderer;
 import com.foggyframework.dataset.model.engine.stage.QueryStagePlan;
 import com.foggyframework.dataset.model.engine.stage.QueryStageType;
 import com.foggyframework.dataset.model.engine.total.AggregateStateColumnFactory;
@@ -298,15 +299,15 @@ public final class ResultStagePreparationFactory {
         }
 
         List<BoundSqlExpression> finalOrders = new ArrayList<>();
+        Set<String> orderedAliases = new LinkedHashSet<>();
         if (queryRequest.getOrderBy() != null) {
             for (OrderRequestDef order : queryRequest.getOrderBy()) {
-                if (!finalAliases.contains(order.getField())) {
+                if (!finalAliases.contains(order.getField()) || !orderedAliases.add(order.getField())) {
                     continue;
                 }
-                String orderSql = dialect.quoteIdentifier(order.getField());
-                if (StringUtils.isNotEmpty(order.getDir())) {
-                    orderSql += " " + order.getDir().toUpperCase();
-                }
+                String orderSql = OrderBySqlRenderer.render(dialect.quoteIdentifier(order.getField()),
+                        order.getDir() == null ? null : order.getDir().toUpperCase(Locale.ROOT),
+                        order.isNullFirst(), order.isNullLast(), dialect);
                 finalOrders.add(BoundSqlExpression.of(orderSql));
             }
         }
@@ -374,12 +375,8 @@ public final class ResultStagePreparationFactory {
             if (isWindowCol) {
                 orderRef = dialect.quoteIdentifier(orderCol.getAlias());
             }
-            if (order.isNullLast() || order.isNullFirst()) {
-                orderRef = dialect.buildNullOrderClause(orderRef, order.isNullFirst());
-            }
-            if (StringUtils.isNotEmpty(order.getOrder())) {
-                orderRef += " " + order.getOrder();
-            }
+            orderRef = OrderBySqlRenderer.render(orderRef, order.getOrder(),
+                    order.isNullFirst(), order.isNullLast(), dialect);
             orderExprs.add(orderRef);
         }
         return orderExprs;

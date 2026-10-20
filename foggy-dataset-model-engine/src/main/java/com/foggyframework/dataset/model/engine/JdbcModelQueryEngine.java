@@ -37,6 +37,8 @@ import com.foggyframework.dataset.model.engine.pivot.transport.SqliteCteDomainRe
 import com.foggyframework.dataset.model.engine.pivot.transport.UnsupportedDomainRenderer;
 import com.foggyframework.dataset.model.engine.postagg.PostAggregateRatioToTotalSupport;
 import com.foggyframework.dataset.model.engine.query.JdbcQuery;
+import com.foggyframework.dataset.model.engine.query.OrderByFieldBindings;
+import com.foggyframework.dataset.model.engine.query.OrderByPlanner;
 import com.foggyframework.dataset.model.engine.query.SimpleSqlJdbcQueryVisitor;
 import com.foggyframework.dataset.model.engine.query_model.PredefinedCalculatedFieldInjector;
 import com.foggyframework.dataset.model.engine.stage.QueryStagePlan;
@@ -410,9 +412,8 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
 
 
-        // DISTINCT + ORDER BY 冲突处理移至 ORDER BY 全部添加完成之后（见下方 else 分支末尾）
-
-
+        // Keep explicit lineage before GROUP BY replaces sources with aggregate expressions.
+        List<DbColumn> orderSources = new ArrayList<>(jdbcQuery.getSelect().getColumns());
         if (queryRequest.hasGroupBy()) {
             //当有分组时，我们直接在jdbcQuery加入groupBy
             int idx=0;
@@ -449,59 +450,8 @@ public class JdbcModelQueryEngine implements QueryEngine {
                 idx++;
             }
 
-            // 存在分组时，处理排序：只保留在 SELECT 中的排序字段
-            addOrderByForGroupBy(jdbcQuery, jdbcQueryModel, queryRequest);
-
-        }else{
-            //没有分组，正常进行排序
-            if (queryRequest.getOrderBy() != null) {
-                for (OrderRequestDef orderRequestDef : queryRequest.getOrderBy()) {
-
-                    validate(orderRequestDef.getDir());
-                    DbColumn jdbcColumn = findCalculatedColumn(orderRequestDef.getField());
-                    if (jdbcColumn != null) {
-                        joinReferencedColumns(jdbcQuery, jdbcColumn);
-                    } else {
-                        jdbcColumn = jdbcQueryModel.findJdbcColumnForCond(orderRequestDef.getField(), true);
-                    }
-                    rejectDictionaryCaptionOrder(orderRequestDef.getField(), jdbcColumn);
-                    jdbcQuery.addOrder(new DbQueryOrderColumnImpl(jdbcColumn, orderRequestDef.getDir(), orderRequestDef.isNullLast(), orderRequestDef.isNullFirst()));
-
-                }
-            }
-
-            //加模QM型默认排序
-            if (jdbcQueryModel.getOrders() != null && !jdbcQueryModel.getOrders().isEmpty()
-                    && !hasAggregateSelect(jdbcQuery)) {
-                for (DbQueryOrderColumnImpl order : jdbcQueryModel.getOrders()) {
-                    rejectDictionaryCaptionOrder(order.getSelectColumn().getName(), order.getSelectColumn());
-                }
-                jdbcQuery.addOrders(jdbcQueryModel.getOrders());
-                for (DbQueryOrderColumnImpl order : jdbcQuery.getOrder().getOrders()) {
-                    if (jdbcQuery.containSelect(order.getSelectColumn())) {
-                        continue;
-                    }
-                    // 为 ORDER BY 中的计算字段触发 JOIN
-                    DbColumn selectColumn = order.getSelectColumn();
-                    if (selectColumn.isCalculatedField()) {
-                        joinReferencedColumns(jdbcQuery, selectColumn);
-                    } else {
-                        jdbcQuery.join(selectColumn.getQueryObject());
-                    }
-                }
-            }
-
-            // DISTINCT 查询：移除 ORDER BY 中不在 SELECT 列表中的列
-            // （PostgreSQL 等数据库要求 SELECT DISTINCT 的 ORDER BY 列必须出现在 SELECT 中，
-            //   不能反过来把 ORDER BY 列加入 SELECT，否则会破坏 DISTINCT 语义）
-            if (jdbcQuery.getSelect().isDistinct() && jdbcQuery.getOrder() != null) {
-                jdbcQuery.getOrder().getOrders().removeIf(order ->
-                        !jdbcQuery.containSelect(order.getSelectColumn()));
-                if (jdbcQuery.getOrder().getOrders().isEmpty()) {
-                    jdbcQuery.setOrder(null);
-                }
-            }
         }
+        planOrderBy(jdbcQuery, queryRequest, orderSources);
 
 
         // 4.生成明细查询语句
@@ -2889,122 +2839,76 @@ public class JdbcModelQueryEngine implements QueryEngine {
         return calculatedColumns;
     }
 
-    /**
-     * 存在分组时处理排序
-     * <p>
-     * 存在 GROUP BY 时，ORDER BY 字段必须在 SELECT 中，否则会导致 SQL 错误。
-     * 此方法作为 Engine 层的最后一道防线，确保最终 SQL 的正确性。
-     * </p>
-     * <p>
-     * 处理顺序：
-     * <ol>
-     *   <li>先处理用户请求的 orderBy（queryRequest.getOrderBy()）</li>
-     *   <li>再处理 QueryModel 默认排序（jdbcQueryModel.getOrders()）</li>
-     * </ol>
-     * 对于不在 SELECT 中的字段，记录警告并跳过。
-     * </p>
-     *
-     * @param jdbcQuery      查询对象
-     * @param jdbcQueryModel 查询模型
-     * @param queryRequest   查询请求
-     */
-    private void addOrderByForGroupBy(JdbcQuery jdbcQuery, JdbcQueryModel jdbcQueryModel, DbQueryRequestDef queryRequest) {
-        // 构建业务名 -> SELECT 列的映射
-        // queryRequest.getColumns() 中的名称与 jdbcQuery.getSelect().getColumns() 一一对应
-        List<DbColumn> selectColumns = jdbcQuery.getSelect().getColumns();
-        List<String> requestColumns = queryRequest.getColumns();
-        Map<String, DbColumn> columnNameMap = new java.util.HashMap<>();
-        Set<String> postAggregateNames = postAggregateNames(queryRequest);
-
-        if (requestColumns != null && requestColumns.size() == selectColumns.size()) {
-            for (int i = 0; i < requestColumns.size(); i++) {
-                columnNameMap.put(requestColumns.get(i), selectColumns.get(i));
+    /** Resolve every order against one request-local projection binding and precedence policy. */
+    private void planOrderBy(JdbcQuery query, DbQueryRequestDef request, List<DbColumn> sources) {
+        OrderByPlanner.Mode mode = request.hasGroupBy() ? OrderByPlanner.Mode.GROUPED
+                : query.getSelect().isDistinct() ? OrderByPlanner.Mode.DISTINCT : OrderByPlanner.Mode.DETAIL;
+        OrderByFieldBindings bindings = new OrderByFieldBindings(sources, query.getSelect().getColumns());
+        OrderByPlanner planner = new OrderByPlanner(mode, bindings);
+        List<DbQueryOrderColumnImpl> inherited = query.getOrder() == null
+                ? List.of() : new ArrayList<>(query.getOrder().getOrders());
+        // Preserve trusted access-script precedence over request and model orders.
+        for (DbQueryOrderColumnImpl order : inherited) {
+            rejectDictionaryCaptionOrder(order.getSelectColumn().getName(), order.getSelectColumn());
+            planner.optional(order);
+            if (mode == OrderByPlanner.Mode.DETAIL) {
+                joinOrderDependencies(query, order.getSelectColumn());
             }
+        }
+        Set<String> deferredNames = postAggregateNames(request);
+        if (request.getOrderBy() != null) {
+            for (OrderRequestDef order : request.getOrderBy()) {
+                validate(order.getDir());
+                if (deferredNames.contains(order.getField())) {
+                    continue; // The post-aggregate renderer binds this later-stage expression.
+                }
+                DbColumn source = findCalculatedColumn(order.getField());
+                if (source == null) {
+                    source = bindings.source(order.getField());
+                }
+                if (source == null) {
+                    source = jdbcQueryModel.findJdbcColumnForSelectByName(order.getField(), false);
+                }
+                if (source == null && mode == OrderByPlanner.Mode.DETAIL) {
+                    // Retain condition-only names supported by existing detail queries.
+                    source = jdbcQueryModel.findJdbcColumnForCond(order.getField(), true);
+                }
+                rejectDictionaryCaptionOrder(order.getField(), source);
+                boolean resultStage = source instanceof CalculatedDbColumn calculated
+                        && calculated.getResultStageDepth() > 0;
+                planner.explicit(order.getField(), source, order.getDir(),
+                        order.isNullLast(), order.isNullFirst(), resultStage);
+                if (mode == OrderByPlanner.Mode.DETAIL) {
+                    joinOrderDependencies(query, source);
+                }
+            }
+        }
+        if (jdbcQueryModel.getOrders() != null
+                && (mode == OrderByPlanner.Mode.GROUPED || !hasAggregateSelect(query))) {
+            for (DbQueryOrderColumnImpl order : jdbcQueryModel.getOrders()) {
+                DbColumn source = order.getSelectColumn();
+                // Preserve the old default-order JOIN even if the order is omitted
+                // or deduplicated. Removing an INNER JOIN could change the row set.
+                if (mode != OrderByPlanner.Mode.GROUPED && !query.containSelect(source)) {
+                    joinOrderDependencies(query, source);
+                }
+                if (mode != OrderByPlanner.Mode.GROUPED || bindings.projection(source) != null) {
+                    rejectDictionaryCaptionOrder(source.getName(), source);
+                }
+                planner.optional(order);
+            }
+        }
+        query.setOrder(null);
+        for (DbQueryOrderColumnImpl order : planner.orders()) {
+            query.addOrder(order);
+        }
+    }
+
+    private void joinOrderDependencies(JdbcQuery query, DbColumn column) {
+        if (column.isCalculatedField()) {
+            joinReferencedColumns(query, column);
         } else {
-            // 回退：使用 alias 作为 key
-            for (DbColumn col : selectColumns) {
-                if (col.getAlias() != null) {
-                    columnNameMap.put(col.getAlias(), col);
-                }
-            }
-        }
-
-        List<String> skippedFields = new ArrayList<>();
-
-        // 1. 处理用户请求的 orderBy
-        if (queryRequest.getOrderBy() != null) {
-            for (OrderRequestDef orderRequestDef : queryRequest.getOrderBy()) {
-                String fieldName = orderRequestDef.getField();
-                if (postAggregateNames.contains(fieldName)) {
-                    continue;
-                }
-
-                // 查找匹配的 SELECT 列
-                DbColumn selectColumn = columnNameMap.get(fieldName);
-                if (selectColumn == null && calculatedColumns != null) {
-                    selectColumn = calculatedColumns.stream().filter(c -> c.getResultStageDepth() > 0
-                            && (fieldName.equals(c.getName()) || fieldName.equals(c.getAlias()))).findFirst().orElse(null);
-                }
-
-                if (selectColumn != null) {
-                    // 字段在 SELECT 中，添加排序
-                    DbColumn semanticColumn = jdbcQueryModel.findJdbcColumnForCond(fieldName, false, true);
-                    rejectDictionaryCaptionOrder(fieldName, semanticColumn);
-                    validate(orderRequestDef.getDir());
-                    jdbcQuery.addOrder(new DbQueryOrderColumnImpl(
-                            selectColumn,
-                            orderRequestDef.getDir(),
-                            orderRequestDef.isNullLast(),
-                            orderRequestDef.isNullFirst()
-                    ));
-                } else {
-                    // 字段不在 SELECT 中，记录并跳过
-                    skippedFields.add(fieldName);
-                }
-            }
-        }
-
-        // 2. 处理 QueryModel 默认排序
-        // 注意：默认排序使用的是模型定义的字段名/alias，需要匹配
-        List<DbQueryOrderColumnImpl> modelOrders = jdbcQueryModel.getOrders();
-        if (modelOrders != null && !modelOrders.isEmpty()) {
-            for (DbQueryOrderColumnImpl modelOrder : modelOrders) {
-                DbColumn orderColumn = modelOrder.getSelectColumn();
-                String fieldName = orderColumn.getName();
-                String fieldAlias = orderColumn.getAlias();
-
-                // 尝试用 name 和 alias 查找
-                DbColumn selectColumn = columnNameMap.get(fieldName);
-                if (selectColumn == null && fieldAlias != null) {
-                    selectColumn = columnNameMap.get(fieldAlias);
-                }
-
-                if (selectColumn != null) {
-                    rejectDictionaryCaptionOrder(fieldName, orderColumn);
-                    // 检查是否已添加（避免重复）
-                    final DbColumn finalSelectColumn = selectColumn;
-                    boolean alreadyAdded = false;
-                    if (jdbcQuery.getOrder() != null && jdbcQuery.getOrder().getOrders() != null) {
-                        alreadyAdded = jdbcQuery.getOrder().getOrders().stream()
-                                .anyMatch(o -> o.getSelectColumn() == finalSelectColumn);
-                    }
-
-                    if (!alreadyAdded) {
-                        jdbcQuery.addOrder(new DbQueryOrderColumnImpl(
-                                selectColumn,
-                                modelOrder.getOrder(),
-                                modelOrder.isNullLast(),
-                                modelOrder.isNullFirst()
-                        ));
-                    }
-                }
-            }
-        }
-
-        // 记录警告日志
-        if (!skippedFields.isEmpty()) {
-//            log.warn("GroupBy 模式下忽略了不在 SELECT 中的 orderBy 字段: {}", skippedFields);
-            throw RX.throwA("GroupBy 模式下 orderBy 字段 必须在columns存在，但: " + skippedFields+" 没有在columns中出现，请根据需求调整groupBy中的字段，或加入field");
+            query.join(column.getQueryObject());
         }
     }
 

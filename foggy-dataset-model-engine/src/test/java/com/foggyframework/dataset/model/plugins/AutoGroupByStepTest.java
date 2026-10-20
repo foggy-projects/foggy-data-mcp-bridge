@@ -301,8 +301,8 @@ class AutoGroupByStepTest {
 
     @Test
     @Order(9)
-    @DisplayName("orderBy 字段不在 SELECT 中时警告并忽略")
-    void testOrderByNotInSelect_WarnAndRemove() {
+    @DisplayName("orderBy 保留到引擎完成字段绑定后校验")
+    void testOrderByNotInSelect_DeferredToEngine() {
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setAutoGroupBy(true);
         queryRequest.setColumns(Arrays.asList(
@@ -325,10 +325,10 @@ class AutoGroupByStepTest {
         ModelResultContext ctx = createContext(queryRequest);
         executeSteps(ctx);
 
-        // orderBy 应该只保留 product$categoryName
+        // A field label alone cannot establish whether it aliases a projection.
         List<OrderRequestDef> resultOrderBy = queryRequest.getOrderBy();
         assertNotNull(resultOrderBy);
-        assertEquals(1, resultOrderBy.size());
+        assertEquals(2, resultOrderBy.size());
         assertEquals("product$categoryName", resultOrderBy.get(0).getField());
 
         log.info("清理后的 orderBy: {}", resultOrderBy);
@@ -336,8 +336,8 @@ class AutoGroupByStepTest {
 
     @Test
     @Order(10)
-    @DisplayName("orderBy 字段全部不在 SELECT 中时设为 null")
-    void testOrderByAllInvalid_SetNull() {
+    @DisplayName("未投影的 orderBy 不在预处理阶段静默删除")
+    void testOrderByAllInvalid_KeepForEngineValidation() {
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setAutoGroupBy(true);
         queryRequest.setColumns(Arrays.asList(
@@ -358,10 +358,8 @@ class AutoGroupByStepTest {
         ModelResultContext ctx = createContext(queryRequest);
         executeSteps(ctx);
 
-        // orderBy 应该被设为 null
-        assertNull(queryRequest.getOrderBy());
-
-        log.info("所有 orderBy 字段无效，已清空");
+        assertSame(orderBy, queryRequest.getOrderBy());
+        assertEquals(2, queryRequest.getOrderBy().size());
     }
 
     @Test
