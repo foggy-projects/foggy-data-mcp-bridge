@@ -560,6 +560,7 @@ public final class ScriptRuntime {
         def.setName((String) map.get("name"));
         def.setCaption((String) map.get("caption"));
         def.setExpression((String) map.get("expression"));
+        def.setAlias((String) map.get("alias"));
         def.setDescription((String) map.get("description"));
         def.setAgg((String) map.get("agg"));
         return def;

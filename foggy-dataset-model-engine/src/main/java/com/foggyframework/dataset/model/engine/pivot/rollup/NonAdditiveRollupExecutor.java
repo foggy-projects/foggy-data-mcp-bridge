@@ -44,8 +44,11 @@ public class NonAdditiveRollupExecutor {
 
     private final PivotRollupExecutionPort pivotRollupExecutionPort;
 
-    public NonAdditiveRollupExecutor(PivotRollupExecutionPort pivotRollupExecutionPort) {
-        this.pivotRollupExecutionPort = pivotRollupExecutionPort;
+    private final com.foggyframework.dataset.model.spi.QueryModel queryModel;
+    public NonAdditiveRollupExecutor(PivotRollupExecutionPort port) { this(port, null); }
+    public NonAdditiveRollupExecutor(PivotRollupExecutionPort port, com.foggyframework.dataset.model.spi.QueryModel model) {
+        this.pivotRollupExecutionPort = port;
+        this.queryModel = model;
     }
 
     /**
@@ -285,7 +288,12 @@ public class NonAdditiveRollupExecutor {
             return null;
         }
 
-        return new GrainSqlPart(grain, grainIndex, sqlResult.sql(), sqlResult.params());
+        String sql = sqlResult.sql();
+        if (queryModel instanceof com.foggyframework.dataset.model.engine.query_model.JdbcQueryModelImpl jdbc) {
+            sql = com.foggyframework.dataset.model.impl.query.QueryFieldBindings.logicalSql(sql, jdbc.getDialect(), queryModel,
+                    auxRequest.getColumns(), auxRequest.getCalculatedFields());
+        }
+        return new GrainSqlPart(grain, grainIndex, sql, sqlResult.params());
     }
 
     /**
@@ -367,8 +375,8 @@ public class NonAdditiveRollupExecutor {
         SemanticQueryResponse response = pivotRollupExecutionPort.queryModel(
                 model, auxRequest, "execute", withDomainTransportPlans(context, domainTransportPlans));
 
-        List<Map<String, Object>> rows = response.getItems() != null
-                ? response.getItems() : Collections.emptyList();
+        List<Map<String, Object>> rows = com.foggyframework.dataset.model.impl.query.QueryFieldBindings.logicalRows(
+                response.getItems(), queryModel, auxRequest.getColumns(), auxRequest.getCalculatedFields());
 
         // 写入 cache
         for (Map<String, Object> row : rows) {

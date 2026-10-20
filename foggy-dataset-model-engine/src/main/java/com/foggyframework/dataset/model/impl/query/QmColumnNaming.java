@@ -40,6 +40,13 @@ public final class QmColumnNaming {
         return name == null ? null : FieldAccessPermissionStep.stripDimensionSuffix(name);
     }
 
+    public static boolean exposesMeasure(QueryModel model, DbMeasure measure) {
+        DbQueryColumn column = model.findJdbcColumnForSelectByName(measure.getName(), false);
+        if (column == null || !column.isMeasure()) return false;
+        DbMeasureColumn source = column.getSelectColumn().getDecorate(DbMeasureColumn.class);
+        return source != null && source.getJdbcMeasure() == measure;
+    }
+
     public static boolean overridesProperty(QueryModel model, DbProperty property) {
         // A QM may expose both the original property and a renamed projection.
         // Only suppress the TM-derived metadata entry when its input name is no longer declared.

@@ -1248,6 +1248,7 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                     if (StringUtils.isNotEmpty(item.getFormula())) {
                         CalculatedFieldDef calc = new CalculatedFieldDef();
                         calc.setName(item.getName());
+                        calc.setAlias(item.getAlias());
                         calc.setCaption(item.getCaption());
                         calc.setExpression(item.getFormula());
                         calc.setType(item.getType());

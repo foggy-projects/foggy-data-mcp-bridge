@@ -207,20 +207,13 @@ public final class PhysicalColumnMappingBuilder {
             return;
         }
 
-        // 构建计算字段名→表达式映射
-        Map<String, String> calcFieldMap = new LinkedHashMap<>();
-        for (CalculatedFieldDef calc : calcFields) {
-            if (calc.getName() != null && calc.getExpression() != null) {
-                calcFieldMap.put(calc.getName(), calc.getExpression());
-            }
-        }
+        var calcFieldMap = com.foggyframework.dataset.model.engine.expression.CalculatedFieldDependencies.index(calcFields);
 
         for (CalculatedFieldDef calc : calcFields) {
             if (calc.getExpression() == null) continue;
             try {
                 // 传递解析到基础字段
-                Set<String> baseDeps = CalculatedFieldService.resolveBaseColumnReferences(
-                        calc.getExpression(), calcFieldMap);
+                Set<String> baseDeps = com.foggyframework.dataset.model.engine.expression.CalculatedFieldDependencies.base(calc, calcFieldMap);
                 // 收集所有基础字段的物理列
                 for (String baseDep : baseDeps) {
                     List<PhysicalColumnRef> baseRefs = qmToPhysical.get(baseDep);
@@ -231,7 +224,7 @@ public final class PhysicalColumnMappingBuilder {
                     }
                 }
             } catch (Exception e) {
-                log.debug("Failed to resolve calculated field '{}' dependencies: {}", calc.getName(), e.getMessage());
+                throw new IllegalArgumentException("Cannot resolve calculated field dependencies: " + calc.getName(), e);
             }
         }
     }

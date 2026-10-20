@@ -114,3 +114,5 @@ flowchart LR
 - 引入新的持久化 backend、缓存、memory-grid 或远程执行路径。
 
 版本验收文档是不可改写的历史证据。架构演进后更新本目录，不回写旧版本的签收结论。
+
+- [引擎字段绑定与计算依赖](engine-field-binding-and-dependencies.md)：查询标识、输出键、权限依赖及 pivot 边界。

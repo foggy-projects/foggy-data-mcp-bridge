@@ -184,6 +184,10 @@ public class SemanticQueryResponse {
             @ApiModelProperty(value = "列名", example = "team$caption")
             private String name;
 
+            /** Query identifier when different from the result key. */
+            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+            private String queryName;
+
             @ApiModelProperty(value = "数据类型", example = "STRING")
             private DbColumnType dataType;
 

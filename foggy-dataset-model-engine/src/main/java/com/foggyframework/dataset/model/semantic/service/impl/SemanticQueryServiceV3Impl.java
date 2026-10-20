@@ -1925,7 +1925,9 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
 
                 SemanticQueryResponse.SchemaInfo.ColumnDef columnDef =
                         new SemanticQueryResponse.SchemaInfo.ColumnDef();
-                columnDef.setName(columnName);
+                String outputName = com.foggyframework.dataset.model.impl.query.QueryFieldBindings.outputName(queryModel, columnName, request.getCalculatedFields());
+                columnDef.setName(outputName);
+                if (!columnName.equals(outputName)) columnDef.setQueryName(columnName);
 
                 if (queryColumn != null) {
                     columnDef.setTitle(queryColumn.getCaption());
@@ -1977,17 +1979,18 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         }
 
         for (SemanticQueryResponse.SchemaInfo.ColumnDef col : columnDefs) {
-            if (groupByNames.contains(col.getName())) {
-                dimensions.add(col.getTitle() != null ? col.getTitle() : col.getName());
+            String queryName = col.getQueryName() != null ? col.getQueryName() : col.getName();
+            if (groupByNames.contains(queryName)) {
+                dimensions.add(col.getTitle() != null ? col.getTitle() : queryName);
             } else {
                 // 找到对应的聚合类型
-                String aggType = findAggregationType(col.getName(), groupBy);
+                String aggType = findAggregationType(queryName, groupBy);
                 if (aggType != null) {
                     measures.add(col.getTitle() != null
                             ? col.getTitle() + "(" + translateAggType(aggType) + ")"
-                            : col.getName());
+                            : queryName);
                 } else {
-                    measures.add(col.getTitle() != null ? col.getTitle() : col.getName());
+                    measures.add(col.getTitle() != null ? col.getTitle() : queryName);
                 }
             }
         }

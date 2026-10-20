@@ -52,6 +52,10 @@ public class CalculatedFieldDef {
     @ApiModelProperty(value = "字段名", notes = "在 columns、groupBy 中引用此计算字段的名称", required = true, example = "salesVsQuota")
     private String name;
 
+    /** Output key; defaults to the query name. */
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    private String alias;
+
     /**
      * 显示名称
      */
@@ -160,6 +164,15 @@ public class CalculatedFieldDef {
     /** Original payload location, retained through normalization/topological ordering. */
     @JsonIgnore
     private transient String sourcePath;
+
+    /** Retain the pre-alias constructor for existing Java callers. */
+    public CalculatedFieldDef(String name, String caption, String expression, String description,
+                              String agg, List<String> partitionBy, List<WindowOrderDef> windowOrderBy,
+                              String windowFrame, String type, Object emptyDefault, Exp compiledExp,
+                              Origin origin, String sourcePath) {
+        this(name, null, caption, expression, description, agg, partitionBy, windowOrderBy,
+                windowFrame, type, emptyDefault, compiledExp, origin, sourcePath);
+    }
 
     /**
      * 便捷构造方法

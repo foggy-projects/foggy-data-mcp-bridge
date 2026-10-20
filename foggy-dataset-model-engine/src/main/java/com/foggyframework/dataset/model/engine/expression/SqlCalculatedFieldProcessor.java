@@ -42,6 +42,7 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
     private final Map<String, Integer> originalIndexes = new LinkedHashMap<>();
     private final List<CalculatedDbColumn> liftedColumns = new ArrayList<>();
     private int hiddenSequence;
+    private final Map<String, String> projectionSources = new LinkedHashMap<>();
 
 
     public SqlCalculatedFieldProcessor(JdbcQueryModel queryModel, FDialect dialect) {
@@ -63,6 +64,12 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
 
         List<CalculatedFieldDef> normalizedFields = deduplicateQueryModelPredefinedFields(calculatedFields);
 
+        projectionSources.clear();
+        for (CalculatedFieldDef field : normalizedFields) {
+            if (field.getOrigin() == CalculatedFieldDef.Origin.PLAIN_ALIAS) {
+                projectionSources.put(field.getName(), field.getExpression());
+            }
+        }
         originalIndexes.clear();
         for (int i = 0; i < normalizedFields.size(); i++) {
             originalIndexes.putIfAbsent(normalizedFields.get(i).getName(), i);
@@ -252,6 +259,7 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
             }
 
             // 4. 注册到上下文（支持后续字段引用）
+            column.setOutputAlias(fieldDef.getAlias());
             context.registerCalculatedColumn(fieldDef.getName(), column);
 
             if (log.isDebugEnabled()) {
@@ -379,6 +387,7 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
         return left != null
                 && right != null
                 && Objects.equals(left.getName(), right.getName())
+                && Objects.equals(left.getAlias(), right.getAlias())
                 && Objects.equals(left.getExpression(), right.getExpression())
                 && Objects.equals(left.getAgg(), right.getAgg())
                 && Objects.equals(left.getPartitionBy(), right.getPartitionBy())
@@ -561,10 +570,17 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
         return baseAggregateMeasureRef && !AGGREGATE_FUNCTION_CALL.matcher(fieldDef.getExpression()).find();
     }
 
+    private String projectionSource(String field) {
+        Set<String> visited = new HashSet<>();
+        while (projectionSources.containsKey(field) && visited.add(field)) field = projectionSources.get(field);
+        return field;
+    }
+
     private boolean isSelectedField(CalculatedFieldDef fieldDef) {
         return calculateQueryContext != null
                 && calculateQueryContext.getSelectedFields() != null
-                && calculateQueryContext.getSelectedFields().contains(fieldDef.getName());
+                && calculateQueryContext.getSelectedFields().stream()
+                .map(this::projectionSource).anyMatch(fieldDef.getName()::equals);
     }
 
     private boolean isQueryModelPredefinedCalculatedField(CalculatedFieldDef fieldDef) {
@@ -583,7 +599,7 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
         if (calculateQueryContext == null
                 || calculateQueryContext.getSelectedFields() == null
                 || calculateQueryContext.getSelectedFields().size() != 1
-                || !fieldDef.getName().equals(calculateQueryContext.getSelectedFields().get(0))) {
+                || !fieldDef.getName().equals(projectionSource(calculateQueryContext.getSelectedFields().get(0)))) {
             return false;
         }
         for (CalculatedFieldDef predefined : queryModel.getPredefinedCalculatedFields()) {

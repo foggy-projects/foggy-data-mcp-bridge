@@ -189,6 +189,8 @@ public class MetricAdditivityAnalyzer {
     public static DbAggregation resolveAggregation(String metricName, QueryModel queryModel) {
         if (queryModel == null) return null;
 
+        var column = queryModel.findJdbcColumnForSelectByName(metricName, false);
+        if (column != null) return column.getAggregation();
         TableModel tm = queryModel.getJdbcModel();
         if (tm == null) return null;
 

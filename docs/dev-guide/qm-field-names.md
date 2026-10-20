@@ -53,3 +53,22 @@ SQL WHERE 不直接引用 SELECT alias，而是由引擎解析为条件绑定的
 
 模型名称/输出配置改变后须按既有流程刷新模型；部署新引擎时，对受影响模型按现有运维流程
 失效旧结果缓存，避免继续读取此前忽略 alias 时的返回键。
+
+## 计算列、度量和 pivot
+
+- QM `formula` 项也遵守 `name` / `alias` 合同；省略 alias 时输出 name。请求中的
+  `calc AS result` 仅覆盖该次投影，不修改模型定义。不同的已选字段不能使用同一输出键。
+- SQL 查询只选择末级预定义公式时，引擎注入完整依赖闭包；依赖不自动出现在最终 columns 中。
+  依赖包括表达式、`partitionBy`、`windowOrderBy` 及传递计算字段。查询权限、物理列映射和
+  元数据可见性使用同一规则；窗口依赖不因未直接返回而免于权限检查。
+- 已选聚合表达式的 ORDER BY 别名检查其来源权限；这不会把别名变为 slice/groupBy 的输入同义词。
+- 度量元数据仅公开实际绑定的查询字段，聚合类型取实际 QM 绑定。原名与改名投影同时声明时均保留。
+- pivot 的轴名、metric 名继续使用查询 name。内存处理、TopN 下推和辅助总计查询在返回边界
+  显式转换输出键；AVG、COUNT_DISTINCT 等不可加度量保留原聚合方式。
+- 普通查询结果 `schema.columns[].name` 对应实际 items 键；不同时附加 `queryName`。
+  模型元数据 `fieldName` 仍是查询标识，`outputName` 是输出键。
+
+部署兼容性：此前显式配置但被忽略的 formula alias 将生效，相关调用方应按 alias 读取结果；
+此前可间接使用未授权窗口依赖的查询将被拒绝。部署时刷新模型并失效受影响的结果缓存。
+
+使用封闭 JSON schema 的客户端需允许结果列上的可选 `queryName`；默认 name 与 alias 相同时不返回该属性。

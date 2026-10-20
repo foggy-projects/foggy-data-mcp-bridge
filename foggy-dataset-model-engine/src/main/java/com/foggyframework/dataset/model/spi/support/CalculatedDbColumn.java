@@ -31,6 +31,10 @@ public class CalculatedDbColumn extends AbstractDecorate implements DbQueryColum
      */
     private final String name;
 
+    private String outputAlias;
+
+    public void setOutputAlias(String alias) { this.outputAlias = alias; }
+
     /**
      * 显示名称
      */
@@ -132,7 +136,7 @@ public class CalculatedDbColumn extends AbstractDecorate implements DbQueryColum
 
     @Override
     public String getAlias() {
-        return name;
+        return outputAlias == null || outputAlias.isBlank() ? name : outputAlias;
     }
 
     @Override

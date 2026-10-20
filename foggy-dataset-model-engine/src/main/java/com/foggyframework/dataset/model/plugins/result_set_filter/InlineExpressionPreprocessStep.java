@@ -702,6 +702,9 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
                 }
             }
 
+            if (existingCalcFields != null && existingCalcFields.stream().anyMatch(f -> baseField.equals(f.getName()))) {
+                baseIsSynthesized = true;
+            }
             if (!baseIsSynthesized) {
                 baseColumn = qms.findJdbcColumnForSelectByName(baseField, false);
                 if (baseColumn == null) {

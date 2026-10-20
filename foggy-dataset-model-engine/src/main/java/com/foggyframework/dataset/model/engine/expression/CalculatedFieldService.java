@@ -427,6 +427,7 @@ public final class CalculatedFieldService {
             );
 
             // 4. 注册到上下文（支持后续字段引用）
+            column.setOutputAlias(fieldDef.getAlias());
             context.registerCalculatedColumn(fieldDef.getName(), column);
 
             if (log.isDebugEnabled()) {

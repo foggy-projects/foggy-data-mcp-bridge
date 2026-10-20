@@ -13,6 +13,7 @@ import com.foggyframework.dataset.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.model.plugins.query_execution.ManagedRelationOptions;
 import com.foggyframework.dataset.model.plugins.query_execution.ManagedSqlRelation;
+import com.foggyframework.dataset.model.impl.query.QueryFieldBindings;
 import com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogResolution;
 import com.foggyframework.dataset.model.port.ManagedRelationExecutionPort;
@@ -407,7 +408,7 @@ public class PivotPipeline {
         if (hierarchyCtx.isTree()) {
             logger.debug("[Pivot] Phase 1.5: Hierarchy skeleton query for dim={}", hierarchyCtx.getDimName());
             hierarchySkeleton = executeHierarchySkeleton(
-                    model, request, context, hierarchyCtx.getDimName(), hierarchyCtx.getIdField());
+                    model, request, context, hierarchyCtx.getDimName(), hierarchyCtx.getIdField(), queryModel);
         }
 
         // ===== Phase 2: 内存加工 =====
@@ -466,7 +467,7 @@ public class PivotPipeline {
                 List<RollupGrain> grains = RollupGrainEnumerator.enumerate(rowFields, colFields, options);
                 logger.debug("[Pivot] Phase 2.4: Auxiliary rollup queries, {} grains", grains.size());
 
-                NonAdditiveRollupExecutor executor = new NonAdditiveRollupExecutor(pivotRollupExecutionPort);
+                NonAdditiveRollupExecutor executor = new NonAdditiveRollupExecutor(pivotRollupExecutionPort, queryModel);
                 try {
                     rollupCache = executor.execute(model, request, context,
                             grains, rollupPlans, rowFields, colFields, rowDomain, colDomain);
@@ -500,7 +501,7 @@ public class PivotPipeline {
         if (!resolvedProps.isEmpty()) {
             logger.debug("[Pivot] Phase 2.7: Property attachment for {} properties", resolvedProps.size());
             Map<String, Map<Object, Map<String, Object>>> lookupTables =
-                    executePropertyLookup(model, request, context, resolvedProps);
+                    executePropertyLookup(model, request, context, resolvedProps, queryModel);
             PropertyAttacher.attach(resultSet, resolvedProps, lookupTables);
         }
 
@@ -690,6 +691,10 @@ public class PivotPipeline {
             logger.warn("以下 Pivot calculatedFields 为 QM 预定义计算字段，已使用模型预定义公式覆盖: {}", replaced);
         }
 
+        var definitions = com.foggyframework.dataset.model.engine.expression.CalculatedFieldDependencies.index(current);
+        definitions.putAll(com.foggyframework.dataset.model.engine.expression.CalculatedFieldDependencies.index(predefined));
+        for (CalculatedFieldDef field : current) referencedFields.addAll(com.foggyframework.dataset.model.engine.expression.CalculatedFieldDependencies.direct(field));
+        com.foggyframework.dataset.model.engine.expression.CalculatedFieldDependencies.includeDependencies(referencedFields, definitions);
         Set<String> existingNames = current.stream()
                 .filter(Objects::nonNull)
                 .map(CalculatedFieldDef::getName)
@@ -884,7 +889,7 @@ public class PivotPipeline {
         flatRequest.setReturnTotal(false);
 
         SemanticQueryResponse response = pivotRollupExecutionPort.queryModel(model, flatRequest, "execute", context);
-        return response.getItems() != null ? response.getItems() : Collections.emptyList();
+        return QueryFieldBindings.logicalRows(response.getItems(), queryModel, allColumns, flatRequest.getCalculatedFields());
     }
 
     /**
@@ -1109,9 +1114,7 @@ public class PivotPipeline {
         domainRequest.setReturnTotal(false);
 
         SemanticQueryResponse response = pivotRollupExecutionPort.queryModel(model, domainRequest, "execute", context);
-        List<Map<String, Object>> domainRows = response.getItems() != null
-                ? new ArrayList<>(response.getItems())
-                : new ArrayList<>();
+        List<Map<String, Object>> domainRows = QueryFieldBindings.logicalRows(response.getItems(), queryModel, columns, domainRequest.getCalculatedFields());
 
         domainRows = AxisHavingFilter.apply(domainRows, List.of(axisField), metrics);
         sortAxisDomainRows(domainRows, axisField);
@@ -1526,6 +1529,18 @@ public class PivotPipeline {
 
         ManagedSqlRelation baseRelation = queryFacade.prepareManagedRelation(resultContext, options);
 
+        String logicalSql = QueryFieldBindings.logicalSql(baseRelation.getSql(), baseRelation.getDialect(), queryModel,
+                flatRequest.getColumns(), flatRequest.getCalculatedFields());
+        var logicalMetrics = new ArrayList<com.foggyframework.dataset.model.plugins.query_execution.ManagedMetricMetadata>();
+        for (var metadata : baseRelation.getMetrics()) {
+            String logicalName = metadata.getMetricName();
+            for (String metric : metrics) if (metadata.getMetricName().equals(QueryFieldBindings.outputName(queryModel, metric, flatRequest.getCalculatedFields()))) logicalName = metric;
+            logicalMetrics.add(com.foggyframework.dataset.model.plugins.query_execution.ManagedMetricMetadata.builder()
+                    .metricName(logicalName).additiveKind(metadata.getAdditiveKind()).aggregationFunction(metadata.getAggregationFunction()).build());
+        }
+        baseRelation = new ManagedSqlRelation(logicalSql, baseRelation.getParams(), baseRelation.getDialect(),
+                baseRelation.getQueryEngine(), baseRelation.getExecutionContext(), baseRelation.isWrappable(),
+                baseRelation.isPermissionValidated(), baseRelation.isPreAggApplied(), logicalMetrics);
         // 4. 用 Planner 生成包装 SQL（having + TopN CTE）
         PivotAxisDomainSqlPlanner.PlannedSql planned = PivotAxisDomainSqlPlanner.plan(
                 baseRelation, pivot, rowFields, colFields, metrics);
@@ -1690,7 +1705,7 @@ public class PivotPipeline {
     private Map<String, Map<Object, Map<String, Object>>> executePropertyLookup(
             String model, SemanticQueryRequest originalRequest,
             SemanticRequestContext context,
-            List<PropertyResolver.ResolvedProperty> resolvedProps) {
+            List<PropertyResolver.ResolvedProperty> resolvedProps, QueryModel queryModel) {
 
         // 按维度名分组
         Map<String, List<PropertyResolver.ResolvedProperty>> byDim = resolvedProps.stream()
@@ -1724,8 +1739,7 @@ public class PivotPipeline {
             SemanticQueryResponse response = pivotRollupExecutionPort.queryModel(
                     model, lookupRequest, "execute", context);
 
-            List<Map<String, Object>> lookupRows = response.getItems() != null
-                    ? response.getItems() : Collections.emptyList();
+            List<Map<String, Object>> lookupRows = QueryFieldBindings.logicalRows(response.getItems(), queryModel, selectFields, lookupRequest.getCalculatedFields());
 
             Map<Object, Map<String, Object>> lookupTable =
                     PropertyAttacher.buildLookupTable(lookupRows, keyField, propFieldNames);
@@ -1745,7 +1759,7 @@ public class PivotPipeline {
     private HierarchyTreeBuilder.Skeleton executeHierarchySkeleton(
             String model, SemanticQueryRequest originalRequest,
             SemanticRequestContext context,
-            String dimName, String idField) {
+            String dimName, String idField, QueryModel queryModel) {
 
         String parentField = dimName + "$parentId";
 
@@ -1763,8 +1777,8 @@ public class PivotPipeline {
         SemanticQueryResponse response = pivotRollupExecutionPort.queryModel(
                 model, skeletonRequest, "execute", context);
 
-        List<Map<String, Object>> rows = response.getItems() != null
-                ? response.getItems() : Collections.emptyList();
+        List<Map<String, Object>> rows = QueryFieldBindings.logicalRows(response.getItems(), queryModel,
+                skeletonRequest.getColumns(), skeletonRequest.getCalculatedFields());
 
         // 骨架截断警告：如果触达 limit 上限，可能丢失部分层级关系
         if (rows.size() >= CardinalityBreaker.DEFAULT_ROW_LIMIT) {

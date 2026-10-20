@@ -740,4 +740,23 @@ class MongoCalculatedFieldIT extends MongoTestSupport {
         }
         return value.toString();
     }
+    @Test
+    @Order(15)
+    void calculatedOutputAliasPreservesSourceValue() {
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setQueryModel(QUERY_MODEL_NAME);
+        request.setColumns(Arrays.asList("orderNo", "price", "quantity"));
+        CalculatedFieldDef field = new CalculatedFieldDef("computed", "price * quantity");
+        field.setAlias("computedOut");
+        request.setCalculatedFields(List.of(field));
+        PagingResultImpl result = jdbcService.queryModelData(PagingRequest.buildPagingRequest(request, 10));
+        assertFalse(result.getItems().isEmpty());
+        for (Object item : result.getItems()) {
+            Map<?, ?> row = (Map<?, ?>) item;
+            assertFalse(row.containsKey("computed"));
+            assertEquals(((Number) row.get("price")).doubleValue() * ((Number) row.get("quantity")).doubleValue(),
+                    ((Number) row.get("computedOut")).doubleValue(), 0.01);
+        }
+    }
+
 }

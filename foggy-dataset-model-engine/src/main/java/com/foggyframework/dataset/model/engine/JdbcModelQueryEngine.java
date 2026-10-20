@@ -337,6 +337,14 @@ public class JdbcModelQueryEngine implements QueryEngine {
             }
         }
 
+        Map<String, String> outputOwners = new java.util.LinkedHashMap<>();
+        for (DbColumn column : selectColumns) {
+            String previous = outputOwners.putIfAbsent(column.getAlias(), column.getName());
+            if (previous != null && !previous.equals(column.getName())) {
+                throw RX.throwAUserTip("COLUMN_OUTPUT_ALIAS_COLLISION: '" + previous + "' and '"
+                        + column.getName() + "' both project to '" + column.getAlias() + "'.");
+            }
+        }
         jdbcQuery.select(selectColumns);
         captureOutputValueFormatters(selectColumns);
 

@@ -128,7 +128,9 @@ public class MongoCalculatedFieldProcessor implements CalculatedFieldProcessor {
             }
 
             // 5. 返回 CalculatedJdbcColumn 适配器
-            return new MongoCalculatedColumnAdapter(column);
+            var adapter = new MongoCalculatedColumnAdapter(column);
+            adapter.setOutputAlias(fieldDef.getAlias());
+            return adapter;
 
         } catch (SecurityException e) {
             throw e;

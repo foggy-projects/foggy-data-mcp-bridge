@@ -275,39 +275,37 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
             ModelResultContext context) {
         java.util.List<com.foggyframework.dataset.model.plugins.query_execution.ManagedMetricMetadata> result = new java.util.ArrayList<>();
         // Iterate over all measures in the queryModel
-        for (TableModel tm : getJdbcModelList()) {
-            if (tm.getMeasures() == null) continue;
-            for (DbMeasure measure : tm.getMeasures()) {
-                DbAggregation agg = measure.getAggregation();
-                com.foggyframework.dataset.model.plugins.query_execution.AdditiveKind kind;
-                String aggFunc;
-                if (agg == null || agg == DbAggregation.NONE || agg == DbAggregation.PK) {
-                    kind = com.foggyframework.dataset.model.plugins.query_execution.AdditiveKind.UNKNOWN;
-                    aggFunc = "SUM";
-                } else {
-                    switch (agg) {
-                        case SUM:
-                        case COUNT:
-                        case MIN:
-                        case MAX:
-                            kind = com.foggyframework.dataset.model.plugins.query_execution.AdditiveKind.ADDITIVE;
-                            break;
-                        case AVG:
-                        case COUNT_DISTINCT:
-                            kind = com.foggyframework.dataset.model.plugins.query_execution.AdditiveKind.NON_ADDITIVE;
-                            break;
-                        default:
-                            kind = com.foggyframework.dataset.model.plugins.query_execution.AdditiveKind.UNKNOWN;
-                            break;
-                    }
-                    aggFunc = agg.name();
+        for (DbQueryColumn measure : getJdbcQueryColumns()) {
+            if (!measure.isMeasure()) continue;
+            DbAggregation agg = measure.getAggregation();
+            com.foggyframework.dataset.model.plugins.query_execution.AdditiveKind kind;
+            String aggFunc;
+            if (agg == null || agg == DbAggregation.NONE || agg == DbAggregation.PK) {
+                kind = com.foggyframework.dataset.model.plugins.query_execution.AdditiveKind.UNKNOWN;
+                aggFunc = "SUM";
+            } else {
+                switch (agg) {
+                    case SUM:
+                    case COUNT:
+                    case MIN:
+                    case MAX:
+                        kind = com.foggyframework.dataset.model.plugins.query_execution.AdditiveKind.ADDITIVE;
+                        break;
+                    case AVG:
+                    case COUNT_DISTINCT:
+                        kind = com.foggyframework.dataset.model.plugins.query_execution.AdditiveKind.NON_ADDITIVE;
+                        break;
+                    default:
+                        kind = com.foggyframework.dataset.model.plugins.query_execution.AdditiveKind.UNKNOWN;
+                        break;
                 }
-                result.add(com.foggyframework.dataset.model.plugins.query_execution.ManagedMetricMetadata.builder()
-                        .metricName(measure.getName())
-                        .additiveKind(kind)
-                        .aggregationFunction(aggFunc)
-                        .build());
+                aggFunc = agg.name();
             }
+            result.add(com.foggyframework.dataset.model.plugins.query_execution.ManagedMetricMetadata.builder()
+                    .metricName(measure.getAlias())
+                    .additiveKind(kind)
+                    .aggregationFunction(aggFunc)
+                    .build());
         }
         return result;
     }

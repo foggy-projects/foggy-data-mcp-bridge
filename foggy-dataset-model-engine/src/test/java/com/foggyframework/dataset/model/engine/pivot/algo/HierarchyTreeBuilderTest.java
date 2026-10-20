@@ -362,4 +362,24 @@ class HierarchyTreeBuilderTest {
                 .findFirst()
                 .orElse(null);
     }
+    @Test
+    void aliasedSkeletonRetainsParentChildIdentity() {
+        var model = org.mockito.Mockito.mock(com.foggyframework.dataset.model.spi.QueryModel.class);
+        var id = org.mockito.Mockito.mock(com.foggyframework.dataset.model.spi.DbQueryColumn.class);
+        var parent = org.mockito.Mockito.mock(com.foggyframework.dataset.model.spi.DbQueryColumn.class);
+        org.mockito.Mockito.when(model.findJdbcColumnForSelectByName("team$id", false)).thenReturn(id);
+        org.mockito.Mockito.when(model.findJdbcColumnForSelectByName("team$parentId", false)).thenReturn(parent);
+        org.mockito.Mockito.when(id.getAlias()).thenReturn("nodeOut");
+        org.mockito.Mockito.when(parent.getAlias()).thenReturn("parentOut");
+        List<Map<String, Object>> rows = List.of(Map.of("nodeOut", "root"),
+                Map.of("nodeOut", "child", "parentOut", "root"));
+        var normalized = com.foggyframework.dataset.model.impl.query.QueryFieldBindings.logicalRows(
+                rows, model, List.of("team$id", "team$parentId"), List.of());
+        var skeleton = HierarchyTreeBuilder.Skeleton.fromRows(normalized, "team$id", "team$parentId");
+        assertEquals(2, skeleton.size());
+        assertNull(skeleton.getParentId("root"));
+        assertEquals("root", skeleton.getParentId("child"));
+        assertFalse(rows.get(1).containsKey("team$id"));
+    }
+
 }

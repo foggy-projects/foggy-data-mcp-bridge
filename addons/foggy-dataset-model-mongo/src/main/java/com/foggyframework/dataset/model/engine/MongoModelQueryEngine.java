@@ -176,7 +176,7 @@ public class MongoModelQueryEngine implements QueryEngine {
         // 将计算字段也加入到 projection（计算字段通过 $addFields 已经添加到文档中）
         if (calculatedColumns != null && !calculatedColumns.isEmpty()) {
             for (CalculatedDbColumn calcColumn : calculatedColumns) {
-                projectDoc.put(calcColumn.getAlias(), "$" + calcColumn.getAlias());
+                projectDoc.put(calcColumn.getAlias(), "$" + calcColumn.getName());
             }
         }
 
@@ -467,7 +467,7 @@ public class MongoModelQueryEngine implements QueryEngine {
             if (column instanceof MongoCalculatedColumnAdapter) {
                 MongoCalculatedColumn mongoColumn = ((MongoCalculatedColumnAdapter) column).getMongoColumn();
                 Object mongoExpr = mongoColumn.getMongoExpression();
-                addFieldsDoc.put(column.getAlias(), mongoExpr);
+                addFieldsDoc.put(column.getName(), mongoExpr);
 
                 if (log.isDebugEnabled()) {
                     log.debug("AddFields: {} = {}", column.getAlias(), mongoExpr);
