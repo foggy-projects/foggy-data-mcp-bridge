@@ -26,6 +26,20 @@ import static org.mockito.Mockito.when;
 class CalculatedFieldServiceTest {
 
     @Test
+    void cycleDiagnosticSeparatesBlockedConsumersFromCycleMembers() {
+        var downstream = new com.foggyframework.dataset.model.def.query.request.CalculatedFieldDef();
+        downstream.setName("downstream"); downstream.setExpression("a + 1");
+        var a = new com.foggyframework.dataset.model.def.query.request.CalculatedFieldDef();
+        a.setName("a"); a.setExpression("b + 1");
+        var b = new com.foggyframework.dataset.model.def.query.request.CalculatedFieldDef();
+        b.setName("b"); b.setExpression("a + 1");
+        var failure = assertThrows(CalculatedFieldService.DependencyCycleException.class,
+                () -> CalculatedFieldService.sortByDependencies(java.util.List.of(downstream, a, b)));
+        assertEquals(Set.of("a", "b"), failure.cycleFields);
+        assertEquals(Set.of("downstream"), failure.blockedFields);
+    }
+
+    @Test
     @DisplayName("简单字段 — 返回单个列引用")
     void extractRefs_simpleField() {
         Set<String> refs = CalculatedFieldService.extractColumnReferences("amount");

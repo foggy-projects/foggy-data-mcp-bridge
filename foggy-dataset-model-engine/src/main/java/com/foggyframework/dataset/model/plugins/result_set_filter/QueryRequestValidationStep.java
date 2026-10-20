@@ -388,7 +388,22 @@ public class QueryRequestValidationStep implements DataSetResultStep {
         }
 
         Set<String> selectedAggregateAliases = selectedAggregateAliases(queryRequest.getColumns());
+        // Only the window dependency chain may consume selected grouped aliases here.
+        Set<String> resultFields = new LinkedHashSet<>();
+        for (CalculatedFieldDef field : queryRequest.getCalculatedFields()) {
+            if (field.getPartitionBy() != null || field.getWindowOrderBy() != null
+                    || StringUtils.isNotEmpty(field.getWindowFrame())) resultFields.add(field.getName());
+        }
+        boolean changed;
+        do {
+            changed = false;
+            for (CalculatedFieldDef field : queryRequest.getCalculatedFields()) {
+                if (!resultFields.contains(field.getName()) && extractFormulaIdentifiers(field.getExpression()).stream().anyMatch(resultFields::contains))
+                    changed |= resultFields.add(field.getName());
+            }
+        } while (changed);
         for (CalculatedFieldDef cf : queryRequest.getCalculatedFields()) {
+            if (resultFields.contains(cf.getName())) continue;
             String alias = cf.getName();
             String expression = cf.getExpression() == null ? "" : cf.getExpression();
             if (PostAggregateRatioToTotalSupport.toCalculation(alias, expression, selectedAggregateAliases) != null) {

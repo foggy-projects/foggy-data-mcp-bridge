@@ -61,6 +61,9 @@ public class SqlExpContext {
      */
     private boolean aggregateMeasureReferences;
 
+    /** Bind references to the preceding result relation, rather than inline their declarations. */
+    private boolean resultStageReferences;
+
     /**
      * Depth of aggregate function argument evaluation.
      * <p>

@@ -29,6 +29,29 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class RuntimeQueryControllerUnknownPropertyTest {
 
     @Test
+    void planningDiagnosticsSurviveValidateAndDirectExecuteWithoutGenericErrorMapping() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        SemanticQueryServiceV3 service = mock(SemanticQueryServiceV3.class);
+        var diagnostic = new com.foggyframework.dataset.model.engine.expression.QueryCalculationException(
+                "WINDOW_ON_WINDOW_UNSUPPORTED", "second", "calculatedFields[2].windowOrderBy[0].field",
+                "second depends on first", "Use a grouped ordering field.", java.util.Map.of("dependency", "first"));
+        when(service.queryModel(eq("OrderModel"), any(), any(), any())).thenThrow(new IllegalArgumentException("outer", diagnostic));
+        @SuppressWarnings("unchecked") ObjectProvider<DatasetProperties> provider = mock(ObjectProvider.class);
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(new RuntimeQueryController(
+                new RuntimeApiResponseFactory(new FoggyRuntimeApiProperties()), service, mapper, provider)).build();
+        for (String mode : java.util.List.of("validate", "execute")) {
+            String json = mvc.perform(post("/api/v1/query/OrderModel/" + mode).contentType(MediaType.APPLICATION_JSON)
+                    .content("{}")).andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+            JsonNode envelope = mapper.readTree(json);
+            assertThat(envelope.path("error").path("code").asText()).isEqualTo("WINDOW_ON_WINDOW_UNSUPPORTED");
+            assertThat(envelope.path("error").path("phase").asText()).isEqualTo("query.validate");
+            assertThat(envelope.path("error").path("path").asText()).isEqualTo(diagnostic.getPath());
+            assertThat(envelope.path("error").path("safeToAutoRepair").asBoolean()).isFalse();
+            assertThat(envelope.path("diagnostics").path("attributes").path("dependency").asText()).isEqualTo("first");
+        }
+    }
+
+    @Test
     void malformedJsonReturnsBadRequestBeforeQueryExecution() throws Exception {
         ObjectMapper objectMapper = new ObjectMapper();
         SemanticQueryServiceV3 queryService = mock(SemanticQueryServiceV3.class);

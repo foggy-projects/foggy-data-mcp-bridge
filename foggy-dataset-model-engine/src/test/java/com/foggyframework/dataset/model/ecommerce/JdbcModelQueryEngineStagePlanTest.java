@@ -137,9 +137,11 @@ class JdbcModelQueryEngineStagePlanTest extends CteWrapTestSupport {
         Map<String, Object> windowStage = stage(plan, "window_result");
         assertEquals("WINDOW_RESULT_STAGE", windowStage.get("type"));
         assertTrue(listValue(windowStage, "outputAliases").contains("salesRank"));
-        assertEquals(List.of("salesRank"), windowStage.get("filterAliases"));
+        assertEquals(List.of(), windowStage.get("filterAliases"));
         assertEquals(true, windowStage.get("requiresSqlBoundary"));
-        assertEquals(1, windowStage.get("parameterCount"));
+        assertEquals(0, windowStage.get("parameterCount"));
+        assertEquals(List.of("salesRank"), stage(plan, "final").get("filterAliases"));
+        assertEquals(1, stage(plan, "final").get("parameterCount"));
         assertEquals(List.of("salesRank"), stage(plan, "final").get("orderAliases"));
         assertEquals(false, stage(plan, "final").get("requiresSqlBoundary"));
         assertTrue(result.engine().getSql().contains("__POST_RESULT_STAGE__"),

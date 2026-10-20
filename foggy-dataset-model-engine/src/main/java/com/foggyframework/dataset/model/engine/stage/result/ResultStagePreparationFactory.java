@@ -49,6 +49,14 @@ public final class ResultStagePreparationFactory {
             IdentityHashMap<DbColumn, DbColumn> aggregateSourceColumns,
             FDialect dialect,
             WindowDependencyResolver windowDependencyResolver) {
+        return build(queryRequest, jdbcQuery, stagePlan, totalPlan, postAggregateSlice, aggregateSourceColumns,
+                dialect, windowDependencyResolver, List.of());
+    }
+
+    public ResultStagePreparation build(DbQueryRequestDef queryRequest, JdbcQuery jdbcQuery, QueryStagePlan stagePlan,
+            TotalDataAggregatePlan totalPlan, List<SliceRequestDef> postAggregateSlice,
+            IdentityHashMap<DbColumn, DbColumn> aggregateSourceColumns, FDialect dialect,
+            WindowDependencyResolver windowDependencyResolver, List<CalculatedDbColumn> calculatedColumns) {
         if (!stagePlan.requiresPostAggregateRenderer()
                 && !stagePlan.requiresWindowResultRenderer()) {
             return null;
@@ -66,6 +74,11 @@ public final class ResultStagePreparationFactory {
                     postAggregateSlice, dialect);
         } else {
             List<WindowColumnInfo> windowColumns = identifyWindowColumns(originalColumns);
+            for (CalculatedDbColumn calculated : com.foggyframework.dataset.model.engine.stage.QueryStagePlanner
+                    .requiredCalculations(queryRequest, jdbcQuery, calculatedColumns)) {
+                if (calculated.getResultStageDepth() > 0 && windowColumns.stream().noneMatch(w -> w.column.getAlias().equals(calculated.getAlias())))
+                    windowColumns.add(new WindowColumnInfo(-1, calculated));
+            }
             if (windowColumns.isEmpty()) {
                 throw new IllegalArgumentException(
                         "Window result-stage plan has no window output column");
@@ -76,23 +89,29 @@ public final class ResultStagePreparationFactory {
                     mainBaseColumns.add(column);
                 }
             }
-            for (WindowColumnInfo window : windowColumns) {
-                CalculatedDbColumn calculated = sourceCalculatedColumn(
-                        window.column, aggregateSourceColumns);
-                if (calculated == null || calculated.getReferencedColumns() == null) {
-                    continue;
-                }
+            // Walk the symbol dependency closure, keeping result producers out of the aggregate relation.
+            Set<String> visited = new LinkedHashSet<>();
+            List<WindowColumnInfo> closure = new ArrayList<>(windowColumns);
+            for (int i = 0; i < closure.size(); i++) {
+                CalculatedDbColumn calculated = sourceCalculatedColumn(closure.get(i).column, aggregateSourceColumns);
+                if (calculated == null || !visited.add(calculated.getName())) continue;
                 for (DbQueryColumn reference : calculated.getReferencedColumns()) {
-                    if (!containsProjectionAlias(mainBaseColumns, reference)) {
+                    if (reference instanceof CalculatedDbColumn dependent && dependent.getResultStageDepth() > 0) {
+                        if (closure.stream().noneMatch(w -> w.column.getAlias().equals(dependent.getAlias())))
+                            closure.add(new WindowColumnInfo(-1, dependent));
+                    } else if (!containsProjectionAlias(mainBaseColumns, reference)) {
                         mainBaseColumns.add(windowDependencyResolver.resolve(reference));
                     }
                 }
             }
+            windowColumns = closure.stream().map(info -> {
+                CalculatedDbColumn source = sourceCalculatedColumn(info.column, aggregateSourceColumns);
+                return source == null ? info : new WindowColumnInfo(info.originalIndex, source);
+            }).toList();
             graph = prepareWindowResultStageGraph(
                     stagePlan, queryRequest, originalColumns,
-                    windowColumns, jdbcQuery.getOrder(), dialect);
-            hiddenLastConsumerStageId = stageId(
-                    stagePlan, QueryStageType.WINDOW_RESULT_STAGE);
+                    windowColumns, mainBaseColumns, jdbcQuery.getOrder(), dialect);
+            hiddenLastConsumerStageId = stageId(stagePlan, QueryStageType.FINAL_STAGE);
         }
 
         Set<String> publicBaseAliases = originalColumns.stream()
@@ -161,6 +180,7 @@ public final class ResultStagePreparationFactory {
             DbQueryRequestDef queryRequest,
             List<DbColumn> originalSelectCols,
             List<WindowColumnInfo> windowColumns,
+            List<DbColumn> baseColumns,
             JdbcQuery.JdbcOrder savedOrder,
             FDialect dialect) {
         Set<String> availableAliases = new LinkedHashSet<>();
@@ -168,13 +188,30 @@ public final class ResultStagePreparationFactory {
             availableAliases.add(resultOutputAlias(column, windowColumns));
         }
 
+        windowColumns.forEach(w -> availableAliases.add(w.column.getAlias()));
+        baseColumns.forEach(c -> availableAliases.add(projectionAlias(c)));
+        Set<String> produced = baseColumns.stream().map(ResultStagePreparationFactory::projectionAlias)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        for (QueryStagePlan.Stage stage : stagePlan.getStages()) {
+            List<DbColumn> layer = windowColumns.stream().map(w -> w.column)
+                    .filter(c -> resultStageId(c).equals(stage.getId())).toList();
+            for (DbColumn column : layer) {
+                if (column instanceof CalculatedDbColumn calc) {
+                    for (DbQueryColumn ref : calc.getReferencedColumns()) {
+                        if (!produced.contains(projectionAlias(ref))) throw new IllegalArgumentException(
+                                "RESULT_STAGE_INPUT_UNAVAILABLE: " + column.getAlias() + " requires " + projectionAlias(ref) + " at " + stage.getId());
+                    }
+                }
+            }
+            layer.forEach(c -> produced.add(c.getAlias()));
+        }
         List<ResultStagePlan.Column> computedWindowColumns = new ArrayList<>();
         for (WindowColumnInfo window : windowColumns) {
             String alias = window.column.getAlias();
             computedWindowColumns.add(new ResultStagePlan.Column(
                     alias,
                     ResultStagePlan.ColumnRole.RESULT_STAGE_ONLY,
-                    "window_result",
+                    resultStageId(window.column),
                     "final",
                     window.column.getType(),
                     alias,
@@ -199,14 +236,16 @@ public final class ResultStagePreparationFactory {
         List<ResultStagePlan.Stage> stages = new ArrayList<>();
         for (QueryStagePlan.Stage diagnostic : stagePlan.getStages()) {
             QueryStageType type = diagnostic.getType();
-            if (type == QueryStageType.WINDOW_RESULT_STAGE) {
+            if (type == QueryStageType.WINDOW_RESULT_STAGE || type == QueryStageType.RESULT_CALC_STAGE) {
+                List<ResultStagePlan.Column> layer = computedWindowColumns.stream()
+                        .filter(c -> c.producerStageId().equals(diagnostic.getId())).toList();
                 stages.add(new ResultStagePlan.Stage(
-                        diagnostic.getId(), type, "__POST_RESULT_STAGE__",
-                        computedWindowColumns, resultFilters, List.of()));
+                        diagnostic.getId(), type, type == QueryStageType.WINDOW_RESULT_STAGE ? "__POST_RESULT_STAGE__" : diagnostic.getId(),
+                        layer, List.of(), List.of()));
             } else if (type == QueryStageType.FINAL_STAGE) {
                 stages.add(new ResultStagePlan.Stage(
                         diagnostic.getId(), type, "final",
-                        List.of(), List.of(), finalOrders));
+                        List.of(), resultFilters, finalOrders));
             } else {
                 stages.add(ResultStagePlan.Stage.metadata(
                         diagnostic.getId(), type, "stage1"));
@@ -296,6 +335,12 @@ public final class ResultStagePreparationFactory {
             }
         }
         return ResultStagePlan.Graph.create(stagePlan, stages);
+    }
+
+    private String resultStageId(DbColumn column) {
+        if (column instanceof CalculatedDbColumn calculated && calculated.getResultStageDepth() > 1)
+            return "result_calc_" + calculated.getResultStageDepth();
+        return "window_result";
     }
 
     private List<WindowColumnInfo> identifyWindowColumns(List<DbColumn> columns) {
@@ -440,7 +485,7 @@ public final class ResultStagePreparationFactory {
     private boolean isWindowResultColumn(
             DbColumn column,
             List<WindowColumnInfo> windowColumns) {
-        return windowColumns.stream().anyMatch(window -> window.column == column);
+        return windowColumns.stream().anyMatch(window -> window.column.getAlias().equals(column.getAlias()));
     }
 
     private String lastBaseStageId(ResultStagePlan.Graph graph) {

@@ -516,7 +516,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
         //   Stage 1 (CTE): base aggregations + dimensions (no window CFs, no ORDER BY)
         //   Stage 2 (outer): explicitly project surviving base columns and window CFs from stage1.
         QueryStagePlan stagePlan = attachQueryStagePlan(context, queryRequest, jdbcQuery);
-        validateStagePlan(stagePlan);
+        validateStagePlan(stagePlan, queryRequest);
         this.resultStagePreparation = null;
 
         AggregateJoinTableModel.setRuntimeFilterContext(context);
@@ -539,7 +539,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
                     queryRequest, jdbcQuery, stagePlan, totalDataAggregatePlan,
                     postAggregateSlice, aggregateSourceColumns, resultDialect,
                     reference -> windowDependencyProjection(
-                            systemBundlesContext, reference));
+                            systemBundlesContext, reference), calculatedColumns);
             if (stagePlan.requiresPostAggregateRenderer()) {
                 generateWithPostAggregateWrapping(systemBundlesContext, queryRequest, jdbcQuery, domainTransportInjection, stagePlan);
             } else if (stagePlan.requiresWindowResultRenderer()) {
@@ -582,15 +582,19 @@ public class JdbcModelQueryEngine implements QueryEngine {
         return plan;
     }
 
-    private void validateStagePlan(QueryStagePlan stagePlan) {
+    private void validateStagePlan(QueryStagePlan stagePlan, DbQueryRequestDef request) {
         if (stagePlan == null || !stagePlan.hasUnsupported()) {
             return;
         }
+        if (stagePlan.hasUnsupported("post-aggregate-window-mix-unsupported")) {
+            throw new com.foggyframework.dataset.model.engine.expression.QueryCalculationException(
+                    "POST_AGGREGATE_WINDOW_MIX_UNSUPPORTED", null, "postAggregateCalculations",
+                    "postAggregateCalculations and window calculatedFields cannot be planned together.",
+                    "Run the post-aggregate calculation and ordinary window query separately.",
+                    Map.of("unsupported", stagePlan.getUnsupported()));
+        }
         if (stagePlan.hasUnsupported("post-slice-result-stage-required")) {
             throw RX.throwAUserTip("POST_SLICE_REQUIRES_RESULT_STAGE: postSlice requires a result-stage query such as window calculatedFields or postAggregateCalculations.");
-        }
-        if (stagePlan.hasUnsupported("post-aggregate-window-mix-unsupported")) {
-            throw RX.throwAUserTip("POST_AGGREGATE_WINDOW_MIX_UNSUPPORTED: postAggregateCalculations and window calculatedFields cannot be planned together in v1.6.");
         }
         if (stagePlan.hasUnsupported("window-functions-unsupported")) {
             throw RX.throwAUserTip("WINDOW_RESULT_STAGE_WINDOW_FUNCTION_UNSUPPORTED: dialect "
@@ -963,7 +967,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
         List<WindowColumnInfo> windowColumns = new ArrayList<>();
         ResultStagePreparation preparation = requireResultStagePreparation();
         Set<String> preparedWindowAliases = preparation.graph().stages().stream()
-                .filter(stage -> stage.type() == QueryStageType.WINDOW_RESULT_STAGE)
+                .filter(stage -> stage.type() == QueryStageType.WINDOW_RESULT_STAGE || stage.type() == QueryStageType.RESULT_CALC_STAGE)
                 .flatMap(stage -> stage.computedColumns().stream())
                 .map(ResultStagePlan.Column::alias)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
@@ -972,12 +976,6 @@ public class JdbcModelQueryEngine implements QueryEngine {
             if (preparedWindowAliases.contains(col.getAlias())) {
                 windowColumns.add(new WindowColumnInfo(i, col));
             }
-        }
-
-        if (windowColumns.isEmpty()) {
-            // Fallback: no window CFs found (shouldn't happen since hasWindowCF was true)
-            generateSinglePass(systemBundlesContext, queryRequest, jdbcQuery, domainTransportInjection, stagePlan);
-            return;
         }
 
         if (log.isDebugEnabled()) {
@@ -1587,7 +1585,9 @@ public class JdbcModelQueryEngine implements QueryEngine {
         FDialect dialect = jdbcQueryModel != null ? jdbcQueryModel.getDialect() : FDialect.MYSQL_DIALECT;
         JdbcQuery aggJdbcQuery = new JdbcQuery();
         // 使用不含 ORDER BY 的SQL作为子查询，避免生成无意义的排序语句
-        SqlQueryObject sqlQueryObject = new SqlQueryObject(this.innerSqlWithoutOrder, "tx");
+        boolean structuredResult = resultStageRenderResult != null && !resultStageRenderResult.cteStages().isEmpty();
+        SqlQueryObject sqlQueryObject = new SqlQueryObject(structuredResult
+                ? resultStageRenderResult.outerSqlWithoutOrder() : this.innerSqlWithoutOrder, "tx");
         List<DbColumn> aggColumns = new ArrayList<>();
         for (DbColumn column : jdbcQuery.getSelect().getColumns()) {
 //            jdbcQueryModel.get
@@ -1703,6 +1703,10 @@ public class JdbcModelQueryEngine implements QueryEngine {
         SimpleSqlJdbcQueryVisitor v = new SimpleSqlJdbcQueryVisitor(systemBundlesContext.getApplicationContext(), jdbcQueryModel, queryRequest);
         aggJdbcQuery.accept(v);
 //        this.aggSql = v.getSql();
+        if (structuredResult) {
+            return new ResultStagePlan.RenderResult(v.getSql(), v.getSql(),
+                    resultStageRenderResult.outerValues(), resultStageRenderResult.cteStages()).assembledSql();
+        }
         return v.getSql();
     }
 
@@ -2937,6 +2941,10 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
                 // 查找匹配的 SELECT 列
                 DbColumn selectColumn = columnNameMap.get(fieldName);
+                if (selectColumn == null && calculatedColumns != null) {
+                    selectColumn = calculatedColumns.stream().filter(c -> c.getResultStageDepth() > 0
+                            && (fieldName.equals(c.getName()) || fieldName.equals(c.getAlias()))).findFirst().orElse(null);
+                }
 
                 if (selectColumn != null) {
                     // 字段在 SELECT 中，添加排序

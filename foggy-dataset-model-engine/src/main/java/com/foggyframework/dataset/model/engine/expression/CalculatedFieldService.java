@@ -139,6 +139,8 @@ public final class CalculatedFieldService {
                 extractColumnReferences(compiledExp, refs);
             }
 
+            if (field.getPartitionBy() != null) refs.addAll(field.getPartitionBy());
+            if (field.getWindowOrderBy() != null) field.getWindowOrderBy().forEach(order -> refs.add(order.getField()));
             // 只保留对其他 calculatedField 的依赖
             refs.retainAll(allFieldNames);
             // 移除自引用
@@ -196,12 +198,20 @@ public final class CalculatedFieldService {
 
         // 4. 检测循环引用
         if (sorted.size() < calculatedFields.size()) {
-            // 找出循环引用的字段
-            Set<String> cycleFields = new LinkedHashSet<>(fieldMap.keySet());
-            cycleFields.removeAll(processed);
-            throw new IllegalArgumentException(
-                    "检测到计算字段循环引用，涉及字段: " + cycleFields +
-                    "。请检查这些字段的表达式，确保没有互相引用。");
+            Set<String> blocked = new LinkedHashSet<>(fieldMap.keySet());
+            blocked.removeAll(processed);
+            Set<String> cycleFields = new LinkedHashSet<>();
+            for (String candidate : blocked) {
+                Set<String> visited = new HashSet<>();
+                Deque<String> pending = new ArrayDeque<>(dependencies.get(candidate));
+                while (!pending.isEmpty()) {
+                    String next = pending.removeFirst();
+                    if (candidate.equals(next)) { cycleFields.add(candidate); break; }
+                    if (visited.add(next)) pending.addAll(dependencies.getOrDefault(next, Set.of()));
+                }
+            }
+            blocked.removeAll(cycleFields);
+            throw new DependencyCycleException(cycleFields, blocked);
         }
 
         if (log.isDebugEnabled()) {
@@ -213,6 +223,16 @@ public final class CalculatedFieldService {
         }
 
         return sorted;
+    }
+
+    static final class DependencyCycleException extends IllegalArgumentException {
+        final Set<String> cycleFields;
+        final Set<String> blockedFields;
+        DependencyCycleException(Set<String> cycleFields, Set<String> blockedFields) {
+            super("检测到计算字段循环引用，涉及字段: " + cycleFields + "; blocked dependents: " + blockedFields);
+            this.cycleFields = Collections.unmodifiableSet(new LinkedHashSet<>(cycleFields));
+            this.blockedFields = Collections.unmodifiableSet(new LinkedHashSet<>(blockedFields));
+        }
     }
 
     /**
