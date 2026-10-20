@@ -7,7 +7,7 @@
     <!-- The adapter is the only first-batch layer that sees Foggy model engine APIs. -->
     <groupId>com.foggysource</groupId>
     <artifactId>foggy-analytics-runtime-foggy-adapter</artifactId>
-    <version>9.3.0-SNAPSHOT</version>
+    <version>9.3.0</version>
     <packaging>jar</packaging>
 
     <name>Foggy Analytics Runtime Foggy Adapter</name>
