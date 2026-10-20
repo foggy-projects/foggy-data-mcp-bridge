@@ -8,6 +8,7 @@ import com.foggyframework.dataset.model.engine.compose.security.AuthorityResolut
 import com.foggyframework.dataset.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.model.spi.QueryModelLoader;
+import com.foggyframework.dataset.model.spi.QueryModel;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -27,8 +28,72 @@ import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 class SemanticQueryServiceV3ImplRawSqlRoutingTest {
+
+    @Test
+    void explicitNamespaceOverridesAmbientNamespaceAndDoesNotInstallBundle() {
+        SemanticQueryServiceV3Impl service = new SemanticQueryServiceV3Impl();
+        QueryModelLoader loader = mock(QueryModelLoader.class);
+        JdbcQueryModel queryModel = mock(JdbcQueryModel.class);
+        when(queryModel.getDataSource()).thenReturn(new FailingDataSource("explicit-datasource"));
+        when(loader.getJdbcQueryModel("InvoiceQM", "explicit")).thenReturn(queryModel);
+        ReflectionTestUtils.setField(service, "queryModelLoader", loader);
+
+        ComposeRuntimeBundle outer = ComposeRuntimeBundle.builder().ctx(context("ambient"))
+                .semanticService(mock(SemanticQueryServiceV3.class)).build();
+        ComposeRuntimeHolder.Token token = ComposeRuntimeHolder.setBundle(outer);
+        try {
+            RuntimeException ex = assertThrows(RuntimeException.class,
+                    () -> service.executeSql("select 1", List.of(), "InvoiceQM", "explicit"));
+            assertTrue(ex.getMessage().contains("explicit-datasource"));
+            verify(loader).getJdbcQueryModel("InvoiceQM", "explicit");
+            assertSame(outer, ComposeRuntimeHolder.currentBundle());
+        } finally {
+            ComposeRuntimeHolder.popBundle(token);
+        }
+    }
+
+    @Test
+    void unresolvedRoutesNeverTouchPrimaryDataSource() {
+        for (String namespace : List.of("", "invalid")) {
+            for (String failure : List.of("throws", "null", "non-jdbc", "no-datasource", "no-loader")) {
+                SemanticQueryServiceV3Impl service = new SemanticQueryServiceV3Impl();
+                DataSource primary = mock(DataSource.class);
+                QueryModelLoader loader = mock(QueryModelLoader.class);
+                switch (failure) {
+                    case "throws" -> when(loader.getJdbcQueryModel("InvoiceQM", namespace))
+                            .thenThrow(new IllegalArgumentException("model or namespace not found"));
+                    case "non-jdbc" -> when(loader.getJdbcQueryModel("InvoiceQM", namespace))
+                            .thenReturn(mock(QueryModel.class));
+                    case "no-datasource" -> when(loader.getJdbcQueryModel("InvoiceQM", namespace))
+                            .thenReturn(mock(JdbcQueryModel.class));
+                }
+                ReflectionTestUtils.setField(service, "dataSource", primary);
+                if (!failure.equals("no-loader")) ReflectionTestUtils.setField(service, "queryModelLoader", loader);
+
+                RuntimeException ex = assertThrows(RuntimeException.class,
+                        () -> service.executeSql("select 1", List.of(), "InvoiceQM", namespace));
+                assertTrue(ex.getMessage().contains("route resolution failed"), ex.getMessage());
+                assertTrue(ex.getMessage().contains("InvoiceQM"), ex.getMessage());
+                assertTrue(ex.getMessage().contains("namespace='" + namespace + "'"), ex.getMessage());
+                verifyNoInteractions(primary);
+            }
+        }
+    }
+
+    @Test
+    void namedNamespaceWithoutRouteModelFailsInsteadOfUsingPrimary() {
+        SemanticQueryServiceV3Impl service = new SemanticQueryServiceV3Impl();
+        DataSource primary = mock(DataSource.class);
+        ReflectionTestUtils.setField(service, "dataSource", primary);
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> service.executeSql("select 1", List.of(), null, "named"));
+        assertTrue(ex.getMessage().contains("routeModel is required"));
+        verifyNoInteractions(primary);
+    }
 
     @Test
     void executeSqlUsesRouteModelDataSourceInComposeNamespace() {

@@ -142,7 +142,8 @@ class PlanExecutionTest {
                 new ComposeSqlGeneration(
                         "SELECT amount FROM sale_order WHERE state = ?",
                         List.of("paid"), List.of(), Map.of());
-        ComposeSqlExecutionPort executionPort = (sql, params, routeModel) -> {
+        ComposeSqlExecutionPort executionPort = (sql, params, routeModel, namespace) -> {
+            assertEquals("ns1", namespace);
             assertTrue(sql.contains("sale_order"));
             assertEquals(List.of("paid"), params);
             assertEquals("SaleOrderQM", routeModel);

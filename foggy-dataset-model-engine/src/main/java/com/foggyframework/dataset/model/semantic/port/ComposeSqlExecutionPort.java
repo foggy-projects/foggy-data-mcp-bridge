@@ -15,6 +15,10 @@ import java.util.Map;
 @FunctionalInterface
 public interface ComposeSqlExecutionPort {
 
+    /**
+     * The namespace is the explicit compilation namespace. Null/blank selects
+     * the default namespace; implementations must not substitute ambient state.
+     */
     List<Map<String, Object>> executeComposeSql(
-            String sql, List<Object> params, String routeModel);
+            String sql, List<Object> params, String routeModel, String namespace);
 }

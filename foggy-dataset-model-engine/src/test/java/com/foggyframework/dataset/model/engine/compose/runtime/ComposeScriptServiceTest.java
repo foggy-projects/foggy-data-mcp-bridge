@@ -254,7 +254,7 @@ class ComposeScriptServiceTest {
             return new ComposeSqlGeneration(
                     "SELECT amount FROM sale_order", List.of(), List.of(), Map.of());
         };
-        ComposeSqlExecutionPort executionPort = (sql, params, routeModel) -> {
+        ComposeSqlExecutionPort executionPort = (sql, params, routeModel, namespace) -> {
             executionCount.incrementAndGet();
             return List.of(Map.of("amount", 100));
         };
