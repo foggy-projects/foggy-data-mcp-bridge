@@ -87,7 +87,9 @@ public class SqlFunctionExp extends AbstractExp<String> {
                     : com.foggyframework.dataset.db.dialect.CalendarPeriodSql.key(ctx.getDialect(), date, grain,
                         "'yoy'".equals(argFragments.get(2).getSql()));
             SqlFragment result = SqlFragment.customFunction(sql, upper, argFragments);
-            result.setInferredType("PERIOD_START".equals(upper) ? DbColumnType.DATETIME : DbColumnType.INTEGER);
+            // Calendar starts are civil dates. DATETIME adds presentation formatting to
+            // SELECT but not GROUP BY, which violates MySQL ONLY_FULL_GROUP_BY.
+            result.setInferredType("PERIOD_START".equals(upper) ? DbColumnType.DAY : DbColumnType.INTEGER);
             return result;
         }
 

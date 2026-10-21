@@ -202,6 +202,8 @@ public class CalculatedFieldDef {
         /** {@code InlineExpressionPreprocessStep} 从 {@code "SUM(x) AS y"} 等内联表达式合成 */
         INLINE_EXPRESSION,
         /** {@code InlineExpressionPreprocessStep} 从 F4 plain alias {@code {field, as}} 合成 */
-        PLAIN_ALIAS
+        PLAIN_ALIAS,
+        /** Engine-created calendar key. JSON cannot set origin; underlying field permissions still apply. */
+        TIME_WINDOW_INTERNAL
     }
 }

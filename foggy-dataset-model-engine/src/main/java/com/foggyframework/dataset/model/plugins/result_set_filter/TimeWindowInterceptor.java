@@ -92,16 +92,33 @@ public class TimeWindowInterceptor implements DataSetResultStep {
                 }
             }
         }
-        if (twDef.isComparative()) {
-            axis = TimeAxisResolver.resolve(queryModel, twDef.field());
+        if (twDef.isComparative() || twDef.isCumulative() || twDef.isRolling()) {
+            try {
+                axis = TimeAxisResolver.resolve(queryModel, twDef.field());
+            } catch (IllegalArgumentException failure) {
+                // Existing observed windows can sort declared textual bucket keys without a
+                // calendar. Preserve that contract only when no date arithmetic is requested.
+                if (!(twDef.isRolling() && !twDef.isCalendarRolling() && twDef.value().isEmpty()
+                        && failure.getMessage().startsWith("TIMEWINDOW_FIELD_NOT_TIME"))) throw failure;
+            }
             // The requested surrogate is accepted only after resolving a typed date mapping.
-            timeFields.add(axis.requestedField());
+            if (axis != null) timeFields.add(axis.requestedField());
         }
 
         // Validate
         String errorCode = TimeWindowValidator.validate(twDef, availableFields, timeFields, measureFields);
         if (errorCode != null) {
-            throw new IllegalArgumentException("Invalid time window: " + errorCode);
+            throw new com.foggyframework.dataset.model.engine.expression.QueryCalculationException(errorCode, twDef.field(),
+                    errorCode.equals("TIMEWINDOW_ROLLING_MODE_INVALID") ? "timeWindow.rollingMode" : "timeWindow",
+                    "Invalid time window", "Check the timeWindow field, grain and rollingMode contract.", Map.of());
+        }
+        if ((twDef.isCumulative() || (twDef.isRolling() && !twDef.isCalendarRolling()))
+                && queryModel instanceof com.foggyframework.dataset.model.spi.JdbcQueryModel jdbc
+                && !jdbc.getDialect().supportsWindowFunctions()) {
+            throw new com.foggyframework.dataset.model.engine.expression.QueryCalculationException(
+                    "TIMEWINDOW_WINDOW_UNSUPPORTED", twDef.field(), "timeWindow.comparison",
+                    "This database does not support SQL window functions required by cumulative/observed windows.",
+                    "Use a database with window support; calendar rolling is available separately and has different semantics.", Map.of());
         }
 
         // Get group by fields from DbQueryRequestDef
@@ -162,24 +179,17 @@ public class TimeWindowInterceptor implements DataSetResultStep {
 
         Set<String> actualOutputs = null;
         if (twDef.isRolling() || twDef.isCumulative()) {
-            TimeWindowExpander.ExpansionResult expResult;
-            if (twDef.isRolling()) {
-                expResult = TimeWindowExpander.expandRolling(twDef, basePlan, groupByFields, measureFields);
-            } else {
-                expResult = TimeWindowExpander.expandCumulative(twDef, basePlan, groupByFields, measureFields);
+            AccumulatingPlanBuilder.Result built = AccumulatingPlanBuilder.build(basePlan, twDef, axis, measureFields,
+                    clock != null ? clock : java.time.Clock.system(java.time.ZoneId.of(timeZone)));
+            actualOutputs = built.outputs();
+            if (!built.warnings().isEmpty()) {
+                List<String> warnings = new ArrayList<>();
+                if (extData.get("engineWarnings") instanceof List<?> existing) existing.forEach(w -> warnings.add(String.valueOf(w)));
+                warnings.addAll(built.warnings());
+                extData.put("engineWarnings", warnings);
             }
-
-            List<Object> finalColumns = new ArrayList<>(originalColumns);
-            for (ProjectedColumn pc : expResult.additionalColumns()) {
-                finalColumns.add(pc);
-            }
-            QueryPlan timeWindowPlan = DerivedQueryPlan.builder()
-                    .source(basePlan)
-                    .columns(finalColumns)
-                    .build();
-
-            extData.put("timeWindowPlan", timeWindowPlan);
-            extData.put("timeWindowDesc", expResult.description());
+            extData.put("timeWindowPlan", built.plan());
+            extData.put("timeWindowDesc", twDef.comparison() + " " + (twDef.isCalendarRolling() ? "calendar" : "observed"));
             ctx.setSkipQuery(true);
 
         } else if (twDef.isComparative()) {

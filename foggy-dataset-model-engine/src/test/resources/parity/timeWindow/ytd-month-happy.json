@@ -8,7 +8,7 @@
     "grain": "month",
     "comparison": "ytd",
     "range": "[)",
-    "value": ["2024-01-01", "now"],
+    "value": ["2024-01-01", "2025-01-01"],
     "targetMetrics": ["salesAmount"]
   },
   "expectedColumns": ["salesAmount__ytd"]

@@ -78,7 +78,7 @@ public final class ComparativePeriodResolver {
         return mapped.get(IsoFields.WEEK_BASED_YEAR) == year ? mapped : null;
     }
 
-    private static LocalDate date(String text, LocalDate today) {
+    public static LocalDate date(String text, LocalDate today) {
         RelativeDateParser.DateExpr parsed = RelativeDateParser.parse(text);
         return switch (parsed.type()) {
             case ABSOLUTE -> parsed.absoluteDate();

@@ -19,6 +19,11 @@ class SemanticQueryPropertyInspectorTest {
 
     private final SemanticQueryPropertyInspector inspector = new SemanticQueryPropertyInspector();
 
+    @Test void rollingModeIsRecognizedByTheRuntimeInputContract() {
+        assertTrue(inspector.inspect(Map.of("timeWindow",Map.of("field","date","grain","day",
+                "comparison","rolling_7d","rollingMode","calendar")),UnknownQueryPropertyPolicy.WARN).isEmpty());
+    }
+
     @Test
     @DisplayName("warn mode reports unsupported groupBy grain without echoing its value")
     void warnShouldReportUnsupportedGroupByGrain() {

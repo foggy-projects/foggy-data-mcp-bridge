@@ -18,6 +18,14 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("TimeWindowDef")
 class TimeWindowDefTest {
 
+    @Test void rollingModeKeepsLegacyConstructorAndParsesExplicitCalendar() {
+        var legacy = new TimeWindowDef("date", "day", "rolling_7d", null, null, null, null);
+        assertNull(legacy.rollingMode()); assertFalse(legacy.isCalendarRolling());
+        var calendar = TimeWindowDef.fromMap(Map.of("field","date","grain","day","comparison","rolling_7d","rollingMode","calendar"));
+        assertTrue(calendar.isCalendarRolling());
+        assertEquals("calendar",calendar.rollingMode());
+    }
+
     // ==================================================================
     // Compact constructor validation
     // ==================================================================

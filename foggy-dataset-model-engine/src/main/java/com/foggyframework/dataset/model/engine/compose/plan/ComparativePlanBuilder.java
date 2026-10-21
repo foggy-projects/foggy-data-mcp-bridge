@@ -120,6 +120,7 @@ public final class ComparativePlanBuilder {
         CalculatedFieldDef field = new CalculatedFieldDef();
         field.setName(name);
         field.setExpression(expression);
+        field.setOrigin(CalculatedFieldDef.Origin.TIME_WINDOW_INTERNAL);
         return field;
     }
 

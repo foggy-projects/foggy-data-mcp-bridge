@@ -24,8 +24,17 @@ public record TimeWindowDef(
         String range,               // "[)" (default) or "[]"
         List<String> value,         // [start, end] — absolute dates or relative expressions
         List<String> targetMetrics, // nullable — measures to apply the window to
-        String rollingAggregator    // nullable — sum | avg | count | min | max (defaults to SUM)
+        String rollingAggregator,   // nullable — sum | avg | count | min | max (defaults to SUM)
+        String rollingMode         // null/observed: legacy output buckets; calendar: civil days
 ) {
+
+    /** Retains the Java source/binary constructor used before rollingMode was introduced. */
+    public TimeWindowDef(String field, String grain, String comparison, String range, List<String> value,
+                         List<String> targetMetrics, String rollingAggregator) {
+        this(field, grain, comparison, range, value, targetMetrics, rollingAggregator, null);
+    }
+
+    public boolean isCalendarRolling() { return isRolling() && "calendar".equals(rollingMode); }
 
     /**
      * Compact constructor: immutable copies + basic port validation.
@@ -85,7 +94,8 @@ public record TimeWindowDef(
                 (String) map.get("range"),
                 map.get("value") instanceof List<?> v ? v.stream().map(String::valueOf).toList() : null,
                 map.get("targetMetrics") instanceof List<?> tm ? tm.stream().map(String::valueOf).toList() : null,
-                (String) map.get("rollingAggregator")
+                (String) map.get("rollingAggregator"),
+                (String) map.get("rollingMode")
         );
     }
 }

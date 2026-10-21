@@ -368,6 +368,11 @@
               },
               "description": "需要派生时间窗口列的度量字段，如 [\"salesAmount\"]。不填时默认作用于可用度量。"
             },
+            "rollingMode": {
+              "type": "string",
+              "enum": ["observed", "calendar"],
+              "description": "仅 rolling_*：calendar 为最近 N 个自然日（仅 day 粒度，不补输出行）；observed 为最近 N 个实际输出桶。省略保留 observed 并返回提示。"
+            },
             "rollingAggregator": {
               "type": "string",
               "enum": [

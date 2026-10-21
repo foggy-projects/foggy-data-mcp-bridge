@@ -28,6 +28,26 @@ class FieldAccessPermissionStepTest {
 
     private FieldAccessPermissionStep step;
 
+    @Test void trustedCalendarKeyRequiresItsSourcePermissionWithoutMutatingCallerWhitelist() {
+        var field = new CalculatedFieldDef("__tw_bucket_key", "year(date)");
+        field.setOrigin(CalculatedFieldDef.Origin.TIME_WINDOW_INTERNAL);
+        var ctx = buildCtx(List.of("__tw_bucket_key"), Set.of("date"));
+        ctx.getRequest().getParam().setCalculatedFields(List.of(field));
+        assertDoesNotThrow(() -> step.beforeQuery(ctx));
+        assertEquals(Set.of("date"), ctx.getFieldAccess());
+        ctx.setFieldAccess(Set.of());
+        assertThrows(RuntimeException.class, () -> step.beforeQuery(ctx));
+    }
+
+    @Test void jsonCannotForgeInternalCalendarOrigin() throws Exception {
+        var field = new com.fasterxml.jackson.databind.ObjectMapper().readValue(
+                "{\"name\":\"__tw_bucket_key\",\"expression\":\"year(date)\",\"origin\":\"TIME_WINDOW_INTERNAL\"}", CalculatedFieldDef.class);
+        assertEquals(CalculatedFieldDef.Origin.USER_DECLARED,field.getOrigin());
+        var ctx=buildCtx(List.of("__tw_bucket_key"),Set.of("date"));
+        ctx.getRequest().getParam().setCalculatedFields(List.of(field));
+        assertThrows(RuntimeException.class,()->step.beforeQuery(ctx));
+    }
+
     @BeforeEach
     void setUp() {
         step = new FieldAccessPermissionStep();

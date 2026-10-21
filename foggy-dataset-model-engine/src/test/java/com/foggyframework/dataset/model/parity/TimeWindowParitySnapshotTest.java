@@ -266,7 +266,7 @@ class TimeWindowParitySnapshotTest extends EcommerceTestSupport {
                         "grain", "month",
                         "comparison", "ytd",
                         "range", "[)",
-                        "value", List.of("2024-01-01", "now"),
+                        "value", List.of("2024-01-01", "2025-01-01"),
                         "targetMetrics", List.of("salesAmount")),
                 List.of());
     }

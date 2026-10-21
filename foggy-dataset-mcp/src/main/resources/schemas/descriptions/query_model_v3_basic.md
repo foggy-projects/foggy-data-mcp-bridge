@@ -82,6 +82,8 @@
 ### timeWindow (可选)
 声明式时间窗口分析。同比、环比、周同比、年初至今、月累计、滚动 7/30/90 天优先使用 `timeWindow`。
 
+`rollingMode` 仅用于 rolling_*：`calendar` 表示最近 N 个自然日，仅支持 day 粒度；`observed` 表示最近 N 个实际输出桶。省略保留 observed 并返回提示；自然日报表请显式使用 calendar。两者均不补输出行。`value/range` 仅限定最终展示，窗口保留所需历史；用户 slice 仍为硬约束。YTD/MTD 内部日期分区依赖自动生成，无需投影年月。月/季展示范围须对齐完整桶，周 YTD 暂不支持。窗口聚合针对桶值（AVG 为桶均值，COUNT 为非空桶数）。
+
 `value` 可选；传入时必须是两个元素的数组 `[start, end]`，每个元素为合法日期或相对表达式。`rollingAggregator` 支持 `sum` / `avg` / `count` / `min` / `max`，不填默认 `sum`。
 
 ```json

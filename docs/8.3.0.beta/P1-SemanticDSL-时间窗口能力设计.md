@@ -23,6 +23,26 @@
 
 ## 架构定位
 
+### 2026-10：#152 / #153 / #154 统一修复合同与实施方案
+
+Java 引擎累计和滚动统一使用“授权日期轴绑定 → 历史输入范围 → 粒度聚合 → 窗口 → 展示过滤 → 最终排序分页”。同环比继续复用原有 ComparativePlanBuilder；复用日期轴、日历表达式和 QueryPlan，不引入拼接 SQL 或旁路权限查询。
+
+- `value/range` 是展示期间，`[]` 包含结束自然日；省略 value 不限定展示期间。月/季展示边界必须对齐完整桶；不能可靠表达的部分桶在 validate 和 execute 一致拒绝。
+- YTD 从自然年初、MTD 从自然月初读取历史；内部排序/重置键从日期轴生成，不要求公开 `$year/$month`。月粒度保持每月一行。周 YTD 涉及跨自然年的周，暂明确拒绝，避免一个桶被切成两个年份。
+- `rollingMode: "calendar"`：`rolling_Nd` 在当前自然日 D 计算 `[D-(N-1), D+1)` 的实际日桶。仅接受 day 粒度，不补输出行、不默认补零、不将周桶冒充自然日。
+- `rollingMode: "observed"`：当前桶及前 N-1 个实际输出桶。缺失日期不占桶；rolling_90d/week 的旧行为仍表示 90 个周桶。
+- 省略 rollingMode 保留 observed，并返回 `TIMEWINDOW_OBSERVED_DEFAULT` 提示；日历报表必须显式选择 calendar。已有七参数 Java 构造器保留。通用 ROWS 窗口 API 不变。
+- 两种模式的 rollingAggregator 都是对桶值聚合，沿用默认 SUM；AVG 是桶均值、COUNT 是非空桶数，不暗中改成明细加权平均或明细记录数。
+- 用户 slice 和权限条件保持硬约束，不能为补历史而删除；源 slice 可能截断历史时返回提示。顶层 having 继续沿用现有歧义拒绝合同。计算依赖不进入公开输出 schema；引擎内部日历键使用不可通过 JSON 指定的来源标记，免除内部键名授权但逐一校验基础依赖，公开派生字段仍沿用原白名单合同。
+- 没有 value 的旧 observed 请求仍允许按声明的文本时间桶排序；需要日历运算（calendar、累计或展示日期过滤）则要求可解析的 DATE/DATETIME 轴。不能从任意文本猜测业务日期。
+- 自然日窗口采用日序号范围 JOIN + 聚合，覆盖 SQL Server 不支持带偏移 RANGE 的情况。两边均为受治理的 BaseModelPlan；业务维度使用 null-safe 等值连接。
+
+影响面：累计/滚动的日期依赖、展示行数、窗口后的分页与总数、日期字段输出粒度、隐藏列及后续计算列；同比/环比、普通 ROWS 窗口和默认滚动的金额口径保持不变。共享 PERIOD_START 表达式的结果类型由 DATETIME 校正为 DAY，防止 MySQL 严格分组时 SELECT 被自动格式化而 GROUP BY 未格式化；依赖原 DATETIME 元数据的调用方需按日期桶语义处理。共享日历键权限豁免只适用于引擎内部列名，源日期权限不能豁免。旧请求中 grain 与实际 groupBy 不一致的形状必须按声明粒度修正，不能保留错误分组冒充兼容。
+
+兼容限制与性能：MySQL 5.7 的累计/按桶窗口在 validate 和 execute 返回 TIMEWINDOW_WINDOW_UNSUPPORTED；自然日滚动可执行。范围 JOIN 会增加计划和聚合成本；提供 value 时限制所需历史范围，但未提供展示范围的大历史、多维度请求仍需单独压测，不以功能回归代替性能容量结论。
+
+验证顺序：独立金额/日期集合回归（稀疏日、同日多记录、跨年/月、隐藏年月、月粒度、slice、空区间、分页、别名和权限）→ 全 reactor 单测与集成测试 → SQLite/MySQL 5.7/MySQL 8/PostgreSQL/SQL Server 矩阵。MySQL 5.7 的窗口不支持须验证明确拒绝；calendar 的范围 JOIN 路径验证真实结果。测试日志、XML、命令和数据库身份保存在仓库外，任何 clean 不作为证据保存路径。
+
 本文档定义的 `timeWindow` 是上游 P1 §推荐设计方向 §[NOTE] 中提出的 **Single Query DSL 包装层**。它与底层 QueryPlan 窗口主语义的关系为：
 
 ```

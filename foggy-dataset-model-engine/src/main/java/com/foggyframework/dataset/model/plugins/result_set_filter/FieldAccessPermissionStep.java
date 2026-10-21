@@ -61,6 +61,14 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
 
         // Synthetic member columns are already bound relative paths. Their '$'
         // segments are real identifiers, not ordinary QM dimension permission groups.
+        // Generated calendar keys have no user-facing permission identity. This origin is
+        // @JsonIgnore; every expression dependency is still checked below against the caller.
+        if (fieldAccess != null && ctx.getRequest().getParam().getCalculatedFields() != null) {
+            fieldAccess = new LinkedHashSet<>(fieldAccess);
+            for (CalculatedFieldDef field : ctx.getRequest().getParam().getCalculatedFields()) {
+                if (field.getOrigin() == CalculatedFieldDef.Origin.TIME_WINDOW_INTERNAL) fieldAccess.add(field.getName());
+            }
+        }
         PermissionAccess access = new PermissionAccess(fieldAccess, deniedQmFields,
                 ctx.getQueryModel() != null && ctx.getQueryModel().getName() != null
                         && ctx.getQueryModel().getName().contains("#"));

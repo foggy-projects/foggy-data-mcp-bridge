@@ -191,7 +191,7 @@ class TimeWindowExecutionIT extends EcommerceTestSupport {
                 List.of("salesDate$year", "salesDate$id"),
                 Map.of(
                         "field", "salesDate$id",
-                        "grain", "month",
+                        "grain", "day",
                         "comparison", "ytd",
                         "targetMetrics", List.of("salesAmount")
                 ));
@@ -343,7 +343,7 @@ class TimeWindowExecutionIT extends EcommerceTestSupport {
         assertNotNull(generated);
         assertTrue(generated.getSql().contains("ORDER BY"), generated.getSql());
         assertTrue(generated.getSql().contains("salesAmount__rolling_7d"), generated.getSql());
-        assertTrue(generated.getSql().contains("LIMIT 2"), generated.getSql());
+        assertTrue(generated.getSql().contains(getDialectKey().equals("sqlserver") ? "TOP (2)" : "LIMIT 2"), generated.getSql());
 
         SemanticQueryResponse response = semanticQueryServiceV3.queryModel(
                 TEST_MODEL, request, "execute", SemanticRequestContext.empty());

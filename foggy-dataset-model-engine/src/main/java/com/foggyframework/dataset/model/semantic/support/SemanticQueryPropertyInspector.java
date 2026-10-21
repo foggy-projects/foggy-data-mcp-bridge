@@ -40,7 +40,7 @@ public final class SemanticQueryPropertyInspector {
     private static final Set<String> ORDER_BY = orderedSet(
             "field", "column", "dir", "direction", "nullFirst", "nullLast");
     private static final Set<String> TIME_WINDOW = orderedSet(
-            "field", "grain", "comparison", "range", "value", "targetMetrics", "rollingAggregator");
+            "field", "grain", "comparison", "range", "value", "targetMetrics", "rollingAggregator", "rollingMode");
     private static final Set<String> POST_AGGREGATE = orderedSet(
             "name", "kind", "measure", "scope", "format");
     private static final Set<String> OUTPUT_FORMATTING = orderedSet(
@@ -68,7 +68,7 @@ public final class SemanticQueryPropertyInspector {
     /** Value-free or schema-oriented fields that are safe to echo in a normalized fragment. */
     private static final Set<String> SAFE_NORMALIZED_FRAGMENT_PROPERTIES = orderedSet(
             "field", "agg", "name", "kind", "measure", "scope", "format", "dir", "direction",
-            "nullFirst", "nullLast", "grain", "comparison", "rollingAggregator", "type",
+            "nullFirst", "nullLast", "grain", "comparison", "rollingAggregator", "rollingMode", "type",
             "emptyDefault", "axis", "level", "parentLevel", "baseline", "baselineScope",
             "denominatorScope", "hierarchyMode", "expandDepth", "crossjoin", "rowSubtotals",
             "columnSubtotals", "grandTotal", "metricPlacement", "start", "limit", "stream",

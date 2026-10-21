@@ -110,6 +110,12 @@ public final class TimeWindowValidator {
         }
 
         // Calendar identities are derived from a typed time axis, not required model suffixes.
+        if (tw.rollingMode() != null && (!tw.isRolling()
+                || !Set.of("observed", "calendar").contains(tw.rollingMode()))) {
+            return "TIMEWINDOW_ROLLING_MODE_INVALID";
+        }
+        // A weekly bucket cannot represent a trailing civil-day interval exactly.
+        if (tw.isCalendarRolling() && !"day".equals(tw.grain())) return GRAIN_INCOMPATIBLE;
 
         // 6. range validity
         if (!VALID_RANGES.contains(tw.range())) {
