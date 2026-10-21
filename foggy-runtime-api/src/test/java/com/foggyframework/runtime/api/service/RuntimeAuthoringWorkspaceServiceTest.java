@@ -242,7 +242,7 @@ class RuntimeAuthoringWorkspaceServiceTest {
                 new AuthoringWorkspaceCreateRequest(
                         "sales", "managed-sales"));
         DetachedModelValidationSession session = validationSession();
-        when(fixture.validationFactory().open(
+        when(fixture.validationFactory().openReplacement(
                 eq("managed-sales"), eq("sales"), anyString()))
                 .thenReturn(session);
         var validated = fixture.service().validate(
@@ -292,7 +292,7 @@ class RuntimeAuthoringWorkspaceServiceTest {
                 new AuthoringWorkspaceCreateRequest(
                         "sales", "managed-sales"));
         DetachedModelValidationSession session = validationSession();
-        when(fixture.validationFactory().open(
+        when(fixture.validationFactory().openReplacement(
                 eq("managed-sales"), eq("sales"), anyString()))
                 .thenReturn(session);
 
@@ -325,7 +325,7 @@ class RuntimeAuthoringWorkspaceServiceTest {
         doThrow(new IllegalStateException(
                 "jdbc:secret://must-not-be-persisted"))
                 .when(session).validateQueryModel(any(BundleResource.class));
-        when(fixture.validationFactory().open(
+        when(fixture.validationFactory().openReplacement(
                 eq("managed-sales"), eq("sales"), anyString()))
                 .thenReturn(session);
 
@@ -358,7 +358,7 @@ class RuntimeAuthoringWorkspaceServiceTest {
         verify(fixture.candidateQueryService(), never()).query(any());
 
         DetachedModelValidationSession session = validationSession();
-        when(fixture.validationFactory().open(
+        when(fixture.validationFactory().openReplacement(
                 eq("managed-sales"), eq("sales"), anyString()))
                 .thenReturn(session);
         var validated = fixture.service().validate(
@@ -410,7 +410,7 @@ class RuntimeAuthoringWorkspaceServiceTest {
             assertThat(release.await(5, TimeUnit.SECONDS)).isTrue();
             return null;
         }).when(session).validateFsscript(any(BundleResource.class));
-        when(fixture.validationFactory().open(
+        when(fixture.validationFactory().openReplacement(
                 eq("managed-sales"), eq("sales"), anyString()))
                 .thenReturn(session);
         ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -453,7 +453,7 @@ class RuntimeAuthoringWorkspaceServiceTest {
                 new AuthoringWorkspaceCreateRequest(
                         "sales", "managed-sales"));
         DetachedModelValidationSession session = validationSession();
-        when(fixture.validationFactory().open(
+        when(fixture.validationFactory().openReplacement(
                 eq("managed-sales"), eq("sales"), anyString()))
                 .thenReturn(session);
         var validated = fixture.service().validate(
@@ -513,7 +513,7 @@ class RuntimeAuthoringWorkspaceServiceTest {
                 new AuthoringWorkspaceCreateRequest(
                         "sales", "managed-sales"));
         DetachedModelValidationSession passing = validationSession();
-        when(fixture.validationFactory().open(
+        when(fixture.validationFactory().openReplacement(
                 eq("managed-sales"), eq("sales"), anyString()))
                 .thenReturn(passing);
         var validated = fixture.service().validate(
@@ -553,7 +553,7 @@ class RuntimeAuthoringWorkspaceServiceTest {
             DetachedModelValidationSession failing = validationSession();
             doThrow(new IllegalStateException("revalidation failed"))
                     .when(failing).validateQueryModel(any(BundleResource.class));
-            when(fixture.validationFactory().open(
+            when(fixture.validationFactory().openReplacement(
                     eq("managed-sales"), eq("sales"), anyString()))
                     .thenReturn(failing);
             assertCode(() -> fixture.service().validate(

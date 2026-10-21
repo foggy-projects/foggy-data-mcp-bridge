@@ -70,7 +70,7 @@ public final class DefaultCandidateQueryFactory implements CandidateQueryFactory
         requireLiveSourceCurrent(source, "open");
         requireOverlayAllowed(source, snapshot, "open");
 
-        DetachedModelValidationSession detached = validationFactory.open(
+        DetachedModelValidationSession detached = validationFactory.openReplacement(
                 source.sourceBundle(),
                 canonicalNamespace(source.namespace()),
                 snapshot.root().toString()

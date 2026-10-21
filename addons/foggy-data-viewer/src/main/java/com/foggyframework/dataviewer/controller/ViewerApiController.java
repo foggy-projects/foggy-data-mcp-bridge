@@ -310,6 +310,7 @@ public class ViewerApiController {
      */
     @PostMapping("/members/query")
     public RX<MemberQueryResponse> queryMembers(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestHeader(value = "X-NS", required = false) String headerNamespace,
             @RequestBody MemberQueryRequest request) {
         if (request.getQmModel() == null || request.getQmModel().isBlank()) {
@@ -322,7 +323,7 @@ public class ViewerApiController {
         try {
             String namespace = resolveNamespace(headerNamespace, request.getNamespace());
             request.setNamespace(namespace);
-            MemberQueryResponse response = memberQueryService.query(request, namespace);
+            MemberQueryResponse response = memberQueryService.query(request, namespace, authorization);
             return RX.ok(response);
         } catch (Exception e) {
             log.error("Error querying members for {}.{}: {}",
@@ -341,6 +342,7 @@ public class ViewerApiController {
      */
     @GetMapping("/query/{model}/{queryId}/filter-options/{columnName}")
     public RX getFilterOptions(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
             @PathVariable String model,
             @PathVariable String queryId,
             @PathVariable String columnName,
@@ -381,7 +383,7 @@ public class ViewerApiController {
             String namespace = resolveNamespace(headerNamespace, firstNonBlank(queryNamespace, ctx.getNamespace()));
             memberReq.setNamespace(namespace);
 
-            MemberQueryResponse memberResp = memberQueryService.query(memberReq, namespace);
+            MemberQueryResponse memberResp = memberQueryService.query(memberReq, namespace, authorization);
 
             // 转换为旧的 FilterOption 格式 { options: [{value, label}], total }
             List<java.util.Map<String, Object>> options = new ArrayList<>();

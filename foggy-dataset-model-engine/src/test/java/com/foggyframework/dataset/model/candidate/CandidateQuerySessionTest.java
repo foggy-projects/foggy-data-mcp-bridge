@@ -218,7 +218,7 @@ class CandidateQuerySessionTest {
                     .isInstanceOf(CandidateQueryException.class)
                     .extracting(failure -> ((CandidateQueryException) failure).code())
                     .isEqualTo(CandidateQueryErrorCode.CANDIDATE_OVERLAY_FORBIDDEN);
-            verify(fixture.validationFactory(), never()).open(
+            verify(fixture.validationFactory(), never()).openReplacement(
                     anyString(), anyString(), anyString());
         }
     }
@@ -240,7 +240,7 @@ class CandidateQuerySessionTest {
             assertThat(session.identity().sourceBundle()).isEqualTo(SOURCE_BUNDLE);
         }
 
-        verify(fixture.validationFactory()).open(
+        verify(fixture.validationFactory()).openReplacement(
                 eq(SOURCE_BUNDLE), eq(NAMESPACE), anyString());
     }
 
@@ -379,7 +379,7 @@ class CandidateQuerySessionTest {
                 );
         when(detached.resolveQueryModel(MODEL, NAMESPACE))
                 .thenReturn(detachedResolution);
-        when(validationFactory.open(
+        when(validationFactory.openReplacement(
                 eq(SOURCE_BUNDLE), eq(NAMESPACE), anyString()))
                 .thenReturn(detached);
 

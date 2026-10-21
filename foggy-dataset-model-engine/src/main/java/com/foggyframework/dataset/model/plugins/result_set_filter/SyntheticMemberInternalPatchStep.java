@@ -82,7 +82,7 @@ public class SyntheticMemberInternalPatchStep implements DataSetResultStep {
 
     // ==================== 权限解析 ====================
 
-    private SyntheticMemberEffectivePermission resolveEffectivePermission(QueryModel sourceModel, String dimFieldBase) {
+    SyntheticMemberEffectivePermission resolveEffectivePermission(QueryModel sourceModel, String dimFieldBase) {
         if (sourceModel == null) throw new IllegalArgumentException("member source model unavailable");
 
         // TM 维度级权限
@@ -112,19 +112,18 @@ public class SyntheticMemberInternalPatchStep implements DataSetResultStep {
     private void applyVisibleColumns(DbQueryRequestDef queryRequest,
                                       List<String> visibleColumns,
                                       LinkedHashSet<String> schemaFields) {
-        if (visibleColumns == null || visibleColumns.isEmpty()) {
+        if (visibleColumns == null) {
             return;
         }
 
         // 与 schema 求交
         LinkedHashSet<String> effectiveVisible = new LinkedHashSet<>();
         for (String col : visibleColumns) {
-            if (schemaFields.contains(col)) {
-                effectiveVisible.add(col);
-            }
+            if (!schemaFields.contains(col)) throw RX.throwAUserTip("member permission visibleColumns contains unknown field: " + col);
+            effectiveVisible.add(col);
         }
         if (effectiveVisible.isEmpty()) {
-            return;
+            throw RX.throwAUserTip("member permission visibleColumns is empty");
         }
 
         // 与请求列求交
@@ -145,7 +144,7 @@ public class SyntheticMemberInternalPatchStep implements DataSetResultStep {
         }
     }
 
-    private void applyForcedSlice(DbQueryRequestDef queryRequest,
+    void applyForcedSlice(DbQueryRequestDef queryRequest,
                                    List<MemberPermissionSliceDef> forcedSlice,
                                    LinkedHashSet<String> schemaFields,
                                    ModelResultContext ctx,
@@ -184,7 +183,7 @@ public class SyntheticMemberInternalPatchStep implements DataSetResultStep {
         queryRequest.setSlice(merged);
     }
 
-    private void applyForcedOrderBy(DbQueryRequestDef queryRequest,
+    void applyForcedOrderBy(DbQueryRequestDef queryRequest,
                                      List<String> visibleColumns,
                                      List<OrderRequestDef> forcedOrderBy,
                                      LinkedHashSet<String> schemaFields) {
@@ -197,6 +196,8 @@ public class SyntheticMemberInternalPatchStep implements DataSetResultStep {
         for (OrderRequestDef order : forcedOrderBy) {
             if (order != null && StringUtils.isNotEmpty(order.getField()) && schemaFields.contains(order.getField())) {
                 validForcedOrders.add(order);
+            } else {
+                throw RX.throwAUserTip("member permission forcedOrderBy contains unknown field");
             }
         }
 
@@ -225,26 +226,7 @@ public class SyntheticMemberInternalPatchStep implements DataSetResultStep {
     private void applyHierarchyCheck(DbQueryRequestDef queryRequest,
                                       SyntheticMemberEffectivePermission effective,
                                       LinkedHashSet<String> schemaFields) {
-        // hierarchyEnabled=false 时，拦截层级操作
-        if (Boolean.FALSE.equals(effective.getHierarchyEnabled())) {
-            if (queryRequest.getSlice() != null) {
-                for (SliceRequestDef slice : queryRequest.getSlice()) {
-                    if (isHierarchyOp(slice.getOp())) {
-                        throw RX.throwAUserTip("synthetic member-QM 内部权限已禁用层级操作");
-                    }
-                }
-            }
-        }
-
-        // allowedHierarchyOps 白名单校验
-        List<String> allowed = effective.getAllowedHierarchyOps();
-        if (allowed != null && !allowed.isEmpty() && queryRequest.getSlice() != null) {
-            for (SliceRequestDef slice : queryRequest.getSlice()) {
-                if (isHierarchyOp(slice.getOp()) && !allowed.contains(slice.getOp())) {
-                    throw RX.throwAUserTip("synthetic member-QM 内部权限不允许层级操作: " + slice.getOp());
-                }
-            }
-        }
+        SyntheticMemberFinalPermissionStep.checkHierarchy(queryRequest, effective, "");
     }
 
     // ==================== 工具方法 ====================
@@ -279,7 +261,7 @@ public class SyntheticMemberInternalPatchStep implements DataSetResultStep {
                 || "selfAndAncestorsOf".equals(op);
     }
 
-    private Map<String, Object> buildValueBuilderContext(ModelResultContext ctx) {
+    Map<String, Object> buildValueBuilderContext(ModelResultContext ctx) {
         Map<String, Object> context = new HashMap<>();
         if (ctx.getRequest() != null) {
             context.put("request", ctx.getRequest());

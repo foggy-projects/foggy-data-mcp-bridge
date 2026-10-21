@@ -32,20 +32,20 @@ public class SyntheticMemberEffectivePermission {
     private List<FsscriptFunction> queryBuilders;
 
     public boolean isEmpty() {
-        return (visibleColumns == null || visibleColumns.isEmpty())
+        return visibleColumns == null
                 && (forcedSlice == null || forcedSlice.isEmpty())
                 && (forcedOrderBy == null || forcedOrderBy.isEmpty())
                 && hierarchyEnabled == null
-                && (allowedHierarchyOps == null || allowedHierarchyOps.isEmpty())
+                && allowedHierarchyOps == null
                 && (queryBuilders == null || queryBuilders.isEmpty());
     }
 
     public boolean hasPatch() {
-        return (visibleColumns != null && !visibleColumns.isEmpty())
+        return visibleColumns != null
                 || (forcedSlice != null && !forcedSlice.isEmpty())
                 || (forcedOrderBy != null && !forcedOrderBy.isEmpty())
                 || hierarchyEnabled != null
-                || (allowedHierarchyOps != null && !allowedHierarchyOps.isEmpty());
+                || allowedHierarchyOps != null;
     }
 
     public boolean hasQueryBuilders() {

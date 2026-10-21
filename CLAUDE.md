@@ -5,6 +5,13 @@
 本文是仓库开发导航，不复制完整架构。当前架构以
 [docs/architecture/README.md](docs/architecture/README.md) 为唯一入口。
 
+## 工作目录约定（2026-10-21）
+
+用户指定后续统一在 `foggy-data-mcp/foggy-data-mcp-bridge` 主工作目录的 `main` 开发。
+开始前核对 `git branch --show-current` 和 `git worktree list`，不要将目录名视为分支证明。
+`releases/engine-9.3.0` 保留历史测试证据，退出 main 占用后不再作为日常开发目录；
+不删除其 `target` 证据，也不从旧分支或旧本地 SNAPSHOT 推断当前发布源码。
+
 ## 1. 文档归属
 
 - `docs/architecture/`：`main` 上当前有效的整体架构、模块边界、生命周期和 SPI。

@@ -29,6 +29,19 @@ synthetic 实例固定编译时的源 QM，MEMBER_QUERY、行谓词与 TM/QM 成
 自动生成的旧列不能重新开放已隐藏的 renamed 投影，物理列拒绝不会在转换中被清空。
 无法映射到目标成员查询的源行权限明确拒绝，不能通过丢弃谓词扩大数据范围。
 
+成员 patch 的 `visibleColumns` / `allowedHierarchyOps` 用 null 表示未声明，空列表表示禁止；
+visibleColumns 中未知字段明确失败。同一维度仍以 QM 覆盖 TM。祖先成员入口引用子树的选择、
+筛选、排序、分组、计算字段（含窗口）依赖时，叠加沿途子维度策略；不同维度约束取交集，
+强制谓词转换为相对完整路径并 AND。仅查询父自身不引入子级过滤，独立子入口不反向继承父级。
+无法重定位的子级 SQL queryBuilder 明确拒绝祖先入口，使用独立子入口执行原策略。
+最终成员权限检查在 system/external patch 之后，递归覆盖 slice、having、postSlice 的层级操作。
+客户端 external patch 单独校验语义/物理字段依赖，不能利用后置合并绕过权限；可信内部行谓词保持既有权限。
+用户条件中的 `$expr` 和 `$field` 同样展开为来源依赖；被 exColumns 排除且无其他使用的子列不激活子策略。
+
+Viewer 从 `MemberBindingService` 获取当前完整维度路径及真实 id/caption 查询名，不截断路径、
+不以输出 alias 推导查询字段，不缓存模型名对应的层级元数据。主查询与已选回填均经 QueryFacade
+并透传 authorization / namespace；字段描述只有执行授权查询成功后才返回。签名链接仍使用原查询作用域。
+
 这些组件属于 model-engine 内部。公共 Model SPI v2、namespace、catalog、原子刷新和缓存身份
 不因此增加接口或改变生命周期。模型刷新及受影响旧结果缓存失效仍遵循既有发布流程。
 

@@ -72,10 +72,16 @@ final class DetachedModelValidationSessionImpl
             String namespace,
             String path
     ) {
+        this(liveBundlesContext, liveTableModelLoaderManager, liveQueryModelLoader, bundleName, namespace, path, false);
+    }
+
+    DetachedModelValidationSessionImpl(SystemBundlesContext liveBundlesContext,
+            TableModelLoaderManager liveTableModelLoaderManager, QueryModelLoader liveQueryModelLoader,
+            String bundleName, String namespace, String path, boolean replaceNamedBundle) {
         this.liveBundlesContext = liveBundlesContext;
         this.liveTableModelLoaderManager = liveTableModelLoaderManager;
         this.liveQueryModelLoader = liveQueryModelLoader;
-        this.detachedBundlesContext = new DetachedSystemBundlesContext(liveBundlesContext);
+        this.detachedBundlesContext = new DetachedSystemBundlesContext(liveBundlesContext, replaceNamedBundle);
 
         ExternalBundleDefinition definition = new ExternalBundleDefinition(
                 bundleName,
@@ -457,12 +463,46 @@ final class DetachedModelValidationSessionImpl
         private ApplicationContext applicationContext;
         private ExternalFileBundle sourceBundle;
 
-        private DetachedSystemBundlesContext(SystemBundlesContext live) {
+        private final boolean replaceNamedBundle;
+        private final java.util.Set<String> sourceResources = new java.util.HashSet<>();
+
+        private DetachedSystemBundlesContext(SystemBundlesContext live, boolean replaceNamedBundle) {
             this.live = live;
+            this.replaceNamedBundle = replaceNamedBundle;
         }
 
         private void attach(ExternalFileBundle bundle) {
             this.sourceBundle = bundle;
+            for (String pattern : List.of("*", "**/*")) {
+                Resource[] resources = bundle.findResources(pattern);
+                if (resources != null) for (Resource resource : resources) sourceResources.add(resourceIdentity(resource));
+            }
+        }
+
+        private static String resourceIdentity(Resource resource) {
+            try { return resource.getFile().toPath().toRealPath().toUri().toString(); }
+            catch (IOException | RuntimeException unavailable) {
+                try { return resource.getURI().normalize().toString(); }
+                catch (IOException failure) { throw new IllegalStateException("Cannot identify detached resource", failure); }
+            }
+        }
+
+        /** Keep parent-bundle dependencies while excluding the exact resources already in the candidate. */
+        private Bundle dependencyView(Bundle bundle) {
+            if (bundle == null || bundle.getDefinition() == null || !canonicalNamespace(bundle.getDefinition().getNamespace())
+                    .equals(canonicalNamespace(sourceBundle.getDefinition().getNamespace()))) return bundle;
+            return (Bundle) Proxy.newProxyInstance(Bundle.class.getClassLoader(), new Class<?>[]{Bundle.class},
+                    (proxy, method, args) -> {
+                        try {
+                            Object result = method.invoke(bundle, args);
+                            if (result instanceof Resource[] resources) return java.util.Arrays.stream(resources)
+                                    .filter(r -> !sourceResources.contains(resourceIdentity(r))).toArray(Resource[]::new);
+                            if (result instanceof BundleResource[] resources) return java.util.Arrays.stream(resources)
+                                    .filter(r -> !sourceResources.contains(resourceIdentity(r.getResource()))).toArray(BundleResource[]::new);
+                            if (result instanceof BundleResource resource && sourceResources.contains(resourceIdentity(resource.getResource()))) return null;
+                            return result;
+                        } catch (InvocationTargetException failure) { throw failure.getCause(); }
+                    });
         }
 
         private void setApplicationContext(ApplicationContext applicationContext) {
@@ -485,7 +525,7 @@ final class DetachedModelValidationSessionImpl
             bundles.add(sourceBundle);
             for (Bundle bundle : live.getBundleList()) {
                 if (bundle != null && !replacedBySource(bundle)) {
-                    bundles.add(bundle);
+                    bundles.add(dependencyView(bundle));
                 }
             }
             return List.copyOf(bundles);
@@ -494,7 +534,7 @@ final class DetachedModelValidationSessionImpl
         private boolean replacedBySource(Bundle bundle) {
             return bundle.getDefinition() != null && canonicalNamespace(bundle.getDefinition().getNamespace())
                     .equals(canonicalNamespace(sourceBundle.getDefinition().getNamespace()))
-                    && (sourceBundle.getName().equals(bundle.getName()) || sameDirectory(bundle));
+                    && ((replaceNamedBundle && sourceBundle.getName().equals(bundle.getName())) || sameDirectory(bundle));
         }
 
         private boolean sameDirectory(Bundle bundle) {
@@ -598,26 +638,10 @@ final class DetachedModelValidationSessionImpl
                 String namespace,
                 boolean errorIfNotFound
         ) {
-            String sourceNamespace = canonicalNamespace(
-                    sourceBundle.getDefinition().getNamespace());
-            if (sourceNamespace.equals(canonicalNamespace(namespace))) {
-                BundleResource resource = sourceBundle.findBundleResource(name, false);
-                if (resource != null) {
-                    return resource;
-                }
-            }
-            return findLiveDependencyResource(name, namespace, errorIfNotFound);
-        }
-
-        private BundleResource findLiveDependencyResource(
-                String name,
-                String namespace,
-                boolean errorIfNotFound
-        ) {
             String requestedNamespace = canonicalNamespace(namespace);
             List<BundleResource> matches = new ArrayList<>();
-            for (Bundle bundle : live.getBundleList()) {
-                if (bundle == null || replacedBySource(bundle)
+            for (Bundle bundle : getBundleList()) {
+                if (bundle == null
                         || bundle.getDefinition() == null
                         || !requestedNamespace.equals(canonicalNamespace(
                         bundle.getDefinition().getNamespace()))) {
@@ -626,7 +650,8 @@ final class DetachedModelValidationSessionImpl
                 Resource[] resources = bundle.findResources("**/" + name);
                 if (resources != null) {
                     for (Resource resource : resources) {
-                        matches.add(new BundleResource(bundle, resource));
+                        if (matches.stream().noneMatch(found -> resourceIdentity(found.getResource()).equals(resourceIdentity(resource))))
+                            matches.add(new BundleResource(bundle, resource));
                     }
                 }
             }

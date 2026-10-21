@@ -44,3 +44,15 @@ Python assertions must be enabled.
 preserved under `.foggy-runtime/field-binding-smoke/`; the six release assets remain unchanged.
 The `Field Binding Contracts` workflow runs SQLite/four-database gates for relevant changes and checks
 published launcher checksums and runtime behavior on release or manual dispatch.
+
+For member policy, Viewer authorization/current-generation refresh, and detached directory identity:
+
+```bash
+python scripts/field-binding/member_policy_smoke.py --jar path/to/launcher.jar --output target/member-policy-artifact
+```
+
+This gate asserts nested/externally injected hierarchy denial, descendant permission inheritance,
+all five hierarchy operators, renamed Viewer selection round-trips, identity propagation to selected
+values, real bundle refresh, and TM/QM conflicts versus same-resource subdirectory deduplication.
+It owns an isolated SQLite runtime and stops only that JVM. The database matrix also includes
+`MemberPolicyRegressionTest` (ordinary/member SQL, field/window dependencies and detached isolation).

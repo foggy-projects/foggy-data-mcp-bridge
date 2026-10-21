@@ -15,6 +15,7 @@ recorded_at: 2026-08-01
 
 | Work item | 状态 | 目标 |
 |---|---|---|
+| [成员权限、Viewer 与 detached 身份](workitems/BUG-member-policy-and-detached-identity.md) | LOCALLY VERIFIED | 八类问题修复、子维度权限合同及 Viewer 真实刷新验证；Windows/Linux 各 5,983 项全量、五数据库和全部 47 个 IT 类覆盖通过 |
 | [字段绑定与权限依赖一致性](workitems/BUG-field-binding-dependencies.md) | DONE | 优先修复窗口权限与 pivot 数据错误，统一计算/聚合命名、元数据、结果 schema 和依赖注入；专项后全量及多数据库验证 |
 | [#146 QM 字段命名与维度列元数据](workitems/BUG-146-qm-field-names.md) | PUBLISHED | 命名合同、维度列注册、元数据及权限回归完成；专项、全量与五数据库验证通过，历史例外单列；Launcher 0.1.27 与私有 snapshot 已发布 |
 | [Launcher clean 范围](workitems/BUG-launcher-clean-scope.md) | LOCALLY VERIFIED | 限定 Console/Launcher 清理；真实 Maven 文件系统回归及 29 项打包/发布测试通过 |

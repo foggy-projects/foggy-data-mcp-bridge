@@ -67,7 +67,7 @@ public class SyntheticMemberPermissionResolver {
     private List<String> mergeVisibleColumns(MemberPermissionPatchDef tmPatch,
                                               MemberPermissionPatchDef qmPatch) {
         List<String> qmCols = qmPatch != null ? qmPatch.getVisibleColumns() : null;
-        if (qmCols != null && !qmCols.isEmpty()) {
+        if (qmCols != null) {
             return qmCols;
         }
         return tmPatch != null ? tmPatch.getVisibleColumns() : null;
@@ -156,7 +156,7 @@ public class SyntheticMemberPermissionResolver {
     private List<String> mergeAllowedHierarchyOps(MemberPermissionPatchDef tmPatch,
                                                    MemberPermissionPatchDef qmPatch) {
         List<String> qmOps = qmPatch != null ? qmPatch.getAllowedHierarchyOps() : null;
-        if (qmOps != null && !qmOps.isEmpty()) {
+        if (qmOps != null) {
             return qmOps;
         }
         return tmPatch != null ? tmPatch.getAllowedHierarchyOps() : null;

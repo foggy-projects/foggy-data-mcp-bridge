@@ -401,10 +401,10 @@ public class SyntheticMemberQueryModelFactory {
         }
 
         if (parentChild.getClosureQueryObject() != null) {
-            joinGraph.addEdge(dimensionQueryObject, parentChild.getClosureQueryObject(), parentChild.getForeignKey());
+            joinGraph.addEdge(dimensionQueryObject, parentChild.getClosureQueryObject(), parentChild.getPrimaryKey());
         }
         if (parentChild.getAncestorClosureQueryObject() != null) {
-            joinGraph.addEdge(dimensionQueryObject, parentChild.getAncestorClosureQueryObject(), parentChild.getForeignKey());
+            joinGraph.addEdge(dimensionQueryObject, parentChild.getAncestorClosureQueryObject(), parentChild.getPrimaryKey());
         }
     }
 

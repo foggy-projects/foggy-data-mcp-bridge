@@ -473,7 +473,7 @@ public class RuntimeAuthoringWorkspaceService {
         List<String> scripts = pathsOfType(snapshot, ".fsscript");
         List<String> tableModels = pathsOfType(snapshot, ".tm");
         List<String> queryModels = pathsOfType(snapshot, ".qm");
-        try (DetachedModelValidationSession session = factory.open(
+        try (DetachedModelValidationSession session = factory.openReplacement(
                 workspace.sourceBundle(), workspace.namespace(),
                 lease.path().toString())) {
             ValidationCounts scriptCounts = validateResources(

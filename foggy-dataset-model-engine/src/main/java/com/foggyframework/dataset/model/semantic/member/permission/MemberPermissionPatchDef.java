@@ -12,7 +12,7 @@ import java.util.List;
 @Data
 public class MemberPermissionPatchDef {
 
-    /** 允许返回的列白名单 */
+    /** 允许返回的列白名单；null 不限制，空列表拒绝全部。 */
     private List<String> visibleColumns;
 
     /** 强制过滤条件 */
@@ -28,10 +28,10 @@ public class MemberPermissionPatchDef {
     private List<String> allowedHierarchyOps;
 
     public boolean isEmpty() {
-        return (visibleColumns == null || visibleColumns.isEmpty())
+        return visibleColumns == null
                 && (forcedSlice == null || forcedSlice.isEmpty())
                 && (forcedOrderBy == null || forcedOrderBy.isEmpty())
                 && hierarchyEnabled == null
-                && (allowedHierarchyOps == null || allowedHierarchyOps.isEmpty());
+                && allowedHierarchyOps == null;
     }
 }

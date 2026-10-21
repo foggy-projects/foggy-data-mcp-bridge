@@ -21,7 +21,7 @@ public class SyntheticMemberExternalPatch {
     private List<OrderRequestDef> forcedOrderBy;
 
     public boolean isEmpty() {
-        return (visibleColumns == null || visibleColumns.isEmpty())
+        return visibleColumns == null
                 && (forcedSlice == null || forcedSlice.isEmpty())
                 && (forcedOrderBy == null || forcedOrderBy.isEmpty());
     }

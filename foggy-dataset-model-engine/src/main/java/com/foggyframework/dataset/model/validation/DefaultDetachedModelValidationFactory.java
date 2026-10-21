@@ -42,4 +42,9 @@ public final class DefaultDetachedModelValidationFactory
                 path
         );
     }
+    @Override
+    public DetachedModelValidationSession openReplacement(String bundleName, String namespace, String path) {
+        return new DetachedModelValidationSessionImpl(liveBundlesContext, liveTableModelLoaderManager,
+                liveQueryModelLoader, bundleName, namespace, path, true);
+    }
 }

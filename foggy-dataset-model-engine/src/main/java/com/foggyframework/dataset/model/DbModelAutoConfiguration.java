@@ -93,6 +93,8 @@ import java.util.List;
         com.foggyframework.dataset.model.plugins.result_set_filter.SubtotalStep.class,
         com.foggyframework.dataset.model.plugins.result_set_filter.SyntheticMemberExternalPatchStep.class,
         com.foggyframework.dataset.model.plugins.result_set_filter.SyntheticMemberInternalPatchStep.class,
+        com.foggyframework.dataset.model.plugins.result_set_filter.SyntheticMemberFinalPermissionStep.class,
+        com.foggyframework.dataset.model.semantic.member.MemberBindingService.class,
         com.foggyframework.dataset.model.plugins.result_set_filter.SyntheticMemberQueryBuilderStep.class,
         com.foggyframework.dataset.model.plugins.result_set_filter.SystemSliceMergeStep.class,
         com.foggyframework.dataset.model.plugins.result_set_filter.TimeWindowInterceptor.class,

@@ -302,10 +302,13 @@ public abstract class TableModelSupport extends DbObjectSupport implements Table
         if (pcDim != null) {
             // 父子维度：添加多个 JOIN 边
             // 1. 主表 -> 维度表（直接关联，默认视角使用）
-            joinGraph.addEdge(queryObject, dimQueryObject, pcDim.getForeignKey());
+            QueryObject owner = pcDim.getForeignKeyDbColumn().getQueryObject();
+            joinGraph.addEdge(owner, dimQueryObject, pcDim.getForeignKey());
 
             // 2. 主表 -> 闭包表（层级视角使用）
-            joinGraph.addEdge(queryObject, pcDim.getClosureQueryObject(), pcDim.getForeignKey());
+            joinGraph.addEdge(owner, pcDim.getClosureQueryObject(), pcDim.getForeignKey());
+            if (pcDim.getAncestorClosureQueryObject() != null)
+                joinGraph.addEdge(owner, pcDim.getAncestorClosureQueryObject(), pcDim.getForeignKey());
 
             // 3. 闭包表 -> hierarchyQueryObject（层级视角：team$hierarchy$caption）
             // 通过 closure.parent_id -> dim.team_id 关联

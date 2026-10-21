@@ -109,6 +109,8 @@ public final class MemberFieldBinding {
     /** Translate a declared source column using owner and role, never output alias text. */
     public static String mapColumn(QueryModel source, String canonicalPath, DbQueryColumn column) {
         DbColumn selected = column.getSelectColumn();
+        // Hierarchy projections are distinct roles, not aliases of the direct member id/caption.
+        if (selected != null && selected.getName() != null && selected.getName().contains("$hierarchy$")) return null;
         DbDimension dimension = owner(source, selected);
         if (dimension == null) return null;
         String ownerPath = path(dimension);

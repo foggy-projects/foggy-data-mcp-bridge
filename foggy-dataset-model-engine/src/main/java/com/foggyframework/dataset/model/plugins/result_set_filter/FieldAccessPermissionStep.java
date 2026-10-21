@@ -231,6 +231,12 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
                 checkField(baseField, field, clause, access);
             }
         }
+        if (item.getExpr() != null && !item.getExpr().isBlank()) {
+            validateExpressionDeps(item.getExpr(), item.getExpr(), clause, access, calcFieldMap);
+        }
+        if (item.getValue() instanceof Map<?, ?> reference && reference.get("$field") instanceof String field) {
+            validateExpressionDeps(field, field, clause, access, calcFieldMap);
+        }
         if (item.getAnd() != null) {
             for (com.foggyframework.dataset.model.def.query.request.CondRequestDef child : item.getAnd()) {
                 validateCondItem(child, access, calcFieldMap, clause);

@@ -107,13 +107,12 @@ public class SyntheticMemberExternalPatchStep implements DataSetResultStep {
 
     private LinkedHashSet<String> normalizeVisibleColumns(List<String> visibleColumns, Set<String> schemaFields) {
         LinkedHashSet<String> normalized = new LinkedHashSet<>();
-        if (visibleColumns == null || visibleColumns.isEmpty()) {
+        if (visibleColumns == null) {
             return normalized;
         }
         for (String field : visibleColumns) {
-            if (schemaFields.contains(field)) {
-                normalized.add(field);
-            }
+            if (!schemaFields.contains(field)) throw RX.throwAUserTip("member external visibleColumns contains unknown field: " + field);
+            normalized.add(field);
         }
         if (normalized.isEmpty()) {
             throw RX.throwAUserTip("synthetic member-QM external patch 未命中任何可见列");

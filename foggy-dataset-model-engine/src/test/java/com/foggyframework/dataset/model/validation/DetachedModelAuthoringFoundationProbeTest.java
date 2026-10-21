@@ -120,8 +120,8 @@ class DetachedModelAuthoringFoundationProbeTest {
                 "OverlayModel.tm", NAMESPACE, true);
         assertThat(liveOverlay.getBundle().getName()).isEqualTo("live-external");
 
-        try (DetachedModelValidationSession session = fixture.factory().open(
-                "draft-authoring", NAMESPACE, draft.toString())) {
+        try (DetachedModelValidationSession session = fixture.factory().openReplacement(
+                "live-external", NAMESPACE, draft.toString())) {
             Bundle source = session.sourceBundle();
             session.validateTableModel(
                     source.findBundleResource("DraftOwnScriptModel.tm", true),
@@ -135,10 +135,10 @@ class DetachedModelAuthoringFoundationProbeTest {
 
         assertThat(fixture.probeTableLoader().loadOf("DraftOwnScriptModel"))
                 .extracting(LoadObservation::bundleName, LoadObservation::tableName)
-                .containsExactly("draft-authoring", "draft-own-script");
+                .containsExactly("live-external", "draft-own-script");
         assertThat(fixture.probeTableLoader().loadOf("OverlayModel"))
                 .extracting(LoadObservation::bundleName, LoadObservation::tableName)
-                .containsExactly("draft-authoring", "draft-overlay");
+                .containsExactly("live-external", "draft-overlay");
         assertLiveStateUnchanged(fixture, before);
     }
 
@@ -240,7 +240,7 @@ class DetachedModelAuthoringFoundationProbeTest {
                 export const marker = 'candidate-only';
                 """);
 
-        try (DetachedModelValidationSession session = fixture.factory().open(
+        try (DetachedModelValidationSession session = fixture.factory().openReplacement(
                 "live-external", NAMESPACE, candidate.toString())) {
             assertThat(session.executionBundlesContext().findResourceByName(
                     "OverlayModel.tm", NAMESPACE, false)).isNull();

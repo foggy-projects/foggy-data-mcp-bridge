@@ -533,7 +533,7 @@ class ViewerApiControllerTest {
                     .items(List.of())
                     .total(0)
                     .build();
-            when(memberQueryService.query(any(MemberQueryRequest.class), eq("header-ns")))
+            when(memberQueryService.query(any(MemberQueryRequest.class), eq("header-ns"), eq("Bearer member-test")))
                     .thenReturn(memberResponse);
 
             MemberQueryRequest request = new MemberQueryRequest();
@@ -541,11 +541,11 @@ class ViewerApiControllerTest {
             request.setFieldName("customer");
             request.setNamespace("body-ns");
 
-            RX<MemberQueryResponse> response = controller.queryMembers("header-ns", request);
+            RX<MemberQueryResponse> response = controller.queryMembers("Bearer member-test", "header-ns", request);
 
             assertEquals(RX.SUCCESS, response.getCode());
             ArgumentCaptor<MemberQueryRequest> captor = ArgumentCaptor.forClass(MemberQueryRequest.class);
-            verify(memberQueryService).query(captor.capture(), eq("header-ns"));
+            verify(memberQueryService).query(captor.capture(), eq("header-ns"), eq("Bearer member-test"));
             assertEquals("header-ns", captor.getValue().getNamespace());
         }
     }

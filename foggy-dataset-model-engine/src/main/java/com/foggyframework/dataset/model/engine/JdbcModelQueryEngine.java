@@ -1848,12 +1848,12 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
                 if (isAncestorDirection && pp.getAncestorClosureQueryObject() != null) {
                     // 祖先方向: JOIN closure ON fact.FK = closure.parent_id, WHERE closure.child_id = value
-                    jdbcQuery.join(pp.getAncestorClosureQueryObject(), pp.getForeignKey());
+                    jdbcQuery.join(pp.getAncestorClosureQueryObject());
                     alias = jdbcQueryModel.getAlias(pp.getAncestorClosureQueryObject());
                     jdbcColumn = pp.getChildKeyJdbcColumn();
                 } else {
                     // 后代方向（默认）: JOIN closure ON fact.FK = closure.child_id, WHERE closure.parent_id = value
-                    jdbcQuery.join(pp.getClosureQueryObject(), pp.getForeignKey());
+                    jdbcQuery.join(pp.getClosureQueryObject());
                     alias = jdbcQueryModel.getAlias(pp.getClosureQueryObject());
                     jdbcColumn = pp.getParentKeyJdbcColumn();
                 }

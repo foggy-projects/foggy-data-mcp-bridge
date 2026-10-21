@@ -328,3 +328,11 @@ semantic scale 和聚合表达式的差异。这不是公共 SPI 或可跨模型
 `QmColumnNaming` 是引擎内部的具体列命名信息，不是跨 generation 身份或公共 SPI；不会修改缓存 TM。
 语义 JSON 和两种 Markdown 视图共享命名字段元数据，物理列映射按绑定的 SELECT/condition 来源补全。
 TM/QM 字段隐藏与 runtime 白名单仍在规划前执行，改名不得使原物理列权限失效。
+
+## Detached 校验的资源身份
+
+普通 detached `open` 不凭 Bundle 名称覆盖 live 目录；authoring 通过 `openReplacement` 显式选择
+同 namespace 的源 Bundle。相同真实目录复用为一次发现，子目录候选只移除已覆盖的相同物理资源，
+父目录未覆盖的模型和脚本继续作为依赖。资源按 real path（非本地资源用规范 URI）去重，namespace
+隔离不变；不同资源争用同一 canonical TM/QM 名称必须失败。校验的 loader、脚本和 catalog 保持
+请求局部，不登记或刷新 live 模型；成功与失败均不改变正在服务的 generation。
