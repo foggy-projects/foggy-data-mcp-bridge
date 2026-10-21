@@ -34,7 +34,7 @@ recorded_at: 2026-08-01
 
 ## 目标
 
-- [Compose 后续五步推进](workitems/OPT-compose-followup.md)：VERIFIED；消费端复验、19 项制品门禁、八类组合边界修复，双平台各 6,036 项与五库 1,411 项通过；未发布新版本。
+- [Compose 后续五步推进](workitems/OPT-compose-followup.md)：PUBLISHED；八类组合边界修复，Launcher 0.1.33 与私有 Maven 快照已发布；下载回读、19 项制品门禁和消费端验证通过；[发布证据](../../release/launcher-0.1.33-compose-followup-publication.md)。
   [统一绑定及后续能力方案](workitems/DESIGN-compose-bound-relations-and-release-contract.md)单列字段依赖、SQL Server CTE 和当前发行合同的兼容性评估。
 - [Compose JOIN 绑定与输入分页 #150/#151](workitems/BUG-150-151-compose-binding-pagination.md)：PUBLISHED；双平台全量、五库、47/47 IT 类及 Runtime 三模式通过；[Launcher 0.1.32 / Maven 发布复验](../../release/launcher-0.1.32-compose-publication.md)通过；v950 独立处理。
 - [v950 历史合同测试作用域](workitems/BUG-v950-contract-test-scope.md)：VERIFIED；保留冻结合同及严格拒绝，双平台各 20 项、真实跨文件系统验证和相邻脚本回归通过。

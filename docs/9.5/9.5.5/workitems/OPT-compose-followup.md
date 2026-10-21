@@ -6,7 +6,7 @@ purpose: Track ordered consumer verification, release gates, Compose boundary au
 
 # Compose 后续五步推进
 
-状态：VERIFIED。基线 main `aecfdb94`。用户授权按顺序推进 1—5；1—3 已实施并验证，4—5 已交付方案。
+状态：PUBLISHED。修复源基线 main `0cae461a`；用户授权按顺序推进 1—5；1—3 已实施并验证，4—5 已交付方案，Launcher 与私有 Maven 已发布。
 
 1. 消费端：发布的 Launcher 0.1.32 / CLI 0.1.25 重放 #150/#151 原始 Chinook 模型及脚本，对照实际 SQLite 行集；核对 Query 宿主解析的依赖和自动配置装配。使用独立测试实例，不改变已运行业务环境。
 2. 发布门禁：把 Compose 制品检查纳入正式发布前置，缺失报告、错误摘要、失败或缺失场景均阻止发布；覆盖门禁正反测试。
@@ -14,7 +14,7 @@ purpose: Track ordered consumer verification, release gates, Compose boundary au
 4. 统一规划方案：明确实际输出 schema、字段来源、权限依赖的唯一归属，评估消除声明 schema 回退和重复推导的迁移路径，保留 name/alias 合同。
 5. 能力扩展评估：分别形成 SQL Server 窗口结果阶段 CTE 提升和当前版本发行验收合同的决策/实施方案；不改 v950 冻结合同，不未经完整验收宣称扩展支持。
 
-证据目录 `target/compose-followup/`。不运行根 clean，保留既有证据；无新发布动作。
+本轮发布与消费端证据目录 `D:/workspace/foggy-data-mcp/releases/compose-followup-0.1.33/`；修复前后组合查询证据仍保留在 `target/compose-followup/`。不运行根 clean。
 
 ## 1. 消费端验收完成
 
@@ -70,7 +70,14 @@ SQL Server 根级 CTE DAG 提升需要独立参数/权限/窗口验收，本次�
 current-main.json、CLI 默认 pin 或冻结 v950。新发行清单需要区分源码、迭代、坐标、兼容基线与发布制品，
 并由下载回读与消费者装配证据支持。第 4、5 步交付的是方案和影响面，尚未实施能力扩展或发行签收。
 
-## 最终验证（2026-10-21）
+## 发布复验（2026-10-21）
+
+Launcher 0.1.33 和私有 Maven 发布结果、下载校验摘要、消费者回归及具体 snapshot 版本见
+[发布证据](../../release/launcher-0.1.33-compose-followup-publication.md)。发布源提交固定为
+`0cae461a80d9bc93ecfa41b27278b358f8354e20`；下载的 Launcher 含八类 Compose 修复和
+`MemberBindingService` 自动配置注册。
+
+## 发布前代码与全量验证（2026-10-21）
 
 | 范围 | 结果 | 本地证据（相对于 target/compose-followup） |
 |---|---|---|
@@ -88,9 +95,10 @@ current-main.json、CLI 默认 pin 或冻结 v950。新发行清单需要区分�
 不是重跑上轮全部 47 类外部服务 IT，也不是客户环境/Nacos 整应用部署签收。
 Linux 独立源码快照只对 75 个 shell 文件规范化换行，主目录不变；实现文件摘要与测试快照一致。
 
-新本地 Launcher SHA-256：`8e248d04ae394b65c0f684d38301c9606116ed97a7c305f894cd1b93f4d48b95`。
+发布前本地 Launcher SHA-256：`8e248d04ae394b65c0f684d38301c9606116ed97a7c305f894cd1b93f4d48b95`。
 内嵌 Engine 摘要与本轮 reactor JAR 相同，并确认 DbModelAutoConfiguration 仍包含 MemberBindingService
-注册引用，见 `step3/artifact-identity.json`。本轮没有上传 Launcher/Maven；已发布 0.1.32 不含此次新增八类修复。
+注册引用，见 `step3/artifact-identity.json`。这一节记录发布前验证快照；随后 Launcher 0.1.33 和 Maven
+快照正式发布，下载回读与消费端结果见上方发布复验。
 
 汇总：`target/compose-followup/FINAL-SUMMARY.json`。初始失败、修复前红灯及最终通过证据均保留。
 既有 compose-150-151-fix、compose-150-151-audit、v950-contract-scope-fix 证据目录保留；未执行根 clean。
