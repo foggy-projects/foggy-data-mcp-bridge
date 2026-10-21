@@ -1,6 +1,6 @@
 # 成员权限、Viewer 绑定与 detached 资源身份
 
-状态：LOCALLY VERIFIED。基线：main `0a9cd273`；对应 Launcher 0.1.30 的定向审计。
+状态：PUBLISHED。基线：main `0a9cd273`；对应 Launcher 0.1.30 的定向审计，修复随 0.1.31 发布。
 
 ## 范围和合同
 
@@ -62,7 +62,8 @@ RuntimeEnvelope/RX 的形状，未修改数据库表结构、CLI 协议或前端
 先补成员权限/依赖、Viewer 身份及刷新、层级 SQL、detached 冲突与隔离回归；专项通过后执行
 Windows/Linux 全量，以及 MySQL 5.7/8、PostgreSQL、SQL Server 门禁和外部服务 IT。
 实际 Launcher 制品复跑审计中的请求及 Viewer 场景。根 target 保留证据，不运行根 clean。
-本轮只实施与测试；不包含提交推送、issue 变更或发行。
+原实施阶段只包含修复与测试。用户随后明确授权提交推送、统一 main 工作目录和重新发布；
+该后续交付结果见本文末尾，不包含客户实例部署。
 
 ## 结果
 
@@ -156,5 +157,17 @@ Query 启动类仅排除 Runtime HTTP 自动配置；Engine/Viewer 由 Boot impo
 
 后续交付应发布/交付同一轮已验证依赖，再重新构建候选并核对实际 JAR 哈希与启动门禁；
 不在 Query 应用补扫描或手工 Bean 来掩盖上游漏注册。本次未改写共享 Maven 仓库、旧候选归档，
-未部署或启停客户环境。用户给出的默认引擎目录当时在旧开发分支，本轮 main 修复位于
+未部署或启停客户环境。用户给出的默认引擎目录在诊断时处于旧开发分支，当时 main 修复位于
 `releases/engine-9.3.0` 工作区；两处源码位置必须在构建前核实，不能混用。
+
+### 提交与发行（2026-10-21）
+
+修复已由 `883f2115` 提交并推送 main。主目录 `foggy-data-mcp/foggy-data-mcp-bridge`
+现已切回最新 main，并作为后续统一开发入口；旧工作区 detached 保留，108 份原测试摘要
+均已核对 SHA-256 未变化，原始日志和额外备份保留。
+
+[Launcher 0.1.31 与私有 Maven 发布记录](../../../release/launcher-0.1.31-member-policy-publication.md)：
+42 个 Maven 坐标远端字节校验通过，Engine/Viewer 与发行 Launcher 的全部 class 相同。
+本次打包 5,906 项 Java 测试零失败/错误；下载后的 Launcher 再次通过 11 组新场景。
+两个 Query 启动及真实成员查询测试使用远端下载的 Engine/Viewer 均通过；本机 Maven
+安装别名已更新且与发布构件字节相同。承达旧候选归档保持不变，需重新构建后再验证实际应用。
