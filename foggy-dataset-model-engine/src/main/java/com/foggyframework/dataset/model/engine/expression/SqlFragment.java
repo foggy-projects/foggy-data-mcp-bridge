@@ -27,6 +27,15 @@ public class SqlFragment {
      */
     private String sql;
 
+    /** A pure column reference. Expression constructors never inherit this identity. */
+    private DbQueryColumn directColumn;
+
+    public void setSql(String sql) {
+        this.sql = sql;
+        this.directColumn = null;
+    }
+
+
     /**
      * 引用的列（包括普通列、formulaDef 列、计算字段）
      * 使用 LinkedHashSet 保持插入顺序
@@ -101,6 +110,7 @@ public class SqlFragment {
         f.sql = sqlDeclare;
         f.totalExpression = TotalExpressionNode.reference(column.getAlias(), sqlDeclare);
         f.referencedColumns.add(column);
+        f.directColumn = column;
         // 从列继承类型
         f.inferredType = inferColumnType(column);
         return f;

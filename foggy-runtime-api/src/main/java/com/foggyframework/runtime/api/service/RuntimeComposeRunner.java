@@ -66,7 +66,7 @@ public class RuntimeComposeRunner {
                     ? "Inspect compose fields/schema and retry."
                     : "Fix compose script or model metadata and retry.";
             throw failure(mapScriptErrorCode(phase), phase, e.getMessage(),
-                    e.field(), action, true, diagnostics(context), e);
+                    e.field(), action, true, compilerDiagnostics(context, e), e);
         } catch (RuntimeComposeException e) {
             throw e;
         } catch (RuntimeException e) {
@@ -115,6 +115,14 @@ public class RuntimeComposeRunner {
 
     private static RuntimeDiagnostics diagnostics(RuntimeComposeContext context) {
         return context != null ? context.diagnostics() : RuntimeDiagnostics.empty();
+    }
+
+    private static RuntimeDiagnostics compilerDiagnostics(RuntimeComposeContext context, ComposeExecutionException error) {
+        RuntimeDiagnostics original = diagnostics(context);
+        java.util.Map<String, Object> attributes = new java.util.LinkedHashMap<>(original.attributes());
+        if (error.code() != null) attributes.put("composeErrorCode", error.code());
+        if (error.enginePhase() != null) attributes.put("composeErrorPhase", error.enginePhase());
+        return new RuntimeDiagnostics(original.sql(), original.plan(), original.warnings(), attributes);
     }
 
     private static String mapScriptErrorCode(String phase) {

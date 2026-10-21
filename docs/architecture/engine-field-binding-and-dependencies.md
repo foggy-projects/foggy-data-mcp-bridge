@@ -50,6 +50,17 @@ Viewer 从 `MemberBindingService` 获取当前完整维度路径及真实 id/cap
 
 ## 编译与复用边界
 
+Compose JOIN 的 on 左右键必须绑定到各输入计划的输出名，包含显式 alias、聚合输出和派生投影；
+源 QM 字段存在不代表该阶段暴露了它。该检查是默认编译路径的不变量，与 G10 权限/同名列开关独立，
+复用 `SchemaDerivation.validateJoinKeys` 的错误码和诊断。Runtime 保留阶段错误封装，额外通过
+diagnostics.attributes 的 `composeErrorCode` / `composeErrorPhase` 暴露编译错误身份。
+
+基础计划的显式 limit/start 由 Compose lowering 拥有：per-base planning 请求无分页，在权限、
+过滤（含子查询条件注入）、聚合及结果阶段完成后，对最后的基础关系应用一次；之后才被 JOIN、
+UNION 或 derived 消费。未声明分页的输入无默认上限。limit=0 为空集，仅 start 取余下行；
+不同方言分别生成 LIMIT/OFFSET 或 TOP/OFFSET FETCH。普通 QueryFacade 执行分页流程不变。
+这不赋予中间关系的 ORDER BY 最终输出顺序保证，最终顺序仍由消费者显式声明。
+
 `QueryFieldBindings.Projection` 在一次投影入口编译不可变绑定列表，保存查询表达式、输出键和
 实际来源列；结果映射不再逐行查找模型。编译产物只用于该投影，不跨模型共享。
 

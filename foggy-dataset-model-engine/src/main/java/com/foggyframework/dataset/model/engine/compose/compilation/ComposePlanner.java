@@ -369,7 +369,7 @@ public final class ComposePlanner {
         return out;
     }
 
-    private static List<String> sourceOutputColumnsForDerived(QueryPlan source, CteUnit innerUnit) {
+    private static List<String> sourceOutputColumnsForDerived(QueryPlan source, CteUnit innerUnit, CompileState state) {
         List<String> cols = innerUnit.getSelectColumns();
         if (cols != null && !cols.isEmpty()) {
             List<String> out = new ArrayList<>(cols.size());
@@ -379,9 +379,9 @@ public final class ComposePlanner {
             return out;
         }
         if (source instanceof UnionPlan) {
-            return SchemaDerivation.derive(source).names();
+            return deriveBoundSchema(source, state).names();
         }
-        return declaredOutputColumnsForPlan(source);
+        return boundOutputColumnsForPlan(source, state);
     }
 
     private static List<String> derivedOutputColumns(DerivedQueryPlan plan, List<String> sourceColumns) {
@@ -395,8 +395,11 @@ public final class ComposePlanner {
         return out;
     }
 
-    private static List<String> declaredOutputColumnsForPlan(QueryPlan plan) {
+    private static List<String> boundOutputColumnsForPlan(QueryPlan plan, CompileState state) {
         if (plan instanceof BaseModelPlan base) {
+            CteUnit compiled = state.idCache.get(base);
+            if (compiled != null) return compiled.getSelectColumns().stream()
+                    .map(ComposePlanner::extractOutputColName).map(ComposePlanner::unquoteIdentifier).toList();
             List<String> out = new ArrayList<>(base.columns().size());
             for (String col : extractStringCols(base.columns())) {
                 out.add(unquoteIdentifier(extractOutputColName(col)));
@@ -405,7 +408,7 @@ public final class ComposePlanner {
         }
         if (plan instanceof DerivedQueryPlan derived) {
             if (derived.columns().isEmpty()) {
-                return declaredOutputColumnsForPlan(derived.source());
+                return boundOutputColumnsForPlan(derived.source(), state);
             }
             List<String> out = new ArrayList<>(derived.columns().size());
             for (String col : extractStringCols(derived.columns())) {
@@ -414,8 +417,8 @@ public final class ComposePlanner {
             return out;
         }
         if (plan instanceof JoinPlan join) {
-            List<String> left = declaredOutputColumnsForPlan(join.left());
-            List<String> right = declaredOutputColumnsForPlan(join.right());
+            List<String> left = boundOutputColumnsForPlan(join.left(), state);
+            List<String> right = boundOutputColumnsForPlan(join.right(), state);
             Set<String> seen = new LinkedHashSet<>(left);
             List<String> out = new ArrayList<>(left);
             for (String col : right) {
@@ -426,9 +429,25 @@ public final class ComposePlanner {
             return out;
         }
         if (plan instanceof UnionPlan) {
-            return SchemaDerivation.derive(plan).names();
+            return deriveBoundSchema(plan, state).names();
         }
         return Collections.emptyList();
+    }
+
+    private static OutputSchema deriveBoundSchema(QueryPlan plan, CompileState state) {
+        return SchemaDerivation.derive(plan, base -> {
+            CteUnit unit = state.idCache.get(base);
+            if (unit == null) return null;
+            List<String> names = boundOutputColumnsForPlan(base, state);
+            List<String> declared = extractStringCols(base.columns());
+            List<com.foggyframework.dataset.model.engine.compose.schema.ColumnSpec> specs = new ArrayList<>();
+            for (int i = 0; i < names.size(); i++) {
+                String expression = i < declared.size() ? AliasExtractor.extract(declared.get(i)).expression() : names.get(i);
+                specs.add(com.foggyframework.dataset.model.engine.compose.schema.ColumnSpec.builder()
+                        .name(names.get(i)).expression(expression).sourceModel(base.model()).build());
+            }
+            return OutputSchema.of(specs);
+        });
     }
 
     private static Iterable<Object> iterSliceEntries(Iterable<?> slice) {
@@ -1050,9 +1069,12 @@ public final class ComposePlanner {
         // FieldAccessPermissionStep continues to enforce flat-whitelist
         // semantics at @Order(-25) without any change.
         if (state.g10Enabled) {
-            runPlanAwarePermissionCheck(plan, bindings);
+            runPlanAwarePermissionCheck(plan, bindings, state, true);
         }
         Object result = compileAny(plan, state);
+        if (state.g10Enabled) {
+            runPlanAwarePermissionCheck(plan, bindings, state, false);
+        }
         if (result instanceof ComposedSql composed) {
             return prependPrerequisiteCtes(composed, state.prerequisiteCtes, state.useCte, state.dialect);
         }
@@ -1068,19 +1090,24 @@ public final class ComposePlanner {
      * {@link OutputSchema}, then run
      * {@link ComposePlanAwarePermissionValidator#validate}.
      *
-     * <p>Pure pre-compile sub-step: no SQL is emitted here, no
-     * compile-state side effects beyond the validator's own throws.
+     * <p>Runs after governed SQL planning has bound base output aliases,
+     * before returning SQL to preview or execution.
      * Failure surfaces as {@code ComposeSchemaException} (validation
      * codes carry phase {@code "permission-validate"}).</p>
      */
     private static void runPlanAwarePermissionCheck(
-            QueryPlan plan, Map<String, ModelBinding> bindings) {
+            QueryPlan plan, Map<String, ModelBinding> bindings, CompileState state, boolean qualifiedOnly) {
+        if (plan instanceof BaseModelPlan) return; // Governed semantic compilation validates query names.
         PlanFieldAccessContext.Builder ctxBuilder = PlanFieldAccessContext.builder();
         Set<QueryPlan> visited = QueryPlan.identityPlanSet();
         collectPlanBindings(plan, bindings, ctxBuilder, visited);
         PlanFieldAccessContext planCtx = ctxBuilder.build();
-        OutputSchema schema = SchemaDerivation.derive(plan);
-        ComposePlanAwarePermissionValidator.validate(plan, schema, planCtx);
+        if (qualifiedOnly) {
+            ComposePlanAwarePermissionValidator.validateQualifiedReferences(plan, planCtx);
+            return;
+        }
+        OutputSchema schema = deriveBoundSchema(plan, state);
+        ComposePlanAwarePermissionValidator.validate(plan, schema, planCtx, source -> deriveBoundSchema(source, state));
     }
 
     /** Tree walk: every {@link BaseModelPlan} pairs with its model's
@@ -1262,6 +1289,13 @@ public final class ComposePlanner {
         if (!slicePartition.subquerySlices().isEmpty()) {
             units = injectBaseSubquerySlices(units, slicePartition.subquerySlices(), plan, binding, state);
         }
+
+        CteUnit last = units.get(units.size() - 1);
+        CteUnit paged = new CteUnit(last.getAlias(),
+                BasePlanPagination.render(last.getSql(), state.dialect, plan.limit(), plan.start()),
+                last.getParams(), last.getSelectColumns());
+        units = new ArrayList<>(units);
+        units.set(units.size() - 1, paged);
 
         if (units.size() == 1) {
             return units.get(0); // legacy single-unit path
@@ -1500,7 +1534,7 @@ public final class ComposePlanner {
         }
         validateDerivedSliceNotSameStageAlias(plan, innerUnit.getSelectColumns());
 
-        List<String> sourceColumns = sourceOutputColumnsForDerived(plan.source(), innerUnit);
+        List<String> sourceColumns = sourceOutputColumnsForDerived(plan.source(), innerUnit, state);
         validateDerivedOutputRefs(plan, sourceColumns);
 
         List<Object> outerParams = new ArrayList<>();
@@ -1547,6 +1581,10 @@ public final class ComposePlanner {
                 ? wrapComposedAsUnit((ComposedSql) rightObj, state)
                 : (CteUnit) rightObj;
 
+        SchemaDerivation.validateJoinKeys(plan,
+                new LinkedHashSet<>(boundOutputColumnsForPlan(plan.left(), state)),
+                new LinkedHashSet<>(boundOutputColumnsForPlan(plan.right(), state)), "JoinPlan");
+
         String onCondition = buildOnCondition(plan.on(), left.getAlias(), right.getAlias(), state.dialect);
 
         // Dedup anchor units: if both sides resolved to the same CteUnit
@@ -1573,12 +1611,23 @@ public final class ComposePlanner {
         List<Object> leftParams = extractParams(left);
         List<Object> rightParams = extractParams(right);
 
+        // Branch ORDER BY / pagination belongs inside its own relation, never to UNION.
+        if (hasExplicitWindow(plan.left()) || hasExplicitWindow(plan.right())) {
+            leftSql = "SELECT * FROM (" + leftSql + ") AS " + state.nextAlias();
+            rightSql = "SELECT * FROM (" + rightSql + ") AS " + state.nextAlias();
+        }
         String keyword = plan.all() ? "UNION ALL" : "UNION";
         String sql = leftSql + "\n" + keyword + "\n" + rightSql;
         List<Object> params = new ArrayList<>();
         params.addAll(leftParams);
         params.addAll(rightParams);
         return new ComposedSql(sql, params);
+    }
+
+    private static boolean hasExplicitWindow(QueryPlan plan) {
+        if (plan instanceof BaseModelPlan base) return base.limit() != null || base.start() != null;
+        if (plan instanceof DerivedQueryPlan derived) return derived.limit() != null || derived.start() != null;
+        return false;
     }
 
     // ------------------------------------------------------------------
@@ -2159,7 +2208,8 @@ public final class ComposePlanner {
 
     private static SubquerySql renderPlanSubqueryValue(
             QueryPlan plan, String explicitField, CompileState state) {
-        OutputSchema schema = SchemaDerivation.derive(plan);
+        Object compiled = compileAny(plan, state);
+        OutputSchema schema = deriveBoundSchema(plan, state);
         String field;
         if (explicitField == null) {
             if (schema.names().size() != 1) {
@@ -2184,7 +2234,6 @@ public final class ComposePlanner {
             }
         }
 
-        Object compiled = compileAny(plan, state);
         String sql = extractSql(compiled);
         List<Object> params = extractParams(compiled);
         String alias = state.nextAlias();

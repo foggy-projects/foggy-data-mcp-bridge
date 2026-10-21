@@ -2,6 +2,7 @@ package com.foggyframework.dataset.model.engine.query;
 
 import com.foggyframework.dataset.model.impl.query.DbQueryColumnImpl;
 import com.foggyframework.dataset.model.spi.DbColumn;
+import com.foggyframework.dataset.model.spi.support.CalculatedDbColumn;
 
 import java.util.HashMap;
 import java.util.IdentityHashMap;
@@ -10,7 +11,7 @@ import java.util.Map;
 
 /**
  * Request-local lineage from SELECT sources to the expressions emitted by this stage.
- * Names are lookup labels, never expression identity. Only pure QM alias wrappers
+ * Names are lookup labels, never expression identity. Only pure QM/request alias wrappers
  * are transparent; table-instance and expression decorators remain significant.
  */
 public final class OrderByFieldBindings {
@@ -55,9 +56,21 @@ public final class OrderByFieldBindings {
     }
 
     public static DbColumn expressionIdentity(DbColumn column) {
-        while (column instanceof DbQueryColumnImpl queryColumn) {
-            column = queryColumn.getSelectColumn();
+        while (true) {
+            if (column instanceof DbQueryColumnImpl queryColumn) {
+                column = queryColumn.getSelectColumn();
+            } else if (column instanceof CalculatedDbColumn calculated
+                    && calculated.getResultStageDepth() == 0
+                    && !calculated.getSqlFragment().isHasAggregate()
+                    && !calculated.getSqlFragment().isHasWindow()
+                    && (calculated.getSqlFragment().getAggregationType() == null
+                        || "NONE".equals(calculated.getSqlFragment().getAggregationType()))
+                    && calculated.getSqlFragment().getDirectColumn() != null
+                    && calculated.getSqlFragment().getDirectColumn() != column) {
+                column = calculated.getSqlFragment().getDirectColumn();
+            } else {
+                return column;
+            }
         }
-        return column;
     }
 }

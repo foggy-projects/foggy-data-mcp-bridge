@@ -16,6 +16,7 @@ import java.util.Optional;
  */
 public interface ComposeSemanticPlanningPort {
 
+    /** BaseModelPlan lowering supplies an unpaged request and owns its stage-local window. */
     ComposeSqlGeneration generateComposeSql(
             String model,
             SemanticQueryRequest request,

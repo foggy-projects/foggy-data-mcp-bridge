@@ -140,7 +140,9 @@ public interface SemanticQueryServiceV3 extends ComposeSemanticPlanningPort, Com
                         stage.alias(), stage.sql(), stage.params()))
                 .toList();
         return new ComposeSqlGeneration(
-                result.getSql(), result.getParams(), stages, result.getDiagnostics());
+                result.getSql(), result.getParams(), stages, result.getDiagnostics(),
+                result.getQueryEngine() == null ? List.of() : result.getQueryEngine().getJdbcQuery().getSelect()
+                        .getColumns().stream().map(column -> column.getAlias()).toList());
     }
 
     @Override

@@ -7,6 +7,7 @@ import com.foggyframework.dataset.model.spi.DbColumn;
 import com.foggyframework.dataset.model.spi.DbColumnType;
 import com.foggyframework.dataset.model.spi.DbAggregation;
 import com.foggyframework.dataset.model.spi.support.AggregationDbColumn;
+import com.foggyframework.dataset.model.spi.support.CalculatedDbColumn;
 import com.foggyframework.dataset.model.spi.support.SimpleQueryObject;
 import com.foggyframework.dataset.model.spi.support.SimpleSqlJdbcColumn;
 import org.junit.jupiter.api.Test;
@@ -93,5 +94,22 @@ class OrderByPlannerTest {
         planner.explicit("sumAmount", source, "asc", false, false, false);
         planner.explicit("avgAmount", source, "desc", false, false, false);
         assertEquals(List.of(sum, avg), planner.orders().stream().map(DbQueryOrderColumnImpl::getSelectColumn).toList());
+    }
+    @ParameterizedTest @EnumSource(OrderByPlanner.Mode.class)
+    void requestAliasOfOneColumnDeduplicatesItsDefaultOrder(OrderByPlanner.Mode mode) {
+        var source = new DbQueryColumnImpl(column("a", "id"), "id", "id", "id");
+        var fragment = com.foggyframework.dataset.model.engine.expression.SqlFragment.ofColumn(source, "a.id");
+        var selected = new CalculatedDbColumn("left_id", "left_id", fragment);
+        var planner = new OrderByPlanner(mode, new OrderByFieldBindings(List.of(selected), List.of(selected)));
+        planner.explicit("left_id", selected, "asc", false, false, false);
+        planner.optional(new DbQueryOrderColumnImpl(source, "desc"));
+        assertEquals(1, planner.orders().size());
+        assertEquals("asc", planner.orders().get(0).getOrder());
+        var expression = com.foggyframework.dataset.model.engine.expression.SqlFragment.binary(
+                fragment, "*", com.foggyframework.dataset.model.engine.expression.SqlFragment.ofLiteral("-1"));
+        var reversed = new CalculatedDbColumn("reverse_id", "reverse_id", expression);
+        assertSame(reversed, OrderByFieldBindings.expressionIdentity(reversed));
+        fragment.setSql("ABS(a.id)");
+        assertSame(selected, OrderByFieldBindings.expressionIdentity(selected));
     }
 }

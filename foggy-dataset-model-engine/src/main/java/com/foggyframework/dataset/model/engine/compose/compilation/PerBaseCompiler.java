@@ -60,7 +60,7 @@ final class PerBaseCompiler {
      *                         Skips re-running v1.3 governance for identical
      *                         base query shapes within a single compile pass.
      * @return {@link CteUnit} carrying {@code alias}, {@code sql}, {@code params}
-     *         and the plan's declared {@code columns} as
+     *         and bound output names (declared columns for legacy providers) as
      *         {@code selectColumns}.
      * @throws ComposeCompileException
      *         - {@link ComposeCompileErrorCodes#MISSING_BINDING}
@@ -142,7 +142,8 @@ final class PerBaseCompiler {
             }
         }
 
-        List<String> selectColumns = ComposePlanner.extractStringCols(plan.columns());
+        List<String> selectColumns = buildResult.outputColumns().isEmpty()
+                ? ComposePlanner.extractStringCols(plan.columns()) : buildResult.outputColumns();
 
         // ── CTE Wrapping: return flattened sibling CteUnits when structured stages exist ──
         if (buildResult.hasCteStages()) {
@@ -232,8 +233,10 @@ final class PerBaseCompiler {
             req.setCalculatedFields(new ArrayList<>(plan.calculatedFields()));
         }
 
-        req.setStart(plan.start() == null ? 0 : plan.start());
-        req.setLimit(plan.limit());
+        // Compose applies the explicit window after all base filters/result stages.
+        // The planning port must generate an unpaged relation.
+        req.setStart(0);
+        req.setLimit(null);
         req.setDistinct(plan.distinct());
         return req;
     }

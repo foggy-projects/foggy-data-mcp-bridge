@@ -59,10 +59,8 @@ final class PlanQualifiedFieldResolver {
         Scope rightScope = Scope.forSingleSource(right, "right");
         List<JoinOn> out = new ArrayList<>(on.size());
         for (JoinOn entry : on) {
-            out.add(JoinOn.of(
-                    leftScope.resolve(entry.left()),
-                    entry.op(),
-                    rightScope.resolve(entry.right())));
+            out.add(JoinOn.builder().left(leftScope.resolve(entry.left())).op(entry.op())
+                    .right(rightScope.resolve(entry.right())).nullSafe(entry.nullSafe()).build());
         }
         return out;
     }

@@ -98,6 +98,11 @@ public final class ComposePlanAwarePermissionValidator {
      */
     public static void validate(QueryPlan plan, OutputSchema schema,
                                  PlanFieldAccessContext planCtx) {
+        validate(plan, schema, planCtx, SchemaDerivation::derive);
+    }
+
+    public static void validate(QueryPlan plan, OutputSchema schema, PlanFieldAccessContext planCtx,
+                                java.util.function.Function<QueryPlan, OutputSchema> schemas) {
         if (plan == null) {
             throw new IllegalArgumentException(
                     "validate expects a non-null QueryPlan");
@@ -111,19 +116,28 @@ public final class ComposePlanAwarePermissionValidator {
                     "validate expects a non-null PlanFieldAccessContext");
         }
         if (plan instanceof DerivedQueryPlan derived) {
-            validateDerivedExpressionDependencies(derived, planCtx);
+            validateDerivedExpressionDependencies(derived, planCtx, schemas);
         }
         for (Object column : topLevelColumns(plan)) {
             validateColumn(column, schema, planCtx);
         }
     }
 
+    /** Explicit plan references already carry their permission owner; preserve early denial. */
+    public static void validateQualifiedReferences(QueryPlan plan, PlanFieldAccessContext planCtx) {
+        for (Object column : topLevelColumns(plan)) {
+            for (PlanColumnRef ref : collectPlanRefs(column)) {
+                if (ref.plan() != null) validatePlanQualified(ref, planCtx);
+            }
+        }
+    }
+
     private static void validateDerivedExpressionDependencies(
-            DerivedQueryPlan plan, PlanFieldAccessContext planCtx) {
+            DerivedQueryPlan plan, PlanFieldAccessContext planCtx, java.util.function.Function<QueryPlan, OutputSchema> schemas) {
         if (plan.columns().isEmpty()) {
             return;
         }
-        OutputSchema sourceSchema = SchemaDerivation.derive(plan.source());
+        OutputSchema sourceSchema = schemas.apply(plan.source());
         for (Object column : plan.columns()) {
             validateDerivedColumnDependencies(column, sourceSchema, planCtx);
         }
@@ -249,7 +263,9 @@ public final class ComposePlanAwarePermissionValidator {
         if (whitelist == null) {
             return;
         }
-        String baseField = stripDimensionSuffix(fieldName);
+        String permissionField = provenance instanceof BaseModelPlan
+                && sole.expression().matches("[\\p{L}_$][\\p{L}\\p{N}_$]*") ? sole.expression() : fieldName;
+        String baseField = stripDimensionSuffix(permissionField);
         if (!whitelist.contains(baseField)) {
             throw fieldAccessDenied(fieldName,
                     "bare-field '" + fieldName

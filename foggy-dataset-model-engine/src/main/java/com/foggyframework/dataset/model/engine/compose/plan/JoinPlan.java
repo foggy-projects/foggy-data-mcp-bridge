@@ -54,7 +54,7 @@ public final class JoinPlan extends QueryPlan {
         this.left = b.left;
         this.right = b.right;
         this.type = b.type;
-        this.on = List.copyOf(b.on);
+        this.on = List.copyOf(PlanQualifiedFieldResolver.normalizeJoinOn(left, right, b.on));
     }
 
     public QueryPlan left() { return left; }

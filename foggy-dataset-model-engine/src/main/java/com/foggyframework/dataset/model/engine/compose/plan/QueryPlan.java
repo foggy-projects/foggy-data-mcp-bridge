@@ -388,8 +388,7 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
                     "JoinPlan.on must be non-empty; cross joins are not "
                             + "supported in 8.2.0.beta M2");
         }
-        List<JoinOn> coerced = PlanQualifiedFieldResolver.normalizeJoinOn(
-                this, other, coerceJoinOnList(on));
+        List<JoinOn> coerced = coerceJoinOnList(on);
         return JoinPlan.builder()
                 .left(this)
                 .right(other)

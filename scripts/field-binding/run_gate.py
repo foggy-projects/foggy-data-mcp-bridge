@@ -5,10 +5,10 @@ from pathlib import Path
 import argparse, contextlib, json, os, secrets, shutil, subprocess, time, uuid, xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[2]
-SQLITE_TESTS = "MemberPolicyRegressionTest,MemberBindingRegressionTest,SyntheticMemberQueryModelResolverTest,SyntheticMemberQueryModelRuntimeTest,SyntheticMemberQueryModelLifecycleTest,SyntheticMemberPermissionIT,FieldBindingDependenciesRegressionTest,CalculatedFieldDependenciesTest,CalculatedDependencyGraphTest,QueryFieldBindingsTest,FieldAccessPermissionStepTest,CalculatedFieldServiceTest,SqlCalculatedFieldProcessorWindowOrderTest,MetricAdditivityAnalyzerTest,InlineExpressionPreprocessStepTest,QmFieldNamingRegressionTest,SemanticServiceV3Test,SemanticServiceV3MultiModelGovernanceTest,PhysicalColumnMappingIT,PhysicalColumnPermissionIT,FieldAccessPermissionIT,OdooModelLoadingTest,HierarchyTreeBuilderTest".split(
+SQLITE_TESTS = "ComposeBindingPaginationRegressionTest,MemberPolicyRegressionTest,MemberBindingRegressionTest,SyntheticMemberQueryModelResolverTest,SyntheticMemberQueryModelRuntimeTest,SyntheticMemberQueryModelLifecycleTest,SyntheticMemberPermissionIT,FieldBindingDependenciesRegressionTest,CalculatedFieldDependenciesTest,CalculatedDependencyGraphTest,QueryFieldBindingsTest,FieldAccessPermissionStepTest,CalculatedFieldServiceTest,SqlCalculatedFieldProcessorWindowOrderTest,MetricAdditivityAnalyzerTest,InlineExpressionPreprocessStepTest,QmFieldNamingRegressionTest,SemanticServiceV3Test,SemanticServiceV3MultiModelGovernanceTest,PhysicalColumnMappingIT,PhysicalColumnPermissionIT,FieldAccessPermissionIT,OdooModelLoadingTest,HierarchyTreeBuilderTest".split(
     ","
 )
-MATRIX_TESTS = "MemberPolicyRegressionTest,MemberBindingRegressionTest,SyntheticMemberQueryModelRuntimeTest,SyntheticMemberPermissionIT,QmFieldNamingRegressionTest,NestedDimensionTest,DistinctOrderByRegressionIT,MultiDatabaseQueryTest,RequiredDatabaseQueryFacadeParityIT,FieldBindingDependenciesRegressionTest".split(
+MATRIX_TESTS = "ComposeBindingPaginationRegressionTest,MemberPolicyRegressionTest,MemberBindingRegressionTest,SyntheticMemberQueryModelRuntimeTest,SyntheticMemberPermissionIT,QmFieldNamingRegressionTest,NestedDimensionTest,DistinctOrderByRegressionIT,MultiDatabaseQueryTest,RequiredDatabaseQueryFacadeParityIT,FieldBindingDependenciesRegressionTest".split(
     ","
 )
 DATABASES = {
@@ -105,6 +105,8 @@ def database(name, external, out):
                 identity,
                 "mysql",
                 "--default-character-set=utf8mb4",
+                "--protocol=TCP",
+                "-h127.0.0.1",
                 "-uroot",
                 "foggy_test",
             ]
@@ -118,6 +120,8 @@ def database(name, external, out):
                 "-i",
                 identity,
                 "psql",
+                "-h",
+                "127.0.0.1",
                 "-U",
                 "postgres",
                 "-d",
@@ -301,6 +305,11 @@ def main():
             started,
             required,
         )
+        evidence_reports = out / "reports"
+        evidence_reports.mkdir()
+        for path in (ROOT / "foggy-dataset-model-engine/target/surefire-reports").glob("TEST-*.xml"):
+            if path.stat().st_mtime >= started:
+                shutil.copy2(path, evidence_reports / path.name)
         report.update(
             database=args.database, exitCode=result.returncode, requiredClasses=required
         )

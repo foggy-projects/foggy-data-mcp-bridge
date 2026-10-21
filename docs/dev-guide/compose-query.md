@@ -132,7 +132,14 @@ SQL Server 支持顶层 CTE，但当前 `QueryPlan` lowering 可能把一个编�
 | `mssql/sqlserver` | 子查询 fallback | 避免嵌套 CTE 非法 |
 | 未知方言 | fail-closed | 抛 `UNSUPPORTED_PLAN_SHAPE` |
 
+基础 `dsl({...})` 的 `limit/start` 限制该输入阶段；`.query({...})` 的分页限制其派生阶段。
+输入分页在过滤、聚合和排序后、参与 JOIN/UNION 前生效，不等同于 JOIN 后的最终分页。
+未指定 limit 不自动使用普通查询的默认页大小；limit=0 返回空集，只有 start 时跳过指定行数。
+JOIN on 只能使用左右输入实际输出的列名；`id AS customer_id` 必须通过 `customer_id` 引用。
+QM `name: queryId, alias: resultId` 的输入选择 queryId，后续 JOIN/derived 引用 resultId。
+
 ### 3.4 joinInMemory — 内存 Hash JOIN
+validate、preview、execute 共享该校验，无效键在数据库执行前拒绝。
 
 算法（与 `ResultSetQueryImpl.LeftJoin` 相同策略）：
 

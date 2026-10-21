@@ -142,6 +142,28 @@ class RuntimeComposeRunnerTest {
                 });
     }
 
+    @Test
+    void shouldPreserveJoinBindingDiagnosticsAcrossAllModes() {
+        RuntimeComposeInvocation invocation = new RuntimeComposeInvocation(
+                "return {plans: invalidJoin};", Map.of(), Map.of(), null, null, null, null, Map.of());
+        when(contextFactory.create(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any())).thenReturn(context("ns", null, Map.of(), "sqlite", "default"));
+        when(composeExecutionPort.execute(org.mockito.ArgumentMatchers.any())).thenThrow(new ComposeExecutionException(
+                ComposeExecutionException.Kind.SCHEMA, "JOIN_ON_RIGHT_UNKNOWN_FIELD", "schema-derive",
+                "JoinPlan.on[0].right='missing' not in right side's output schema [right_id]", "missing", null, null));
+        for (ComposeOperation mode : ComposeOperation.values()) {
+            assertThatThrownBy(() -> runner.run(mode, "compose." + mode.name().toLowerCase(), invocation))
+                .isInstanceOfSatisfying(RuntimeComposeException.class, e -> {
+                    assertThat(e.toRuntimeError().field()).isEqualTo("missing");
+                    assertThat(e.toRuntimeError().safeToAutoRepair()).isTrue();
+                    assertThat(e.diagnostics().attributes()).containsEntry("composeErrorCode", "JOIN_ON_RIGHT_UNKNOWN_FIELD")
+                        .containsEntry("composeErrorPhase", "schema-derive").containsEntry("namespace", "ns");
+                });
+        }
+    }
+
     private static RuntimeComposeContext context(
             String namespace,
             String traceId,

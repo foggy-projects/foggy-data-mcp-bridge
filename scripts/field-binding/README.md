@@ -56,3 +56,16 @@ all five hierarchy operators, renamed Viewer selection round-trips, identity pro
 values, real bundle refresh, and TM/QM conflicts versus same-resource subdirectory deduplication.
 It owns an isolated SQLite runtime and stops only that JVM. The database matrix also includes
 `MemberPolicyRegressionTest` (ordinary/member SQL, field/window dependencies and detached isolation).
+
+Compose JOIN output binding and input pagination (#150/#151) are covered by
+`ComposeBindingPaginationRegressionTest` in every SQLite/four-database lane. It checks actual rows,
+both input sides, zero/unbounded/offset windows, aggregates, subquery filters, window results,
+UNION and derived windows, G10 on/off and field permissions. Runtime HTTP parity is verified with:
+
+```bash
+python scripts/field-binding/compose_binding_smoke.py --jar path/to/launcher.jar --output target/compose-binding-artifact
+```
+
+The gate compares validate and preview SQL/params, checks executed row sets and ordinary-query
+pagination, and verifies invalid JOIN diagnostics in all three modes. It preserves responses and
+stops only its isolated loopback JVM.

@@ -412,4 +412,44 @@ class JoinCompileTest {
                 () -> compileWithDs(j, twoModelSvc(), twoModelBindings(), "sqlite", ds));
         assertEquals(ComposeCompileErrorCodes.CROSS_DATASOURCE_REJECTED, ex.code());
     }
+    @Test
+    void unknownJoinKeysFailAfterGovernedBindingWithoutExecution() {
+        for (boolean g10 : List.of(false, true)) {
+            com.foggyframework.dataset.model.engine.compose.ComposeFeatureFlags.overrideG10Enabled(g10);
+            try {
+                for (String dialect : List.of("sqlite", "mysql", "mysql8", "postgres", "mssql")) {
+                    for (boolean leftMissing : List.of(false, true)) {
+                        FakeSemanticService svc = twoModelSvc();
+                        JoinPlan plan = CompileTestHelpers.base("L", "id as left_id").join(
+                                CompileTestHelpers.base("R", "id as right_id"), JoinType.LEFT,
+                                List.of(JoinOn.of(leftMissing ? "id" : "left_id", "=", leftMissing ? "right_id" : "id")));
+                        ComposeSchemaException error = assertThrows(ComposeSchemaException.class,
+                                () -> compile(plan, svc, twoModelBindings(), dialect));
+                        assertEquals(leftMissing ? ComposeSchemaErrorCodes.JOIN_ON_LEFT_UNKNOWN_FIELD
+                                : ComposeSchemaErrorCodes.JOIN_ON_RIGHT_UNKNOWN_FIELD, error.code());
+                        assertEquals("id", error.offendingField());
+                        assertTrue(error.getMessage().contains("on[0]"));
+                        assertEquals(2, svc.invocations.size());
+                    }
+                }
+            } finally {
+                com.foggyframework.dataset.model.engine.compose.ComposeFeatureFlags.overrideG10Enabled(null);
+            }
+        }
+    }
+    @Test
+    void qualifiedPermissionDenialKeepsItsCodeBeforeSemanticPlanning() {
+        com.foggyframework.dataset.model.engine.compose.ComposeFeatureFlags.overrideG10Enabled(true);
+        try {
+            var base = CompileTestHelpers.base("L", "id", "foo");
+            var derived = DerivedQueryPlan.builder().source(base).columns(List.of(
+                    new com.foggyframework.dataset.model.engine.compose.plan.PlanColumnRef(base,"foo"))).build();
+            var svc = twoModelSvc();
+            var error = assertThrows(ComposeSchemaException.class, () -> compile(derived,svc,
+                    Map.of("L", ModelBinding.builder().fieldAccess(List.of("id")).build()),"sqlite"));
+            assertEquals(ComposeSchemaErrorCodes.FIELD_ACCESS_DENIED,error.code());
+            assertEquals(ComposeSchemaErrorCodes.PHASE_PERMISSION_VALIDATE,error.phase());
+            assertTrue(svc.invocations.isEmpty());
+        } finally {com.foggyframework.dataset.model.engine.compose.ComposeFeatureFlags.overrideG10Enabled(null);}
+    }
 }

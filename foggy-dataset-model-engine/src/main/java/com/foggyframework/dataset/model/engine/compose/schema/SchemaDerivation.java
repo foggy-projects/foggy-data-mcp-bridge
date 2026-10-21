@@ -73,25 +73,32 @@ public final class SchemaDerivation {
             throw new IllegalArgumentException(
                     "derive expects a non-null QueryPlan, got null");
         }
-        return deriveInternal(plan, "");
+        return derive(plan, base -> null);
+    }
+
+    /** Compile-local bound base schemas; standalone derivation retains declared-schema behavior. */
+    public static OutputSchema derive(QueryPlan plan, java.util.function.Function<BaseModelPlan, OutputSchema> bases) {
+        if (plan == null) throw new IllegalArgumentException("derive expects a non-null QueryPlan");
+        return deriveInternal(plan, "", bases);
     }
 
     // ------------------------------------------------------------------
     // Internal dispatch
     // ------------------------------------------------------------------
 
-    private static OutputSchema deriveInternal(QueryPlan plan, String path) {
+    private static OutputSchema deriveInternal(QueryPlan plan, String path, java.util.function.Function<BaseModelPlan, OutputSchema> bases) {
         if (plan instanceof BaseModelPlan) {
-            return deriveBaseModel((BaseModelPlan) plan, path);
+            OutputSchema bound = bases.apply((BaseModelPlan) plan);
+            return bound != null ? bound : deriveBaseModel((BaseModelPlan) plan, path);
         }
         if (plan instanceof DerivedQueryPlan) {
-            return deriveDerived((DerivedQueryPlan) plan, path);
+            return deriveDerived((DerivedQueryPlan) plan, path, bases);
         }
         if (plan instanceof UnionPlan) {
-            return deriveUnion((UnionPlan) plan, path);
+            return deriveUnion((UnionPlan) plan, path, bases);
         }
         if (plan instanceof JoinPlan) {
-            return deriveJoin((JoinPlan) plan, path);
+            return deriveJoin((JoinPlan) plan, path, bases);
         }
         throw new IllegalArgumentException(
                 "derive: unknown QueryPlan subclass "
@@ -111,9 +118,9 @@ public final class SchemaDerivation {
         return output;
     }
 
-    private static OutputSchema deriveDerived(DerivedQueryPlan plan, String path) {
+    private static OutputSchema deriveDerived(DerivedQueryPlan plan, String path, java.util.function.Function<BaseModelPlan, OutputSchema> bases) {
         String sourcePath = path + "DerivedQueryPlan/source/";
-        OutputSchema sourceSchema = deriveInternal(plan.source(), sourcePath);
+        OutputSchema sourceSchema = deriveInternal(plan.source(), sourcePath, bases);
         Set<String> sourceNames = sourceSchema.nameSet();
 
         String currentPath = path + "DerivedQueryPlan";
@@ -151,11 +158,11 @@ public final class SchemaDerivation {
         return output;
     }
 
-    private static OutputSchema deriveUnion(UnionPlan plan, String path) {
+    private static OutputSchema deriveUnion(UnionPlan plan, String path, java.util.function.Function<BaseModelPlan, OutputSchema> bases) {
         String leftPath = path + "UnionPlan/left/";
         String rightPath = path + "UnionPlan/right/";
-        OutputSchema leftSchema = deriveInternal(plan.left(), leftPath);
-        OutputSchema rightSchema = deriveInternal(plan.right(), rightPath);
+        OutputSchema leftSchema = deriveInternal(plan.left(), leftPath, bases);
+        OutputSchema rightSchema = deriveInternal(plan.right(), rightPath, bases);
 
         if (leftSchema.size() != rightSchema.size()) {
             throw new ComposeSchemaException(
@@ -175,39 +182,17 @@ public final class SchemaDerivation {
         return OutputSchema.of(stripSourceModel(leftSchema.columns()));
     }
 
-    private static OutputSchema deriveJoin(JoinPlan plan, String path) {
+    private static OutputSchema deriveJoin(JoinPlan plan, String path, java.util.function.Function<BaseModelPlan, OutputSchema> bases) {
         String leftPath = path + "JoinPlan/left/";
         String rightPath = path + "JoinPlan/right/";
-        OutputSchema leftSchema = deriveInternal(plan.left(), leftPath);
-        OutputSchema rightSchema = deriveInternal(plan.right(), rightPath);
+        OutputSchema leftSchema = deriveInternal(plan.left(), leftPath, bases);
+        OutputSchema rightSchema = deriveInternal(plan.right(), rightPath, bases);
         String currentPath = path + "JoinPlan";
 
         Set<String> leftNames = leftSchema.nameSet();
         Set<String> rightNames = rightSchema.nameSet();
 
-        for (int i = 0; i < plan.on().size(); i++) {
-            JoinOn j = plan.on().get(i);
-            if (!leftNames.contains(j.left())) {
-                throw new ComposeSchemaException(
-                        ComposeSchemaErrorCodes.JOIN_ON_LEFT_UNKNOWN_FIELD,
-                        "JoinPlan.on[" + i + "].left='" + j.left()
-                                + "' not in left side's output schema "
-                                + sortedList(leftNames),
-                        ComposeSchemaErrorCodes.PHASE_SCHEMA_DERIVE,
-                        currentPath,
-                        j.left());
-            }
-            if (!rightNames.contains(j.right())) {
-                throw new ComposeSchemaException(
-                        ComposeSchemaErrorCodes.JOIN_ON_RIGHT_UNKNOWN_FIELD,
-                        "JoinPlan.on[" + i + "].right='" + j.right()
-                                + "' not in right side's output schema "
-                                + sortedList(rightNames),
-                        ComposeSchemaErrorCodes.PHASE_SCHEMA_DERIVE,
-                        currentPath,
-                        j.right());
-            }
-        }
+        validateJoinKeys(plan, leftNames, rightNames, currentPath);
 
         // Compute overlap (sorted so first offender is deterministic).
         TreeSet<String> overlap = new TreeSet<>();
@@ -261,6 +246,34 @@ public final class SchemaDerivation {
             }
         }
         return OutputSchema.of(merged);
+    }
+
+    /** Mandatory JOIN binding, independent of G10 output collision policy. */
+    public static void validateJoinKeys(JoinPlan plan, Set<String> leftNames,
+                                        Set<String> rightNames, String currentPath) {
+        for (int i = 0; i < plan.on().size(); i++) {
+            JoinOn j = plan.on().get(i);
+            if (!leftNames.contains(j.left())) {
+                throw new ComposeSchemaException(
+                        ComposeSchemaErrorCodes.JOIN_ON_LEFT_UNKNOWN_FIELD,
+                        "JoinPlan.on[" + i + "].left='" + j.left()
+                                + "' not in left side's output schema "
+                                + sortedList(leftNames),
+                        ComposeSchemaErrorCodes.PHASE_SCHEMA_DERIVE,
+                        currentPath,
+                        j.left());
+            }
+            if (!rightNames.contains(j.right())) {
+                throw new ComposeSchemaException(
+                        ComposeSchemaErrorCodes.JOIN_ON_RIGHT_UNKNOWN_FIELD,
+                        "JoinPlan.on[" + i + "].right='" + j.right()
+                                + "' not in right side's output schema "
+                                + sortedList(rightNames),
+                        ComposeSchemaErrorCodes.PHASE_SCHEMA_DERIVE,
+                        currentPath,
+                        j.right());
+            }
+        }
     }
 
     private static void appendAnnotatedSide(List<ColumnSpec> out,

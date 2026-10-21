@@ -11,7 +11,7 @@ import java.util.Map;
  *
  * <p>The DTO deliberately excludes the JDBC query-engine instance carried by
  * the legacy result. Compose only needs SQL text, ordered parameters,
- * prerequisite CTE stages, and diagnostics.</p>
+ * prerequisite CTE stages, bound output names, and diagnostics.</p>
  *
  * @since 9.4.0
  */
@@ -19,9 +19,16 @@ public record ComposeSqlGeneration(
         String sql,
         List<Object> params,
         List<CteStage> cteStages,
-        Map<String, Object> diagnostics) {
+        Map<String, Object> diagnostics,
+        List<String> outputColumns) {
+
+    /** Compatibility constructor for providers without bound output metadata. */
+    public ComposeSqlGeneration(String sql, List<Object> params, List<CteStage> cteStages, Map<String, Object> diagnostics) {
+        this(sql, params, cteStages, diagnostics, List.of());
+    }
 
     public ComposeSqlGeneration {
+        outputColumns = outputColumns == null ? List.of() : List.copyOf(outputColumns);
         params = params == null
                 ? List.of()
                 : Collections.unmodifiableList(new ArrayList<>(params));

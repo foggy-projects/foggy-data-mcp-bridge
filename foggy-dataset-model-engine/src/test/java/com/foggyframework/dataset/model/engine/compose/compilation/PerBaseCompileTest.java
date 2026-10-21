@@ -491,10 +491,10 @@ class PerBaseCompileTest {
     }
 
     @Test
-    @DisplayName("plan.limit / start 透传到 Request")
+    @DisplayName("plan.limit / start 由 Compose 应用一次，planning port 接收无分页请求")
     void limitStartForwarded() {
         FakeSemanticService svc = new FakeSemanticService();
-        svc.stub("M", "SELECT id FROM t LIMIT 10 OFFSET 20");
+        svc.stub("M", "SELECT id FROM t ORDER BY id");
         BaseModelPlan plan = BaseModelPlan.builder()
                 .model("M").columns(List.of("id")).limit(10).start(20).build();
         Map<String, ModelBinding> bindings = Map.of("M", CompileTestHelpers.emptyBinding());
@@ -507,8 +507,8 @@ class PerBaseCompileTest {
                         .bindings(bindings)
                         .dialect("sqlite")
                         .build());
-        assertEquals(10, svc.invocations.get(0).request.getLimit());
-        assertEquals(20, svc.invocations.get(0).request.getStart());
+        assertNull(svc.invocations.get(0).request.getLimit());
+        assertEquals(0, svc.invocations.get(0).request.getStart());
         assertFalse(svc.invocations.isEmpty());
     }
 }
