@@ -88,6 +88,12 @@ register/update resource
 - validate：解析资源、建立 candidate、执行结构/语义检查，返回诊断，不替换当前模型。
 - refresh：重新构建 candidate，完成 validation/admission 后一次性发布新 catalog generation。
 
+对已登记目录执行 detached validate 时，同 namespace 且 real path 相同的 Bundle 在候选视图中
+只出现一次，并重新读取当前源码；`file:` URI 和规范化路径表示同一来源。
+返回 `BUNDLE_ALREADY_REGISTERED` 诊断不表示复用 live 模型实例。`clearExisting` 不删除 live Bundle，
+验证成功或失败均不发布 catalog；不同目录的同名模型仍是冲突。
+文件监听器对现场源码编辑的 admission 检查仍独立生效。
+
 ```mermaid
 stateDiagram-v2
     [*] --> Registered

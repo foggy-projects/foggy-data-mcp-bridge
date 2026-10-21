@@ -11,6 +11,7 @@ import com.foggyframework.runtime.api.controller.RuntimeComposeController;
 import com.foggyframework.runtime.api.controller.RuntimeDatasourcesController;
 import com.foggyframework.runtime.api.controller.RuntimeFsscriptController;
 import com.foggyframework.runtime.api.controller.RuntimeModelsController;
+import com.foggyframework.runtime.api.controller.RuntimeMembersController;
 import com.foggyframework.runtime.api.controller.RuntimeQueryController;
 import com.foggyframework.runtime.api.controller.RuntimeQueryExplainController;
 import com.foggyframework.runtime.api.controller.RuntimeResourcesController;
@@ -83,6 +84,7 @@ import org.springframework.context.annotation.Import;
         RuntimeDatasourcesController.class,
         RuntimeFsscriptController.class,
         RuntimeModelsController.class,
+        RuntimeMembersController.class,
         RuntimeQueryController.class,
         RuntimeQueryExplainController.class,
         RuntimeResourcesController.class,

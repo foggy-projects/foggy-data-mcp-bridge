@@ -8,6 +8,7 @@ import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.model.engine.query_model.QueryModelSupport;
 import com.foggyframework.dataset.model.impl.dimension.DbDimensionSupport;
 import com.foggyframework.dataset.model.semantic.member.SyntheticMemberQueryModelResolver;
+import com.foggyframework.dataset.model.semantic.member.MemberFieldBinding;
 import com.foggyframework.dataset.model.semantic.member.permission.*;
 import com.foggyframework.dataset.model.spi.*;
 import jakarta.annotation.Resource;
@@ -53,7 +54,7 @@ public class SyntheticMemberInternalPatchStep implements DataSetResultStep {
         String dimFieldBase = modelName.substring(sep + 1);
 
         SyntheticMemberEffectivePermission effective = resolveEffectivePermission(
-                sourceModelName, dimFieldBase, ctx.getNamespace()
+                MemberFieldBinding.sourceModel(queryModel, queryModelLoader, ctx.getNamespace()), dimFieldBase
         );
 
         if (effective == null || effective.isEmpty()) {
@@ -81,19 +82,8 @@ public class SyntheticMemberInternalPatchStep implements DataSetResultStep {
 
     // ==================== 权限解析 ====================
 
-    private SyntheticMemberEffectivePermission resolveEffectivePermission(String sourceModelName,
-                                                                          String dimFieldBase,
-                                                                          String namespace) {
-        QueryModel sourceModel;
-        try {
-            sourceModel = queryModelLoader.getJdbcQueryModel(sourceModelName, namespace);
-        } catch (Exception e) {
-            log.warn("内部成员权限解析失败，无法加载源 QM: {}", sourceModelName, e);
-            return null;
-        }
-        if (sourceModel == null) {
-            return null;
-        }
+    private SyntheticMemberEffectivePermission resolveEffectivePermission(QueryModel sourceModel, String dimFieldBase) {
+        if (sourceModel == null) throw new IllegalArgumentException("member source model unavailable");
 
         // TM 维度级权限
         MemberPermissionDef tmPermission = resolveTmPermission(sourceModel, dimFieldBase);
@@ -109,29 +99,12 @@ public class SyntheticMemberInternalPatchStep implements DataSetResultStep {
     }
 
     private MemberPermissionDef resolveTmPermission(QueryModel sourceModel, String dimFieldBase) {
-        TableModel tableModel = sourceModel.getJdbcModel();
-        if (tableModel == null || tableModel.getDimensions() == null) {
-            return null;
-        }
-        for (DbDimension dim : tableModel.getDimensions()) {
-            if (StringUtils.equals(dim.getEffectiveName(), dimFieldBase) && dim instanceof DbDimensionSupport ds) {
-                return ds.getMemberPermission();
-            }
-        }
-        return null;
+        DbDimension dimension = MemberFieldBinding.canonicalDimension(sourceModel.getJdbcModel(), dimFieldBase);
+        return dimension instanceof DbDimensionSupport support ? support.getMemberPermission() : null;
     }
 
     private QmMemberPermissionDef resolveQmPermission(QueryModel sourceModel, String dimFieldBase) {
-        QueryModelSupport qms = sourceModel.getDecorate(QueryModelSupport.class);
-        if (qms == null || qms.getMemberPermissions() == null) {
-            return null;
-        }
-        for (QmMemberPermissionDef def : qms.getMemberPermissions()) {
-            if (StringUtils.equals(def.getDimension(), dimFieldBase)) {
-                return def;
-            }
-        }
-        return null;
+        return MemberFieldBinding.permission(sourceModel, dimFieldBase);
     }
 
     // ==================== patch 应用 ====================

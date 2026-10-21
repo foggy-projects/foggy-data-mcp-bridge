@@ -60,11 +60,11 @@ class SyntheticMemberQueryModelResolverTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesNestedDimQueryModel");
 
         SyntheticMemberQueryModelDescriptor descriptor = resolver.resolve(queryModel,
-                "categoryGroup$groupType", null);
+                "product", null);
 
         assertEquals("FactSalesNestedDimQueryModel#product", descriptor.syntheticModelName());
         assertEquals("product", descriptor.dimensionFieldBase());
-        assertEquals("productCategory$categoryGroup", descriptor.matchedNodePath());
+        assertEquals("product", descriptor.matchedNodePath());
 
         SyntheticMemberQueryModelSchema schema = descriptor.schema();
         assertFalse(schema.hierarchySupported());

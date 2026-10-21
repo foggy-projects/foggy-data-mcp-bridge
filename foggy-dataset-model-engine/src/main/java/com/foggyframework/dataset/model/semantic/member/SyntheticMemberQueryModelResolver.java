@@ -65,23 +65,21 @@ public class SyntheticMemberQueryModelResolver {
             throw new IllegalArgumentException("query model has no jdbc model: " + queryModel.getName());
         }
 
-        DimensionMatch match = resolveDimensionMatch(tableModel, normalizedFieldName);
-        if (match == null) {
-            throw new IllegalArgumentException("cannot resolve synthetic member-QM from fieldName: " + normalizedFieldName);
-        }
+        return describe(queryModel, normalizedFieldName, normalizedNamespace,
+                MemberFieldBinding.resolve(queryModel, normalizedFieldName));
+    }
 
-        String syntheticModelName = buildSyntheticModelName(queryModel.getName(), match.rootDimension().getEffectiveName());
-        SyntheticMemberQueryModelSchema schema = buildSchema(queryModel.getName(), syntheticModelName, match.rootDimension());
-        return new SyntheticMemberQueryModelDescriptor(
-                normalizedNamespace,
-                queryModel.getName(),
-                syntheticModelName,
-                match.rootDimension().getEffectiveName(),
-                normalizedFieldName,
-                match.matchedPath(),
-                isHierarchyDimension(match.matchedDimension()),
-                schema
-        );
+    public SyntheticMemberQueryModelDescriptor resolveCanonical(QueryModel model, String path, String namespace) {
+        return describe(model, path, normalizeNamespace(namespace),
+                MemberFieldBinding.canonicalDimension(model.getJdbcModel(), path));
+    }
+
+    private SyntheticMemberQueryModelDescriptor describe(QueryModel model, String field, String namespace,
+                                                          DbDimension dimension) {
+        String path = MemberFieldBinding.path(dimension);
+        String name = buildSyntheticModelName(model.getName(), path);
+        return new SyntheticMemberQueryModelDescriptor(namespace, model.getName(), name, path, field, path,
+                isHierarchyDimension(dimension), buildSchema(model.getName(), name, dimension));
     }
 
     public SyntheticMemberQueryModelSchema buildSchema(String sourceModelName,
@@ -350,81 +348,6 @@ public class SyntheticMemberQueryModelResolver {
         }
     }
 
-    private DimensionMatch resolveDimensionMatch(TableModel tableModel, String fieldName) {
-        List<DimensionMatch> matches = new ArrayList<>();
-        for (DbDimension root : safeRoots(tableModel)) {
-            collectMatches(root, "", fieldName, root, matches);
-        }
-
-        if (matches.isEmpty()) {
-            return null;
-        }
-
-        matches.sort((a, b) -> Integer.compare(b.depth(), a.depth()));
-        DimensionMatch best = matches.get(0);
-        if (matches.size() > 1) {
-            DimensionMatch second = matches.get(1);
-            if (second.depth() == best.depth() && !StringUtils.equals(second.matchedPath(), best.matchedPath())) {
-                throw new IllegalArgumentException("ambiguous synthetic member field: " + fieldName);
-            }
-        }
-        return best;
-    }
-
-    private void collectMatches(DbDimension current,
-                                String relativePath,
-                                String fieldName,
-                                DbDimension root,
-                                List<DimensionMatch> matches) {
-        String currentPath = StringUtils.isEmpty(relativePath)
-                ? requireDimensionBase(root)
-                : relativePath;
-        String effectiveName = requireDimensionBase(current);
-
-        if (matchesNode(fieldName, currentPath, effectiveName)) {
-            matches.add(DimensionMatch.node(root, current, currentPath));
-        }
-
-        if (current instanceof DbDimensionSupport support) {
-            for (DbProperty property : safeProperties(support)) {
-                String propertyName = normalizeFieldName(property.getName());
-                if (StringUtils.isEmpty(propertyName)) {
-                    continue;
-                }
-                if (matchesProperty(fieldName, currentPath, effectiveName, propertyName)) {
-                    matches.add(DimensionMatch.property(root, current, currentPath));
-                }
-            }
-        }
-
-        for (DbDimension child : safeChildren(current)) {
-            String childPath = StringUtils.isEmpty(relativePath)
-                    ? requireDimensionBase(child)
-                    : currentPath + FIELD_SEPARATOR + requireDimensionBase(child);
-            collectMatches(child, childPath, fieldName, root, matches);
-        }
-    }
-
-    private boolean matchesNode(String fieldName, String currentPath, String effectiveName) {
-        return StringUtils.equals(fieldName, currentPath)
-                || StringUtils.equals(fieldName, effectiveName)
-                || fieldName.startsWith(currentPath + FIELD_SEPARATOR);
-    }
-
-    private boolean matchesProperty(String fieldName,
-                                    String currentPath,
-                                    String effectiveName,
-                                    String propertyName) {
-        return StringUtils.equals(fieldName, propertyName)
-                || StringUtils.equals(fieldName, effectiveName + FIELD_SEPARATOR + propertyName)
-                || StringUtils.equals(fieldName, currentPath + FIELD_SEPARATOR + propertyName);
-    }
-
-    private List<DbDimension> safeRoots(TableModel tableModel) {
-        List<DbDimension> dimensions = tableModel.getDimensions();
-        return dimensions == null ? List.of() : dimensions;
-    }
-
     private List<DbDimension> safeChildren(DbDimension dimension) {
         List<DbDimension> children = dimension.getChildDimensions();
         return children == null ? List.of() : children;
@@ -503,24 +426,4 @@ public class SyntheticMemberQueryModelResolver {
         }
     }
 
-    private record DimensionMatch(
-            DbDimension rootDimension,
-            DbDimension matchedDimension,
-            String matchedPath
-    ) {
-        private static DimensionMatch node(DbDimension root, DbDimension matchedDimension, String matchedPath) {
-            return new DimensionMatch(root, matchedDimension, matchedPath);
-        }
-
-        private static DimensionMatch property(DbDimension root, DbDimension matchedDimension, String matchedPath) {
-            return new DimensionMatch(root, matchedDimension, matchedPath);
-        }
-
-        private int depth() {
-            if (StringUtils.isEmpty(matchedPath)) {
-                return 0;
-            }
-            return matchedPath.split("\\Q" + FIELD_SEPARATOR + "\\E").length;
-        }
-    }
 }

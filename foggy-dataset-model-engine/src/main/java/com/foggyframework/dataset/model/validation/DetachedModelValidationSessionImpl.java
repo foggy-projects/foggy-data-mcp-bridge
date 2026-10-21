@@ -92,6 +92,11 @@ final class DetachedModelValidationSessionImpl
     }
 
     @Override
+    public boolean reusesRegisteredDirectory() {
+        return liveBundlesContext.getBundleList().stream().anyMatch(detachedBundlesContext::sameDirectory);
+    }
+
+    @Override
     public Bundle sourceBundle() {
         requireOpen();
         return sourceBundle;
@@ -479,11 +484,35 @@ final class DetachedModelValidationSessionImpl
             List<Bundle> bundles = new ArrayList<>();
             bundles.add(sourceBundle);
             for (Bundle bundle : live.getBundleList()) {
-                if (bundle != null && !sourceBundle.getName().equals(bundle.getName())) {
+                if (bundle != null && !replacedBySource(bundle)) {
                     bundles.add(bundle);
                 }
             }
             return List.copyOf(bundles);
+        }
+
+        private boolean replacedBySource(Bundle bundle) {
+            return bundle.getDefinition() != null && canonicalNamespace(bundle.getDefinition().getNamespace())
+                    .equals(canonicalNamespace(sourceBundle.getDefinition().getNamespace()))
+                    && (sourceBundle.getName().equals(bundle.getName()) || sameDirectory(bundle));
+        }
+
+        private boolean sameDirectory(Bundle bundle) {
+            if (bundle == null || bundle.getDefinition() == null || !canonicalNamespace(bundle.getDefinition().getNamespace())
+                    .equals(canonicalNamespace(sourceBundle.getDefinition().getNamespace()))) return false;
+            Path source = localRoot(sourceBundle.getRootPath());
+            Path existing = localRoot(bundle.getRootPath());
+            return source != null && source.equals(existing);
+        }
+
+        private static Path localRoot(String value) {
+            if (value == null || value.isBlank()) return null;
+            try {
+                Path path = value.startsWith("file:") ? Paths.get(java.net.URI.create(value)) : Paths.get(value);
+                return path.toRealPath();
+            } catch (IOException | RuntimeException unavailable) {
+                return null;
+            }
         }
 
         @Override
@@ -496,7 +525,8 @@ final class DetachedModelValidationSessionImpl
             if (sourceBundle.getName().equals(name)) {
                 return sourceBundle;
             }
-            return live.getBundleByName(name, throwError);
+            Bundle existing = live.getBundleByName(name, throwError);
+            return existing != null && replacedBySource(existing) ? sourceBundle : existing;
         }
 
         @Override
@@ -504,7 +534,7 @@ final class DetachedModelValidationSessionImpl
             if (sourceBundle.getName().equals(name)) {
                 return sourceBundle;
             }
-            return live.getBundleByName(name);
+            return getBundleByName(name, false);
         }
 
         @Override
@@ -512,7 +542,8 @@ final class DetachedModelValidationSessionImpl
             if (sourceBundle.getName().equals(name)) {
                 return sourceBundle.getDefinition();
             }
-            return live.getBundleDefinitionByName(name);
+            Bundle bundle = getBundleByName(name, false);
+            return bundle == null ? null : bundle.getDefinition();
         }
 
         @Override
@@ -520,7 +551,8 @@ final class DetachedModelValidationSessionImpl
             if (sourceBundle.getPackageName().equals(packageName)) {
                 return sourceBundle;
             }
-            return live.getBundleByPackageName(packageName);
+            Bundle existing = live.getBundleByPackageName(packageName);
+            return existing != null && replacedBySource(existing) ? sourceBundle : existing;
         }
 
         @Override
@@ -533,7 +565,8 @@ final class DetachedModelValidationSessionImpl
             if (sourceBundle.getPackageName().equals(packageName)) {
                 return sourceBundle;
             }
-            return live.getBundleByPackageName(packageName, errorIfNotFound);
+            Bundle existing = live.getBundleByPackageName(packageName, errorIfNotFound);
+            return existing != null && replacedBySource(existing) ? sourceBundle : existing;
         }
 
         @Override
@@ -541,7 +574,8 @@ final class DetachedModelValidationSessionImpl
             if (sourceBundle.getPackageName().equals(packageName)) {
                 return sourceBundle.getDefinition();
             }
-            return live.getBundleDefinitionByPackageName(packageName);
+            Bundle bundle = getBundleByPackageName(packageName);
+            return bundle == null ? null : bundle.getDefinition();
         }
 
         @Override
@@ -583,7 +617,7 @@ final class DetachedModelValidationSessionImpl
             String requestedNamespace = canonicalNamespace(namespace);
             List<BundleResource> matches = new ArrayList<>();
             for (Bundle bundle : live.getBundleList()) {
-                if (bundle == null || sourceBundle.getName().equals(bundle.getName())
+                if (bundle == null || replacedBySource(bundle)
                         || bundle.getDefinition() == null
                         || !requestedNamespace.equals(canonicalNamespace(
                         bundle.getDefinition().getNamespace()))) {
@@ -653,11 +687,9 @@ final class DetachedModelValidationSessionImpl
                 if (!resource.isFile()) {
                     return false;
                 }
-                Path root = Paths.get(sourceBundle.getRootPath())
-                        .toAbsolutePath().normalize();
-                Path candidate = resource.getFile().toPath()
-                        .toAbsolutePath().normalize();
-                return candidate.startsWith(root);
+                Path root = localRoot(sourceBundle.getRootPath());
+                Path candidate = resource.getFile().toPath().toRealPath();
+                return root != null && candidate.startsWith(root);
             } catch (IOException | RuntimeException ignored) {
                 return false;
             }

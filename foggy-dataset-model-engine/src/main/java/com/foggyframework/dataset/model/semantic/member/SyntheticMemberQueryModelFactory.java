@@ -67,12 +67,7 @@ public class SyntheticMemberQueryModelFactory {
         Map<String, DbDimension> pathToDimension = buildNodeDimensionIndex(rootDimension);
 
         DbTableModelImpl runtimeTableModel = buildRuntimeTableModel(descriptor, rootDimension, pathToDimension);
-        JdbcQueryModelImpl syntheticModel = new JdbcQueryModelImpl(
-                List.of(runtimeTableModel),
-                sourceSupport != null ? sourceSupport.getFsscript() : null,
-                sqlFormulaService,
-                sourceJdbcModel.getDataSource()
-        );
+        JdbcQueryModelImpl syntheticModel = new SyntheticMemberQueryModel(sourceModel, runtimeTableModel, sqlFormulaService);
 
         syntheticModel.setName(descriptor.syntheticModelName());
         syntheticModel.setCaption(rootDimension.getCaption());
@@ -290,13 +285,7 @@ public class SyntheticMemberQueryModelFactory {
     }
 
     private DbDimension resolveRootDimension(TableModel tableModel, String dimFieldBase) {
-        RX.notNull(tableModel, "source QueryModel does not contain jdbc model");
-        for (DbDimension dimension : safeDimensions(tableModel.getDimensions())) {
-            if (StringUtils.equals(dimension.getEffectiveName(), dimFieldBase)) {
-                return dimension;
-            }
-        }
-        throw RX.throwAUserTip("无法解析 synthetic member-QM 根维度: " + dimFieldBase);
+        return MemberFieldBinding.canonicalDimension(tableModel, dimFieldBase);
     }
 
     private void validateForcedSliceFields(QueryModelSupport sourceSupport,
@@ -329,15 +318,7 @@ public class SyntheticMemberQueryModelFactory {
     }
 
     private QmMemberPermissionDef resolveQmPermission(QueryModelSupport sourceSupport, String dimFieldBase) {
-        if (sourceSupport == null || sourceSupport.getMemberPermissions() == null) {
-            return null;
-        }
-        for (QmMemberPermissionDef def : sourceSupport.getMemberPermissions()) {
-            if (def != null && StringUtils.equals(def.getDimension(), dimFieldBase)) {
-                return def;
-            }
-        }
-        return null;
+        return MemberFieldBinding.permission(sourceSupport, dimFieldBase);
     }
 
     private String buildForcedSliceFieldMissingMessage(String field, String sourceModelName, String dimFieldBase) {

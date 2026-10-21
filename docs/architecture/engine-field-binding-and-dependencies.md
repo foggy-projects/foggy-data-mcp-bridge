@@ -21,6 +21,14 @@ pivot 主数据、domain、属性查询、层级 skeleton、非可加总计及 S
 已选表达式的 ORDER BY 输出别名追溯来源校验，不因此扩展 columns/slice/groupBy 的输入合同。
 不同已选字段争用输出键时拒绝，避免结果 Map 静默覆盖。
 
+成员入口由 `MemberFieldBinding` 将源 QM 查询 name 或无歧义维度路径解析到真实 owner。
+`QM#完整维度路径` 是 synthetic 模型身份，嵌套成员直接查询目标维表，包含未被事实引用的成员。
+显式 `QM#root` 仍可查询根及子树字段；输出 alias 不成为新的通用输入名称。
+synthetic 实例固定编译时的源 QM，MEMBER_QUERY、行谓词与 TM/QM 成员权限均针对该实例求值。
+字段白名单映射到完整的相对子树字段名；普通 QM 保持原有维度权限分组规则。
+自动生成的旧列不能重新开放已隐藏的 renamed 投影，物理列拒绝不会在转换中被清空。
+无法映射到目标成员查询的源行权限明确拒绝，不能通过丢弃谓词扩大数据范围。
+
 这些组件属于 model-engine 内部。公共 Model SPI v2、namespace、catalog、原子刷新和缓存身份
 不因此增加接口或改变生命周期。模型刷新及受影响旧结果缓存失效仍遵循既有发布流程。
 

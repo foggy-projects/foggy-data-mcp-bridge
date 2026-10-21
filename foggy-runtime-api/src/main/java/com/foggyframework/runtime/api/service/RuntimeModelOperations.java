@@ -912,7 +912,10 @@ public class RuntimeModelOperations {
                     cascadingErrors,
                     Duration.between(startedAt, Instant.now()).toMillis(),
                     List.copyOf(errors),
-                    List.of(),
+                    validator.reusesRegisteredDirectory() ? List.of(new ModelValidateIssue(
+                            null, "BUNDLE", null, null, "WARNING", "BUNDLE_ALREADY_REGISTERED",
+                            "The registered directory is validated from fresh source in an isolated candidate.",
+                            null, "BUNDLE", null)) : List.of(),
                     before.catalogGeneration(),
                     before.catalogGeneration(),
                     before.sourceRevision(),

@@ -406,7 +406,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(body.path("data").path("valid").asBoolean()).isTrue();
         assertThat(body.path("data").path("totalFiles").asInt()).isZero();
         assertThat(body.path("data").path("warnings")).isEmpty();
-        verify(systemBundlesContext, never()).getBundleList();
+        // Read-only source identity discovery is allowed; live mutation remains forbidden.
         verify(systemBundlesContext, never()).addExternalBundle(any(), any(), any(), anyBoolean());
         verify(systemBundlesContext, never()).removeBundle(any());
     }
@@ -428,6 +428,32 @@ class RuntimeCapabilitiesControllerEnabledTest {
         verify(systemBundlesContext, never()).containBundle(any());
         verify(systemBundlesContext, never()).removeBundle(any());
         verify(systemBundlesContext, never()).addExternalBundle(any(), any(), any(), anyBoolean());
+    }
+
+    @Test
+    void membersRouteIsImportedAndForwardsNamespaceAndAuthorization() {
+        when(jdbcService.queryDimensionData(any(), eq("opaque-members"), eq("dev")))
+                .thenReturn(com.foggyframework.dataset.model.PagingResultImpl.of(
+                        List.of(new com.foggyframework.dataset.model.common.result.DbDataItem(1,"Artist")),0,10,null,1));
+        HttpHeaders headers=new HttpHeaders();headers.set("X-NS","dev");headers.set("Authorization","opaque-members");
+        var response=restTemplate.exchange(BASE_URL+"/api/v1/members/OrderModel/artistKey",HttpMethod.POST,
+                new HttpEntity<>(Map.of(),headers),JsonNode.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody().path("success").asBoolean()).isTrue();
+        assertThat(response.getBody().path("data").path("items").get(0).path("caption").asText()).isEqualTo("Artist");
+        verify(jdbcService).queryDimensionData(any(),eq("opaque-members"),eq("dev"));
+    }
+
+    @Test
+    void membersRouteReturnsRuntimeValidationAndPermissionErrors() {
+        when(jdbcService.queryDimensionData(any(), isNull(), isNull())).thenThrow(new IllegalArgumentException("bad selector"),
+                com.foggyframework.dataset.model.semantic.permission.ModelPermissionException.denied());
+        var invalid=restTemplate.postForObject(BASE_URL+"/api/v1/members/OrderModel/unknown",Map.of(),JsonNode.class);
+        assertThat(invalid.path("success").asBoolean()).isFalse();
+        assertThat(invalid.path("error").path("code").asText()).isEqualTo("INVALID_REQUEST");
+        var denied=restTemplate.postForObject(BASE_URL+"/api/v1/members/OrderModel/artist",Map.of(),JsonNode.class);
+        assertThat(denied.path("success").asBoolean()).isFalse();
+        assertThat(denied.path("error").path("code").asText()).isEqualTo("MODEL_ACCESS_DENIED");
     }
 
     @Test

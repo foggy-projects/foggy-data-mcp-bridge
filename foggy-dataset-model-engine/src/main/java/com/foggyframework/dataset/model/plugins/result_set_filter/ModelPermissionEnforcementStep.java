@@ -13,6 +13,7 @@ import com.foggyframework.dataset.model.spi.DbQueryColumn;
 import com.foggyframework.dataset.model.spi.QueryModel;
 import com.foggyframework.dataset.model.spi.QueryModelLoader;
 import jakarta.annotation.Resource;
+import com.foggyframework.dataset.model.semantic.member.MemberFieldBinding;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
@@ -80,7 +81,7 @@ public class ModelPermissionEnforcementStep implements DataSetResultStep {
 
         String sourceModelName = modelName.substring(0, separator);
         String dimensionFieldBase = modelName.substring(separator + 1);
-        QueryModel sourceModel = queryModelLoader.getJdbcQueryModel(sourceModelName, ctx.getNamespace());
+        QueryModel sourceModel = MemberFieldBinding.sourceModel(ctx.getQueryModel(), queryModelLoader, ctx.getNamespace());
         if (sourceModel == null) {
             throw ModelPermissionException.invalid(
                     new IllegalStateException("synthetic member source model is unavailable"));
@@ -212,22 +213,11 @@ public class ModelPermissionEnforcementStep implements DataSetResultStep {
         }
 
         private String mapField(String sourceField) {
-            if (sourceField == null) {
-                throw unmappablePredicate();
+            try {
+                return MemberFieldBinding.mapField(queryModel, dimensionFieldBase, sourceField, syntheticFields);
+            } catch (IllegalArgumentException invalid) {
+                throw ModelPermissionException.invalid(invalid);
             }
-            String mapped = sourceField;
-            if (sourceField.equals(dimensionFieldBase)) {
-                mapped = "id";
-            } else if (sourceField.startsWith(dimensionFieldBase + "$")) {
-                mapped = sourceField.substring(dimensionFieldBase.length() + 1);
-            } else if (sourceField.startsWith(dimensionFieldBase + ".")) {
-                mapped = sourceField.substring(dimensionFieldBase.length() + 1)
-                        .replace('.', '$');
-            }
-            if (!syntheticFields.contains(mapped)) {
-                throw unmappablePredicate();
-            }
-            return mapped;
         }
 
         private ModelPermissionException unmappablePredicate() {

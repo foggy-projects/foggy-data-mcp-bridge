@@ -7,6 +7,9 @@ import com.foggyframework.dataset.model.semantic.permission.ModelPermissionExcep
 import com.foggyframework.dataset.model.spi.QueryModel;
 import com.foggyframework.dataset.model.spi.QueryModelLoader;
 import jakarta.annotation.Resource;
+import com.foggyframework.dataset.model.semantic.member.MemberFieldBinding;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
@@ -49,7 +52,7 @@ public class ModelFieldPermissionResolveStep implements DataSetResultStep {
     ) {
         String sourceModelName = modelName.substring(0, separator);
         String dimensionFieldBase = modelName.substring(separator + 1);
-        QueryModel sourceModel = queryModelLoader.getJdbcQueryModel(sourceModelName, ctx.getNamespace());
+        QueryModel sourceModel = MemberFieldBinding.sourceModel(ctx.getQueryModel(), queryModelLoader, ctx.getNamespace());
         if (sourceModel == null) {
             throw ModelPermissionException.invalid(
                     new IllegalStateException("synthetic member source model is unavailable"));
@@ -61,14 +64,11 @@ public class ModelFieldPermissionResolveStep implements DataSetResultStep {
                 ctx.getFieldAccess(),
                 ctx.getDeniedColumns()
         );
-        if (sourceResolution.getEffectiveFieldAccess() != null
-                && !sourceResolution.getEffectiveFieldAccess().contains(dimensionFieldBase)) {
-            throw ModelPermissionException.denied();
-        }
-        // The synthetic schema only exposes fields belonging to the already
-        // authorized source dimension. Its id/caption aliases are not source-QM
-        // field names and must not be revalidated against the source allowlist.
-        ctx.setFieldAccess(null);
-        ctx.setDeniedColumns(null);
+        Set<String> fields = ctx.getQueryModel().getJdbcQueryColumns().stream()
+                .map(com.foggyframework.dataset.model.spi.DbQueryColumn::getName).collect(Collectors.toSet());
+        Set<String> allowed = MemberFieldBinding.allowedFields(sourceModel, dimensionFieldBase,
+                sourceResolution.getEffectiveFieldAccess(), fields);
+        ctx.setFieldAccess(allowed);
+        // Preserve deniedColumns for the final physical SQL permission check.
     }
 }

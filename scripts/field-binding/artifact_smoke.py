@@ -1,7 +1,7 @@
 """Exercise field binding contracts through an actual Runtime Launcher JAR."""
 
 from pathlib import Path
-import argparse, hashlib, json, os, socket, sqlite3, subprocess, time, urllib.request, urllib.error
+import argparse, hashlib, json, os, socket, sqlite3, subprocess, sys, time, urllib.request, urllib.error, urllib.parse
 
 
 def main():
@@ -10,6 +10,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--jar", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--cli-source", type=Path, help="Optional CLI src directory for end-to-end members list")
     args = parser.parse_args()
     jar = args.jar.resolve()
     out = args.output.resolve()
@@ -34,6 +35,14 @@ def main():
         average_oracle = c.execute("SELECT AVG(amount) FROM binding_smoke").fetchone()[
             0
         ]
+        c.executescript("""
+            CREATE TABLE member_artist(id INTEGER PRIMARY KEY, name TEXT);
+            CREATE TABLE member_album(id INTEGER PRIMARY KEY, artist_id INTEGER, title TEXT);
+            CREATE TABLE member_line(id INTEGER PRIMARY KEY, album_id INTEGER);
+            INSERT INTO member_artist VALUES(1,'First artist'),(2,'Second artist'),(3,'Unreferenced artist');
+            INSERT INTO member_album VALUES(11,1,'First album'),(12,2,'Second album');
+            INSERT INTO member_line VALUES(1,11);
+        """)
     (models / "model/Smoke.tm").write_text(
         "export const model={name:'Smoke',tableName:'binding_smoke',idColumn:'id',properties:[{name:'id',column:'id',type:'INTEGER'},{name:'category',column:'category',type:'STRING'},{name:'secret',column:'secret',type:'INTEGER'}],measures:[{name:'amount',column:'amount',type:'NUMBER',aggregation:'sum'},{name:'meanAmount',column:'amount',type:'NUMBER',aggregation:'avg'}]};"
     )
@@ -79,6 +88,19 @@ def main():
         base
         + ",{name:'firstCalc',formula:'amount * 2',type:'NUMBER'},{name:'secondCalc',formula:'firstCalc + 1',type:'NUMBER'}",
     )
+    (models / "model/MemberSmoke.tm").write_text("""
+        export const model={name:'MemberSmoke',tableName:'member_line',idColumn:'id',
+        properties:[{name:'lineId',column:'id',type:'INTEGER'}],dimensions:[
+          {name:'album',tableName:'member_album',foreignKey:'album_id',primaryKey:'id',captionColumn:'title',dimensions:[
+            {name:'artist',tableName:'member_artist',foreignKey:'artist_id',primaryKey:'id',captionColumn:'name'}]}],measures:[]};
+    """)
+    for name, extra in [("Members", ""), ("HiddenMembers", ",fieldPermissions:{hiddenFields:[{fields:['artistName']}]}")]:
+        (models / "query" / (name + ".qm")).write_text(
+            "const m=loadTableModel('MemberSmoke');export const queryModel={name:'" + name
+            + "',loader:'v2',model:m,columnGroups:[{caption:'Fields',items:["
+            + "{ref:m.album.artist$id,name:'artistKey',alias:'idOut'},"
+            + "{ref:m.album.artist$caption,name:'artistName',alias:'nameOut'}]}],accesses:[]" + extra + "};"
+        )
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
@@ -203,6 +225,38 @@ def main():
                 {"dataSource": "smoke-sqlite"},
                 "PUT",
             )["success"]
+            expected_members = [{"id": 1, "caption": "First artist"}, {"id": 2, "caption": "Second artist"},
+                                {"id": 3, "caption": "Unreferenced artist"}]
+            for selector in ["artist", "artist$id", "album$artist", "album.artist", "artistKey", "artistName"]:
+                for prefix in ["/api/v1/members/", "/jdbc-model/dimension/v2/"]:
+                    result = req(prefix + "Members/" + urllib.parse.quote(selector, safe=""), {"limit": 100})
+                    records[prefix + selector] = result
+                    assert (result.get("success") is True if prefix.startswith("/api/") else result.get("code") == 200), result
+                    assert result["data"]["items"] == expected_members and result["data"]["total"] == 3, result
+            checks.append("nested-member-owner-renamed-fields-and-legacy-envelope")
+            for selector in ["artist", "artistKey", "album$artist"]:
+                result = req("/api/v1/members/HiddenMembers/" + urllib.parse.quote(selector, safe=""), {})
+                records["hidden-" + selector] = result
+                assert result.get("success") is False, result
+            checks.append("member-field-permissions-cannot-be-bypassed")
+            for clear in [False, True]:
+                result = req("/api/v1/models/validate", {"path": str(models), "clearExisting": clear})
+                records["registered-directory-validation-" + str(clear)] = result
+                assert result.get("success") is True and result["data"]["invalidFiles"] == 0, result
+                assert result["data"]["validFiles"] == len(list(models.rglob("*.tm"))) + len(list(models.rglob("*.qm"))), result
+                assert result["data"]["beforeCatalogGeneration"] == result["data"]["afterCatalogGeneration"], result
+                assert any(w.get("code") == "BUNDLE_ALREADY_REGISTERED" for w in result["data"]["warnings"]), result
+            checks.append("registered-directory-validation-preserves-live-catalog")
+            if args.cli_source:
+                cli_env = env.copy()
+                cli_env["PYTHONPATH"] = str(args.cli_source.resolve())
+                cli = subprocess.run([sys.executable, "-m", "foggy_runtime_cli.main", "--base-url",
+                    "http://127.0.0.1:" + str(port), "--namespace", "binding-smoke", "members", "list",
+                    "Members", "artistKey"], env=cli_env, capture_output=True, text=True, timeout=60)
+                assert cli.returncode == 0, cli.stderr + cli.stdout
+                records["cli-members"] = json.loads(cli.stdout)
+                assert records["cli-members"]["data"]["items"] == expected_members
+                checks.append("cli-runtime-member-envelope-and-exit-code")
             r = query("Split", pivot("revenue"))["items"][0]
             assert {
                 row["groupKey"]: r["cells"][i][0]

@@ -67,3 +67,5 @@ package 和 production promotion：确认磁盘 artifact/store 生命周期、�
 - 本迭代完成时更新 [9.5 主版本索引](../README.md)，历史平铺目录迁移仍由独立治理任务处理。
 
 - [字段投影与依赖图复用优化](workitems/OPT-compiled-field-bindings.md)：DONE；#147 交付后的内部绑定、依赖图与 CI 门禁优化，双平台全量、四库和全部 IT 验收通过。
+
+- [成员绑定与同目录隔离校验修复](workitems/BUG-member-binding-and-detached-validation.md)：DONE；#148/#149，成员及权限绑定、Runtime 接口与同目录隔离校验；双平台全量、四库、47/47 IT 类和实际 Launcher 验证通过。

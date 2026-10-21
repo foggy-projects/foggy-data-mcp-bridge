@@ -203,6 +203,25 @@ class RuntimeAuthoringWorkspaceRealExecutionTest {
     }
 
     @Test
+    void registeredDirectoryValidationIsRepeatableAndClearExistingDoesNotRemoveLiveBundle() {
+        var bundlesBefore=List.copyOf(bundlesContext.getBundleList());
+        var before=catalogSnapshotStore.current(NAMESPACE).orElse(null);
+        for (boolean clear : List.of(false,true)) {
+            for (String path : List.of(livePath.toString(),livePath.resolve(".").toString())) {
+                var response=modelOperations.validateModels(new com.foggyframework.runtime.api.dto.ModelValidateRequest(
+                        path,NAMESPACE,false,clear,true),null);
+                assertThat(response.valid()).isTrue();
+                assertThat(response.validFiles()).isEqualTo(2);
+                assertThat(response.invalidFiles()).isZero();
+                assertThat(response.warnings()).extracting(com.foggyframework.runtime.api.dto.ModelValidateIssue::code)
+                        .containsExactly("BUNDLE_ALREADY_REGISTERED");
+                assertThat(bundlesContext.getBundleList()).containsExactlyElementsOf(bundlesBefore);
+                assertThat(catalogSnapshotStore.current(NAMESPACE).orElse(null)).isSameAs(before);
+            }
+        }
+    }
+
+    @Test
     void validatedImmutableWorkspaceRevisionExecutesRealSqliteDraft()
             throws Exception {
         CatalogSnapshot catalogBefore = catalogSnapshotStore.current(NAMESPACE)

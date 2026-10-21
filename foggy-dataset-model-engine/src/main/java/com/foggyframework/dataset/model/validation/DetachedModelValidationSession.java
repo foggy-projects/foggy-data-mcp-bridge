@@ -16,6 +16,9 @@ public interface DetachedModelValidationSession extends AutoCloseable {
 
     Bundle sourceBundle();
 
+    /** Same source directory represented by a fresh request-local bundle. */
+    default boolean reusesRegisteredDirectory() { return false; }
+
     void validateTableModel(BundleResource resource, String namespace);
 
     /** Load and parse one request-local FSScript and its imports. */

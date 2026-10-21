@@ -378,7 +378,7 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                                         + prepared.sourceModelName());
                     }
                     SyntheticMemberQueryModelDescriptor descriptor =
-                            syntheticMemberQueryModelResolver.resolve(
+                            syntheticMemberQueryModelResolver.resolveCanonical(
                                     sourceModel,
                                     prepared.syntheticSelector(),
                                     prepared.namespace());
@@ -469,7 +469,7 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                             "synthetic source model is absent: " + sourceName);
                 }
                 SyntheticMemberQueryModelDescriptor descriptor =
-                        syntheticMemberQueryModelResolver.resolve(
+                        syntheticMemberQueryModelResolver.resolveCanonical(
                                 sourceModel, selector, canonicalNamespace);
                 QueryModel synthetic = syntheticMemberQueryModelFactory.build(
                         sourceModel, descriptor);
@@ -676,11 +676,19 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                 : requested.substring(0, separator);
         String suffix = separator < 0 ? "" : requested.substring(separator);
         CatalogBuildView view = catalogSnapshotStore.capture(namespace);
-        try (CatalogSnapshotStore.CandidateScope scope =
-                     catalogSnapshotStore.openCandidate(view)) {
+        String sourceName;
+        try (CatalogSnapshotStore.CandidateScope scope = catalogSnapshotStore.openCandidate(view)) {
             CatalogCandidate candidate = scope.candidate();
             candidate.discoverQueryModels(discovery);
-            return candidate.resolveCanonicalName(sourceOrName) + suffix;
+            sourceName = candidate.resolveCanonicalName(sourceOrName);
+        }
+        if (separator < 0) return sourceName;
+        QueryModel source = resolveJdbcQueryModel(sourceName, namespace).model();
+        String selector = requested.substring(separator + 1);
+        try {
+            return syntheticMemberQueryModelResolver.resolveCanonical(source, selector, namespace).syntheticModelName();
+        } catch (IllegalArgumentException unknownPath) {
+            return syntheticMemberQueryModelResolver.resolve(source, selector, namespace).syntheticModelName();
         }
     }
 

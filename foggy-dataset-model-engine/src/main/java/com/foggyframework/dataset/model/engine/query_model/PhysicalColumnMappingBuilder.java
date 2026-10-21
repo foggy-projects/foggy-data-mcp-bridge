@@ -84,6 +84,14 @@ public final class PhysicalColumnMappingBuilder {
             }
         }
 
+        // Synthetic fields use canonical id/caption and relative subtree names rather than TM names.
+        for (DbQueryColumn column : qm.getJdbcQueryColumns()) {
+            if (column.getSelectColumn().getDecorate(
+                    com.foggyframework.dataset.model.semantic.member.SyntheticMemberRuntimeColumn.class) != null) {
+                mapNamedSource(column, column.getSelectColumn(), qmToPhysical, physicalToQm);
+            }
+        }
+
         // 5. QM 预定义计算字段（传递解析到基础字段的物理列）
         processCalculatedFields(qm, qm.getPredefinedCalculatedFields(), qmToPhysical, physicalToQm);
 
