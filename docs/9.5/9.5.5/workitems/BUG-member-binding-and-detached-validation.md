@@ -107,3 +107,8 @@ Artist=275（首项 AC/DC）、Album=347、Track=3503；登记前后、clearExis
 
 本轮实现遵循既有 catalog canonical identity、candidate 隔离、QueryFacade 和逐请求权限流程；
 未弱化 slot/name 校验、引入旁路 SQL 或修改公共 Model SPI v2。
+
+## 发布完成（2026-10-21）
+
+用户追加授权后的提交、issue 关闭、Launcher 0.1.30 / CLI 0.1.25 发行、私有 Maven 快照及正式制品复验均已完成。
+详见[发布证据](../../../release/launcher-0.1.30-cli-0.1.25-publication.md)。
