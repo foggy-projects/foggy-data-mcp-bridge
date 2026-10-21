@@ -1611,23 +1611,18 @@ public final class ComposePlanner {
         List<Object> leftParams = extractParams(left);
         List<Object> rightParams = extractParams(right);
 
-        // Branch ORDER BY / pagination belongs inside its own relation, never to UNION.
-        if (hasExplicitWindow(plan.left()) || hasExplicitWindow(plan.right())) {
-            leftSql = "SELECT * FROM (" + leftSql + ") AS " + state.nextAlias();
-            rightSql = "SELECT * FROM (" + rightSql + ") AS " + state.nextAlias();
-        }
+        SchemaDerivation.validateUnionColumnCounts(boundOutputColumnsForPlan(plan.left(), state),
+                boundOutputColumnsForPlan(plan.right(), state), "UnionPlan");
+        // Keep AST grouping even without pagination: a UNION (b UNION ALL c) must
+        // not become (a UNION b) UNION ALL c. SELECT wrappers also work on SQLite.
+        leftSql = "SELECT * FROM (" + leftSql + ") AS " + state.nextAlias();
+        rightSql = "SELECT * FROM (" + rightSql + ") AS " + state.nextAlias();
         String keyword = plan.all() ? "UNION ALL" : "UNION";
         String sql = leftSql + "\n" + keyword + "\n" + rightSql;
         List<Object> params = new ArrayList<>();
         params.addAll(leftParams);
         params.addAll(rightParams);
         return new ComposedSql(sql, params);
-    }
-
-    private static boolean hasExplicitWindow(QueryPlan plan) {
-        if (plan instanceof BaseModelPlan base) return base.limit() != null || base.start() != null;
-        if (plan instanceof DerivedQueryPlan derived) return derived.limit() != null || derived.start() != null;
-        return false;
     }
 
     // ------------------------------------------------------------------

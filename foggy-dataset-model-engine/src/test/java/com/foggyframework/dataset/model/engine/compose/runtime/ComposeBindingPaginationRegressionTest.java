@@ -188,6 +188,99 @@ class ComposeBindingPaginationRegressionTest extends EcommerceTestSupport {
             "return {plans:dsl({model:'PageQM',columns:['id'],slice:[{field:'grp',op:'in',value:keys}],orderBy:['id'],start:1,limit:1})};";
         assertEquals(List.of(4),ids(rows(script),"id"));
     }
+    @ParameterizedTest @ValueSource(booleans={false,true})
+    void orderedUnionInputsWithoutPaginationRemainIndependent(boolean g10) {
+        ComposeFeatureFlags.overrideG10Enabled(g10);
+        try {
+            String script="const a="+base(",slice:[{field:'id',op:'<=',value:3}]")+";const b="+
+                base(",slice:[{field:'id',op:'>',value:3}]")+";return {plans:a.union(b,{all:true})};";
+            assertEquals(List.of(1,2,3,4,5,6),ids(rows(script),"id"));
+        } finally {ComposeFeatureFlags.overrideG10Enabled(null);}
+    }
+
+    @Test void rightNestedMixedUnionPreservesSetGrouping() {
+        String one="dsl({model:'PageQM',columns:['grp'],groupBy:['grp'],slice:[{field:'grp',op:'=',value:1}]})";
+        String two=one.replace("value:1","value:2");
+        String script="const a="+two+";const b="+one+";const c="+one+
+            ";return {plans:a.union(b.union(c,{all:true}))};";
+        assertEquals(List.of(1,2),ids(rows(script),"grp"));
+    }
+
+    @ParameterizedTest @ValueSource(booleans={false,true})
+    void omittedDerivedColumnsPreserveQmOutputAliases(boolean g10) {
+        ComposeFeatureFlags.overrideG10Enabled(g10);
+        try {
+            String script="const a=dsl({model:'PageQM',columns:['queryId'],orderBy:['queryId'],limit:3});"+
+                "return {plans:a.query({limit:2}).query({columns:['resultId'],orderBy:['resultId']})};";
+            assertEquals(List.of(1,2),ids(rows(script),"resultId"));
+            assertDoesNotThrow(()->run(script,ComposeScriptService.Mode.EXECUTE,true));
+        } finally {ComposeFeatureFlags.overrideG10Enabled(null);}
+    }
+
+    @ParameterizedTest @ValueSource(booleans={false,true})
+    void unionArityIsRejectedBeforeDatabaseExecution(boolean g10) {
+        ComposeFeatureFlags.overrideG10Enabled(g10);
+        try {
+            String script="const a=dsl({model:'PageQM',columns:['id']});"+
+                "const b=dsl({model:'PageQM',columns:['id','grp']});return {plans:a.union(b)};";
+            for(var mode:List.of(ComposeScriptService.Mode.VALIDATE,ComposeScriptService.Mode.PREVIEW)) {
+                var error=assertThrows(RuntimeException.class,()->run(script,mode,false));
+                assertTrue(error.getMessage().contains("column count mismatch"),error.getMessage());
+            }
+        } finally {ComposeFeatureFlags.overrideG10Enabled(null);}
+    }
+
+    @Test void reusedPlanKeepsEachBranchWindowAndDuplicates() {
+        String script="const a="+base(",limit:2")+";return {plans:a.union(a.query({limit:1}),{all:true})};";
+        assertEquals(List.of(1,1,2),ids(rows(script),"id"));
+    }
+
+    @ParameterizedTest @ValueSource(booleans={false,true})
+    void subqueryThroughPassthroughUsesBoundOutputSchema(boolean g10) {
+        ComposeFeatureFlags.overrideG10Enabled(g10);
+        try {
+            String script="const keys=dsl({model:'PageQM',columns:['queryId'],orderBy:['queryId'],limit:2}).query({limit:1});"+
+                "return {plans:dsl({model:'PageQM',columns:['id'],slice:[{field:'id',op:'in',value:keys}],orderBy:['id']})};";
+            assertEquals(List.of(1),ids(rows(script),"id"));
+        } finally {ComposeFeatureFlags.overrideG10Enabled(null);}
+    }
+
+    @ParameterizedTest @ValueSource(booleans={false,true})
+    void nestedJoinUsesExposedKeysAndKeepsPermissions(boolean g10) {
+        ComposeFeatureFlags.overrideG10Enabled(g10);
+        try {
+        String script="const a="+base(",limit:2")+";const b=dsl({model:'PageQM',columns:['id as second_id']});"+
+                "const c=dsl({model:'PageQM',columns:['id as third_id','amount']});"+
+                "return {plans:a.join(b,'inner',[{left:'id',op:'=',right:'second_id'}])"+
+                ".join(c,'inner',[{left:'second_id',op:'=',right:'third_id'}]).query({columns:['id','amount']})};";
+        assertEquals(List.of(1,2),ids(rows(script),"id"));
+        for(var mode:ComposeScriptService.Mode.values()) {
+            assertDoesNotThrow(()->run(script.replace(",'amount'", ""),mode,true));
+            var denied=assertThrows(RuntimeException.class,()->run(script,mode,true));
+            assertTrue(denied.getMessage().contains("amount"),denied.getMessage());
+        }
+        } finally {ComposeFeatureFlags.overrideG10Enabled(null);}
+    }
+
+    @Test void derivedOffsetOnlyPreservesRemainingRows() {
+        assertEquals(List.of(3,4,5,6),ids(rows("return {plans:"+base("")+
+            ".query({columns:['id'],orderBy:['id'],start:2})};"),"id"));
+    }
+
+    @Test void orderedDerivedUnionBranchIsExecutable() {
+        String script="const a="+base(",limit:2")+".query({columns:['id'],orderBy:['id']});"+
+            "return {plans:a.union(a,{all:true})};";
+        assertEquals(List.of(1,1,2,2),ids(rows(script),"id"));
+    }
+
+    @Test void zeroDerivedWindowWithOffsetKeepsPermissionChecks() {
+        String script="return {plans:dsl({model:'PageQM',columns:['id','amount']})"+
+            ".query({columns:['id','amount'],orderBy:['id'],start:2,limit:0})};";
+        assertTrue(rows(script).isEmpty());
+        for(var mode:ComposeScriptService.Mode.values())
+            assertThrows(RuntimeException.class,()->run(script,mode,true));
+    }
+
     @Test void windowResultIsPagedAfterRanking() {
         if ("mssql".equals(dialect())) {
             // Compose's current SQL Server lowering cannot hoist result-stage CTEs.

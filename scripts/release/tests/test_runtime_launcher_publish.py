@@ -231,6 +231,78 @@ class RuntimeLauncherPublishTest(unittest.TestCase):
                     "smoke evidence must not alter release assets",
                 )
 
+    def test_compose_failure_prevents_release_notes_and_publication(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(
+            release.sys, "argv", ["publish", "--release-version", "0.1.32",
+                                  "--reuse-package", "--output-dir", temporary]
+        ), mock.patch.object(release, "command_output", return_value="a" * 40), \
+                mock.patch.object(release, "verify_package", return_value={}), \
+                mock.patch.object(release, "run_smoke", return_value=[]), \
+                mock.patch.object(release, "run_field_binding_smoke", return_value={}), \
+                mock.patch.object(release, "run_compose_binding_smoke",
+                                  side_effect=release.ReleaseError("Compose rejected")), \
+                mock.patch.object(release, "release_notes") as notes, \
+                mock.patch.object(release, "publish_release") as publish:
+            self.assertEqual(1, release.main())
+            notes.assert_not_called()
+            publish.assert_not_called()
+
+    def test_compose_gate_rejects_missing_cases_modes_hash_or_live_process(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = root / "package"
+            package.mkdir()
+            jar = package / "foggy-runtime-launcher-0.1.32.jar"
+            jar.write_bytes(b"fixture jar")
+            valid = {
+                "status": "passed", "processStopped": True,
+                "launcherSha256": hashlib.sha256(jar.read_bytes()).hexdigest(),
+                "modes": ["validate", "preview", "execute"],
+                "checks": sorted(release.COMPOSE_REQUIRED_CHECKS),
+            }
+            summaries = [
+                {**valid, "checks": valid["checks"][1:]},
+                {**valid, "checks": ["unrelated"] * len(valid["checks"])},
+                {**valid, "checks": valid["checks"] + [valid["checks"][0]]},
+                {**valid, "checks": [1]},
+                {**valid, "modes": ["validate", "preview"]},
+                {**valid, "launcherSha256": "wrong"},
+                {**valid, "processStopped": False},
+                {**valid, "status": "failed"},
+                [],
+            ]
+            def write_summary(command):
+                destination = Path(command[-1])
+                destination.mkdir(parents=True)
+                (destination / "summary.json").write_text(json.dumps(summary))
+            with mock.patch.object(release, "REPOSITORY_ROOT", root), \
+                    mock.patch.object(release, "run", side_effect=write_summary):
+                for summary in summaries:
+                    with self.subTest(summary=summary), self.assertRaises(release.ReleaseError):
+                        release.run_compose_binding_smoke(package, "0.1.32")
+                summary = valid
+                result = release.run_compose_binding_smoke(package, "0.1.32")
+                self.assertEqual("compose-binding", result["profile"])
+                self.assertEqual("passed", result["status"])
+                self.assertEqual([jar], list(package.iterdir()))
+
+    def test_compose_gate_requires_fresh_summary_and_successful_process(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with mock.patch.object(release, "REPOSITORY_ROOT", root), \
+                    mock.patch.object(release, "run") as run:
+                with self.assertRaises(FileNotFoundError):
+                    release.run_compose_binding_smoke(root, "0.1.32")
+                old = Path(run.call_args.args[0][-1])
+                old.mkdir(parents=True)
+                (old / "summary.json").write_text('{"status":"passed"}')
+                with self.assertRaises(FileNotFoundError):
+                    release.run_compose_binding_smoke(root, "0.1.32")
+                self.assertNotEqual(old, Path(run.call_args.args[0][-1]))
+                run.side_effect = release.subprocess.CalledProcessError(1, ["smoke"])
+                with self.assertRaises(release.subprocess.CalledProcessError):
+                    release.run_compose_binding_smoke(root, "0.1.32")
+
     @staticmethod
     def _write_package(
         package_dir: Path,

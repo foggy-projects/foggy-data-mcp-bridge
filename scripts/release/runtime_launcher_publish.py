@@ -33,6 +33,14 @@ OBS_INDEX = (
     "https://obs-fe55.obs.cn-north-4.myhuaweicloud.com/foggy-runtime/latest.json"
 )
 VERSION_PATTERN = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[._-][A-Za-z0-9._-]+)?$")
+COMPOSE_REQUIRED_CHECKS = frozenset({
+    "missing-right", "missing-left", "unprojected-source-name", "qm-output-alias",
+    "base-limit", "base-offset", "base-zero", "base-offset-only", "unbounded",
+    "derived-limit", "final-limit", "root-base-limit",
+    "ordinary-query-pagination-unchanged", "zero-limit-preserves-field-permissions",
+    "nested-mixed-union", "derived-offset-only", "passthrough-subquery",
+    "ordered-union", "union-arity",
+})
 
 
 class ReleaseError(RuntimeError):
@@ -530,6 +538,33 @@ def run_field_binding_smoke(package_dir: Path, version: str) -> dict[str, Any]:
     return {"profile": "field-binding", "evidence": str(evidence), **summary}
 
 
+def run_compose_binding_smoke(package_dir: Path, version: str) -> dict[str, Any]:
+    evidence_root = REPOSITORY_ROOT / ".foggy-runtime" / "compose-binding-smoke"
+    evidence_root.mkdir(parents=True, exist_ok=True)
+    evidence = Path(tempfile.mkdtemp(prefix=f"{version}-", dir=evidence_root)) / "checks"
+    jar = package_dir / f"foggy-runtime-launcher-{version}.jar"
+    log("smoke: Compose input pagination, JOIN binding and permissions")
+    run([
+        sys.executable,
+        str(REPOSITORY_ROOT / "scripts" / "field-binding" / "compose_binding_smoke.py"),
+        "--jar", str(jar), "--output", str(evidence),
+    ])
+    summary = json.loads((evidence / "summary.json").read_text(encoding="utf-8"))
+    checks = summary.get("checks") if isinstance(summary, dict) else None
+    if (
+        not isinstance(checks, list)
+        or not all(isinstance(check, str) for check in checks)
+        or len(checks) != len(set(checks))
+        or not COMPOSE_REQUIRED_CHECKS.issubset(checks)
+        or summary.get("status") != "passed"
+        or summary.get("processStopped") is not True
+        or summary.get("modes") != ["validate", "preview", "execute"]
+        or summary.get("launcherSha256") != sha256_file(jar)
+    ):
+        raise ReleaseError("Compose artifact smoke returned incomplete or mismatched evidence")
+    return {"profile": "compose-binding", "evidence": str(evidence), **summary}
+
+
 def release_notes(
     version: str, commit: str, manifest: dict[str, Any], checksums: dict[str, str]
 ) -> str:
@@ -921,6 +956,7 @@ def main() -> int:
         if not args.skip_smoke:
             smokes = run_smoke(package_dir, args.port)
             smokes.append(run_field_binding_smoke(package_dir, version))
+            smokes.append(run_compose_binding_smoke(package_dir, version))
         checksums = parse_checksums(package_dir / "SHA256SUMS")
         notes = release_notes(version, commit, manifest, checksums)
 

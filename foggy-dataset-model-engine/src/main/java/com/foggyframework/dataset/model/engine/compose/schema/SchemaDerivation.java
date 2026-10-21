@@ -152,7 +152,8 @@ public final class SchemaDerivation {
         }
 
         List<ColumnSpec> specs = partsToSpecs(partsList, null, currentPath);
-        OutputSchema output = OutputSchema.of(specs);
+        // An omitted projection is SELECT *: retain names and provenance from the source.
+        OutputSchema output = partsList.isEmpty() ? sourceSchema : OutputSchema.of(specs);
         validateGroupAndOrderBy(plan.groupBy(), plan.orderBy(), output, currentPath);
         validateSliceNotSameStageAlias(plan.slice(), partsList, sourceNames, currentPath);
         return output;
@@ -164,22 +165,28 @@ public final class SchemaDerivation {
         OutputSchema leftSchema = deriveInternal(plan.left(), leftPath, bases);
         OutputSchema rightSchema = deriveInternal(plan.right(), rightPath, bases);
 
-        if (leftSchema.size() != rightSchema.size()) {
-            throw new ComposeSchemaException(
-                    ComposeSchemaErrorCodes.UNION_COLUMN_COUNT_MISMATCH,
-                    "union column count mismatch: left has "
-                            + leftSchema.size() + " columns "
-                            + leftSchema.names()
-                            + ", right has " + rightSchema.size() + " columns "
-                            + rightSchema.names(),
-                    ComposeSchemaErrorCodes.PHASE_SCHEMA_DERIVE,
-                    path + "UnionPlan",
-                    null);
-        }
+        validateUnionColumnCounts(leftSchema.names(), rightSchema.names(), path + "UnionPlan");
 
         // Output schema takes left's names/expressions verbatim; drop any
         // source_model attribution since union erases per-source identity.
         return OutputSchema.of(stripSourceModel(leftSchema.columns()));
+    }
+
+    /** Shared by schema derivation and lowering, including the legacy non-G10 path. */
+    public static void validateUnionColumnCounts(List<String> left, List<String> right, String path) {
+        if (left.size() != right.size()) {
+            throw new ComposeSchemaException(
+                    ComposeSchemaErrorCodes.UNION_COLUMN_COUNT_MISMATCH,
+                    "union column count mismatch: left has "
+                            + left.size() + " columns "
+                            + left
+                            + ", right has " + right.size() + " columns "
+                            + right,
+                    ComposeSchemaErrorCodes.PHASE_SCHEMA_DERIVE,
+                    path,
+                    null);
+        }
+
     }
 
     private static OutputSchema deriveJoin(JoinPlan plan, String path, java.util.function.Function<BaseModelPlan, OutputSchema> bases) {
@@ -452,6 +459,10 @@ public final class SchemaDerivation {
      * </ul>
      */
     private static ColumnSpec annotateForJoin(ColumnSpec c, PlanId planPid, boolean overlap) {
+        // A nested JOIN must retain the already bound origin and ambiguity.
+        // The intermediate JOIN has no independent model permission binding.
+        if (c.planProvenance() != null) planPid = c.planProvenance();
+        overlap = overlap || c.isAmbiguous();
         // Fast-path: already annotated with the same provenance/ambiguity.
         if (planPid.equals(c.planProvenance()) && c.isAmbiguous() == overlap) {
             return c;

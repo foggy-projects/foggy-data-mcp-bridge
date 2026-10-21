@@ -68,4 +68,10 @@ python scripts/field-binding/compose_binding_smoke.py --jar path/to/launcher.jar
 
 The gate compares validate and preview SQL/params, checks executed row sets and ordinary-query
 pagination, and verifies invalid JOIN diagnostics in all three modes. It preserves responses and
-stops only its isolated loopback JVM.
+stops only its isolated loopback JVM. It also checks that a zero limit cannot bypass
+hidden-field permissions, including a request-level alias.
+
+`runtime_launcher_publish.py` requires the Compose gate before creating a tag or Release.
+The publisher verifies all 19 named checks, all three modes, JVM shutdown and the exact
+JAR SHA-256; missing, duplicate, stale or incomplete evidence blocks publication.
+Reports are retained under `.foggy-runtime/compose-binding-smoke/`, outside release assets.

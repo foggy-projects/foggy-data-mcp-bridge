@@ -13,7 +13,7 @@ final class ComposePaginationRenderer {
     }
 
     static Integer topLimit(String dialect, Integer limit, Integer offset) {
-        if (!isSqlServerDialect(dialect) || offset != null) {
+        if (!isSqlServerDialect(dialect) || offset != null && !Integer.valueOf(0).equals(limit)) {
             return null;
         }
         return limit;
@@ -32,10 +32,10 @@ final class ComposePaginationRenderer {
             appendSqlServerPagination(sql, limit, offset, hasOrderBy, errorPhase, contextDescription);
             return;
         }
-        appendLimitOffset(sql, limit, offset);
+        appendLimitOffset(sql, dialect, limit, offset);
     }
 
-    private static void appendLimitOffset(StringBuilder sql, Integer limit, Integer offset) {
+    private static void appendLimitOffset(StringBuilder sql, String dialect, Integer limit, Integer offset) {
         if (limit != null) {
             if (offset != null) {
                 sql.append("\nLIMIT ").append(limit).append(" OFFSET ").append(offset);
@@ -43,6 +43,9 @@ final class ComposePaginationRenderer {
                 sql.append("\nLIMIT ").append(limit);
             }
         } else if (offset != null) {
+            String normalized = dialect == null ? "" : dialect.toLowerCase(Locale.ROOT);
+            if ("sqlite".equals(normalized)) sql.append("\nLIMIT -1");
+            else if (normalized.startsWith("mysql")) sql.append("\nLIMIT 18446744073709551615");
             sql.append("\nOFFSET ").append(offset);
         }
     }
@@ -55,7 +58,11 @@ final class ComposePaginationRenderer {
             String errorPhase,
             String contextDescription
     ) {
+        // TOP (0) preserves an empty stage without the illegal FETCH NEXT 0.
+        if (Integer.valueOf(0).equals(limit)) return;
         if (offset == null) {
+            // An ordered unbounded relation must remain legal when nested.
+            if (limit == null && hasOrderBy) sql.append("\nOFFSET 0 ROWS");
             return;
         }
         if (!hasOrderBy) {

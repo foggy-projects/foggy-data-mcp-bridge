@@ -61,6 +61,16 @@ UNION 或 derived 消费。未声明分页的输入无默认上限。limit=0 为
 不同方言分别生成 LIMIT/OFFSET 或 TOP/OFFSET FETCH。普通 QueryFacade 执行分页流程不变。
 这不赋予中间关系的 ORDER BY 最终输出顺序保证，最终顺序仍由消费者显式声明。
 
+UNION 的每个操作数保留独立关系边界，不能把右侧嵌套 UNION/UNION ALL 平铺而改变去重。
+两侧实际投影列数在 lowering 强制校验，与 G10 开关独立；仍按位置对齐，沿用左侧输出名。
+省略 columns 的 derived 是 SELECT *，schema 继承输入，包含已经绑定的来源和歧义信息。
+G10 嵌套 JOIN 保留既有字段来源，不把已绑定的基础来源覆盖为没有独立权限绑定的中间 JOIN。
+这些修复不开放未知来源权限，也不扩大 name/alias 的查询输入合同。
+
+派生阶段仅 start 在 SQLite/MySQL 使用各自的无上限 LIMIT 语法；SQL Server 无界排序通过
+OFFSET 0 保持关系可嵌套，limit=0 使用 TOP (0)，避免非法 FETCH NEXT 0。权限仍先于空集生成校验。
+SQL Server 窗口结果阶段的 CTE 提升仍未支持，维持明确拒绝；不能由本次分页修复推断支持。
+
 `QueryFieldBindings.Projection` 在一次投影入口编译不可变绑定列表，保存查询表达式、输出键和
 实际来源列；结果映射不再逐行查找模型。编译产物只用于该投影，不跨模型共享。
 

@@ -28,6 +28,7 @@ def main():
         )
     (models/'model/Smoke.tm').write_text("export const model={name:'Smoke',tableName:'binding_smoke',idColumn:'id',properties:[{name:'id',column:'id',type:'INTEGER'},{name:'category',column:'category',type:'STRING'},{name:'amount',column:'amount',type:'INTEGER'}]};")
     (models/'query/Base.qm').write_text("const m=loadTableModel('Smoke');export const queryModel={name:'Base',loader:'v2',model:m,columnGroups:[{caption:'Fields',items:[{ref:m.id},{ref:m.id,name:'queryId',alias:'resultId'},{ref:m.category},{ref:m.amount}]}],accesses:[]};")
+    (models/'query/Restricted.qm').write_text("const m=loadTableModel('Smoke');export const queryModel={name:'Restricted',loader:'v2',model:m,columnGroups:[{caption:'Fields',items:[{ref:m.id},{ref:m.amount}]}],accesses:[],fieldPermissions:{hiddenFields:[{fields:['amount']}]}};")
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
@@ -140,7 +141,8 @@ def main():
                 if code:
                     assert result['success'] is False,result
                     assert result['diagnostics']['attributes']['composeErrorCode']==code,result
-                    assert 'on[0]' in result['error']['message'],result
+                    if '/join/' in code:
+                        assert 'on[0]' in result['error']['message'],result
                     return result
                 assert result['success'] and result['data']['valid'],result
                 return result['data']['value']['plans']
@@ -156,24 +158,43 @@ def main():
                    ('unbounded',script(),[1,2,3]),
                    ('derived-limit',script(derived=".query({orderBy:['left_id'],limit:1})"),[1]),
                    ('final-limit',script(final='1'),[1]),
-                   ('root-base-limit',"return {plans:dsl({model:'Base',columns:['id'],orderBy:['id'],limit:1})};",[1])]
+                   ('root-base-limit',"return {plans:dsl({model:'Base',columns:['id'],orderBy:['id'],limit:1})};",[1]),
+                   ('nested-mixed-union',"const a=dsl({model:'Base',columns:['id'],slice:[{field:'id',op:'=',value:2}]});const b=dsl({model:'Base',columns:['id'],slice:[{field:'id',op:'=',value:1}]});return {plans:a.union(b.union(b,{all:true}))};",[1,2]),
+                   ('derived-offset-only',"return {plans:dsl({model:'Base',columns:['id']}).query({orderBy:['id'],start:1})};",[2,3]),
+                   ('passthrough-subquery',"const keys=dsl({model:'Base',columns:['queryId'],orderBy:['queryId'],limit:2}).query({limit:1});return {plans:dsl({model:'Base',columns:['id'],slice:[{field:'id',op:'in',value:keys}]})};",[1]),
+                   ('ordered-union',"const a=dsl({model:'Base',columns:['id'],orderBy:['id']});return {plans:a.union(a,{all:true})};",[1,1,2,2,3,3])]
             for label,s,expected in cases:
                 validated=compose(label,s,'validate');preview=compose(label,s,'preview')
                 assert validated==preview,label
                 rows=compose(label,s,'execute')
                 assert sorted(row.get('left_id',row.get('id')) for row in rows)==expected,(label,rows)
                 checks.append(label)
+            for mode in ['validate', 'preview', 'execute']:
+                compose('union-arity', "const a=dsl({model:'Base',columns:['id']});const b=dsl({model:'Base',columns:['id','amount']});return {plans:a.union(b)};", mode,
+                        'compose-schema-error/union/column-count-mismatch')
+            checks.append('union-arity')
             normal=req('/api/v1/query/Base/execute',{'columns':['id'],'orderBy':[{'field':'id','dir':'asc'}],'start':1,'limit':1})
             records['ordinary-query']=normal
             assert normal['success'] and len(normal['data']['items'])==1,normal
             assert normal['data']['items'][0]['id']==2,normal
             checks.append('ordinary-query-pagination-unchanged')
+            for mode in ['validate', 'preview', 'execute']:
+                allowed = "return {plans:dsl({model:'Restricted',columns:['id'],limit:0})};"
+                compose('restricted-allowed-empty', allowed, mode)
+                for projection in ['amount', 'amount as exposed']:
+                    denied = "return {plans:dsl({model:'Restricted',columns:['" + projection + "'],limit:0})};"
+                    result = req('/api/v1/compose/' + mode, {'script': denied})
+                    records['permission-' + projection + '-' + mode] = result
+                    assert result['success'] is False, result
+                    error = json.dumps(result.get('error', {}), ensure_ascii=False).lower()
+                    assert 'amount' in error and any(word in error for word in ['permission', 'access', '权限', '访问被拒绝']), result
+            checks.append('zero-limit-preserves-field-permissions')
         finally:
             proc.terminate()
             try:proc.wait(timeout=20)
             except subprocess.TimeoutExpired:proc.kill();proc.wait(timeout=10)
             (out/'responses.json').write_text(json.dumps(records,indent=2,ensure_ascii=False),encoding='utf-8')
-    result={'status':'passed','launcherSha256':hashlib.sha256(jar.read_bytes()).hexdigest(),'processStopped':proc.poll() is not None,'checks':checks}
+    result={'status':'passed','launcherSha256':hashlib.sha256(jar.read_bytes()).hexdigest(),'processStopped':proc.poll() is not None,'modes':['validate','preview','execute'],'checks':checks}
     (out/'summary.json').write_text(json.dumps(result,indent=2));print(json.dumps(result))
 
 if __name__=='__main__':main()
