@@ -35,6 +35,7 @@ recorded_at: 2026-08-01
 ## 目标
 
 - [Compose JOIN 绑定与输入分页 #150/#151](workitems/BUG-150-151-compose-binding-pagination.md)：PUBLISHED；双平台全量、五库、47/47 IT 类及 Runtime 三模式通过；[Launcher 0.1.32 / Maven 发布复验](../../release/launcher-0.1.32-compose-publication.md)通过；v950 独立处理。
+- [v950 历史合同测试作用域](workitems/BUG-v950-contract-test-scope.md)：VERIFIED；保留冻结合同及严格拒绝，双平台各 20 项、真实跨文件系统验证和相邻脚本回归通过。
 
 9.5.5 不继续扩张模型创作功能面，而是收口 9.5.3～9.5.4 已接受的 workspace、publish、release
 package 和 production promotion：确认磁盘 artifact/store 生命周期、重启遗留物、容量与诊断边界，形成

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Frozen module excerpt from 03af64da7330d70d3364c9e92992710a2ed3a111; see README.md. -->
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <modules>
+    <module>foggy-bean-copy</module>
+    <module>foggy-core</module>
+    <module>foggy-mcp-spi</module>
+    <module>foggy-dataset</module>
+    <module>foggy-dataset-demo</module>
+    <module>foggy-dataset-mcp</module>
+    <module>foggy-dataset-model-api</module>
+    <module>foggy-dataset-model-core</module>
+    <module>foggy-dataset-model-jdbc</module>
+    <module>foggy-dataset-model-starter</module>
+    <module>foggy-dataset-model-web</module>
+    <module>foggy-dataset-model-tck</module>
+    <module>foggy-dataset-model-engine</module>
+    <module>foggy-runtime-api</module>
+    <module>foggy-dataset-memory-grid-bridge</module>
+    <module>foggy-dataset-memory-grid-duckdb</module>
+    <module>foggy-fsscript</module>
+    <module>foggy-mcp-launcher</module>
+    <module>addons/foggy-fsscript-client</module>
+    <module>addons/foggy-dataset-client</module>
+    <module>addons/foggy-dataset-mongo</module>
+    <module>addons/foggy-dataset-model-mongo</module>
+    <module>addons/foggy-dataset-model-cache</module>
+    <module>addons/foggy-dataset-model-vector</module>
+    <module>addons/foggy-data-viewer</module>
+    <module>addons/foggy-chart-storage-cloud</module>
+    <module>addons/foggy-dataset-vector</module>
+    <module>addons/foggy-dataset-graphql</module>
+    <module>addons/foggy-dataset-model-preagg</module>
+    <module>addons/foggy-odoo-bridge-java</module>
+    <module>build-support/foggy-coverage-report</module>
+  </modules>
+</project>

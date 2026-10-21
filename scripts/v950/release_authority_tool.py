@@ -202,7 +202,13 @@ def validate_contract(repo_root: Path) -> dict[str, Any]:
         "contract must freeze 31 unique modules",
     )
     require(reactor["project_count"] == 32, "reactor project count differs")
-    require(xml_modules(repo_root) == modules, "active root reactor differs from contract")
+    actual_modules = xml_modules(repo_root)
+    require(
+        actual_modules == modules,
+        "active root reactor differs from contract: historical 9.5.0 authority "
+        f"requires {len(modules)} ordered modules; found {len(actual_modules)}. "
+        "Use a matching 9.5.0 candidate; do not retarget the frozen contract to current main.",
+    )
     for module in modules:
         require(
             type(module) is str

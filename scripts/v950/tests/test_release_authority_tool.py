@@ -26,11 +26,76 @@ class ReleaseAuthorityToolTest(unittest.TestCase):
     def setUp(self) -> None:
         self.repo = Path(__file__).resolve().parents[3]
 
-    def test_live_contract_matches_current_reactor(self) -> None:
-        receipt = tool.validate_contract(self.repo)
+    def _frozen_reactor(self, root: Path) -> Path:
+        fixture = Path(__file__).parent / "fixtures/v950-reactor.pom.xml"
+        (root / "pom.xml").write_bytes(fixture.read_bytes())
+        for module in tool.xml_modules(root):
+            pom = root / module / "pom.xml"
+            pom.parent.mkdir(parents=True)
+            pom.write_text("<project/>\n", encoding="utf-8")
+        provisioner = tool.contract()["database_replay"]["provisioner"]["path"]
+        target = root / provisioner
+        target.parent.mkdir(parents=True)
+        # Frozen source archives use LF, including on Windows checkouts.
+        target.write_bytes((self.repo / provisioner).read_bytes().replace(b"\r\n", b"\n"))
+        return root
+
+    def test_frozen_contract_matches_signed_off_reactor_fixture(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            receipt = tool.validate_contract(self._frozen_reactor(Path(raw)))
         self.assertEqual(31, receipt["modules"])
         self.assertEqual(32, receipt["projects"])
         self.assertEqual("passed", receipt["status"])
+
+    def _assert_reactor_mutation_rejected(self, mutation) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = self._frozen_reactor(Path(raw))
+            pom = root / "pom.xml"
+            pom.write_text(mutation(pom.read_text(encoding="utf-8")), encoding="utf-8")
+            with self.assertRaisesRegex(tool.AuthorityError, "active root reactor differs from contract"):
+                tool.validate_contract(root)
+
+    def test_added_module_is_rejected(self) -> None:
+        self._assert_reactor_mutation_rejected(lambda xml: xml.replace(
+            "</modules>", "<module>new-module</module></modules>"))
+
+    def test_removed_module_is_rejected(self) -> None:
+        self._assert_reactor_mutation_rejected(lambda xml: xml.replace(
+            "<module>foggy-core</module>", ""))
+
+    def test_reordered_modules_are_rejected(self) -> None:
+        self._assert_reactor_mutation_rejected(lambda xml: xml.replace(
+            "<module>foggy-bean-copy</module>\n    <module>foggy-core</module>",
+            "<module>foggy-core</module>\n    <module>foggy-bean-copy</module>"))
+
+    def test_missing_module_pom_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = self._frozen_reactor(Path(raw))
+            (root / "foggy-core/pom.xml").unlink()
+            with self.assertRaisesRegex(tool.AuthorityError, "module POM missing: foggy-core"):
+                tool.validate_contract(root)
+
+    def test_changed_provisioner_digest_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = self._frozen_reactor(Path(raw))
+            path = tool.contract()["database_replay"]["provisioner"]["path"]
+            (root / path).write_text("changed\n", encoding="utf-8")
+            with self.assertRaisesRegex(tool.AuthorityError, "pinned database provisioner digest differs"):
+                tool.validate_contract(root)
+
+    def test_cli_rejects_newer_reactor_without_success_receipt(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = self._frozen_reactor(Path(raw))
+            pom = root / "pom.xml"
+            pom.write_text(pom.read_text(encoding="utf-8").replace(
+                "</modules>", "<module>new-module</module></modules>"), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(TOOL_PATH), "validate-contract", "--repo-root", str(root)],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertNotEqual(0, result.returncode)
+            self.assertEqual("", result.stdout)
+            self.assertIn("historical 9.5.0 authority requires 31 ordered modules; found 32", result.stderr)
 
     def test_frozen_totals_are_exact(self) -> None:
         contract = tool.contract()
@@ -218,26 +283,18 @@ class ReleaseAuthorityToolTest(unittest.TestCase):
                         )
                         info.size = len(data)
                         archive.addfile(info, io.BytesIO(data))
-            destination = Path(
-                tempfile.mkdtemp(prefix="foggy-v950-negative-", dir="/dev/shm")
-            )
-            destination.rmdir()
-            try:
-                with self.assertRaises(tool.AuthorityError):
-                    tool.extract_archive(
-                        archive_path,
-                        destination,
-                        "2" * 40,
-                        root / "receipt.json",
-                    )
-            finally:
-                if destination.exists():
-                    for path in sorted(destination.rglob("*"), reverse=True):
-                        if path.is_file() or path.is_symlink():
-                            path.unlink()
-                        elif path.is_dir():
-                            path.rmdir()
-                    destination.rmdir()
+            # Marker validation precedes the cross-filesystem check. A normal
+            # temporary directory exercises that exact rejection on every OS.
+            with self.assertRaisesRegex(tool.AuthorityError, "archive candidate marker differs"):
+                tool.extract_archive(
+                    archive_path, root / "tampered", "2" * 40, root / "receipt.json",
+                )
+            self.assertFalse((root / "receipt.json").exists())
+            with self.assertRaisesRegex(tool.AuthorityError, "portable extraction did not cross filesystems"):
+                tool.extract_archive(
+                    archive_path, root / "same-filesystem", "1" * 40, root / "same-fs.json",
+                )
+            self.assertFalse((root / "same-fs.json").exists())
 
     def test_root_summary_requires_exact_reactor_and_jar_boundary(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -317,7 +374,7 @@ class ReleaseAuthorityToolTest(unittest.TestCase):
             output = root / "root-receipt.json"
             value = tool.reuse_receipt(root, source, "root", candidate, output)
             self.assertEqual(
-                sorted([str(script.relative_to(root)), tool.REUSE_WORKITEM]),
+                sorted([script.relative_to(root).as_posix(), tool.REUSE_WORKITEM]),
                 value["changed_paths"],
             )
 
