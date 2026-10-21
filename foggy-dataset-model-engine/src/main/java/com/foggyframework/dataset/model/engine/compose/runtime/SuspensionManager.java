@@ -3,6 +3,7 @@ package com.foggyframework.dataset.model.engine.compose.runtime;
 import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.*;
+import java.util.function.Function;
 
 /**
  * In-process registry of active FSScript runs with blocking pause support.
@@ -21,6 +22,7 @@ public final class SuspensionManager {
     public static final int MAX_SUSPEND_COUNT = 100;
 
     private final int maxSuspendCount;
+    private final Function<String, ScheduledExecutorService> timerFactory;
     private final ConcurrentHashMap<String, ScriptRunContext> runs = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, WaitSlot> slots = new ConcurrentHashMap<>();
 
@@ -29,7 +31,16 @@ public final class SuspensionManager {
     }
 
     public SuspensionManager(int maxSuspendCount) {
+        this(maxSuspendCount, suspendId -> Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "suspend-timer-" + suspendId);
+            t.setDaemon(true);
+            return t;
+        }));
+    }
+
+    SuspensionManager(int maxSuspendCount, Function<String, ScheduledExecutorService> timerFactory) {
         this.maxSuspendCount = maxSuspendCount;
+        this.timerFactory = java.util.Objects.requireNonNull(timerFactory);
     }
 
     // -- run lifecycle ------------------------------------------------------
@@ -122,17 +133,19 @@ public final class SuspensionManager {
                     request.getSummary(), timeoutAt);
             ctx.setSuspension(result);
             slots.put(suspendId, slot);
+            // Resume/reject/abort must not cancel the executor before schedule completes.
+            try {
+                slot.timer = timerFactory.apply(suspendId);
+                slot.timer.schedule(() -> autoTimeout(runId, suspendId),
+                        request.getTimeoutMs(), TimeUnit.MILLISECONDS);
+            } catch (RuntimeException | Error failure) {
+                slots.remove(suspendId);
+                cancelTimer(slot);
+                ctx.setSuspension(null);
+                ctx.transition(ScriptRunState.RUNNING);
+                throw failure;
+            }
         }
-
-        // Start auto-timeout timer
-        ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "suspend-timer-" + suspendId);
-            t.setDaemon(true);
-            return t;
-        });
-        slot.timer = timer;
-        timer.schedule(() -> autoTimeout(runId, suspendId),
-                request.getTimeoutMs(), TimeUnit.MILLISECONDS);
 
         // Block — guaranteed cleanup in finally
         try {
@@ -141,8 +154,10 @@ public final class SuspensionManager {
             Thread.currentThread().interrupt();
             throw new ScriptSuspendException.Timeout("handler thread was interrupted");
         } finally {
-            slots.remove(suspendId);
-            cancelTimer(slot);
+            synchronized (this) {
+                slots.remove(suspendId);
+                cancelTimer(slot);
+            }
         }
 
         // Check result
