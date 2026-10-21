@@ -6,7 +6,7 @@ purpose: Define and verify mandatory JOIN output binding and stage-local Compose
 
 # #150 / #151：Compose JOIN 绑定与基础计划分页
 
-状态：LOCALLY VERIFIED（本轮引擎验收通过；另有历史 v950 合同基线失败）。基线 main `89b17267`。在主目录 main 实施；用户后续授权提交推送、更新关闭 issue、发布 Launcher 和私有 Maven，完成后独立处理 v950。
+状态：PUBLISHED（本轮引擎验收通过；另有历史 v950 合同基线失败）。基线 main `89b17267`。在主目录 main 实施；用户后续授权提交推送、更新关闭 issue、发布 Launcher 和私有 Maven，完成后独立处理 v950。
 
 ## 合同与方案
 
@@ -50,3 +50,9 @@ purpose: Define and verify mandatory JOIN output binding and stage-local Compose
 - 定制 Compose planning provider 应返回无分页 SQL，并尽量提供输出列元数据；预置顶层分页会被明确拒绝，避免二次分页。旧四参数构造仍可用。
 
 [本地完整报告及证据目录](../../../../target/compose-150-151-fix/RESULTS.md) 保存最终汇总、源码快照、JUnit XML、Runtime 响应、测试 JAR，以及所有失败/中止尝试。最终只采用 completion-* 验收批次。未运行根 clean；发布结果另行记录。
+
+## 发布完成
+
+修复提交 `1f883a81` 已推送 main，#150/#151 已更新并关闭。
+[Launcher 0.1.32 和私有 Maven 发布记录](../../../release/launcher-0.1.32-compose-publication.md)
+包含精确快照、发行资产下载校验、CLI 0.1.25 三模式复验及 MemberBindingService 注册验证。
