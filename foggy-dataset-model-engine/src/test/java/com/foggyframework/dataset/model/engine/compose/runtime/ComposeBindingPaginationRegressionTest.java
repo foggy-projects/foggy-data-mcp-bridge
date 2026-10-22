@@ -158,6 +158,50 @@ class ComposeBindingPaginationRegressionTest extends EcommerceTestSupport {
     @Test void filterIsAppliedBeforeWindow() {
         assertEquals(List.of(4),ids(rows("return {plans:"+base(",slice:[{field:'id',op:'>',value:2}],start:1,limit:1")+"};"),"id"));
     }
+
+    @ParameterizedTest @ValueSource(booleans={false,true})
+    void derivedGroupingAliasKeepsInputNamePrecedence(boolean g10) {
+        ComposeFeatureFlags.overrideG10Enabled(g10);
+        try {
+            String base="dsl({model:'PageQM',columns:['id','grp','amount']})";
+            var renamed=rows("return {plans:"+base+".query({columns:['grp as bucket','sum(amount) as total'],groupBy:['bucket'],orderBy:['bucket']})};");
+            assertEquals(List.of(1,2,3),ids(renamed,"bucket"));
+            assertEquals(List.of(30,70,110),ids(renamed,"total"));
+            var collision=rows("return {plans:"+base+".query({columns:['amount % 20 as amount','sum(id) as total'],groupBy:['amount']})};");
+            assertEquals(List.of(1,2,3,4,5,6),ids(collision,"total"));
+        } finally {ComposeFeatureFlags.overrideG10Enabled(null);}
+    }
+
+    @ParameterizedTest @ValueSource(booleans={false,true})
+    void nestedRightRelationsPreservePhysicalProjectionAndLeftNullRows(boolean g10) {
+        ComposeFeatureFlags.overrideG10Enabled(g10);
+        try {
+            String prefix="const a=dsl({model:'PageQM',columns:['id as left_id']});"
+                +"const b=dsl({model:'PageQM',columns:['id as right_id','amount as selected$amount'],slice:[{field:'id',op:'<=',value:2}]});"
+                +"const c=dsl({model:'PageQM',columns:['id as third_id']});"
+                +"const j=b.join(c,'inner',[{left:'right_id',op:'=',right:'third_id'}]);";
+            for(String input:List.of("b","j","j.query({columns:['right_id','selected$amount']})",
+                    "j.query({}).query({columns:['right_id','selected$amount']})",
+                    "b.union(b)","b.union(b).query({columns:['right_id','selected$amount']})")) {
+                String script=prefix+"const r="+input+";return {plans:a.join(r,'left',[{left:'left_id',op:'=',right:'right_id'}])"
+                    +".query({columns:['left_id','selected$amount'],orderBy:['left_id'],limit:100})};";
+                var actual=rows(script);
+                assertEquals(List.of(1,2,3,4,5,6),ids(actual,"left_id"),input);
+                var expected=jdbcTemplate.queryForList("SELECT a.id, b.amount FROM compose_page a LEFT JOIN compose_page b ON a.id=b.id AND b.id<=2 ORDER BY a.id");
+                for(int i=0;i<6;i++) {
+                    assertTrue(actual.get(i).containsKey("selected$amount"),input+actual);
+                    assertEquals(expected.get(i).get("amount"),actual.get(i).get("selected$amount"),input);
+                }
+                for(var mode:ComposeScriptService.Mode.values()) {
+                    assertThrows(RuntimeException.class,()->run(script,mode,true));
+                    assertThrows(RuntimeException.class,()->run(script.replace("right:'right_id'","right:'missing_key'"),mode,false));
+                }
+            }
+            String unionAll=prefix+"return {plans:a.join(b.union(b,{all:true}),'left',[{left:'left_id',op:'=',right:'right_id'}])"
+                    +".query({columns:['left_id','selected$amount'],limit:100})};";
+            assertEquals(List.of(1,1,2,2,3,4,5,6),ids(rows(unionAll),"left_id"));
+        } finally {ComposeFeatureFlags.overrideG10Enabled(null);}
+    }
     @ParameterizedTest @ValueSource(booleans={false,true})
     void invalidJoinRejectedInEveryModeWithEitherFlag(boolean g10) {
         ComposeFeatureFlags.overrideG10Enabled(g10);

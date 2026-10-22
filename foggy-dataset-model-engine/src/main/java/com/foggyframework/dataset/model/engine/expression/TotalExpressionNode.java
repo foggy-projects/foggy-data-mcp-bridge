@@ -197,6 +197,9 @@ public final class TotalExpressionNode {
             args.add(child.render(dialect, referenceRenderer, aggregateRenderer));
         }
         String upper = token == null ? "" : token.toUpperCase();
+        if (com.foggyframework.dataset.db.dialect.DateDifferenceSql.supports(upper)) {
+            return com.foggyframework.dataset.db.dialect.DateDifferenceSql.render(dialect, upper, args);
+        }
         if (("IF".equals(upper) || "IIF".equals(upper)) && args.size() == 3) {
             return "CASE WHEN " + args.get(0) + " THEN " + args.get(1)
                     + " ELSE " + args.get(2) + " END";

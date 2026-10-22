@@ -36,7 +36,12 @@ public class SqlFunctionExp extends AbstractExp<String> {
     public SqlFunctionExp(String functionName, List<Exp> args) {
         super(functionName);
         this.functionName = functionName;
-        this.args = args;
+        this.args = new ArrayList<>(args);
+        // A timestamp unit is syntax, not a model field or permission dependency.
+        if ("TIMESTAMPDIFF".equalsIgnoreCase(functionName) && !args.isEmpty()
+                && args.get(0) instanceof SqlColumnRefExp unit) {
+            this.args.set(0, new SqlLiteralExp("'" + unit.getColumnName().replace("'", "''") + "'"));
+        }
     }
 
     @Override
@@ -71,6 +76,14 @@ public class SqlFunctionExp extends AbstractExp<String> {
             }
         }
 
+        if (com.foggyframework.dataset.db.dialect.DateDifferenceSql.supports(upper)) {
+            String sql = com.foggyframework.dataset.db.dialect.DateDifferenceSql.render(
+                    ctx == null ? null : ctx.getDialect(), upper,
+                    argFragments.stream().map(SqlFragment::getSql).collect(Collectors.toList()));
+            SqlFragment result = SqlFragment.customFunction(sql, upper, argFragments);
+            result.setInferredType(DbColumnType.BIGINT);
+            return result;
+        }
         if ("DATE".equals(upper) && ctx != null && ctx.getDialect() != null) {
             if (argFragments.size() != 1) throw new IllegalArgumentException("DATE requires one expression");
             SqlFragment result = SqlFragment.customFunction(ctx.getDialect().buildDateCastExpression(argFragments.get(0).getSql()), "DATE", argFragments);

@@ -1108,8 +1108,16 @@ public final class ComposePlanner {
             ComposePlanAwarePermissionValidator.validateQualifiedReferences(plan, planCtx);
             return;
         }
-        OutputSchema schema = deriveBoundSchema(plan, state);
-        ComposePlanAwarePermissionValidator.validate(plan, schema, planCtx, source -> deriveBoundSchema(source, state));
+        // Composite outputs are governed by their producing dependencies, not by
+        // applying a model-name whitelist to a renamed intermediate output.
+        // Validate EVERY producer before returning SQL; registering a composite
+        // must never hide an invalid dependency in an inner projection.
+        for (QueryPlan producer : visited) {
+            if (!(producer instanceof BaseModelPlan)) {
+                ComposePlanAwarePermissionValidator.validate(producer, deriveBoundSchema(producer, state),
+                        planCtx, source -> deriveBoundSchema(source, state));
+            }
+        }
     }
 
     /** Tree walk: every {@link BaseModelPlan} pairs with its model's
@@ -1130,16 +1138,19 @@ public final class ComposePlanner {
             return;
         }
         if (plan instanceof DerivedQueryPlan d) {
+            ctxBuilder.bind(d, ModelBinding.builder().build());
             collectPlanBindings(d.source(), bindings, ctxBuilder, visited);
             collectSliceSubqueryPlanBindings(d.slice(), bindings, ctxBuilder, visited);
             return;
         }
         if (plan instanceof JoinPlan j) {
+            ctxBuilder.bind(j, ModelBinding.builder().build());
             collectPlanBindings(j.left(), bindings, ctxBuilder, visited);
             collectPlanBindings(j.right(), bindings, ctxBuilder, visited);
             return;
         }
         if (plan instanceof UnionPlan u) {
+            ctxBuilder.bind(u, ModelBinding.builder().build());
             collectPlanBindings(u.left(), bindings, ctxBuilder, visited);
             collectPlanBindings(u.right(), bindings, ctxBuilder, visited);
         }
@@ -1540,7 +1551,7 @@ public final class ComposePlanner {
         validateDerivedOutputRefs(plan, sourceColumns);
 
         List<Object> outerParams = new ArrayList<>();
-        String outerSql = renderOuterSelect(plan, innerUnit.getAlias(), innerUnit.getSql(), outerParams, state);
+        String outerSql = renderOuterSelect(plan, innerUnit.getAlias(), innerUnit.getSql(), sourceColumns, outerParams, state);
 
         List<Object> merged = new ArrayList<>();
         if (innerUnit.getParams() != null) merged.addAll(innerUnit.getParams());
@@ -1552,7 +1563,7 @@ public final class ComposePlanner {
         // short-circuits at line 178 and does NOT call wrapSingleUnit again,
         // which would add a spurious second outer SELECT layer.
         if (innerWasJoin) {
-            return new ComposedSql(outerSql, merged);
+            return new ComposedSql(outerSql, merged, derivedOutputColumns(plan, sourceColumns));
         }
         String derivedAlias = state.nextAlias();
         registerPlanAlias(state, plan, derivedAlias);
@@ -1584,8 +1595,8 @@ public final class ComposePlanner {
                 : (CteUnit) rightObj;
 
         SchemaDerivation.validateJoinKeys(plan,
-                new LinkedHashSet<>(boundOutputColumnsForPlan(plan.left(), state)),
-                new LinkedHashSet<>(boundOutputColumnsForPlan(plan.right(), state)), "JoinPlan");
+                new LinkedHashSet<>(inputOutputColumns(left, plan.left(), state)),
+                new LinkedHashSet<>(inputOutputColumns(right, plan.right(), state)), "JoinPlan");
 
         String onCondition = buildOnCondition(plan.on(), left.getAlias(), right.getAlias(), state.dialect);
 
@@ -1613,8 +1624,8 @@ public final class ComposePlanner {
         List<Object> leftParams = extractParams(left);
         List<Object> rightParams = extractParams(right);
 
-        SchemaDerivation.validateUnionColumnCounts(boundOutputColumnsForPlan(plan.left(), state),
-                boundOutputColumnsForPlan(plan.right(), state), "UnionPlan");
+        SchemaDerivation.validateUnionColumnCounts(inputOutputColumns(left, plan.left(), state),
+                inputOutputColumns(right, plan.right(), state), "UnionPlan");
         // Keep AST grouping even without pagination: a UNION (b UNION ALL c) must
         // not become (a UNION b) UNION ALL c. SELECT wrappers also work on SQLite.
         leftSql = "SELECT * FROM (" + leftSql + ") AS " + state.nextAlias();
@@ -1624,7 +1635,7 @@ public final class ComposePlanner {
         List<Object> params = new ArrayList<>();
         params.addAll(leftParams);
         params.addAll(rightParams);
-        return new ComposedSql(sql, params);
+        return new ComposedSql(sql, params, inputOutputColumns(left, plan.left(), state));
     }
 
     // ------------------------------------------------------------------
@@ -1751,7 +1762,7 @@ public final class ComposePlanner {
                     .append("\n");
             sb.append("FROM (").append(unit.getSql()).append(") AS t0");
         }
-        return new ComposedSql(sb.toString(), params);
+        return new ComposedSql(sb.toString(), params, unit.getSelectColumns());
     }
 
     /**
@@ -1795,11 +1806,11 @@ public final class ComposePlanner {
             int withIdx = sql.indexOf(trimmed);
             String afterWith = sql.substring(withIdx + 5); // everything after "WITH "
             String newSql = sql.substring(0, withIdx) + "WITH " + prereqBlock + ",\n" + afterWith;
-            return new ComposedSql(newSql, params);
+            return new ComposedSql(newSql, params, composed.getSelectColumns());
         } else {
             // Wrap with a new WITH block — wrap the existing SQL in a subquery
             String newSql = "WITH " + prereqBlock + "\n" + sql;
-            return new ComposedSql(newSql, params);
+            return new ComposedSql(newSql, params, composed.getSelectColumns());
         }
     }
 
@@ -1866,7 +1877,32 @@ public final class ComposePlanner {
                 sb.append("\nWHERE ").append(renamedOn);
             }
         }
-        return new ComposedSql(sb.toString(), params);
+        return new ComposedSql(sb.toString(), params, joinOutputColumns(left, right));
+    }
+
+    private static List<String> compiledOutputColumns(Object compiled) {
+        List<String> columns = compiled instanceof CteUnit unit
+                ? unit.getSelectColumns() : ((ComposedSql) compiled).getSelectColumns();
+        return columns == null ? null : columns.stream()
+                .map(ComposePlanner::extractOutputColName).map(ComposePlanner::unquoteIdentifier)
+                .toList();
+    }
+
+    private static List<String> inputOutputColumns(Object compiled, QueryPlan plan, CompileState state) {
+        List<String> columns = compiledOutputColumns(compiled);
+        return columns == null ? boundOutputColumnsForPlan(plan, state) : columns;
+    }
+
+    private static List<String> joinOutputColumns(CteUnit left, CteUnit right) {
+        List<String> columns = compiledOutputColumns(left);
+        if (columns == null || columns.isEmpty()) return null;
+        List<String> result = new ArrayList<>(columns);
+        if (right != null && right.getSelectColumns() != null) {
+            for (String name : compiledOutputColumns(right)) {
+                if (!columns.contains(name)) result.add(name);
+            }
+        }
+        return result;
     }
 
     /**
@@ -2018,7 +2054,7 @@ public final class ComposePlanner {
         List<Object> params = composed.getParams() == null
                 ? new ArrayList<>()
                 : new ArrayList<>(composed.getParams());
-        return new CteUnit(state.nextAlias(), composed.getSql(), params, null);
+        return new CteUnit(state.nextAlias(), composed.getSql(), params, composed.getSelectColumns());
     }
 
     // ------------------------------------------------------------------
@@ -2035,7 +2071,7 @@ public final class ComposePlanner {
      */
     private static String renderOuterSelect(
             DerivedQueryPlan plan, String innerAlias, String innerSql,
-            List<Object> outerParams, CompileState state) {
+            List<String> sourceColumns, List<Object> outerParams, CompileState state) {
 
         String dialect = state.dialect;
         StringBuilder sb = new StringBuilder();
@@ -2073,7 +2109,7 @@ public final class ComposePlanner {
         if (!plan.groupBy().isEmpty()) {
             List<String> quotedGroupBy = new ArrayList<>(plan.groupBy().size());
             for (String g : plan.groupBy()) {
-                quotedGroupBy.add(quoteColumnExpr(unquoteIdentifier(g), dialect));
+                quotedGroupBy.add(renderDerivedGroupKey(g, plan, sourceColumns, state));
             }
             sb.append("\nGROUP BY ").append(String.join(", ", quotedGroupBy));
         }
@@ -2096,6 +2132,28 @@ public final class ComposePlanner {
                 "derived compose query");
 
         return sb.toString();
+    }
+
+    private static String renderDerivedGroupKey(String key, DerivedQueryPlan plan,
+                                                 List<String> sourceColumns, CompileState state) {
+        String name = unquoteIdentifier(key);
+        // SQL Server does not allow same-stage SELECT aliases in GROUP BY.
+        // A real input name has precedence, preserving existing SQL name binding.
+        if (("mssql".equals(state.dialect) || "sqlserver".equals(state.dialect))
+                && !sourceColumns.contains(name)) {
+            for (Object column : plan.columns()) {
+                if (column instanceof ProjectedColumn projected && name.equals(projected.alias())) {
+                    return compileExpression(projected.expr(), state.dialect, state.planAliasMap);
+                }
+                if (column instanceof String text) {
+                    ColumnAliasParts parts = AliasExtractor.extract(text);
+                    if (parts.hasAlias() && name.equals(parts.outputName())) {
+                        return compileExpression(parts.expression(), state.dialect, state.planAliasMap);
+                    }
+                }
+            }
+        }
+        return quoteColumnExpr(name, state.dialect);
     }
 
     private static String renderSliceEntry(

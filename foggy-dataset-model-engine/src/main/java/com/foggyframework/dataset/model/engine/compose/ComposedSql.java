@@ -23,8 +23,17 @@ public class ComposedSql {
      */
     private final List<Object> params;
 
+    /** Physical output names in projection order; independent of logical lineage/schema. */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private final List<String> selectColumns;
+
     public ComposedSql(String sql, List<Object> params) {
+        this(sql, params, null);
+    }
+
+    public ComposedSql(String sql, List<Object> params, List<String> selectColumns) {
         this.sql = sql;
         this.params = params;
+        this.selectColumns = selectColumns == null ? null : List.copyOf(selectColumns);
     }
 }
