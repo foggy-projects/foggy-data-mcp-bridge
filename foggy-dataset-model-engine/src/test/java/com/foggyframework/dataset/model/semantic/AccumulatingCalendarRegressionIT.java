@@ -54,7 +54,8 @@ class AccumulatingCalendarRegressionIT extends EcommerceTestSupport {
             const m=loadTableModel('AccumulatingCalendarTableModel');
             export const queryModel={name:'AccumulatingCalendarQueryModel',model:m,
               columnGroups:[{caption:'Calendar',items:[{ref:m.occurredAt},{ref:m.category},{ref:m.invoiceDate},
-                {ref:m.invoiceDate$year},{ref:m.invoiceDate$month},{ref:m.amount}]}],accesses:[]};
+                {ref:m.invoiceDate$year},{ref:m.invoiceDate$month},{ref:m.amount},
+                {name:'modelDate',alias:'modelDateOut',formula:'coalesce(occurredAt, occurredAt)',type:'DATETIME'}]}],accesses:[]};
             """);
         assertTrue(bundles.addExternalBundle(BUNDLE, "", root.toString(), false));
     }
@@ -105,6 +106,178 @@ class AccumulatingCalendarRegressionIT extends EcommerceTestSupport {
         for (int i=0;i<3;i++) number(List.of("3.96","7.92","13.86").get(i),rows.get(i).get("amount__rolling_7d"));
         assertEquals(Set.of("occurredAt","category","amount","amount__rolling_7d"), rows.get(0).keySet());
         assertEquals(rows.get(0).keySet(), response.getSchema().getColumns().stream().map(c -> c.getName()).collect(java.util.stream.Collectors.toSet()));
+    }
+
+    private Map<String,Object> calculatedAxis(String expression) {
+        var p = payload("rolling_7d", "calendar");
+        p.put("calculatedFields", List.of(Map.of("name", "businessDate", "expression", expression)));
+        p.put("columns", List.of("businessDate", "category", "amount", "amount__rolling_7d"));
+        p.put("groupBy", List.of("businessDate", "category")); p.put("orderBy", List.of("businessDate"));
+        window(p).put("field", "businessDate"); return p;
+    }
+
+    @Test void calculatedDateAxisUsesSourceStageAndPreservesDisplayAndSchema() {
+        var response = execute(calculatedAxis("coalesce(occurredAt, occurredAt)"));
+        assertEquals(3, response.getItems().size());
+        for (int i=0;i<3;i++) number(List.of("3.96","7.92","13.86").get(i),response.getItems().get(i).get("amount__rolling_7d"));
+        assertEquals(Set.of("businessDate","category","amount","amount__rolling_7d"), response.getItems().get(0).keySet());
+        assertTrue(String.valueOf(response.getItems().get(0).get("businessDate")).startsWith("2012-11-27"));
+    }
+
+    @Test void nestedCalculatedDateUsesComputedHistoryBoundaryAndPostCalculation() {
+        var p = calculatedAxis("date_add(sourceDate, 1, 'day')");
+        p.put("calculatedFields", List.of(Map.of("name","businessDate","expression","date_add(sourceDate, 1, 'day')"),
+                Map.of("name","sourceDate","expression","coalesce(occurredAt, occurredAt)"),
+                Map.of("name","doubleAmount","expression","amount__rolling_7d * 2")));
+        p.put("columns", List.of("businessDate AS shownDate","amount__rolling_7d","doubleAmount"));
+        p.put("groupBy", List.of("businessDate"));
+        p.put("orderBy",List.of("shownDate"));
+        var rows = execute(p).getItems(); assertEquals(4,rows.size());
+        assertTrue(String.valueOf(rows.get(0).get("shownDate")).startsWith("2012-11-15"));
+        number("1.98",rows.get(0).get("doubleAmount"));
+        number("7.92",rows.get(1).get("doubleAmount"));
+        assertEquals(Set.of("shownDate","amount__rolling_7d","doubleAmount"),rows.get(0).keySet());
+    }
+
+    @Test void calculatedDateRejectsInvalidTypeStageAndVolatileInputsInEveryPhase() {
+        for (String expression : List.of("coalesce(occurredAt, 'bad')", "max(occurredAt)", "now()", "year(occurredAt)",
+                "if(category = 'other', occurredAt, occurredAt)", "if('other', occurredAt, occurredAt)")) {
+            for (String mode : List.of("validate","preview","execute")) {
+                var error = assertThrows(RuntimeException.class, () -> service.queryModel(MODEL,
+                        mapper.toQueryRequest(calculatedAxis(expression)),mode,SemanticRequestContext.empty()));
+                assertTrue(error.getMessage().contains("TIMEWINDOW_"), error.getMessage());
+            }
+        }
+    }
+
+    @Test void calculatedDateAxisCannotBypassPhysicalOrFieldPermissions() {
+        var p=calculatedAxis("coalesce(occurredAt, occurredAt)");
+        var denied=SemanticRequestContext.of(null,(com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext.SecurityContext)null,
+                null,List.of(new DeniedPhysicalColumn(null,TABLE,"occurred_at")));
+        var whitelist=SemanticRequestContext.of(null,(com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext.SecurityContext)null,
+                Set.of("businessDate","category","amount","amount__rolling_7d"));
+        for(var ctx:List.of(denied,whitelist)) for(String mode:List.of("validate","preview","execute"))
+            assertThrows(RuntimeException.class,()->service.queryModel(MODEL,mapper.toQueryRequest(p),mode,ctx));
+        assertEquals(3,execute(p).getItems().size());
+    }
+
+    @Resource com.foggyframework.dataset.model.plugins.result_set_filter.TimeWindowInterceptor timeWindowInterceptor;
+
+    @Test void singleConnectionPoolSupportsCalendarValidationPreviewAndExecution() throws Exception {
+        var pool=jdbcTemplate.getDataSource().unwrap(com.zaxxer.hikari.HikariDataSource.class);
+        int max=pool.getMaximumPoolSize(), min=pool.getMinimumIdle();long timeout=pool.getConnectionTimeout();
+        // Keep SQLite's shared in-memory fixture alive while replacing pooled connections.
+        // This connection is outside the pool and cannot satisfy a nested pool borrow.
+        try (var keepAlive = getDialectKey().equals("sqlite")
+                ? java.sql.DriverManager.getConnection(pool.getJdbcUrl()) : null) {
+            pool.setMinimumIdle(0);pool.setMaximumPoolSize(1);pool.setConnectionTimeout(500);
+            pool.getHikariPoolMXBean().softEvictConnections();
+            var request=calculatedAxis("date(occurredAt)");
+            var rows=execute(request).getItems();
+            assertEquals(3,rows.size());number("3.96",rows.get(0).get("amount__rolling_7d"));
+            if (getDialectKey().equals("sqlite"))
+                assertTrue(service.generateSql(MODEL,mapper.toQueryRequest(request),SemanticRequestContext.empty())
+                        .getSql().contains("RANGE BETWEEN"),"A nested connection borrow must not silently disable RANGE");
+            assertEquals(1,pool.getHikariPoolMXBean().getTotalConnections());
+            assertEquals(0,pool.getHikariPoolMXBean().getActiveConnections());
+        } finally {
+            pool.setMaximumPoolSize(max);pool.setMinimumIdle(min);pool.setConnectionTimeout(timeout);
+        }
+    }
+
+    @Test void nativeAndPortableCalendarPlansAgreeForAllAggregatesIncludingNullDates() {
+        jdbcTemplate.update("INSERT INTO " + TABLE + " VALUES (40,NULL,NULL,42)");
+        jdbcTemplate.update("INSERT INTO " + TABLE + " VALUES (41,NULL,'other',NULL)");
+        for (String agg : List.of("sum","avg","count","min","max")) {
+            var p=calculatedAxis("coalesce(occurredAt, occurredAt)"); window(p).remove("value"); window(p).put("rollingAggregator",agg);
+            org.springframework.test.util.ReflectionTestUtils.setField(timeWindowInterceptor,"calendarRangeEnabled",false);
+            assertFalse(service.generateSql(MODEL,mapper.toQueryRequest(p),SemanticRequestContext.empty()).getSql().contains("RANGE BETWEEN"));
+            var portable=execute(p);
+            org.springframework.test.util.ReflectionTestUtils.setField(timeWindowInterceptor,"calendarRangeEnabled",true);
+            boolean expectedNative = getDialectKey().equals("sqlite") || getDialectKey().equals("postgresql") || getDialectKey().equals("postgres")
+                    || getDialectKey().equals("mysql") && jdbcTemplate.execute((java.sql.Connection c)->c.getMetaData().getDatabaseMajorVersion()>=8);
+            assertEquals(expectedNative, service.generateSql(MODEL,mapper.toQueryRequest(p),SemanticRequestContext.empty()).getSql().contains("RANGE BETWEEN"));
+            var nativeResponse=execute(p);
+            assertEquals(portable.getItems().size(),nativeResponse.getItems().size());
+            Map<String,Map<String,Object>> indexed=new LinkedHashMap<>();
+            portable.getItems().forEach(row->indexed.put(row.get("businessDate")+"/"+row.get("category"),row));
+            for(var row:nativeResponse.getItems()) {
+                var expected=indexed.remove(row.get("businessDate")+"/"+row.get("category")); assertNotNull(expected);
+                Object value=expected.get("amount__rolling_7d");
+                if(value==null) assertNull(row.get("amount__rolling_7d")); else number(value.toString(),row.get("amount__rolling_7d"));
+                if(row.get("businessDate")==null) {
+                    if(agg.equals("count")) number("0",row.get("amount__rolling_7d")); else assertNull(row.get("amount__rolling_7d"));
+                }
+            }
+            assertTrue(indexed.isEmpty());
+        }
+    }
+
+    @Test void calculatedDateSupportsCumulativeAndComparativeWindows() {
+        var p=calculatedAxis("coalesce(occurredAt, occurredAt)");
+        window(p).put("comparison","mtd");window(p).remove("rollingMode");p.put("columns",List.of("businessDate","category","amount__mtd"));
+        if(!rejectUnsupportedWindow(p)) number("4.95",execute(p).getItems().get(0).get("amount__mtd"));
+        p=calculatedAxis("coalesce(occurredAt, occurredAt)");window(p).put("comparison","wow");window(p).remove("rollingMode");
+        p.put("columns",List.of("businessDate","category","amount","amount__prior"));
+        assertEquals(3,execute(p).getItems().size());
+    }
+
+    @Test void calculatedAxisMayRemainHiddenAndCycleIsRejected() {
+        var p=calculatedAxis("coalesce(occurredAt, occurredAt)");
+        p.put("columns",List.of("category","amount__rolling_7d"));p.put("groupBy",List.of("category"));p.remove("orderBy");
+        var rows=execute(p).getItems(); assertEquals(3,rows.size());
+        assertEquals(Set.of("category","amount__rolling_7d"),rows.get(0).keySet());
+        p=calculatedAxis("otherDate");
+        p.put("calculatedFields",List.of(Map.of("name","businessDate","expression","otherDate"),Map.of("name","otherDate","expression","businessDate")));
+        var request=p;
+        for(String mode:List.of("validate","preview","execute"))
+            assertThrows(RuntimeException.class,()->service.queryModel(MODEL,mapper.toQueryRequest(request),mode,SemanticRequestContext.empty()));
+    }
+
+    @Test void modelCalculatedDateAndRequestOutputAliasKeepDateMetadata() {
+        var p=calculatedAxis("coalesce(occurredAt, occurredAt)");
+        p.put("calculatedFields",List.of(Map.of("name","businessDate","alias","dayOut","expression","coalesce(occurredAt, occurredAt)")));
+        var response=execute(p); assertEquals(3,response.getItems().size());
+        assertTrue(response.getItems().get(0).containsKey("dayOut"),response.getItems().toString());
+        var date=response.getSchema().getColumns().stream().filter(c->c.getName().equals("dayOut")).findFirst().orElseThrow();
+        assertEquals(com.foggyframework.dataset.model.spi.DbColumnType.DAY,date.getDataType());
+        p=payload("rolling_7d","calendar");window(p).put("field","modelDate");
+        p.put("columns",List.of("modelDate","category","amount__rolling_7d"));
+        p.put("groupBy",List.of("modelDate","category"));p.put("orderBy",List.of("modelDate"));
+        response=execute(p); assertEquals(3,response.getItems().size());
+        assertTrue(response.getItems().get(0).containsKey("modelDateOut"),response.getItems().toString());
+        number("3.96",response.getItems().get(0).get("amount__rolling_7d"));
+    }
+
+    @Test void conditionalDateBranchesAndNullFirstCoalesceAreTypedAndAuthorized() {
+        for(String expression:List.of("date(occurredAt)","coalesce(null, occurredAt)","if(category == 'other', date_add(occurredAt, 1, 'day'), occurredAt)")) {
+            var p=calculatedAxis(expression);p.put("columns",List.of("businessDate","amount__rolling_7d"));p.put("groupBy",List.of("businessDate"));
+            number("3.96",execute(p).getItems().get(0).get("amount__rolling_7d"));
+        }
+        var p=calculatedAxis("if(category == 'other', date_add(occurredAt, 1, 'day'), occurredAt)");
+        p.put("columns",List.of("businessDate","amount__rolling_7d"));p.put("groupBy",List.of("businessDate"));
+        var denied=SemanticRequestContext.of(null,(com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext.SecurityContext)null,
+                null,List.of(new DeniedPhysicalColumn(null,TABLE,"category")));
+        for(String mode:List.of("validate","preview","execute"))
+            assertThrows(RuntimeException.class,()->service.queryModel(MODEL,mapper.toQueryRequest(p),mode,denied));
+        insert(50,"2012-11-27 12:00:00","100");jdbcTemplate.update("UPDATE "+TABLE+" SET category='other' WHERE id=50");
+        var shifted=execute(p).getItems().stream().filter(r->String.valueOf(r.get("businessDate")).startsWith("2012-11-28")).findFirst().orElseThrow();
+        number("107.92",shifted.get("amount__rolling_7d"));
+        p.put("calculatedFields",List.of(Map.of("name","businessDate","expression","occurredAt","emptyDefault","not-a-date")));
+        for(String mode:List.of("validate","preview","execute"))
+            assertThrows(RuntimeException.class,()->service.queryModel(MODEL,mapper.toQueryRequest(p),mode,SemanticRequestContext.empty()));
+    }
+
+    @Test void conflictingDateDefinitionsAreNotSilentlyIgnored() {
+        for(String field:List.of("businessDate","modelDate")) {
+            var p=calculatedAxis("occurredAt");window(p).put("field",field);
+            p.put("columns",List.of(field,"amount__rolling_7d"));p.put("groupBy",List.of(field));p.put("orderBy",List.of(field));
+            p.put("calculatedFields",field.equals("modelDate")
+                    ? List.of(Map.of("name",field,"expression","date_add(occurredAt, 1, 'day')"))
+                    : List.of(Map.of("name",field,"expression","occurredAt"),Map.of("name",field,"expression","date_add(occurredAt, 1, 'day')")));
+            for(String mode:List.of("validate","preview","execute"))
+                assertThrows(RuntimeException.class,()->service.queryModel(MODEL,mapper.toQueryRequest(p),mode,SemanticRequestContext.empty()));
+        }
     }
     @Test void calendarThirtyAndNinetyDayWindowsIncludeHistory() {
         for (String mode : List.of("rolling_30d", "rolling_90d")) {

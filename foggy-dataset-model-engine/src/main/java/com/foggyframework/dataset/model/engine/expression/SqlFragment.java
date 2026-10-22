@@ -398,6 +398,11 @@ public class SqlFragment {
     private static DbColumnType inferFunctionType(String funcName, List<SqlFragment> args) {
         String upperName = funcName.toUpperCase();
 
+        if ("DATE_ADD".equals(upperName) && !args.isEmpty()) {
+            DbColumnType source = args.get(0).inferredType;
+            return source == DbColumnType.DAY || source == DbColumnType.DATETIME ? DbColumnType.DATETIME : DbColumnType.UNKNOWN;
+        }
+
         // 数学函数 -> NUMBER
         if (AllowedFunctions.MATH_FUNCTIONS.contains(upperName)) {
             return DbColumnType.NUMBER;
@@ -428,11 +433,14 @@ public class SqlFragment {
         // COALESCE/IFNULL/NVL -> 继承第一个非空参数的类型
         if ("COALESCE".equals(upperName) || "IFNULL".equals(upperName) ||
             "NVL".equals(upperName) || "ISNULL".equals(upperName)) {
+            if (args.stream().anyMatch(SqlFragment::temporal)) return commonTemporalType(args);
             return args.isEmpty() ? DbColumnType.UNKNOWN : args.get(0).inferredType;
         }
 
         // IF/IIF 函数 -> 继承 then 分支的类型（第二个参数）
         if (("IF".equals(upperName) || "IIF".equals(upperName)) && args.size() >= 2) {
+            if (args.subList(1, args.size()).stream().anyMatch(SqlFragment::temporal))
+                return commonTemporalType(args.subList(1, args.size()));
             return args.get(1).inferredType;
         }
 
@@ -468,6 +476,20 @@ public class SqlFragment {
         }
 
         return DbColumnType.UNKNOWN;
+    }
+
+    private static boolean temporal(SqlFragment fragment) {
+        return fragment.inferredType == DbColumnType.DAY || fragment.inferredType == DbColumnType.DATETIME;
+    }
+
+    private static DbColumnType commonTemporalType(List<SqlFragment> branches) {
+        DbColumnType result = DbColumnType.DAY;
+        for (SqlFragment branch : branches) {
+            if ("NULL".equalsIgnoreCase(branch.sql)) continue;
+            if (!temporal(branch)) return DbColumnType.UNKNOWN;
+            if (branch.inferredType == DbColumnType.DATETIME) result = DbColumnType.DATETIME;
+        }
+        return result;
     }
 
     private static boolean isComparisonOperator(String op) {

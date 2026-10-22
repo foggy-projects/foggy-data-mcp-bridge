@@ -25,6 +25,9 @@ import java.util.List;
  * SQLite 3.30+ 方言实现
  */
 public class SqliteDialect extends FDialect {
+    @Override public String buildDateCastExpression(String expression) { return "date(" + expression + ")"; }
+    @Override public boolean supportsNumericOffsetRange() { return true; }
+    @Override public boolean supportsNumericOffsetRange(int major, int minor) { return major > 3 || major == 3 && minor >= 28; }
 
     /**
      * SQLite日期时间格式化器（线程安全）

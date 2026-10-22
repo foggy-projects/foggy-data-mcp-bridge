@@ -46,6 +46,8 @@ public final class QueryFieldBindings {
         var parts = AliasExtractor.extract(field);
         if (parts.hasAlias()) return new Binding(field, parts.expression(), parts.outputName(), null);
         var calc = calculated.get(field);
+        if (calc == null && model != null && model.getPredefinedCalculatedFields() != null)
+            calc = model.getPredefinedCalculatedFields().stream().filter(f -> field.equals(f.getName())).findFirst().orElse(null);
         if (calc != null) {
             String output = calc.getAlias() == null || calc.getAlias().isBlank() ? field : calc.getAlias();
             return new Binding(field, field, output, null);

@@ -57,6 +57,18 @@ public record WindowFrame(
 
     // ---- SQL rendering ----
 
+    public boolean hasNumericOffset() {
+        return unit == Unit.RANGE && (startBound instanceof Bound.Preceding || startBound instanceof Bound.Following
+                || endBound instanceof Bound.Preceding || endBound instanceof Bound.Following);
+    }
+
+    public void validateOffsetRange(String dialect, int orderKeys) {
+        if (!hasNumericOffset()) return;
+        if (java.util.Set.of("mssql", "sqlserver", "mysql", "mysql57").contains(dialect.toLowerCase(java.util.Locale.ROOT)))
+            throw new IllegalArgumentException("WINDOW_RANGE_OFFSET_UNSUPPORTED: " + dialect);
+        if (orderKeys != 1) throw new IllegalArgumentException("WINDOW_RANGE_ORDER_INVALID: offset RANGE requires exactly one numeric ordering key");
+    }
+
     /**
      * Renders the frame clause to SQL. The syntax is standard across most dialects.
      * e.g. "ROWS BETWEEN 6 PRECEDING AND CURRENT ROW"

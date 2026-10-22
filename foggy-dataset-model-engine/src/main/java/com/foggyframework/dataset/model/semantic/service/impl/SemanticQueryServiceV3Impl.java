@@ -1772,7 +1772,8 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         response.setWarnings(context.warnings.isEmpty() ? null : context.warnings);
 
         // 构建 Schema 信息（包含 summary）
-        response.setSchema(buildSchemaInfo(queryModel, request, queryResult, context.outputFormattingByField));
+        response.setSchema(buildSchemaInfo(queryModel, request, queryResult, context.outputFormattingByField,
+                context.extData == null ? null : (String) context.extData.get("timeWindowDateAxis")));
 
         // 设置数据截断信息（如果存在）
         if (context.extData != null && context.extData.containsKey("truncationInfo")) {
@@ -1914,7 +1915,8 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
     private SemanticQueryResponse.SchemaInfo buildSchemaInfo(QueryModel queryModel,
                                                              DbQueryRequestDef request,
                                                              PagingResultImpl queryResult,
-                                                             Map<String, SemanticQueryResponse.SchemaInfo.DisplayFormat> outputFormattingByField) {
+                                                             Map<String, SemanticQueryResponse.SchemaInfo.DisplayFormat> outputFormattingByField,
+                                                             String timeWindowDateAxis) {
         SemanticQueryResponse.SchemaInfo schemaInfo = new SemanticQueryResponse.SchemaInfo();
         List<SemanticQueryResponse.SchemaInfo.ColumnDef> columnDefs = new ArrayList<>();
 
@@ -1933,6 +1935,8 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                     columnDef.setTitle(queryColumn.getCaption());
                     columnDef.setDataType(queryColumn.getType());
                 }
+                if (timeWindowDateAxis != null && timeWindowDateAxis.equals(AliasExtractor.extract(columnName).expression()))
+                    columnDef.setDataType(com.foggyframework.dataset.model.spi.DbColumnType.DAY);
                 SemanticQueryResponse.SchemaInfo.DisplayFormat displayFormat =
                         findDisplayFormat(columnName, outputFormattingByField);
                 if (displayFormat != null) {

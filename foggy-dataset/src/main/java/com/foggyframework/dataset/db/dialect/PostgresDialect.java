@@ -17,6 +17,8 @@ import java.util.List;
  * PostgreSQL 12+ 方言实现
  */
 public class PostgresDialect extends FDialect {
+    @Override public boolean supportsNumericOffsetRange() { return true; }
+    @Override public boolean supportsNumericOffsetRange(int major, int minor) { return major >= 11; }
 
     public PostgresDialect() {
         super();

@@ -383,7 +383,7 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
         return false;
     }
 
-    private boolean sameCalculatedFieldDefinition(CalculatedFieldDef left, CalculatedFieldDef right) {
+    static boolean sameCalculatedFieldDefinition(CalculatedFieldDef left, CalculatedFieldDef right) {
         return left != null
                 && right != null
                 && Objects.equals(left.getName(), right.getName())

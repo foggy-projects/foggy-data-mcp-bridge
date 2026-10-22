@@ -586,4 +586,13 @@ public abstract class FDialect {
     public boolean supportsWindowFunctions() {
         return true;
     }
+
+    /** Syntax capability, distinct from ordinary/unbounded window functions. Opt-in for custom dialects. */
+    public boolean supportsNumericOffsetRange() { return false; }
+
+    /** Server-specific capability; never store connection version on a shared dialect instance. */
+    public boolean supportsNumericOffsetRange(int major, int minor) { return false; }
+
+    /** Explicit conversion to a civil date, including SQL Server which has no DATE(value) function. */
+    public String buildDateCastExpression(String expression) { return "CAST(" + expression + " AS DATE)"; }
 }

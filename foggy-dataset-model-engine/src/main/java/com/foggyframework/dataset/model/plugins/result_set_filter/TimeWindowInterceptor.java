@@ -18,6 +18,10 @@ import java.util.stream.Collectors;
 @Component
 @Order(-22)
 public class TimeWindowInterceptor implements DataSetResultStep {
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private org.springframework.context.ApplicationContext applicationContext;
+    @org.springframework.beans.factory.annotation.Value("${foggy.dataset.query.calendar-range-enabled:true}")
+    private boolean calendarRangeEnabled = true;
     private java.time.Clock clock;
     @org.springframework.beans.factory.annotation.Value("${foggy.dataset.query.time-zone:UTC}")
     private String timeZone = "UTC";
@@ -83,6 +87,7 @@ public class TimeWindowInterceptor implements DataSetResultStep {
             }
         }
         TimeAxisResolver.Axis axis = null;
+        com.foggyframework.dataset.model.engine.expression.TimeAxisBinding axisBinding = null;
         if (queryModel != null && queryModel.getJdbcQueryColumns() != null) {
             for (var column : queryModel.getJdbcQueryColumns()) {
                 availableFields.add(column.getName());
@@ -94,7 +99,10 @@ public class TimeWindowInterceptor implements DataSetResultStep {
         }
         if (twDef.isComparative() || twDef.isCumulative() || twDef.isRolling()) {
             try {
-                axis = TimeAxisResolver.resolve(queryModel, twDef.field());
+                axisBinding = com.foggyframework.dataset.model.engine.expression.TimeAxisBinding.resolve(
+                        queryModel, twDef.field(), ctx.getRequest().getParam().getCalculatedFields(), applicationContext);
+                axis = axisBinding.axis();
+                availableFields.addAll(axisBinding.names());
             } catch (IllegalArgumentException failure) {
                 // Existing observed windows can sort declared textual bucket keys without a
                 // calendar. Preserve that contract only when no date arithmetic is requested.
@@ -102,7 +110,10 @@ public class TimeWindowInterceptor implements DataSetResultStep {
                         && failure.getMessage().startsWith("TIMEWINDOW_FIELD_NOT_TIME"))) throw failure;
             }
             // The requested surrogate is accepted only after resolving a typed date mapping.
-            if (axis != null) timeFields.add(axis.requestedField());
+            if (axis != null) {
+                timeFields.add(axis.requestedField());
+                extData.put("timeWindowDateAxis", axis.dateField());
+            }
         }
 
         // Validate
@@ -132,12 +143,13 @@ public class TimeWindowInterceptor implements DataSetResultStep {
         // Determine original query columns excluding dynamically generated ones
         // and request-level calculatedField output names (those are projected in
         // the outer DerivedQueryPlan wrapper, not the inner BaseModelPlan).
+        Set<String> axisFieldNames = axisBinding == null ? Set.of() : axisBinding.names();
         Set<String> calcFieldOutputNames = new HashSet<>();
         if (ctx.getRequest() != null && ctx.getRequest().getParam() != null
                 && ctx.getRequest().getParam().getCalculatedFields() != null) {
             for (var cf : ctx.getRequest().getParam().getCalculatedFields()) {
                 if (cf != null && cf.getName() != null && cf.getOrigin() == CalculatedFieldDef.Origin.USER_DECLARED) {
-                    calcFieldOutputNames.add(cf.getName());
+                    if (!axisFieldNames.contains(cf.getName())) calcFieldOutputNames.add(cf.getName());
                 }
             }
         }
@@ -166,13 +178,17 @@ public class TimeWindowInterceptor implements DataSetResultStep {
             }
         }
 
+        List<CalculatedFieldDef> baseFields = new ArrayList<>();
+        if (ctx.getRequest().getParam().getCalculatedFields() != null)
+            ctx.getRequest().getParam().getCalculatedFields().stream()
+                    .filter(cf -> cf.getOrigin() != CalculatedFieldDef.Origin.USER_DECLARED && !axisFieldNames.contains(cf.getName()))
+                    .forEach(baseFields::add);
+        if (axisBinding != null) baseFields.addAll(axisBinding.fields());
         BaseModelPlan basePlan = BaseModelPlan.builder()
                 .model(ctx.getRequest() != null && ctx.getRequest().getParam() != null ? ctx.getRequest().getParam().getQueryModel() : "unknown")
                 .columns(originalColumns)
                 .groupBy(groupByFields)
-                .calculatedFields(ctx.getRequest().getParam().getCalculatedFields() == null ? List.of() :
-                        ctx.getRequest().getParam().getCalculatedFields().stream()
-                                .filter(cf -> cf.getOrigin() != CalculatedFieldDef.Origin.USER_DECLARED).toList())
+                .calculatedFields(baseFields)
                 .slice(planConditions(ctx.getRequest().getParam().getSlice()))
                 .having(planConditions(ctx.getRequest().getParam().getHaving()))
                 .build();
@@ -180,7 +196,8 @@ public class TimeWindowInterceptor implements DataSetResultStep {
         Set<String> actualOutputs = null;
         if (twDef.isRolling() || twDef.isCumulative()) {
             AccumulatingPlanBuilder.Result built = AccumulatingPlanBuilder.build(basePlan, twDef, axis, measureFields,
-                    clock != null ? clock : java.time.Clock.system(java.time.ZoneId.of(timeZone)));
+                    clock != null ? clock : java.time.Clock.system(java.time.ZoneId.of(timeZone)),
+                    twDef.isCalendarRolling() && supportsCalendarRange(queryModel));
             actualOutputs = built.outputs();
             if (!built.warnings().isEmpty()) {
                 List<String> warnings = new ArrayList<>();
@@ -222,6 +239,9 @@ public class TimeWindowInterceptor implements DataSetResultStep {
                 calcFields = new ArrayList<>();
                 Set<String> names = new LinkedHashSet<>();
                 for (Object cf : cfList) {
+                    String fieldName = cf instanceof CalculatedFieldDef f ? f.getName()
+                            : cf instanceof Map<?, ?> m ? (String) m.get("name") : null;
+                    if (axisFieldNames.contains(fieldName)) continue;
                     if (cf instanceof CalculatedFieldDef cfd) {
                         calcFields.add(cfd);
                         if (cfd.getName() != null) names.add(cfd.getName());
@@ -304,6 +324,7 @@ public class TimeWindowInterceptor implements DataSetResultStep {
                 if (pn.contains("postgres")) resolvedDialect = "postgres";
                 else if (pn.contains("sqlite")) resolvedDialect = "sqlite";
                 else if (pn.contains("sqlserver") || pn.contains("microsoft")) resolvedDialect = "mssql";
+                else if (pn.contains("mysql")) resolvedDialect = fd.supportsCte() ? "mysql8" : "mysql57";
             }
         }
         extData.put("timeWindowDialect", resolvedDialect);
@@ -325,7 +346,11 @@ public class TimeWindowInterceptor implements DataSetResultStep {
                 .source(timeWindowPlan)
                 .columns(request.getColumns() == null ? List.of() : request.getColumns().stream().map(column -> {
                     String[] parts = column.split("(?i)\\s+AS\\s+");
-                    return (Object) parts[parts.length - 1].trim();
+                    String source = parts[parts.length - 1].trim();
+                    var binding = com.foggyframework.dataset.model.impl.query.QueryFieldBindings.bind(
+                            ctx.getQueryModel(), column, request.getCalculatedFields());
+                    return source.equals(binding.outputName()) ? (Object) source
+                            : new ProjectedColumn(new ColumnExpr(source), binding.outputName(), null);
                 }).toList())
                 .orderBy(orderBy)
                 .limit(limit)
@@ -334,6 +359,22 @@ public class TimeWindowInterceptor implements DataSetResultStep {
         extData.put("timeWindowPlan", finalPlan);
         if (extData.containsKey("comparativePlan")) {
             extData.put("comparativePlan", finalPlan);
+        }
+    }
+
+    private boolean supportsCalendarRange(QueryModel model) {
+        if (!calendarRangeEnabled || !(model instanceof com.foggyframework.dataset.model.spi.JdbcQueryModel jdbc)
+                || jdbc.getDataSource() == null) return false;
+        // getDialect() may itself borrow a connection. Resolve it before holding a
+        // metadata connection, including on Runtime SQLite pools of size one.
+        var dialect = jdbc.getDialect();
+        if (dialect == null || !dialect.supportsNumericOffsetRange()) return false;
+        try (var connection = jdbc.getDataSource().getConnection()) {
+            var metadata = connection.getMetaData();
+            return dialect.supportsNumericOffsetRange(metadata.getDatabaseMajorVersion(), metadata.getDatabaseMinorVersion());
+        } catch (java.sql.SQLException failure) {
+            // Unknown capability retains the existing portable plan; execution errors are never retried.
+            return false;
         }
     }
 

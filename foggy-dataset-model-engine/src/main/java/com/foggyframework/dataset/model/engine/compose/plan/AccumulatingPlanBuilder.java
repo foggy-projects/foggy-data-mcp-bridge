@@ -17,6 +17,11 @@ public final class AccumulatingPlanBuilder {
 
     public static Result build(BaseModelPlan input, TimeWindowDef tw, TimeAxisResolver.Axis axis,
                                Set<String> measures, Clock clock) {
+        return build(input, tw, axis, measures, clock, false);
+    }
+
+    public static Result build(BaseModelPlan input, TimeWindowDef tw, TimeAxisResolver.Axis axis,
+                               Set<String> measures, Clock clock, boolean numericRange) {
         if (axis == null) return legacyObserved(input, tw, measures);
         List<String> business = input.groupBy().stream().filter(f -> !axis.contains(f)).toList();
         List<String> metrics = tw.targetMetrics() == null || tw.targetMetrics().isEmpty()
@@ -110,7 +115,20 @@ public final class AccumulatingPlanBuilder {
         QueryPlan window;
         List<Object> windowColumns = columns.stream().map(c -> c instanceof String s ? alias(s) : c).collect(java.util.stream.Collectors.toCollection(ArrayList::new));
         String agg = tw.rollingAggregator() == null ? "SUM" : tw.rollingAggregator().toUpperCase(Locale.ROOT);
-        if (tw.isCalendarRolling()) {
+        if (tw.isCalendarRolling() && numericRange) {
+            WindowFrame frame = new WindowFrame(WindowFrame.Unit.RANGE,
+                    new WindowFrame.Bound.Preceding(tw.rollingWindowSize() - 1), new WindowFrame.Bound.CurrentRow());
+            for (String metric : metrics) {
+                var value = new WindowColumn(agg, new PlanColumnRef(base, metric), List.of(), new OverClause(business, List.of(KEY), frame));
+                // Range joins never match a NULL date. Preserve their NULL/COUNT=0 contract;
+                // native RANGE would otherwise aggregate the NULL peer group.
+                var result = new CaseWhenExpr(List.of(new CaseWhenExpr.WhenThen(
+                        new BinaryExpr(new ColumnExpr(KEY), "=", new ColumnExpr(KEY)), value)),
+                        new LiteralExpr("COUNT".equals(agg) ? 0 : null));
+                windowColumns.add(new ProjectedColumn(result, metric + "__" + tw.comparison(), null));
+            }
+            window = DerivedQueryPlan.builder().source(base).columns(windowColumns).build();
+        } else if (tw.isCalendarRolling()) {
             // A bounded self join works on SQL Server too (which disallows numeric RANGE offsets).
             List<Object> leftCols = new ArrayList<>(windowColumns);
             leftCols.add(new ProjectedColumn(new BinaryExpr(new ColumnExpr(KEY), "-", new LiteralExpr(tw.rollingWindowSize() - 1)), LOW, null));

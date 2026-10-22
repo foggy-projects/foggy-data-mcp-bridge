@@ -273,6 +273,8 @@ public final class ComposePlanner {
             sb.append(") OVER (");
 
             OverClause over = win.over();
+            if (over.getWindowFrame() != null) over.getWindowFrame().validateOffsetRange(dialect,
+                    over.getOrderBy() == null ? 0 : over.getOrderBy().size());
             boolean hasPartition = over.getPartitionBy() != null && !over.getPartitionBy().isEmpty();
             boolean hasOrder = over.getOrderBy() != null && !over.getOrderBy().isEmpty();
             boolean hasFrame = over.getWindowFrame() != null;

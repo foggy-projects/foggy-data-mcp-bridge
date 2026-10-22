@@ -7,6 +7,8 @@ package com.foggyframework.dataset.db.dialect;
  * only opens features that are absent in the conservative MySQL 5.7 profile.</p>
  */
 public class Mysql8Dialect extends MysqlDialect {
+    @Override public boolean supportsNumericOffsetRange() { return true; }
+    @Override public boolean supportsNumericOffsetRange(int major, int minor) { return major >= 8; }
 
     @Override
     public boolean supportsCte() {

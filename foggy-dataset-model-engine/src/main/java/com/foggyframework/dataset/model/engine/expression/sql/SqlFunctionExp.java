@@ -71,6 +71,12 @@ public class SqlFunctionExp extends AbstractExp<String> {
             }
         }
 
+        if ("DATE".equals(upper) && ctx != null && ctx.getDialect() != null) {
+            if (argFragments.size() != 1) throw new IllegalArgumentException("DATE requires one expression");
+            SqlFragment result = SqlFragment.customFunction(ctx.getDialect().buildDateCastExpression(argFragments.get(0).getSql()), "DATE", argFragments);
+            result.setInferredType(DbColumnType.DAY);
+            return result;
+        }
         if ("PERIOD_START".equals(upper) || "PERIOD_KEY".equals(upper)) {
             int required = "PERIOD_START".equals(upper) ? 2 : 3;
             if (argFragments.size() != required || ctx == null || ctx.getDialect() == null) {

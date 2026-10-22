@@ -167,6 +167,13 @@ public class CalculatedDbColumn extends AbstractDecorate implements DbQueryColum
     }
 
     @Override
+    public ObjectTransFormatter<?> getFormatter(boolean errorIfNull) {
+        var formatter = getFormatter();
+        if (errorIfNull && formatter == null) throw new IllegalStateException("No formatter for calculated field " + name);
+        return formatter;
+    }
+
+    @Override
     public ObjectTransFormatter<?> getFormatter() {
         // 从 SqlFragment 的推断类型获取格式化器
         DbColumnType inferredType = sqlFragment.getInferredType();
