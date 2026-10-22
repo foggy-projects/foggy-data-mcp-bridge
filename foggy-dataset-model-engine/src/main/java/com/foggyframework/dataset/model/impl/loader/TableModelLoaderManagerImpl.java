@@ -8,6 +8,7 @@ import com.foggyframework.core.utils.ErrorUtils;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.model.config.DatasetProperties;
 import com.foggyframework.dataset.model.def.DbModelDef;
+import com.foggyframework.dataset.model.def.TimeMetadataDefinitionValidator;
 import com.foggyframework.dataset.model.def.dimension.DbCaptionDef;
 import com.foggyframework.dataset.model.def.dimension.DbDimensionDef;
 import com.foggyframework.dataset.model.def.measure.DbFormulaDef;
@@ -235,6 +236,7 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
         }
         Bundle bundle = fsscript.getFsscriptClosureDefinition()
                 .getFsscriptClosureDefinitionSpace().getBundle();
+        TimeMetadataDefinitionValidator.validate(exported);
         DbModelDef definition = FsscriptConversionService.getSharedInstance()
                 .convert(exported, DbModelDef.class);
         applySemanticScalePolicy(definition, namespace);

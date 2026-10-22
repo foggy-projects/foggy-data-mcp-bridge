@@ -8,6 +8,7 @@ import com.foggyframework.bundle.external.ExternalFileBundle;
 import com.foggyframework.conversion.FsscriptConversionService;
 import com.foggyframework.core.bundle.BundleDefinition;
 import com.foggyframework.dataset.model.def.DbModelDef;
+import com.foggyframework.dataset.model.def.TimeMetadataDefinitionValidator;
 import com.foggyframework.dataset.model.def.query.DbQueryModelDef;
 import com.foggyframework.dataset.model.engine.query_model.QueryModelLoaderImpl;
 import com.foggyframework.dataset.model.impl.loader.TableModelLoaderManagerImpl;
@@ -331,6 +332,7 @@ final class DetachedModelValidationSessionImpl
         if (exported == null) {
             throw new IllegalStateException("TM does not export model: " + relativeName(resource));
         }
+        TimeMetadataDefinitionValidator.validate(exported);
         DbModelDef definition = FsscriptConversionService.getSharedInstance()
                 .convert(exported, DbModelDef.class);
         String expectedName = modelName(resource, ".tm");

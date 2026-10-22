@@ -30,6 +30,36 @@ export const model = {
 
 ### 1.2 维度定义 (dimensions)
 
+#### 时间角色与推荐用途合同（普通属性与维度通用）
+
+`properties[]`、`dimensions[]` 及维度内 `properties[]` 均可声明：
+
+```javascript
+{ column: 'loaded_at', name: 'loadedAt', type: 'DATETIME',
+  timeRole: 'system_time', recommendedUse: '仅分析技术入库延迟' }
+{ column: 'created_at', name: 'createdAt', type: 'DATETIME',
+  timeRole: 'business_date', recommendedUse: '本模型的业务创建日期' }
+```
+
+- `timeRole` 是可选、开放的字符串标签。推荐 `business_date`、`event_time`、`system_time`，也支持
+  `due_date`、`posting_date` 等领域角色；引擎不使用固定业务角色枚举。显式非空字符串原样保留并优先于字段名推断。
+- `recommendedUse` 是独立的可选字符串，支持自由文本，可在没有 `timeRole` 时声明。JSON 原样保留内容，
+  Markdown 转义管道符和换行以保持版式。两者都不转换字段类型，不授予权限，也不自动替换调用方选择的查询时间轴。
+- `null`、空串和纯空白视为未声明。未声明角色的 DAY/DATETIME 属性继续沿用历史推断：
+  `create`/`write`/`update` 开头为 `system_time`，其余为 `business_date`；推断使用 TM 名称而非 QM 名称或输出别名。
+  维度继续按 TM 名称中的 `date`/`time`/`calendar` 推断 `business_date`。
+- 维度声明作用于日期根字段及 `$id`；`$caption` 不继承角色和用途。维度属性使用自身声明或自身类型/名称推断，
+  不继承父维度角色，年份、月份等整数属性不会被标记为完整业务日期轴。
+- 未声明用途时，`business_date` 维度保留历史默认“核心业务时间轴，用于同环比和窗口函数”；
+  `system_time` 和自定义角色不自动添加业务时间轴用途。其他无用途字段在 JSON 省略该键，Markdown 显示 `-`。
+- 数字、布尔、数组和对象不是合法配置类型；在线加载及 detached `models validate` 均在类型转换前报
+  `INVALID_TIME_METADATA`，包含模型名、字段路径与修正提示。任意非空字符串角色均按扩展角色接受，不按业务枚举拒绝。
+- QM 重命名保留源字段语义。多模型同名字段的角色/用途存放在 `fields.<field>.models.<model>`；
+  所有模型一致时才在字段顶层输出共同值，避免将一个模型的日期角色错误套给其他模型。
+
+兼容性：JSON 新增语义键和模型级语义键，既有字段名、类型、输出键、权限裁剪和查询结果合同保持有效。
+依赖旧错误推断的模型会看到正确的显式配置；自定义角色和未配置模型继续兼容。
+
 维度用于定义与其他表的关联关系，支持星型模型的自动 JOIN。
 
 ```javascript

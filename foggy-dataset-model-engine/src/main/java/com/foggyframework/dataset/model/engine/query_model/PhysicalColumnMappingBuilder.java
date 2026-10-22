@@ -76,7 +76,10 @@ public final class PhysicalColumnMappingBuilder {
             DbDimensionColumn dimension = column.getSelectColumn().getDecorate(DbDimensionColumn.class);
             if (dimension != null && !dimension.isCaptionColumn()
                     && dimension.getDimension() instanceof DbDimensionSupport support) {
-                TableQueryObject table = support.getQueryObject().getDecorate(TableQueryObject.class);
+                // A single-column date dimension is bound directly to the fact table.
+                // Its SELECT/condition columns were mapped above; it has no separate JOIN/PK source.
+                TableQueryObject table = support.getQueryObject() == null ? null
+                        : support.getQueryObject().getDecorate(TableQueryObject.class);
                 if (table != null && support.getPrimaryKey() != null) {
                     addMappingIfNotBlank(qmToPhysical, physicalToQm, column.getName(), table.getTableName(), support.getPrimaryKey());
                     addMappingIfNotBlank(qmToPhysical, physicalToQm, column.getAlias(), table.getTableName(), support.getPrimaryKey());

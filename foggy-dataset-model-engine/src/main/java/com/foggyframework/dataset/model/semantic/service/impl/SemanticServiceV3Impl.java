@@ -20,6 +20,7 @@ import com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.model.semantic.permission.FieldPermissionResolver;
 import com.foggyframework.dataset.model.semantic.service.DictionaryDiscoveryService;
 import com.foggyframework.dataset.model.semantic.service.SemanticServiceV3;
+import com.foggyframework.dataset.model.semantic.support.TimeFieldMetadata;
 import com.foggyframework.dataset.model.spi.*;
 import io.swagger.annotations.ApiModelProperty;
 import jakarta.annotation.Resource;
@@ -396,15 +397,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                     continue;
                 }
                 
-                String role = dimension.getTimeRole();
-                if (StringUtils.isEmpty(role)) {
-                    String lowerName = dimension.getName().toLowerCase();
-                    if (lowerName.contains("date") || lowerName.contains("time") || lowerName.contains("calendar")) {
-                        role = "business_date";
-                    }
-                }
-                
-                if (StringUtils.isNotEmpty(role)) {
+                if (TimeFieldMetadata.dimension(dimension).timeField()) {
                     timeDimensions.add(dimension);
                 } else {
                     regularDimensions.add(dimension);
@@ -433,7 +426,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                     String idFormatHint = getIdFormatHint(dimension);
                     idDesc = StringUtils.isNotEmpty(idDesc) ? idDesc + " " + idFormatHint : idFormatHint;
                 }
-                idDesc = escapeMarkdownTable(idDesc);
+                idDesc = escapeMarkdownTable(appendTimeMetadataDescription(idDesc, TimeFieldMetadata.dimension(dimension)));
                 md.append("| ").append(idFieldName)
                         .append(" | ").append(dimCaption).append("(ID)")
                         .append(" | ").append(getIdTypeDescription(dimension))
@@ -485,6 +478,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                             }
                         }
                         propDesc = appendDictionaryDiscoveryMarkdown(propDesc, prop, modelName, propFieldName, context);
+                        propDesc = appendTimeMetadataDescription(propDesc, TimeFieldMetadata.property(prop));
 
                         md.append("| ").append(propFieldName)
                                 .append(" | ").append(propCaption)
@@ -518,8 +512,8 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
 
         // ========== 时间字段 & 属性字段 ==========
         List<DbQueryProperty> queryProperties = queryModel.getQueryProperties();
-        if (queryProperties != null && !queryProperties.isEmpty()) {
-            List<DbQueryProperty> filteredProperties = queryProperties.stream()
+        if ((queryProperties != null && !queryProperties.isEmpty()) || !timeDimensions.isEmpty()) {
+            List<DbQueryProperty> filteredProperties = (queryProperties == null ? List.<DbQueryProperty>of() : queryProperties).stream()
                     .filter(qp -> !dimensionFieldNames.contains(qp.getName()))
                     .filter(qp -> !QmColumnNaming.overridesProperty(queryModel, qp.getProperty()))
                     .filter(qp -> isFieldInLevels(qp.getAi(), request.getLevels()))
@@ -531,8 +525,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             List<DbQueryProperty> regularProperties = new ArrayList<>();
 
             for (DbQueryProperty qp : filteredProperties) {
-                DbColumnType colType = qp.getProperty().getPropertyDbColumn().getType();
-                if (colType == DbColumnType.DAY || colType == DbColumnType.DATETIME) {
+                if (TimeFieldMetadata.property(qp.getProperty()).timeField()) {
                     timeProperties.add(qp);
                 } else {
                     regularProperties.add(qp);
@@ -551,14 +544,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                     String dimName = dimension.getEffectiveName();
                     String dimCaption = dimension.getCaption() != null ? dimension.getCaption() : dimName;
                     
-                    String role = dimension.getTimeRole();
-                    if (StringUtils.isEmpty(role)) {
-                        String lowerName = dimension.getName().toLowerCase();
-                        if (lowerName.contains("date") || lowerName.contains("time") || lowerName.contains("calendar")) {
-                            role = "business_date";
-                        }
-                    }
-                    String recUse = dimension.getRecommendedUse() != null ? dimension.getRecommendedUse() : "核心业务时间轴，用于同环比和窗口函数";
+                    TimeFieldMetadata time = TimeFieldMetadata.dimension(dimension);
                     
                     // $id 字段
                     String idFieldName = dimName + "$id";
@@ -571,8 +557,8 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                     md.append("| ").append(idFieldName)
                             .append(" | ").append(dimCaption).append("(ID)")
                             .append(" | 维度ID")
-                            .append(" | ").append(role)
-                            .append(" | ").append(recUse)
+                            .append(" | ").append(escapeMarkdownTable(time.displayRole()))
+                            .append(" | ").append(escapeMarkdownTable(time.displayUse()))
                             .append(" | ").append(escapeMarkdownTable(idDesc))
                             .append(" |\n");
                             
@@ -599,12 +585,13 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                             String propCaption = prop.getCaption() != null ? prop.getCaption() : prop.getName();
                             String propDesc = prop.getDescription() != null ? prop.getDescription() : "";
                             propDesc = appendDictionaryDiscoveryMarkdown(propDesc, prop, modelName, propFieldName, context);
+                            TimeFieldMetadata propertyTime = TimeFieldMetadata.property(prop);
                             
                             md.append("| ").append(propFieldName)
                                     .append(" | ").append(propCaption)
                                     .append(" | 维度属性")
-                                    .append(" | -")
-                                    .append(" | -")
+                                    .append(" | ").append(escapeMarkdownTable(propertyTime.displayRole()))
+                                    .append(" | ").append(escapeMarkdownTable(propertyTime.displayUse()))
                                     .append(" | ").append(escapeMarkdownTable(propDesc))
                                     .append(" |\n");
                         }
@@ -619,22 +606,13 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                     String fieldDesc = property.getDescription() != null ? property.getDescription() : "";
                     fieldDesc = appendDictionaryDiscoveryMarkdown(fieldDesc, property, modelName, fieldName, context);
                     
-                    String timeRole = property.getTimeRole();
-                    if (StringUtils.isEmpty(timeRole)) {
-                        String lowerName = fieldName.toLowerCase();
-                        if (lowerName.startsWith("create") || lowerName.startsWith("write") || lowerName.startsWith("update")) {
-                            timeRole = "system_time";
-                        } else {
-                            timeRole = "business_date";
-                        }
-                    }
-                    String recommendedUse = property.getRecommendedUse() != null ? property.getRecommendedUse() : "-";
+                    TimeFieldMetadata time = TimeFieldMetadata.property(property);
                     
                     md.append("| ").append(fieldName)
                             .append(" | ").append(fieldCaption)
                             .append(" | 属性")
-                            .append(" | ").append(timeRole)
-                            .append(" | ").append(recommendedUse)
+                            .append(" | ").append(escapeMarkdownTable(time.displayRole()))
+                            .append(" | ").append(escapeMarkdownTable(time.displayUse()))
                             .append(" | ").append(escapeMarkdownTable(fieldDesc))
                             .append(" |\n");
                 }
@@ -673,7 +651,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                     md.append("| ").append(fieldName)
                             .append(" | ").append(fieldCaption)
                             .append(" | ").append(fieldType)
-                            .append(" | ").append(escapeMarkdownTable(fieldDesc))
+                            .append(" | ").append(escapeMarkdownTable(appendTimeMetadataDescription(fieldDesc, TimeFieldMetadata.property(property))))
                             .append(" |\n");
 
                     String captionFieldName = queryProperty.getName() + "$caption";
@@ -807,7 +785,15 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         if (text == null) {
             return "";
         }
-        return text.replace("|", "\\|").replace("\n", " ");
+        return text.replace("|", "\\|").replace("\r", " ").replace("\n", " ");
+    }
+
+    private String appendTimeMetadataDescription(String description, TimeFieldMetadata time) {
+        if (time == null) return description;
+        String result = description == null ? "" : description;
+        if (time.timeRole() != null) result += " [timeRole=" + time.timeRole() + "]";
+        if (time.recommendedUse() != null) result += " [recommendedUse=" + time.recommendedUse() + "]";
+        return result;
     }
 
     private void recordModelLoadError(List<Map<String, String>> modelErrors,
@@ -1018,6 +1004,8 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                         }
                     }
 
+                    desc = escapeMarkdownTable(appendTimeMetadataDescription(desc, usage.getValue().getTimeMetadata()));
+
                     // 如果字段有字典引用，添加标注
                     String dictRef = usage.getValue().getDictRef();
                     if (StringUtils.isNotEmpty(dictRef)) {
@@ -1164,7 +1152,16 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         Map<String, Object> local = new LinkedHashMap<>();
         processLegacyModelFieldsV3(queryModel, local, fieldFilter, levels, fieldAccess, context);
         local.putAll(namedColumnMetadata(queryModel, fieldFilter, levels, fieldAccess, context));
-        local.forEach((name, value) -> mergeFieldInfo(fields, name, (Map<String, Object>) value));
+        local.forEach((name, value) -> {
+            Map<String, Object> info = (Map<String, Object>) value;
+            Map<String, Object> usages = (Map<String, Object>) info.get("models");
+            if (usages != null && usages.get(queryModel.getName()) instanceof Map<?, ?> usage) {
+                for (String key : List.of("timeRole", "recommendedUse")) {
+                    if (info.containsKey(key)) ((Map<String, Object>) usage).put(key, info.get(key));
+                }
+            }
+            mergeFieldInfo(fields, name, info);
+        });
     }
 
     /** Shared names and output keys for JSON and both Markdown views. No TM mutation. */
@@ -1209,13 +1206,15 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         if (fields.isEmpty()) return;
         md.append("## QM 自定义字段\n")
                 .append("使用查询字段名构造 DSL；输出键用于读取结果，已选列可按输出键排序。\n\n")
-                .append("| 字段名 | 输出键 | 名称 | 类型 |\n|--------|--------|------|------|\n");
+                .append("| 字段名 | 输出键 | 名称 | 类型 | 时间角色 | 推荐用途 |\n|--------|--------|------|------|----------|----------|\n");
         fields.forEach((name, value) -> {
             Map<?, ?> info = (Map<?, ?>) value;
             md.append("| ").append(escapeMarkdownTable(name))
                     .append(" | ").append(escapeMarkdownTable(String.valueOf(info.get("outputName"))))
                     .append(" | ").append(escapeMarkdownTable(String.valueOf(info.get("name"))))
                     .append(" | ").append(escapeMarkdownTable(String.valueOf(info.get("meta"))))
+                    .append(" | ").append(escapeMarkdownTable(String.valueOf(info.containsKey("timeRole") ? info.get("timeRole") : "-")))
+                    .append(" | ").append(escapeMarkdownTable(String.valueOf(info.containsKey("recommendedUse") ? info.get("recommendedUse") : "-")))
                     .append(" |\n");
         });
         md.append("\n");
@@ -1472,6 +1471,13 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         Map<String, Object> freshModels = (Map<String, Object>) freshInfo.get("models");
         if (existingModels != null && freshModels != null) {
             existingModels.putAll(freshModels);
+            // Preserve model-specific meanings when the same field name is shared by multiple QMs.
+            for (String annotation : List.of("timeRole", "recommendedUse")) {
+                Set<Object> values = new HashSet<>();
+                for (Object usage : existingModels.values()) values.add(((Map<?, ?>) usage).get(annotation));
+                if (values.size() == 1 && !values.contains(null)) existing.put(annotation, values.iterator().next());
+                else existing.remove(annotation);
+            }
         }
     }
 
@@ -1485,6 +1491,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         fieldInfo.put("name", dimension.getCaption() != null ? dimension.getCaption() : baseName);
         fieldInfo.put("fieldName", baseName);
         fieldInfo.put("meta", "时间维度根字段 | " + (dimension.getType() == DbDimensionType.DATETIME ? "DATETIME" : "DATE"));
+        TimeFieldMetadata.dimension(dimension).addTo(fieldInfo);
         fieldInfo.put("type", dimension.getType() == DbDimensionType.DATETIME ? "DATETIME" : "DATE");
         fieldInfo.put("filterType", "date");
         fieldInfo.put("filterable", true);
@@ -1528,6 +1535,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         // 前端需要的字段
         fieldInfo.put("type", getJdbcColumnType(dimension));
         fieldInfo.put("filterType", dateDimensionRoot ? "date" : "dimension");
+        TimeFieldMetadata.dimension(dimension).addTo(fieldInfo);
         fieldInfo.put("filterable", true);
         fieldInfo.put("measure", false);
         fieldInfo.put("aggregatable", false);
@@ -1616,6 +1624,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         fieldInfo.put("measure", false);
         fieldInfo.put("aggregatable", false);
         addSemanticScaleMetadata(fieldInfo, prop);
+        TimeFieldMetadata.property(prop).addTo(fieldInfo);
 
         // 如果是字典类型，添加字典信息
         if (StringUtils.isNotEmpty(prop.getDictRef())) {
@@ -1935,7 +1944,11 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             field.displayName = String.valueOf(info.get("name"));
             field.meta = String.valueOf(info.get("meta"));
             field.fieldType = Boolean.TRUE.equals(info.get("measure")) ? "measure" : "property";
+            TimeFieldMetadata time = new TimeFieldMetadata((String) info.get("timeRole"),
+                    (String) info.get("recommendedUse"), info.containsKey("timeRole"));
+            field.isTimeField |= time.timeField();
             FieldInfoV3.ModelUsage usage = new FieldInfoV3.ModelUsage();
+            usage.setTimeMetadata(time);
             usage.setDescription("输出键: " + info.get("outputName") + "; " + info.get("meta"));
             field.modelUsages.put(queryModel.getName(), usage);
         });
@@ -2106,22 +2119,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         fieldInfo.put("aggregatable", false);
         addSemanticScaleMetadata(fieldInfo, property);
 
-        if (columnType == DbColumnType.DAY || columnType == DbColumnType.DATETIME) {
-            if (StringUtils.isNotEmpty(property.getTimeRole())) {
-                fieldInfo.put("timeRole", property.getTimeRole());
-            } else {
-                // Fallback inference if missing
-                String name = property.getName().toLowerCase();
-                if (name.startsWith("create") || name.startsWith("write") || name.startsWith("update")) {
-                    fieldInfo.put("timeRole", "system_time");
-                } else {
-                    fieldInfo.put("timeRole", "business_date");
-                }
-            }
-            if (StringUtils.isNotEmpty(property.getRecommendedUse())) {
-                fieldInfo.put("recommendedUse", property.getRecommendedUse());
-            }
-        }
+        TimeFieldMetadata.property(property).addTo(fieldInfo);
 
         // 如果是字典类型，添加字典信息
         if (StringUtils.isNotEmpty(property.getDictRef())) {
@@ -2746,8 +2744,6 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         private String meta;
         private String fieldType;
         private boolean isTimeField;
-        private String timeRole;
-        private String recommendedUse;
         private Map<String, ModelUsage> modelUsages = new LinkedHashMap<>();
 
         public void addDimensionId(DbDimension dimension, String modelName, SemanticServiceV3Impl service) {
@@ -2762,20 +2758,11 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             }
             this.fieldType = "dimension_id";
 
-            String role = dimension.getTimeRole();
-            if (StringUtils.isEmpty(role)) {
-                String dimNameLower = dimension.getName().toLowerCase();
-                if (dimNameLower.contains("date") || dimNameLower.contains("time") || dimNameLower.contains("calendar")) {
-                    role = "business_date";
-                }
-            }
-            if (StringUtils.isNotEmpty(role)) {
-                this.isTimeField = true;
-                this.timeRole = role;
-                this.recommendedUse = StringUtils.isNotEmpty(dimension.getRecommendedUse()) ? dimension.getRecommendedUse() : "核心业务时间轴，用于同环比和窗口函数";
-            }
+            TimeFieldMetadata time = TimeFieldMetadata.dimension(dimension);
+            this.isTimeField |= time.timeField();
 
             ModelUsage usage = new ModelUsage();
+            usage.setTimeMetadata(time);
             String desc = service.buildIdDescription(dimension);
             if (service.isHierarchicalDimension(dimension)) {
                 desc = desc + " (层级维度，支持selfAndDescendantsOf等层级操作符)";
@@ -2792,17 +2779,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             this.meta = "维度名称 | 文本" + (captionHint != null ? " | " + captionHint : "");
             this.fieldType = "dimension_caption";
 
-            String role = dimension.getTimeRole();
-            if (StringUtils.isEmpty(role)) {
-                String dimNameLower = dimension.getName().toLowerCase();
-                if (dimNameLower.contains("date") || dimNameLower.contains("time") || dimNameLower.contains("calendar")) {
-                    role = "business_date";
-                }
-            }
-            if (StringUtils.isNotEmpty(role)) {
-                this.isTimeField = true;
-                // 不为caption设置具体的timeRole和recommendedUse，以避免在表格中重复显示，但将其移动到时间分类下
-            }
+            this.isTimeField |= TimeFieldMetadata.dimension(dimension).timeField();
 
             ModelUsage usage = new ModelUsage();
             usage.setDescription(service.buildCaptionDescription(dimension));
@@ -2819,18 +2796,11 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             this.meta = "维度属性 | " + dataType;
             this.fieldType = "dimension_property";
 
-            String role = dimension.getTimeRole();
-            if (StringUtils.isEmpty(role)) {
-                String dimNameLower = dimension.getName().toLowerCase();
-                if (dimNameLower.contains("date") || dimNameLower.contains("time") || dimNameLower.contains("calendar")) {
-                    role = "business_date";
-                }
-            }
-            if (StringUtils.isNotEmpty(role)) {
-                this.isTimeField = true;
-            }
+            TimeFieldMetadata time = TimeFieldMetadata.property(prop);
+            this.isTimeField |= time.timeField() || TimeFieldMetadata.dimension(dimension).timeField();
 
             ModelUsage usage = new ModelUsage();
+            usage.setTimeMetadata(time);
             usage.setDescription(service.appendDictionaryDiscoveryMarkdown(
                     prop.getDescription() != null ? prop.getDescription() : prop.getCaption(),
                     prop, modelName, fieldName, context));
@@ -2870,22 +2840,11 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             this.meta = "属性 | " + dataType;
             this.fieldType = "property";
 
-            if (type == DbColumnType.DAY || type == DbColumnType.DATETIME) {
-                this.isTimeField = true;
-                String role = property.getTimeRole();
-                if (StringUtils.isEmpty(role)) {
-                    String lowerName = property.getName().toLowerCase();
-                    if (lowerName.startsWith("create") || lowerName.startsWith("write") || lowerName.startsWith("update")) {
-                        role = "system_time";
-                    } else {
-                        role = "business_date";
-                    }
-                }
-                this.timeRole = role;
-                this.recommendedUse = property.getRecommendedUse() != null ? property.getRecommendedUse() : "-";
-            }
+            TimeFieldMetadata time = TimeFieldMetadata.property(property);
+            this.isTimeField |= time.timeField();
 
             ModelUsage usage = new ModelUsage();
+            usage.setTimeMetadata(time);
             usage.setDescription(service.appendDictionaryDiscoveryMarkdown(
                     property.getDescription() != null ? property.getDescription() : property.getCaption(),
                     property, modelName, fieldName, context));
@@ -2960,6 +2919,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         @Data
         public static class ModelUsage {
             private String description;
+            private TimeFieldMetadata timeMetadata;
             private DbAggregation aggregation;
             /** fsscript 字典引用ID */
             private String dictRef;

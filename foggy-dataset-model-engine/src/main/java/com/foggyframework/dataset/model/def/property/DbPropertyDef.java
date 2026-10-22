@@ -24,6 +24,12 @@ public class DbPropertyDef extends DbDefSupport {
 
     String format;
 
+    @ApiModelProperty(value = "时间角色", notes = "开放语义标签，例如 business_date、event_time、system_time；显式配置优先于名称推断")
+    String timeRole;
+
+    @ApiModelProperty(value = "推荐用途", notes = "独立的用途说明，不参与 SQL 类型转换或时间轴绑定")
+    String recommendedUse;
+
     String aggregationFormula;
 
     @ApiModelProperty("公式描述")
