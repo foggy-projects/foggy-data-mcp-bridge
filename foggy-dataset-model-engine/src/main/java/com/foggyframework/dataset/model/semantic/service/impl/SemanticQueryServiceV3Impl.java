@@ -280,7 +280,8 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                             ? c : column.getDecorate(com.foggyframework.dataset.model.spi.support.CalculatedDbColumn.class);
                     if (calculated != null && (calculated.hasWindow() || calculated.getResultStageDepth() > 0)) return false;
                     return (calculated != null && calculated.hasAggregate())
-                            || (column.getAggregation() != null && column.getAggregation() != com.foggyframework.dataset.model.spi.DbAggregation.NONE);
+                            || (column.getAggregation() != null && column.getAggregation() != com.foggyframework.dataset.model.spi.DbAggregation.NONE
+                                && column.getAggregation() != com.foggyframework.dataset.model.spi.DbAggregation.WINDOW);
                 });
             }
             if (bound != null) context.boundGroups = bound.getGroup() == null ? List.of() : bound.getGroup().getGroups();
@@ -1979,9 +1980,9 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         List<GroupRequestDef> groupBy = request.getGroupBy();
 
         // Detail and deferred queries without bound grouping information have no aggregate summary.
-        if (boundGroups == null || ((groupBy == null || groupBy.isEmpty()) && !boundAggregate)) {
-            return null;
-        }
+        if (boundGroups == null) return null;
+        boolean hasBoundGroups = boundGroups.stream().anyMatch(group -> group.getAggColumn().getGroupByName() != null);
+        if (!hasBoundGroups && !boundAggregate) return null;
 
         StringBuilder sb = new StringBuilder();
 

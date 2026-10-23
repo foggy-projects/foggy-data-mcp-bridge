@@ -127,6 +127,16 @@ class ComposeBindingPaginationRegressionTest extends EcommerceTestSupport {
         }
     }
 
+    @Test void windowAggregateWithoutDimensionIsNotOverallSummary() {
+        if (!supportsWindowFunctions()) return;
+        var mapper = new com.foggyframework.dataset.model.semantic.support.SemanticQueryPayloadMapper(new com.fasterxml.jackson.databind.ObjectMapper());
+        var request = mapper.toQueryRequest(Map.of("columns",List.of("running"),"calculatedFields",List.of(
+                Map.of("name","running","expression","SUM(amount)","windowOrderBy",List.of(Map.of("field","id","dir","ASC"))))));
+        var response = semantic.queryModel("PageQM",request,"execute",com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext.empty());
+        assertNull(response.getSchema().getSummary());
+        assertEquals(6,response.getItems().size());
+    }
+
     @Test void ordinaryGroupingProjectionContractIsPreserved() {
         var mapper = new com.foggyframework.dataset.model.semantic.support.SemanticQueryPayloadMapper(new com.fasterxml.jackson.databind.ObjectMapper());
         var request = mapper.toQueryRequest(Map.of("columns",List.of("count(id) as n"),"groupBy",List.of("grp")));
