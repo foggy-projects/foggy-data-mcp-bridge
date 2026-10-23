@@ -1887,9 +1887,11 @@ class PivotIT extends EcommerceTestSupport {
             List<Map<String, Object>> itemsOut = response.getItems();
 
             assertEquals(2, itemsOut.size(), "start=1 limit=2 应只返回第 2、3 个可见列轴成员");
-            Map<Object, Map<String, Object>> byDayOfWeek = new LinkedHashMap<>();
+            Map<Integer, Map<String, Object>> byDayOfWeek = new LinkedHashMap<>();
             for (Map<String, Object> row : itemsOut) {
-                byDayOfWeek.put(row.get("salesDate$dayOfWeek"), row);
+                Number day = assertInstanceOf(Number.class, row.get("salesDate$dayOfWeek"));
+                // SQL Server SMALLINT may be Short; compare the exact numeric identity, not its boxed JDBC type.
+                byDayOfWeek.put(new java.math.BigDecimal(day.toString()).intValueExact(), row);
             }
 
             assertTrue(byDayOfWeek.containsKey(2), "可见列应包含 dayOfWeek=2");

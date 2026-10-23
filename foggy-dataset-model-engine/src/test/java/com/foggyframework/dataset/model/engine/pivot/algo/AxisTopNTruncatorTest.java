@@ -18,6 +18,27 @@ import static org.junit.jupiter.api.Assertions.*;
 class AxisTopNTruncatorTest {
 
     @Test
+    void additiveMemberWindowRanksTheCompleteMemberAndKeepsAllCells() {
+        var axis = new AxisField(); axis.setField("city"); axis.setLimit(1); axis.setOrderBy(List.of("-salesAmount"));
+        var data = List.of(makeRow("A",40),makeRow("A",40),makeRow("B",60),makeRow("B",10));
+        var actual = AxisTopNTruncator.apply(data,List.of(axis),Map.of("salesAmount",com.foggyframework.dataset.model.spi.DbAggregation.SUM));
+        assertEquals(2,actual.size());
+        assertTrue(actual.stream().allMatch(row -> "A".equals(row.get("city"))));
+        assertEquals(data.subList(0,2),actual,"The best cell belongs to B, but A is the largest member domain");
+    }
+
+    @Test
+    void memberWindowUsesDeclaredMinMaxAndOffsetCountsMembers() {
+        var axis = new AxisField(); axis.setField("city"); axis.setLimit(1); axis.setOrderBy(List.of("-salesAmount"));
+        var data = List.of(makeRow("A",30),makeRow("A",40),makeRow("B",60),makeRow("B",10));
+        assertEquals("A",AxisTopNTruncator.apply(data,List.of(axis),Map.of("salesAmount",com.foggyframework.dataset.model.spi.DbAggregation.MIN)).get(0).get("city"));
+        var max = AxisTopNTruncator.apply(data,List.of(axis),Map.of("salesAmount",com.foggyframework.dataset.model.spi.DbAggregation.MAX));
+        assertEquals(data.subList(2,4),max);
+        axis.setStart(1);
+        assertEquals(data.subList(0,2),AxisTopNTruncator.apply(data,List.of(axis),Map.of("salesAmount",com.foggyframework.dataset.model.spi.DbAggregation.MAX)));
+    }
+
+    @Test
     @Order(1)
     @DisplayName("单层 TopN → 全局 Top 2")
     void testSingleLevelTopN() {

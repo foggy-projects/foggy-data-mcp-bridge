@@ -1295,6 +1295,9 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
 
     private SemanticQueryResponse validateQueryInternal(String model, SemanticQueryRequest request,
                                                         SemanticRequestContext requestContext) {
+        if (request.isPivotMode()) {
+            return getPivotPipeline().validate(model, request, requestContext);
+        }
         String namespace = requestContext != null ? requestContext.getNamespace() : null;
         if (queryFacade == null) {
             return validateQueryInternalLegacy(model, request, namespace);

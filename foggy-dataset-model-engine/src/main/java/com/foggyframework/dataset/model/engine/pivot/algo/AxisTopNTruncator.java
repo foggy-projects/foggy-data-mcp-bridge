@@ -1,6 +1,9 @@
 package com.foggyframework.dataset.model.engine.pivot.algo;
 
 import com.foggyframework.dataset.model.semantic.domain.pivot.AxisField;
+import com.foggyframework.dataset.model.spi.DbAggregation;
+
+import java.math.BigDecimal;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -14,6 +17,63 @@ import java.util.stream.Collectors;
  * 即 limit 的语义是"在每个父级分组内保留前 N 个子成员"。</p>
  */
 public class AxisTopNTruncator {
+
+    /**
+     * Window additive member domains, retaining every cell of a surviving member.
+     * Ranking across other axis buckets uses the metric's declared reaggregation.
+     * Non-additive/unknown rankings keep the existing fallback contract; their
+     * parent value cannot be inferred from already aggregated cells.
+     */
+    public static List<Map<String, Object>> apply(List<Map<String, Object>> resultSet,
+                                                 List<AxisField> axisFields,
+                                                 Map<String, DbAggregation> aggregations) {
+        if (axisFields == null || resultSet.isEmpty()) return resultSet;
+        Set<String> axisNames = axisFields.stream().map(AxisField::getField).collect(Collectors.toSet());
+        for (AxisField field : axisFields) {
+            if (field.getLimit() == null || field.getLimit() <= 0 || field.getOrderBy() == null) continue;
+            for (String spec : field.getOrderBy()) {
+                String name = spec.startsWith("-") ? spec.substring(1) : spec;
+                if (!axisNames.contains(name) && !aggregations.containsKey(name)) return apply(resultSet, axisFields);
+            }
+        }
+        List<Map<String, Object>> current = new ArrayList<>(resultSet);
+        List<String> parents = new ArrayList<>();
+        for (AxisField field : axisFields) {
+            if (field.getLimit() != null && field.getLimit() > 0) {
+                Map<List<Object>, Map<Object, List<Map<String, Object>>>> partitions = new LinkedHashMap<>();
+                for (var row : current) {
+                    List<Object> key = parents.stream().map(row::get).collect(Collectors.toList());
+                    partitions.computeIfAbsent(key, k -> new LinkedHashMap<>())
+                            .computeIfAbsent(row.get(field.getField()), k -> new ArrayList<>()).add(row);
+                }
+                List<Map<String, Object>> selected = new ArrayList<>();
+                for (var members : partitions.values()) {
+                    List<Map<String, Object>> ranking = new ArrayList<>();
+                    for (var cells : members.values()) {
+                        Map<String, Object> member = new LinkedHashMap<>(cells.get(0));
+                        for (var metric : aggregations.entrySet()) {
+                            List<Number> values = cells.stream().map(r -> r.get(metric.getKey()))
+                                    .filter(Number.class::isInstance).map(Number.class::cast).toList();
+                            if (values.isEmpty()) member.put(metric.getKey(), null);
+                            else member.put(metric.getKey(), switch (metric.getValue()) {
+                                case MIN -> values.stream().min(AxisTopNTruncator::compareValues).orElseThrow();
+                                case MAX -> values.stream().max(AxisTopNTruncator::compareValues).orElseThrow();
+                                default -> values.stream().map(n -> new BigDecimal(n.toString())).reduce(BigDecimal.ZERO, BigDecimal::add);
+                            });
+                        }
+                        ranking.add(member);
+                    }
+                    if (field.getOrderBy() != null && !field.getOrderBy().isEmpty()) ranking.sort(buildComparator(field.getOrderBy()));
+                    int start = Math.min(field.getEffectiveOffset(), ranking.size());
+                    int end = (int) Math.min((long) start + field.getLimit(), ranking.size());
+                    for (var member : ranking.subList(start, end)) selected.addAll(members.get(member.get(field.getField())));
+                }
+                current = selected;
+            }
+            parents.add(field.getField());
+        }
+        return current;
+    }
 
     /**
      * 对结果集应用轴向 TopN 截断
@@ -125,7 +185,7 @@ public class AxisTopNTruncator {
         if (b == null) return 1;
 
         if (a instanceof Number && b instanceof Number) {
-            return Double.compare(((Number) a).doubleValue(), ((Number) b).doubleValue());
+            return new BigDecimal(a.toString()).compareTo(new BigDecimal(b.toString()));
         }
 
         if (a instanceof Comparable && b instanceof Comparable) {

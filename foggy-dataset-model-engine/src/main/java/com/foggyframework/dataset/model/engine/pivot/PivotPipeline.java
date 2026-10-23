@@ -183,71 +183,22 @@ public class PivotPipeline {
      */
     public SemanticQueryResponse execute(String model, SemanticQueryRequest request,
                                           SemanticRequestContext context) {
-        context = context == null ? SemanticRequestContext.empty() : context;
+        PreparedPivot prepared = preparePivot(model, request, context);
+        context = prepared.context();
+        QueryModel queryModel = prepared.queryModel();
+        CatalogResolution<QueryModel> catalogResolution = prepared.catalogResolution();
+        PivotOuterCacheStrongIdentity.Assessment strongIdentityAssessment = prepared.strongIdentityAssessment();
         PivotRequest pivot = request.getPivot();
+        HierarchyContext hierarchyCtx = prepared.hierarchy();
+        List<String> rowFields = prepared.rowFields();
+        List<String> colFields = prepared.colFields();
+        List<String> metrics = prepared.metrics();
+        List<PropertyResolver.ResolvedProperty> resolvedProps = prepared.properties();
+        boolean cascadeRequest = PivotCascadeRules.isCascadeRequest(pivot);
         long startTime = System.currentTimeMillis();
         PivotDiagnosticCollector diagnostics = new PivotDiagnosticCollector(model);
-
-        // ===== 前置校验 =====
-        validatePivotRequest(request);
-
-        // ===== 提前加载 QueryModel（用于 S8.3 度量元数据 + Properties）=====
-        CatalogResolution<QueryModel> catalogResolution = null;
-        QueryModel queryModel = null;
-        if (queryModelLoader != null) {
-            catalogResolution = queryModelLoader.resolveJdbcQueryModel(model, context.getNamespace());
-            queryModel = catalogResolution != null
-                    ? catalogResolution.model()
-                    : queryModelLoader.getJdbcQueryModel(model, context.getNamespace());
-        }
-        PivotOuterCacheStrongIdentity.Assessment strongIdentityAssessment =
-                PivotOuterCacheStrongIdentity.assess(catalogResolution, context.getNamespace());
-        if (strongIdentityAssessment.pinnable()) {
-            context = context.withCatalogResolution(catalogResolution);
-        }
-        AuthorizationSignature authorizationSignature = authorizeForOuterCache(
-                queryModel,
-                strongIdentityAssessment.pinnable() ? catalogResolution : null,
-                request,
-                context);
-        injectPredefinedCalculatedFields(request, queryModel);
-        PivotCascadeRules.validateAdditivity(pivot, queryModel, request.getCalculatedFields());
-
-        // ===== S11: parentShare non-additive guard（需 queryModel 已加载）=====
-        if (!pivot.getParentShareMetrics().isEmpty() && queryModel != null) {
-            ParentShareCalculator.validateAdditivity(pivot, queryModel);
-        }
-
-        // ===== S12: baselineRatio guard =====
-        if (!pivot.getBaselineRatioMetrics().isEmpty()) {
-            if (queryModel != null) {
-                BaselineRatioCalculator.validateAdditivity(pivot, queryModel);
-            }
-            // baselineRatio.of 必须在原生度量中声明
-            List<String> nativeMetrics = pivot.getNativeMetricNames();
-            for (PivotMetricItem br : pivot.getBaselineRatioMetrics()) {
-                if (!nativeMetrics.contains(br.getOf())) {
-                    throw new IllegalArgumentException(
-                            "baselineRatio 派生指标 '" + br.getName() + "' 依赖的原生度量 '" + br.getOf() +
-                            "' 未在 pivot.metrics 中声明");
-                }
-            }
-            // baselineRatio 第一版要求 columns 必须有层级
-            if (pivot.getColumns() == null || pivot.getColumns().isEmpty()) {
-                throw new IllegalArgumentException("使用 baselineRatio 派生指标时，columns 轴不能为空");
-            }
-        }
-
-        // ===== 检测 hierarchyMode=tree =====
-        HierarchyContext hierarchyCtx = HierarchyContext.detect(pivot.getRows());
-        if (hierarchyCtx.isTree() && !pivot.getBaselineRatioMetrics().isEmpty()) {
-            throw new IllegalArgumentException("当前版本不支持 hierarchyMode=tree 与 baselineRatio 派生指标同时使用");
-        }
-
-        List<String> rowFields = extractFieldNames(pivot.getRows());
-        List<String> colFields = extractFieldNames(pivot.getColumns());
-        List<String> metrics = pivot.getSqlMetricNames();
-        boolean cascadeRequest = PivotCascadeRules.isCascadeRequest(pivot);
+        AuthorizationSignature authorizationSignature = authorizeForOuterCache(queryModel,
+                strongIdentityAssessment.pinnable() ? catalogResolution : null, request, context);
 
         boolean outerCacheEnabled = outerResponseCache.isEnabled();
         Optional<PivotOuterCacheSafeProvider.UnavailableEvent> cacheEnabledUnavailable =
@@ -301,26 +252,6 @@ public class PivotPipeline {
             }
             diagnostics.cacheMiss(cacheEvaluation.keyHash(), cacheEligibilityStage, missReason,
                     cacheEvaluation.shapeClass());
-        }
-
-        // 如果有 tree hierarchy，确保 Phase 1 带出 $id 字段
-        if (hierarchyCtx.isTree()) {
-            rowFields = hierarchyCtx.ensureIdField(rowFields);
-        }
-
-        // ===== Properties 函数依赖预校验 =====
-        Set<String> allAxisFields = new LinkedHashSet<>();
-        allAxisFields.addAll(rowFields);
-        allAxisFields.addAll(colFields);
-
-        List<PropertyResolver.ResolvedProperty> resolvedProps = Collections.emptyList();
-        if (pivot.getProperties() != null && !pivot.getProperties().isEmpty()) {
-            if (queryModel != null) {
-                resolvedProps = PropertyResolver.resolve(queryModel, pivot.getProperties(), allAxisFields);
-                logger.debug("[Pivot] Properties validated: {}", resolvedProps);
-            } else {
-                logger.debug("[Pivot] QueryModelLoader not available, properties will be included in Phase 1 as fallback");
-            }
         }
 
         // ===== Phase 1: SQL 萃取（不含 properties）=====
@@ -427,8 +358,19 @@ public class PivotPipeline {
             }
 
             // 2.2 轴向 TopN 截断（SQL pushdown 场景已在 SQL 层完成）
-            resultSet = AxisTopNTruncator.apply(resultSet, pivot.getRows());
-            resultSet = AxisTopNTruncator.apply(resultSet, pivot.getColumns());
+            Map<String, DbAggregation> rankingAggregations = new LinkedHashMap<>();
+            if (hasAxisDomainOperations(pivot.getRows()) || hasAxisDomainOperations(pivot.getColumns())) {
+                for (var metric : MetricAdditivityAnalyzer.analyze(metrics, queryModel, request.getCalculatedFields())) {
+                    switch (metric.getStrategy()) {
+                        case IN_MEMORY_SUM -> rankingAggregations.put(metric.getMetricName(), DbAggregation.SUM);
+                        case IN_MEMORY_MIN -> rankingAggregations.put(metric.getMetricName(), DbAggregation.MIN);
+                        case IN_MEMORY_MAX -> rankingAggregations.put(metric.getMetricName(), DbAggregation.MAX);
+                        default -> { /* Preserve existing non-additive fallback boundaries. */ }
+                    }
+                }
+            }
+            resultSet = AxisTopNTruncator.apply(resultSet, pivot.getRows(), rankingAggregations);
+            resultSet = AxisTopNTruncator.apply(resultSet, pivot.getColumns(), rankingAggregations);
         } else if (axisDomainSelectionUsed) {
             logger.debug("[Pivot] Phase 2: Skipping Having/TopN (already done by axis domain selection)");
         } else {
@@ -549,6 +491,162 @@ public class PivotPipeline {
                 parentShareEvidence, capabilityContract, diagnostics.snapshot());
         return storeOuterCacheIfEligible(cacheEvaluation, cacheEligibilityStage, diagnostics, response, model, context);
     }
+
+    /** Static Pivot validation. Never enumerate domains, query facts, or read/write result caches. */
+    public SemanticQueryResponse validate(String model, SemanticQueryRequest request,
+                                          SemanticRequestContext context) {
+        context = (context == null ? SemanticRequestContext.empty() : context)
+                .withPermissionAction(PermissionAction.VALIDATE);
+        PreparedPivot prepared = preparePivot(model, request, context);
+        context = prepared.context();
+        PivotRequest pivot = request.getPivot();
+        List<String> warnings = new ArrayList<>();
+        validateFlatRequest(model, buildPhase1FlatRequest(request, prepared.rowFields(), prepared.colFields(),
+                prepared.metrics(), prepared.queryModel()), context, warnings);
+
+        // Compile the same optional pushdown plan without executing the resulting SQL.
+        String skip = getSqlPushdownSkipReason(pivot, prepared.hierarchy());
+        if (hasAxisDomainSelectionRequest(pivot)) {
+            if (PivotCascadeRules.isCascadeRequest(pivot)) {
+                throw PivotCascadeException.sqlRequired("SQL pushdown is unavailable: axisDomainSelectionRequiresTwoPhaseQuery.");
+            }
+            for (List<AxisField> axis : List.of(pivot.getRows(),
+                    pivot.getColumns() == null ? List.<AxisField>of() : pivot.getColumns())) {
+                if (!axis.isEmpty() && hasAxisDomainSelectionRequest(axis.get(0))) {
+                    validateFlatRequest(model, buildAxisDomainRequest(request, axis.get(0), prepared.metrics(),
+                            prepared.queryModel(), true), context, warnings);
+                }
+            }
+        } else if (skip == null) {
+            try {
+                planPhase1WithSqlPushdown(model, request, context, prepared.rowFields(), prepared.colFields(),
+                        prepared.metrics(), pivot, prepared.queryModel());
+            } catch (PivotPushdownUnsupportedException | UnsupportedOperationException failure) {
+                if (PivotCascadeRules.isCascadeRequest(pivot)) {
+                    throw PivotCascadeException.sqlRequired("Planner failure: " + failure.getMessage(), failure);
+                }
+                // Match execution's optional memory fallback.
+            }
+        } else if (PivotCascadeRules.isCascadeRequest(pivot)) {
+            throw PivotCascadeException.sqlRequired("SQL pushdown is unavailable: " + skip + ".");
+        }
+        if (prepared.hierarchy().isTree()) {
+            validateFlatRequest(model, buildHierarchySkeletonRequest(prepared.hierarchy().getDimName(),
+                    prepared.hierarchy().getIdField()), context, warnings);
+        }
+        for (var properties : groupProperties(prepared.properties()).values()) {
+            validateFlatRequest(model, buildPropertyLookupRequest(request, properties), context, warnings);
+        }
+        SemanticQueryResponse response = new SemanticQueryResponse();
+        response.setWarnings(warnings.isEmpty() ? null : new ArrayList<>(new LinkedHashSet<>(warnings)));
+        return response;
+    }
+
+    private void validateFlatRequest(String model, SemanticQueryRequest flatRequest,
+                                     SemanticRequestContext context, List<String> warnings) {
+        SemanticQueryResponse response = pivotRollupExecutionPort.queryModel(model, flatRequest, "validate", context);
+        if (response != null && response.getWarnings() != null) warnings.addAll(response.getWarnings());
+    }
+
+    /** Request shape, model identity and result-stage rules shared by validate and execute. */
+    private PreparedPivot preparePivot(String model, SemanticQueryRequest request, SemanticRequestContext context) {
+        context = context == null ? SemanticRequestContext.empty() : context;
+        PivotRequest pivot = request.getPivot();
+
+        // ===== 前置校验 =====
+        validatePivotRequest(request);
+
+        // ===== 提前加载 QueryModel（用于 S8.3 度量元数据 + Properties）=====
+        CatalogResolution<QueryModel> catalogResolution = null;
+        QueryModel queryModel = null;
+        if (queryModelLoader != null) {
+            catalogResolution = queryModelLoader.resolveJdbcQueryModel(model, context.getNamespace());
+            queryModel = catalogResolution != null
+                    ? catalogResolution.model()
+                    : queryModelLoader.getJdbcQueryModel(model, context.getNamespace());
+        }
+        PivotOuterCacheStrongIdentity.Assessment strongIdentityAssessment =
+                PivotOuterCacheStrongIdentity.assess(catalogResolution, context.getNamespace());
+        if (strongIdentityAssessment.pinnable()) {
+            context = context.withCatalogResolution(catalogResolution);
+        }
+        // Authorize the model before exposing metadata-dependent validation failures.
+        // Downstream governed queries reuse the same request-local permission session.
+        if (queryModel != null && queryModel.getModelPermissions() != null && modelPermissionService != null) {
+            PermissionAction action = context.getPermissionAction() != null
+                    ? context.getPermissionAction() : PermissionAction.EXECUTE;
+            if (!modelPermissionService.evaluate(queryModel, context.getNamespace(), action,
+                    context.getRequestIdentity(), context.getPermissionSession()).isAllow()) {
+                throw ModelPermissionException.denied();
+            }
+        }
+        injectPredefinedCalculatedFields(request, queryModel);
+        PivotCascadeRules.validateAdditivity(pivot, queryModel, request.getCalculatedFields());
+
+        // ===== S11: parentShare non-additive guard（需 queryModel 已加载）=====
+        if (!pivot.getParentShareMetrics().isEmpty() && queryModel != null) {
+            ParentShareCalculator.validateAdditivity(pivot, queryModel);
+        }
+
+        // ===== S12: baselineRatio guard =====
+        if (!pivot.getBaselineRatioMetrics().isEmpty()) {
+            if (queryModel != null) {
+                BaselineRatioCalculator.validateAdditivity(pivot, queryModel);
+            }
+            // baselineRatio.of 必须在原生度量中声明
+            List<String> nativeMetrics = pivot.getNativeMetricNames();
+            for (PivotMetricItem br : pivot.getBaselineRatioMetrics()) {
+                if (!nativeMetrics.contains(br.getOf())) {
+                    throw new IllegalArgumentException(
+                            "baselineRatio 派生指标 '" + br.getName() + "' 依赖的原生度量 '" + br.getOf() +
+                            "' 未在 pivot.metrics 中声明");
+                }
+            }
+            // baselineRatio 第一版要求 columns 必须有层级
+            if (pivot.getColumns() == null || pivot.getColumns().isEmpty()) {
+                throw new IllegalArgumentException("使用 baselineRatio 派生指标时，columns 轴不能为空");
+            }
+        }
+
+        // ===== 检测 hierarchyMode=tree =====
+        HierarchyContext hierarchyCtx = HierarchyContext.detect(pivot.getRows());
+        if (hierarchyCtx.isTree() && !pivot.getBaselineRatioMetrics().isEmpty()) {
+            throw new IllegalArgumentException("当前版本不支持 hierarchyMode=tree 与 baselineRatio 派生指标同时使用");
+        }
+
+        List<String> rowFields = extractFieldNames(pivot.getRows());
+        List<String> colFields = extractFieldNames(pivot.getColumns());
+        List<String> metrics = pivot.getSqlMetricNames();
+        // 如果有 tree hierarchy，确保 Phase 1 带出 $id 字段
+        if (hierarchyCtx.isTree()) {
+            rowFields = hierarchyCtx.ensureIdField(rowFields);
+        }
+
+        // ===== Properties 函数依赖预校验 =====
+        Set<String> allAxisFields = new LinkedHashSet<>();
+        allAxisFields.addAll(rowFields);
+        allAxisFields.addAll(colFields);
+
+        List<PropertyResolver.ResolvedProperty> resolvedProps = Collections.emptyList();
+        if (pivot.getProperties() != null && !pivot.getProperties().isEmpty()) {
+            if (queryModel != null) {
+                resolvedProps = PropertyResolver.resolve(queryModel, pivot.getProperties(), allAxisFields);
+                logger.debug("[Pivot] Properties validated: {}", resolvedProps);
+            } else {
+                logger.debug("[Pivot] QueryModelLoader not available, properties will be included in Phase 1 as fallback");
+            }
+        }
+
+        validateAxisControlReferences(pivot, rowFields, colFields, metrics);
+        return new PreparedPivot(context, queryModel, catalogResolution, strongIdentityAssessment,
+                hierarchyCtx, rowFields, colFields, metrics, resolvedProps);
+    }
+
+    private record PreparedPivot(SemanticRequestContext context, QueryModel queryModel,
+                                 CatalogResolution<QueryModel> catalogResolution,
+                                 PivotOuterCacheStrongIdentity.Assessment strongIdentityAssessment,
+                                 HierarchyContext hierarchy, List<String> rowFields, List<String> colFields,
+                                 List<String> metrics, List<PropertyResolver.ResolvedProperty> properties) { }
 
     private AuthorizationSignature authorizeForOuterCache(
             QueryModel queryModel,
@@ -855,40 +953,9 @@ public class PivotPipeline {
                                                      SemanticRequestContext context,
                                                      List<String> rowFields, List<String> colFields,
                                                      List<String> metrics, QueryModel queryModel) {
-        // 构建扁平查询请求
-        SemanticQueryRequest flatRequest = new SemanticQueryRequest();
-
-        // columns = rows + columns + metrics（不含 properties，避免扩大分组粒度）
-        List<String> allColumns = new ArrayList<>();
-        allColumns.addAll(rowFields);
-        allColumns.addAll(colFields);
-        allColumns.addAll(metrics);
-        flatRequest.setColumns(allColumns);
-
-        // groupBy = rows + columns (维度字段)，metrics 用度量元数据中的聚合类型
-        List<SemanticQueryRequest.GroupByItem> groupBy = new ArrayList<>();
-        for (String dim : rowFields) {
-            groupBy.add(new SemanticQueryRequest.GroupByItem(dim, null));
-        }
-        for (String dim : colFields) {
-            groupBy.add(new SemanticQueryRequest.GroupByItem(dim, null));
-        }
-        for (String metric : metrics) {
-            String aggStr = resolveMetricAggregation(metric, queryModel);
-            groupBy.add(new SemanticQueryRequest.GroupByItem(metric, aggStr));
-        }
-        flatRequest.setGroupBy(groupBy);
-
-        // 透传 slice 和 calculatedFields
-        flatRequest.setSlice(originalRequest.getSlice());
-        flatRequest.setCalculatedFields(originalRequest.getCalculatedFields());
-
-        // 不分页，取全量
-        flatRequest.setLimit(CardinalityBreaker.DEFAULT_ROW_LIMIT * CardinalityBreaker.DEFAULT_COL_LIMIT);
-        flatRequest.setReturnTotal(false);
-
+        SemanticQueryRequest flatRequest = buildPhase1FlatRequest(originalRequest, rowFields, colFields, metrics, queryModel);
         SemanticQueryResponse response = pivotRollupExecutionPort.queryModel(model, flatRequest, "execute", context);
-        return QueryFieldBindings.logicalRows(response.getItems(), queryModel, allColumns, flatRequest.getCalculatedFields());
+        return QueryFieldBindings.logicalRows(response.getItems(), queryModel, flatRequest.getColumns(), flatRequest.getCalculatedFields());
     }
 
     /**
@@ -1089,28 +1156,8 @@ public class PivotPipeline {
         }
 
         String field = axisField.getField();
-        SemanticQueryRequest domainRequest = new SemanticQueryRequest();
-
-        List<String> columns = new ArrayList<>();
-        columns.add(field);
-        columns.addAll(metrics);
-        domainRequest.setColumns(columns);
-
-        List<SemanticQueryRequest.GroupByItem> groupBy = new ArrayList<>();
-        groupBy.add(new SemanticQueryRequest.GroupByItem(field, null));
-        for (String metric : metrics) {
-            groupBy.add(new SemanticQueryRequest.GroupByItem(metric, resolveMetricAggregation(metric, queryModel)));
-        }
-        domainRequest.setGroupBy(groupBy);
-        domainRequest.setSlice(mergeSlices(originalRequest.getSlice(), axisField.getDomainSlice()));
-        domainRequest.setHaving(toHavingSlices(axisField.getHaving()));
-        domainRequest.setOrderBy(buildAxisDomainOrderBy(axisField));
-        if (applyWindow) {
-            domainRequest.setStart(axisField.getEffectiveOffset());
-        }
-        domainRequest.setCalculatedFields(originalRequest.getCalculatedFields());
-        domainRequest.setLimit(applyWindow ? resolveAxisDomainQueryLimit(axisField) : CardinalityBreaker.DEFAULT_ROW_LIMIT);
-        domainRequest.setReturnTotal(false);
+        SemanticQueryRequest domainRequest = buildAxisDomainRequest(originalRequest, axisField, metrics, queryModel, applyWindow);
+        List<String> columns = domainRequest.getColumns();
 
         SemanticQueryResponse response = pivotRollupExecutionPort.queryModel(model, domainRequest, "execute", context);
         List<Map<String, Object>> domainRows = QueryFieldBindings.logicalRows(response.getItems(), queryModel, columns, domainRequest.getCalculatedFields());
@@ -1126,6 +1173,34 @@ public class PivotPipeline {
             domain.add(row.get(field));
         }
         return domain;
+    }
+
+    private SemanticQueryRequest buildAxisDomainRequest(SemanticQueryRequest originalRequest, AxisField axisField,
+                                                         List<String> metrics, QueryModel queryModel, boolean applyWindow) {
+        SemanticQueryRequest domainRequest = new SemanticQueryRequest();
+
+        List<String> columns = new ArrayList<>();
+        columns.add(axisField.getField());
+        columns.addAll(metrics);
+        domainRequest.setColumns(columns);
+
+        List<SemanticQueryRequest.GroupByItem> groupBy = new ArrayList<>();
+        groupBy.add(new SemanticQueryRequest.GroupByItem(axisField.getField(), null));
+        for (String metric : metrics) {
+            groupBy.add(new SemanticQueryRequest.GroupByItem(metric, resolveMetricAggregation(metric, queryModel)));
+        }
+        domainRequest.setGroupBy(groupBy);
+        domainRequest.setSlice(mergeSlices(originalRequest.getSlice(), axisField.getDomainSlice()));
+        domainRequest.setHaving(toHavingSlices(axisField.getHaving()));
+        domainRequest.setOrderBy(buildAxisDomainOrderBy(axisField));
+        if (applyWindow) {
+            domainRequest.setStart(axisField.getEffectiveOffset());
+        }
+        domainRequest.setCalculatedFields(originalRequest.getCalculatedFields());
+        domainRequest.setLimit(applyWindow ? resolveAxisDomainQueryLimit(axisField) : CardinalityBreaker.DEFAULT_ROW_LIMIT);
+        domainRequest.setReturnTotal(false);
+
+        return domainRequest;
     }
 
     private BaselineRatioPrePageAxisDomainResult executeBaselineRatioPrePageAxisDomain(
@@ -1509,6 +1584,31 @@ public class PivotPipeline {
             List<String> rowFields, List<String> colFields,
             List<String> metrics, PivotRequest pivot, QueryModel queryModel) {
 
+        PlannedPhase1 phase = planPhase1WithSqlPushdown(model, originalRequest, context, rowFields, colFields, metrics, pivot, queryModel);
+        ManagedSqlRelation baseRelation = phase.relation();
+        PivotAxisDomainSqlPlanner.PlannedSql planned = phase.sql();
+        // 5. 执行最终 SQL
+        com.foggyframework.dataset.model.engine.query.DbQueryResult dbResult =
+                queryFacade.executeManagedRelation(baseRelation, planned.getSql(), planned.getParams());
+
+        if (dbResult.getPagingResult() != null && dbResult.getPagingResult().getItems() != null) {
+            List<Map<String, Object>> items = new ArrayList<>();
+            for (Object row : dbResult.getPagingResult().getItems()) {
+                if (row instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> map = (Map<String, Object>) row;
+                    items.add(map);
+                }
+            }
+            return items;
+        }
+        return Collections.emptyList();
+    }
+
+    private PlannedPhase1 planPhase1WithSqlPushdown(String model, SemanticQueryRequest originalRequest,
+                                                   SemanticRequestContext context, List<String> rowFields,
+                                                   List<String> colFields, List<String> metrics,
+                                                   PivotRequest pivot, QueryModel queryModel) {
         // 1. 构建与 executePhase1 相同的扁平请求
         SemanticQueryRequest flatRequest = buildPhase1FlatRequest(originalRequest, rowFields, colFields, metrics, queryModel);
 
@@ -1544,23 +1644,10 @@ public class PivotPipeline {
         PivotAxisDomainSqlPlanner.PlannedSql planned = PivotAxisDomainSqlPlanner.plan(
                 baseRelation, pivot, rowFields, colFields, metrics);
 
-        // 5. 执行最终 SQL
-        com.foggyframework.dataset.model.engine.query.DbQueryResult dbResult =
-                queryFacade.executeManagedRelation(baseRelation, planned.getSql(), planned.getParams());
-
-        if (dbResult.getPagingResult() != null && dbResult.getPagingResult().getItems() != null) {
-            List<Map<String, Object>> items = new ArrayList<>();
-            for (Object row : dbResult.getPagingResult().getItems()) {
-                if (row instanceof Map) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> map = (Map<String, Object>) row;
-                    items.add(map);
-                }
-            }
-            return items;
-        }
-        return Collections.emptyList();
+        return new PlannedPhase1(baseRelation, planned);
     }
+
+    private record PlannedPhase1(ManagedSqlRelation relation, PivotAxisDomainSqlPlanner.PlannedSql sql) { }
 
     /**
      * 构建 Phase 1 的扁平查询请求（复用自 executePhase1 的逻辑）
@@ -1706,9 +1793,7 @@ public class PivotPipeline {
             SemanticRequestContext context,
             List<PropertyResolver.ResolvedProperty> resolvedProps, QueryModel queryModel) {
 
-        // 按维度名分组
-        Map<String, List<PropertyResolver.ResolvedProperty>> byDim = resolvedProps.stream()
-                .collect(Collectors.groupingBy(PropertyResolver.ResolvedProperty::getDimensionName));
+        Map<String, List<PropertyResolver.ResolvedProperty>> byDim = groupProperties(resolvedProps);
 
         Map<String, Map<Object, Map<String, Object>>> result = new LinkedHashMap<>();
 
@@ -1717,21 +1802,9 @@ public class PivotPipeline {
             List<PropertyResolver.ResolvedProperty> props = entry.getValue();
             String keyField = props.get(0).getLookupKeyField();
 
-            // 构建辅助查询：SELECT DISTINCT keyField, prop1, prop2, ...
-            List<String> selectFields = new ArrayList<>();
-            selectFields.add(keyField);
-            List<String> propFieldNames = new ArrayList<>();
-            for (PropertyResolver.ResolvedProperty p : props) {
-                selectFields.add(p.getFullFieldName());
-                propFieldNames.add(p.getFullFieldName());
-            }
-
-            SemanticQueryRequest lookupRequest = new SemanticQueryRequest();
-            lookupRequest.setColumns(selectFields);
-            lookupRequest.setDistinct(true);
-            lookupRequest.setSlice(originalRequest.getSlice()); // 透传 slice 保持数据一致性
-            lookupRequest.setLimit(CardinalityBreaker.DEFAULT_ROW_LIMIT);
-            lookupRequest.setReturnTotal(false);
+            SemanticQueryRequest lookupRequest = buildPropertyLookupRequest(originalRequest, props);
+            List<String> selectFields = lookupRequest.getColumns();
+            List<String> propFieldNames = props.stream().map(PropertyResolver.ResolvedProperty::getFullFieldName).toList();
 
             logger.debug("[Pivot] Property lookup: dim={}, fields={}", dimName, selectFields);
 
@@ -1749,6 +1822,35 @@ public class PivotPipeline {
         return result;
     }
 
+    private Map<String, List<PropertyResolver.ResolvedProperty>> groupProperties(List<PropertyResolver.ResolvedProperty> properties) {
+        return properties.stream().collect(Collectors.groupingBy(PropertyResolver.ResolvedProperty::getDimensionName));
+    }
+
+    private SemanticQueryRequest buildPropertyLookupRequest(SemanticQueryRequest originalRequest,
+                                                            List<PropertyResolver.ResolvedProperty> properties) {
+        List<String> fields = new ArrayList<>();
+        fields.add(properties.get(0).getLookupKeyField());
+        for (var property : properties) fields.add(property.getFullFieldName());
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(fields);
+        request.setDistinct(true);
+        request.setSlice(originalRequest.getSlice());
+        request.setCalculatedFields(originalRequest.getCalculatedFields());
+        request.setLimit(CardinalityBreaker.DEFAULT_ROW_LIMIT);
+        request.setReturnTotal(false);
+        return request;
+    }
+
+    private SemanticQueryRequest buildHierarchySkeletonRequest(String dimension, String idField) {
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(List.of(idField, dimension + "$parentId"));
+        request.setDistinct(true);
+        // No user slice: keep the existing complete skeleton contract; governed systemSlice still applies.
+        request.setLimit(CardinalityBreaker.DEFAULT_ROW_LIMIT);
+        request.setReturnTotal(false);
+        return request;
+    }
+
     /**
      * Phase 1.5: 查询维度邻接表骨架（SELECT DISTINCT nodeId, parentId）
      *
@@ -1762,13 +1864,7 @@ public class PivotPipeline {
 
         String parentField = dimName + "$parentId";
 
-        // 构建辅助查询：SELECT DISTINCT id, parentId FROM model
-        SemanticQueryRequest skeletonRequest = new SemanticQueryRequest();
-        skeletonRequest.setColumns(List.of(idField, parentField));
-        skeletonRequest.setDistinct(true);
-        // 不透传 slice — 骨架需要完整的维度层级关系
-        skeletonRequest.setLimit(CardinalityBreaker.DEFAULT_ROW_LIMIT);
-        skeletonRequest.setReturnTotal(false);
+        SemanticQueryRequest skeletonRequest = buildHierarchySkeletonRequest(dimName, idField);
 
         logger.debug("[Pivot] Hierarchy skeleton: SELECT DISTINCT {}, {} FROM {}",
                 idField, parentField, model);
@@ -1796,6 +1892,8 @@ public class PivotPipeline {
      */
     private void validatePivotRequest(SemanticQueryRequest request) {
         PivotRequest pivot = request.getPivot();
+        validateAxisShape(pivot.getRows(), "rows");
+        validateAxisShape(pivot.getColumns(), "columns");
         PivotCascadeRules.validateRequestShape(pivot);
 
         // pivot 与 columns 互斥
@@ -1903,6 +2001,66 @@ public class PivotPipeline {
 
         // S11: parentShare non-additive guard（需 queryModel，在 pipeline 层执行）
         // 注意：此处 queryModel 尚未加载，延迟到 execute() 中处理
+    }
+
+    private void validateAxisShape(List<AxisField> fields, String axis) {
+        if (fields == null) return;
+        for (int i = 0; i < fields.size(); i++) {
+            AxisField field = fields.get(i);
+            if (field == null || field.getField() == null || field.getField().isBlank()) {
+                throw pivotReferenceFailure(null, "pivot." + axis + "[" + i + "].field", "Axis field must not be empty");
+            }
+        }
+    }
+
+    private void validateAxisControlReferences(PivotRequest pivot, List<String> rows,
+                                               List<String> columns, List<String> metrics) {
+        Set<String> sortable = new LinkedHashSet<>(rows);
+        sortable.addAll(columns);
+        sortable.addAll(metrics);
+        validateAxisControlReferences(pivot.getRows(), "rows", sortable, metrics);
+        validateAxisControlReferences(pivot.getColumns(), "columns", sortable, metrics);
+    }
+
+    private void validateAxisControlReferences(List<AxisField> fields, String axis,
+                                               Set<String> sortable, List<String> metrics) {
+        if (fields == null) return;
+        for (int i = 0; i < fields.size(); i++) {
+            AxisField field = fields.get(i);
+            String path = "pivot." + axis + "[" + i + "]";
+            if (field.getOrderBy() != null) {
+                for (int j = 0; j < field.getOrderBy().size(); j++) {
+                    String order = field.getOrderBy().get(j);
+                    String name = order != null && order.startsWith("-") ? order.substring(1) : order;
+                    if (!sortable.contains(name)) {
+                        throw pivotReferenceFailure(name, path + ".orderBy[" + j + "]",
+                                "Axis ordering must reference a selected axis field or SQL metric");
+                    }
+                }
+            }
+            if (field.getHaving() != null) {
+                for (int j = 0; j < field.getHaving().size(); j++) {
+                    MetricFilter filter = field.getHaving().get(j);
+                    if (filter == null || !metrics.contains(filter.getMetric())) {
+                        throw pivotReferenceFailure(filter == null ? null : filter.getMetric(),
+                                path + ".having[" + j + "].metric", "Axis having must reference a selected SQL metric");
+                    }
+                    if (filter.getOp() == null || !Set.of(">", ">=", "<", "<=", "=", "!=").contains(filter.getOp())
+                            || filter.getValue() == null) {
+                        throw pivotReferenceFailure(filter.getMetric(), path + ".having[" + j + "]",
+                                "Axis having requires a supported comparison and numeric value");
+                    }
+                }
+            }
+        }
+    }
+
+    private com.foggyframework.dataset.model.engine.expression.QueryCalculationException pivotReferenceFailure(
+            String field, String path, String message) {
+        return new com.foggyframework.dataset.model.engine.expression.QueryCalculationException(
+                "PIVOT_INVALID_REFERENCE", field, path, message,
+                "Use the logical field names in pivot axes and metrics; output aliases are not input synonyms.",
+                Map.of("path", path));
     }
 
     private void validateAxisDomainSelectionRequest(PivotRequest pivot) {
