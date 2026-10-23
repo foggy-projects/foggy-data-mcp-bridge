@@ -133,7 +133,7 @@ public final class SchemaDerivation {
         // We can't fully parse SQL-ish expressions at M4 (that's M6's job),
         // but we can catch the common "bare identifier" miss.
         for (ColumnAliasParts parts : partsList) {
-            List<String> referenced = extractBareIdentifiers(parts.expression());
+            List<String> referenced = com.foggyframework.dataset.model.engine.compose.compilation.ComposeScalarExpression.references(parts.expression());
             for (String ident : referenced) {
                 if (isReservedToken(ident)) {
                     continue;
@@ -154,7 +154,10 @@ public final class SchemaDerivation {
         List<ColumnSpec> specs = partsToSpecs(partsList, null, currentPath);
         // An omitted projection is SELECT *: retain names and provenance from the source.
         OutputSchema output = partsList.isEmpty() ? sourceSchema : OutputSchema.of(specs);
-        validateGroupAndOrderBy(plan.groupBy(), plan.orderBy(), output, currentPath);
+        Set<String> visible = new LinkedHashSet<>(sourceNames);
+        visible.addAll(output.nameSet());
+        for (String key : plan.groupBy()) assertReferenceVisible(key, visible, "source or output columns", currentPath, "group_by");
+        for (String key : plan.orderBy()) assertReferenceVisible(ComposeOrderByNormalizer.fieldName(key), visible, "source or output columns", currentPath, "order_by");
         validateSliceNotSameStageAlias(plan.slice(), partsList, sourceNames, currentPath);
         return output;
     }
@@ -258,6 +261,11 @@ public final class SchemaDerivation {
     /** Mandatory JOIN binding, independent of G10 output collision policy. */
     public static void validateJoinKeys(JoinPlan plan, Set<String> leftNames,
                                         Set<String> rightNames, String currentPath) {
+        validateJoinKeys(plan, leftNames, rightNames, currentPath, false);
+    }
+
+    public static void validateJoinKeys(JoinPlan plan, Set<String> leftNames,
+            Set<String> rightNames, String currentPath, boolean permissionBound) {
         for (int i = 0; i < plan.on().size(); i++) {
             JoinOn j = plan.on().get(i);
             if (!leftNames.contains(j.left())) {
@@ -268,7 +276,7 @@ public final class SchemaDerivation {
                                 + sortedList(leftNames),
                         ComposeSchemaErrorCodes.PHASE_SCHEMA_DERIVE,
                         currentPath,
-                        j.left());
+                        j.left()).withDetails(joinDetails(currentPath, "left", i, leftNames, permissionBound));
             }
             if (!rightNames.contains(j.right())) {
                 throw new ComposeSchemaException(
@@ -278,16 +286,32 @@ public final class SchemaDerivation {
                                 + sortedList(rightNames),
                         ComposeSchemaErrorCodes.PHASE_SCHEMA_DERIVE,
                         currentPath,
-                        j.right());
+                        j.right()).withDetails(joinDetails(currentPath, "right", i, rightNames, permissionBound));
             }
         }
+    }
+
+    private static Map<String, Object> joinDetails(String planPath, String side, int index,
+            Set<String> fields, boolean permissionBound) {
+        Map<String, Object> details = new java.util.LinkedHashMap<>();
+        details.put("path", planPath + ".on[" + index + "]." + side);
+        details.put("planPath", planPath);
+        details.put("joinSide", side);
+        details.put("onIndex", index);
+        if (permissionBound) details.put("availableFields", sortedList(fields));
+        return details;
     }
 
     private static void appendAnnotatedSide(List<ColumnSpec> out,
                                             List<ColumnSpec> sideColumns,
                                             PlanId sidePid, Set<String> overlap) {
         for (ColumnSpec c : sideColumns) {
-            out.add(annotateForJoin(c, sidePid, overlap.contains(c.name())));
+            ColumnSpec annotated = annotateForJoin(c, sidePid, overlap.contains(c.name()));
+            // A producer may appear again in a self/nested JOIN. Its SQL occurrences
+            // remain distinct; logical provenance is recorded once and stays ambiguous.
+            boolean repeated = out.stream().anyMatch(existing -> existing.name().equals(annotated.name())
+                    && java.util.Objects.equals(existing.planProvenance(), annotated.planProvenance()));
+            if (!repeated) out.add(annotated);
         }
     }
 

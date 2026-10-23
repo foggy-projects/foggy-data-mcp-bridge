@@ -13,6 +13,15 @@ This package is the standard dev/test launcher for Foggy Runtime API, MCP, and t
 
 The default remains the `lite` profile. Analytics Console is present in the JAR but disabled.
 The lite profile includes the DataViewer preview page without requiring MongoDB.
+
+Query and Compose HTTP responses support `X-Foggy-Null-Output: explicit` to keep
+existing NULL values in result maps, for example `{"ratio":null}`. The default
+(or `omit`) retains the configured omission behavior. This does not add absent,
+unselected or unauthorized fields, change NULL to zero, or turn an empty result
+into a row. Validation errors retain their existing codes and messages; Compose
+JOIN errors additionally expose a root-relative `error.path` and structured
+`planPath`, `joinSide`, `onIndex` and permission-checked `availableFields` in
+`diagnostics.attributes`. Paths identify plan members, not script character offsets.
 Preview links use a bounded in-memory cache, expire after 60 minutes, and are
 lost when Runtime restarts. Keep this development-only HTTP service on loopback.
 The supplied start scripts bind the HTTP server to `127.0.0.1` by default.

@@ -132,6 +132,20 @@ public final class ComposePlanAwarePermissionValidator {
         }
     }
 
+    /** Early denial only for names we can bind from declarations; QM aliases bind after compilation. */
+    public static void validateKnownQualifiedReferences(QueryPlan plan, PlanFieldAccessContext context) {
+        for (Object column : topLevelColumns(plan)) for (PlanColumnRef ref : collectPlanRefs(column)) {
+            if (!(ref.plan() instanceof BaseModelPlan base)) continue;
+            for (Object declared : base.columns()) {
+                if (!(declared instanceof String text)) continue;
+                var parts = AliasExtractor.extract(text);
+                if (parts.outputName().equals(ref.name()) && parts.expression().matches("[\\p{L}_$][\\p{L}\\p{N}_$]*")) {
+                    validatePlanQualified(new PlanColumnRef(base, parts.expression()), context);
+                }
+            }
+        }
+    }
+
     private static void validateDerivedExpressionDependencies(
             DerivedQueryPlan plan, PlanFieldAccessContext planCtx, java.util.function.Function<QueryPlan, OutputSchema> schemas) {
         if (plan.columns().isEmpty()) {
@@ -307,7 +321,7 @@ public final class ComposePlanAwarePermissionValidator {
         return null;
     }
 
-    private static List<PlanColumnRef> collectPlanRefs(Object column) {
+    public static List<PlanColumnRef> collectPlanRefs(Object column) {
         List<PlanColumnRef> out = new ArrayList<>();
         if (column instanceof PlanExpression expr) {
             collectPlanRefs(expr, out);
@@ -434,7 +448,7 @@ public final class ComposePlanAwarePermissionValidator {
         if (expression == null || expression.isBlank()) {
             return;
         }
-        out.addAll(SchemaDerivation.extractBareIdentifiers(expression));
+        out.addAll(com.foggyframework.dataset.model.engine.compose.compilation.ComposeScalarExpression.references(expression));
     }
 
     /** Drop the {@code $caption} / {@code $id} dimension suffix used by

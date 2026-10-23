@@ -38,6 +38,7 @@ class RuntimeApiOutsidePackageAutoConfigurationContractTest {
         assertThat(importedTypes).isNotNull();
         assertThat(List.of(importedTypes.value()))
                 .contains(
+                        com.foggyframework.runtime.api.controller.RuntimeNullOutputAdvice.class,
                         FoggyRuntimeApiProperties.class,
                         RuntimeCapabilitiesController.class,
                         RuntimeAuthoringPublicationLock.class,

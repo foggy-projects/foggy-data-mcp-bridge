@@ -129,8 +129,92 @@ class DateDifferenceRegressionIT extends EcommerceTestSupport {
         if(getDialectKey().equals("sqlite")) {
             var error=assertThrows(RuntimeException.class,()->queries.validateQuery(MODEL,request(expression),SemanticRequestContext.empty()));
             assertEquals("DATE_FUNCTION_UNIT_UNSUPPORTED",Objects.requireNonNull(QueryCalculationException.find(error)).getCode());
+            assertEquals("calculatedFields[0].expression", QueryCalculationException.find(error).getPath());
+            assertEquals(List.of("SECOND","MINUTE","HOUR","DAY","WEEK","MONTH","QUARTER","YEAR"),
+                    QueryCalculationException.find(error).getDetails().get("allowedValues"));
         } else {
             assertEquals(7200000000L,((Number)rows(expression).get(0).get("difference")).longValue());
         }
+    }
+
+    @Test void derivedDateDifferencesMatchOrdinaryQueriesAndKeepPermissions() {
+        String dialect=getDialectKey().equals("sqlserver")?"mssql":getDialectKey().contains("mysql")?(supportsWindowFunctions()?"mysql8":"mysql"):getDialectKey();
+        var context=com.foggyframework.dataset.model.engine.compose.context.ComposeQueryContext.builder()
+                .principal(com.foggyframework.dataset.model.engine.compose.context.Principal.builder().userId("date-regression").build())
+                .authorityResolver(request -> com.foggyframework.dataset.model.engine.compose.security.AuthorityResolution.builder()
+                        .bindings(Map.of(MODEL,com.foggyframework.dataset.model.engine.compose.security.ModelBinding.builder().build())).build()).build();
+        for(boolean g10:List.of(false,true)) {
+            com.foggyframework.dataset.model.engine.compose.ComposeFeatureFlags.overrideG10Enabled(g10);
+            try {
+                for(String expression:List.of("DATEDIFF(finishedAt,startedAt)","TIMESTAMPDIFF(HOUR,startedAt,finishedAt)","TIMESTAMPDIFF('HOUR',startedAt,finishedAt)")) {
+                    String script="const a=dsl({model:'DateDifferenceQM',columns:['id','startedAt','finishedAt']});return {plans:a.query({columns:['id',\""+expression+" as difference\"],orderBy:['id']})};";
+                    List<Map<String,Object>> expected=rows(expression);
+                    for(var mode:com.foggyframework.dataset.model.engine.compose.runtime.ComposeScriptService.Mode.values()) {
+                        var result=com.foggyframework.dataset.model.engine.compose.runtime.ComposeScriptService.run(
+                                com.foggyframework.dataset.model.engine.compose.runtime.ComposeScriptService.ComposeScriptRequest.builder()
+                                .mode(mode).script(script).ctx(context).semanticService(queries).dialect(dialect).build()).value();
+                        if(mode==com.foggyframework.dataset.model.engine.compose.runtime.ComposeScriptService.Mode.EXECUTE) {
+                            var actual=(List<?>)((Map<?,?>)result).get("plans");
+                            assertEquals(expected.size(),actual.size());
+                            for(int i=0;i<expected.size();i++) assertEquals(expected.get(i).get("difference"),((Map<?,?>)actual.get(i)).get("difference"));
+                        }
+                    }
+                }
+                var restricted=com.foggyframework.dataset.model.engine.compose.context.ComposeQueryContext.builder()
+                        .principal(com.foggyframework.dataset.model.engine.compose.context.Principal.builder().userId("restricted-date").build())
+                        .authorityResolver(request -> com.foggyframework.dataset.model.engine.compose.security.AuthorityResolution.builder()
+                                .bindings(Map.of(MODEL,com.foggyframework.dataset.model.engine.compose.security.ModelBinding.builder()
+                                        .fieldAccess(List.of("id","startedAt")).build())).build()).build();
+                String denied="const a=dsl({model:'DateDifferenceQM',columns:['startedAt','finishedAt']});return {plans:a.query({columns:['TIMESTAMPDIFF(HOUR,startedAt,finishedAt) as hours']})};";
+                for(var mode:com.foggyframework.dataset.model.engine.compose.runtime.ComposeScriptService.Mode.values()) {
+                    assertThrows(RuntimeException.class,()->com.foggyframework.dataset.model.engine.compose.runtime.ComposeScriptService.run(
+                            com.foggyframework.dataset.model.engine.compose.runtime.ComposeScriptService.ComposeScriptRequest.builder()
+                                    .mode(mode).script(denied).ctx(restricted).semanticService(queries).dialect(dialect).build()));
+                }
+            } finally { com.foggyframework.dataset.model.engine.compose.ComposeFeatureFlags.overrideG10Enabled(null); }
+        }
+    }
+
+    @Test void typedDateBoundariesRetainPrecisionAndTimezone() {
+        if(getDialectKey().equals("sqlserver")) {
+            var dialect=com.foggyframework.dataset.db.dialect.FDialect.SQLSERVER_DIALECT;
+            String start="CAST('2024-01-01T00:00:00.0000009' AS datetime2(7))";
+            for(String[] test:List.of(new String[]{"SECOND","CAST('2024-01-01T00:00:01.0000000' AS datetime2(7))"},
+                    new String[]{"MICROSECOND","CAST('2024-01-01T00:00:00.0000010' AS datetime2(7))"})) {
+                assertDifference(dialect,test[0],start,test[1],0); assertDifference(dialect,test[0],test[1],start,0);
+            }
+            assertDifference(dialect,"MONTH","CAST('2024-01-01' AS datetime2(7))","CAST('2024-02-01' AS date)",1);
+            assertDifference(dialect,"MONTH","CAST('2024-02-01' AS date)","CAST('2024-01-01' AS datetime2(7))",-1);
+            assertDifference(dialect,"DAY","CAST('1600-01-01' AS date)","CAST('2400-01-01' AS date)",ChronoUnit.DAYS.between(LocalDate.of(1600,1,1),LocalDate.of(2400,1,1)));
+        } else if(getDialectKey().contains("postgres")) {
+            // Keep SET and SELECT on one connection and restore its original session state.
+            jdbcTemplate.execute((org.springframework.jdbc.core.ConnectionCallback<Void>) connection -> {
+                try(var statement=connection.createStatement()) {
+                    String zone; try(var result=statement.executeQuery("SHOW TIME ZONE")){result.next();zone=result.getString(1);}
+                    try {
+                        for(String session:List.of("America/New_York","UTC")) {
+                            statement.execute("SET TIME ZONE '"+session+"'");
+                            String sql=com.foggyframework.dataset.db.dialect.DateDifferenceSql.render(com.foggyframework.dataset.db.dialect.FDialect.POSTGRES_DIALECT,"TIMESTAMPDIFF",List.of("HOUR",
+                                    "TIMESTAMPTZ '2024-03-10 01:30:00-05'","TIMESTAMPTZ '2024-03-10 03:30:00-04'"));
+                            try(var result=statement.executeQuery("SELECT "+sql)){assertTrue(result.next());assertEquals(1,result.getLong(1));}
+                            String naive=com.foggyframework.dataset.db.dialect.DateDifferenceSql.render(com.foggyframework.dataset.db.dialect.FDialect.POSTGRES_DIALECT,"TIMESTAMPDIFF",List.of("HOUR",
+                                    "TIMESTAMP '2024-03-10 01:30:00'","TIMESTAMP '2024-03-10 03:30:00'"));
+                            try(var result=statement.executeQuery("SELECT "+naive)){assertTrue(result.next());assertEquals(2,result.getLong(1));}
+                            String textDate=com.foggyframework.dataset.db.dialect.DateDifferenceSql.render(com.foggyframework.dataset.db.dialect.FDialect.POSTGRES_DIALECT,"TIMESTAMPDIFF",List.of("HOUR",
+                                    "to_char(TIMESTAMP '2024-03-10 01:30:00','YYYY-MM-DD HH24:MI:SS')","CAST('2024-03-10 03:30:00' AS text)"));
+                            try(var result=statement.executeQuery("SELECT "+textDate)){assertTrue(result.next());assertEquals(2,result.getLong(1));}
+                        }
+                    } finally {statement.execute("SET TIME ZONE '"+zone.replace("'","''")+"'");}
+                }
+                return null;
+            });
+        } else {
+            assertEquals(2,((Number)rows("TIMESTAMPDIFF(HOUR,startedAt,finishedAt)").get(0).get("difference")).intValue());
+        }
+    }
+
+    private void assertDifference(com.foggyframework.dataset.db.dialect.FDialect dialect,String unit,String start,String end,long expected) {
+        String sql=com.foggyframework.dataset.db.dialect.DateDifferenceSql.render(dialect,"TIMESTAMPDIFF",List.of(unit,start,end));
+        assertEquals(expected,jdbcTemplate.queryForObject("SELECT "+sql,Long.class));
     }
 }

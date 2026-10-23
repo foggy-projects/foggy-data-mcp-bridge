@@ -122,14 +122,14 @@ public final class ComposePlanner {
     static String quoteIdent(String ident, String dialect) {
         if (ident == null) return ident;
         if ("mysql".equals(dialect) || "mysql57".equals(dialect) || "mysql8".equals(dialect)) {
-            return "`" + ident + "`";
+            return "`" + ident.replace("`", "``") + "`";
         }
         // postgres, postgresql, mssql, sqlserver, sqlite → ANSI double-quote
-        return "\"" + ident + "\"";
+        return "\"" + ident.replace("\"", "\"\"") + "\"";
     }
 
     private static String quoteIdentIfNeeded(String ident, String dialect) {
-        return needsQuoting(ident, dialect) ? quoteIdent(ident, dialect) : ident;
+        return !ident.matches("[\\p{L}_$][\\p{L}\\p{N}_$]*") || needsQuoting(ident, dialect) ? quoteIdent(ident, dialect) : ident;
     }
 
     /** Return true if a column string needs identifier quoting.
@@ -143,6 +143,7 @@ public final class ComposePlanner {
 
     private static boolean needsQuoting(String col, String dialect) {
         if (col == null || col.isEmpty()) return false;
+        if (SQL_KEYWORDS.contains(col.toUpperCase(Locale.ROOT))) return true;
         // Skip expressions: contain space, parens
         if (col.contains(" ") || col.contains("(") || col.contains(")")) return false;
         // Always quote if contains $
@@ -210,7 +211,10 @@ public final class ComposePlanner {
                                            Map<QueryPlan, String> planAliasMap) {
         if (expr == null) return "NULL";
         if (expr instanceof String s) {
-            return quoteColumnExpr(s, dialect);
+            ColumnAliasParts parts = AliasExtractor.extract(s);
+            String scalar = ComposeScalarExpression.render(rewriteSafeDivision(parts.expression()), dialect,
+                    name -> quoteIdentIfNeeded(name, dialect));
+            return parts.hasAlias() ? scalar + " AS " + quoteIdentIfNeeded(parts.outputName(), dialect) : scalar;
         }
         if (expr instanceof ProjectedColumn pc) {
             String compiledExpr = compileExpression(pc.expr(), dialect, planAliasMap);
@@ -220,7 +224,7 @@ public final class ComposePlanner {
             return compiledExpr + " AS " + quoteIdentIfNeeded(pc.alias(), dialect);
         }
         if (expr instanceof ColumnExpr col) {
-            return needsQuoting(col.name(), dialect) ? quoteIdent(col.name(), dialect) : col.name();
+            return quoteIdentIfNeeded(col.name(), dialect);
         }
         if (expr instanceof LiteralExpr lit) {
             if (lit.value() == null) return "NULL";
@@ -234,6 +238,8 @@ public final class ComposePlanner {
             return "'" + lit.value().toString().replace("'", "''") + "'";
         }
         if (expr instanceof BinaryExpr bin) {
+            if (!Set.of("+", "-", "*", "/", "%", "=", "!=", "<>", "<", ">", "<=", ">=", "AND", "OR", "||").contains(bin.op().trim().toUpperCase(Locale.ROOT)))
+                throw new ComposeCompileException(ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE, ComposeCompileErrorCodes.PHASE_PLAN_LOWER, "Unsupported binary operator");
             String left = compileExpression(bin.left(), dialect, planAliasMap);
             String right = compileExpression(bin.right(), dialect, planAliasMap);
             if ("/".equals(bin.op().trim())) {
@@ -256,7 +262,7 @@ public final class ComposePlanner {
         if (expr instanceof AggregateColumn agg) {
             // agg.toColumnExpr() returns raw SQL string like "SUM(col)". For full AST we might need a FuncExpr.
             // For now, it returns a string with parens, which quoteColumnExpr skips.
-            return quoteColumnExpr(agg.toColumnExpr(), dialect);
+            return agg.func() + "(" + compileExpression(agg.ref(), dialect, planAliasMap) + ")";
         }
         if (expr instanceof WindowColumn win) {
             StringBuilder sb = new StringBuilder(win.func().toUpperCase(Locale.ROOT)).append("(");
@@ -316,7 +322,7 @@ public final class ComposePlanner {
             return compilePlanColumnRef(ref, dialect, planAliasMap);
         }
         // Fallback for unknown objects
-        return quoteColumnExpr(expr.toString(), dialect);
+        return compileExpression(expr.toString(), dialect, planAliasMap);
     }
 
     /**
@@ -335,6 +341,11 @@ public final class ComposePlanner {
     private static String compilePlanColumnRef(PlanColumnRef ref, String dialect,
                                                 Map<QueryPlan, String> planAliasMap) {
         String column = quoteIdentIfNeeded(ref.name(), dialect);
+        if (planAliasMap instanceof ScopedAliases scoped) {
+            String bound = scoped.fields.get(ref);
+            if (bound == null) throw unknownDerivedField(ref.name());
+            return (scoped.alias == null ? "" : scoped.alias + ".") + quoteIdentIfNeeded(bound, dialect);
+        }
         if (planAliasMap.isEmpty() || ref.plan() == null) {
             return column;
         }
@@ -493,6 +504,13 @@ public final class ComposePlanner {
             return;
         }
         Set<String> sourceNames = new LinkedHashSet<>(sourceColumns);
+        Set<String> outputs = new LinkedHashSet<>();
+        for (String output : derivedOutputColumns(plan, sourceColumns)) {
+            if ("*".equals(output)) throw new ComposeCompileException(ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE,
+                    ComposeCompileErrorCodes.PHASE_PLAN_LOWER, "Explicit derived '*' is unsupported; omit columns to inherit the input projection");
+            if (!outputs.add(output)) throw new ComposeSchemaException(ComposeSchemaErrorCodes.DUPLICATE_OUTPUT_COLUMN,
+                    "Duplicate derived output: " + output, ComposeSchemaErrorCodes.PHASE_SCHEMA_DERIVE, "DerivedQueryPlan", output);
+        }
         for (Object col : plan.columns()) {
             for (String ident : columnInputRefs(col)) {
                 String unquoted = unquoteIdentifier(ident);
@@ -511,6 +529,11 @@ public final class ComposePlanner {
         for (Object col : plan.columns()) {
             orderByNames.add(extractOutputColName(String.valueOf(col)));
         }
+        for (String key : plan.groupBy()) {
+            for (String ref : ComposeScalarExpression.references(key)) {
+                if (!orderByNames.contains(ref)) throw unknownDerivedField(ref);
+            }
+        }
         for (String entry : plan.orderBy()) {
             String fieldName = unquoteIdentifier(ComposeOrderByNormalizer.parse(entry).field());
             if (!orderByNames.contains(fieldName)) {
@@ -525,6 +548,12 @@ public final class ComposePlanner {
             }
         }
         for (Object entry : iterSliceEntries(plan.slice())) {
+            SliceShape shape = SliceShape.parse(entry);
+            if (shape.hasFieldReferenceValue()) {
+                for (String ref : ComposeScalarExpression.references(shape.fieldReferenceValue())) {
+                    if (!sourceNames.contains(ref)) throw unknownDerivedField(ref);
+                }
+            }
             String fieldName = sliceFieldName(entry);
             if (fieldName != null) {
                 String fieldStr = fieldName.trim();
@@ -648,7 +677,7 @@ public final class ComposePlanner {
             "AS", "EXISTS", "CAST", "COALESCE", "IFNULL", "ISNULL", "ROUND",
             "NULLIF",
             "OVER", "PARTITION", "ROWS", "RANGE", "PRECEDING", "FOLLOWING", "UNBOUNDED", "CURRENT", "ROW",
-            "SUM", "COUNT", "AVG", "MAX", "MIN"
+            "SUM", "COUNT", "AVG", "MAX", "MIN", "KEY", "VALUE"
     );
 
     /** Token-boundary splitter used by {@link #quoteExpressionTokens(String, String)}.
@@ -677,33 +706,12 @@ public final class ComposePlanner {
     private static final Set<String> ALL_LOGICAL_OPS = Set.of("$or", "$and", "$not");
 
     private static List<String> extractUnquotedIdentifiers(String expr) {
-        if (expr == null || expr.isBlank()) {
-            return Collections.emptyList();
-        }
-        List<String> out = new ArrayList<>();
-        Matcher m = EXPR_TOKEN_PATTERN.matcher(expr);
-        while (m.find()) {
-            String token = m.group();
-            if (token.isEmpty()) continue;
-            char first = token.charAt(0);
-            if (!(first == '_' || (first >= 'A' && first <= 'Z') || (first >= 'a' && first <= 'z'))) {
-                continue;
-            }
-            String upper = token.toUpperCase(Locale.ROOT);
-            if (SQL_KEYWORDS.contains(upper) || isNumericLiteral(token)) {
-                continue;
-            }
-            char prev = m.start() > 0 ? expr.charAt(m.start() - 1) : '\0';
-            char next = m.end() < expr.length() ? expr.charAt(m.end()) : '\0';
-            if (prev == '.' || next == '.') {
-                continue;
-            }
-            if (nextNonWhitespace(expr, m.end()) == '(') {
-                continue;
-            }
-            out.add(token);
-        }
-        return out;
+        return expr == null || expr.isBlank() ? Collections.emptyList() : ComposeScalarExpression.references(expr);
+    }
+
+    private static ComposeSchemaException unknownDerivedField(String name) {
+        return new ComposeSchemaException(ComposeSchemaErrorCodes.DERIVED_QUERY_UNKNOWN_FIELD,
+                "derived query references unknown field '" + name + "'", ComposeSchemaErrorCodes.PHASE_SCHEMA_DERIVE, "DerivedQueryPlan", name);
     }
 
     private static char nextNonWhitespace(String text, int start) {
@@ -934,6 +942,7 @@ public final class ComposePlanner {
     // ------------------------------------------------------------------
 
     static final class CompileState {
+        final IdentityHashMap<QueryPlan, String> diagnosticPaths = new IdentityHashMap<>();
         final Map<String, ModelBinding> bindings;
         final ComposeSemanticPlanningPort planningPort;
         final String namespace;
@@ -1059,10 +1068,18 @@ public final class ComposePlanner {
             SemanticRequestContext requestContext,
             String dialect,
             Map<String, Optional<String>> datasourceIds) {
+        return compileToComposedSql(plan, bindings, planningPort, namespace, requestContext, dialect, datasourceIds, null);
+    }
+
+    static ComposedSql compileToComposedSql(QueryPlan plan, Map<String, ModelBinding> bindings,
+            ComposeSemanticPlanningPort planningPort, String namespace, SemanticRequestContext requestContext,
+            String dialect, Map<String, Optional<String>> datasourceIds,
+            java.util.function.Consumer<OutputSchema> schemaSink) {
 
         assertDialect(dialect);
         CompileState state = new CompileState(bindings, planningPort, namespace, requestContext, dialect,
                 datasourceIds);
+        indexDiagnosticPaths(plan, "root", state.diagnosticPaths, 0);
         if (planContainsSliceSubquery(plan)) {
             checkCrossDatasource(plan, state, "slice subquery");
         }
@@ -1070,13 +1087,12 @@ public final class ComposePlanner {
         // G10 flag is on; under flag=off the legacy single-QM
         // FieldAccessPermissionStep continues to enforce flat-whitelist
         // semantics at @Order(-25) without any change.
-        if (state.g10Enabled) {
-            runPlanAwarePermissionCheck(plan, bindings, state, true);
-        }
+        if (state.g10Enabled) runPlanAwarePermissionCheck(plan, bindings, state, true);
         Object result = compileAny(plan, state);
         if (state.g10Enabled) {
             runPlanAwarePermissionCheck(plan, bindings, state, false);
         }
+        if (schemaSink != null) schemaSink.accept(deriveBoundSchema(plan, state));
         if (result instanceof ComposedSql composed) {
             return prependPrerequisiteCtes(composed, state.prerequisiteCtes, state.useCte, state.dialect);
         }
@@ -1103,9 +1119,21 @@ public final class ComposePlanner {
         PlanFieldAccessContext.Builder ctxBuilder = PlanFieldAccessContext.builder();
         Set<QueryPlan> visited = QueryPlan.identityPlanSet();
         collectPlanBindings(plan, bindings, ctxBuilder, visited);
+        // Base compilation already enforces model and physical permissions. Its output
+        // aliases are authorized symbols of that relation, not new model field names.
+        for (QueryPlan producer : visited) {
+            if (producer instanceof BaseModelPlan base && state.idCache.containsKey(base)) {
+                ModelBinding binding = bindings.get(base.model());
+                if (binding != null && binding.fieldAccess() != null) {
+                    Set<String> allowed = new LinkedHashSet<>(binding.fieldAccess());
+                    allowed.addAll(boundOutputColumnsForPlan(base, state));
+                    ctxBuilder.bind(base, ModelBinding.builder().fieldAccess(new ArrayList<>(allowed)).build());
+                }
+            }
+        }
         PlanFieldAccessContext planCtx = ctxBuilder.build();
         if (qualifiedOnly) {
-            ComposePlanAwarePermissionValidator.validateQualifiedReferences(plan, planCtx);
+            ComposePlanAwarePermissionValidator.validateKnownQualifiedReferences(plan, planCtx);
             return;
         }
         // Composite outputs are governed by their producing dependencies, not by
@@ -1212,6 +1240,21 @@ public final class ComposePlanner {
     // ------------------------------------------------------------------
     // Dispatcher — recursion + depth guard + dedup
     // ------------------------------------------------------------------
+
+    private static void indexDiagnosticPaths(QueryPlan plan, String path,
+            IdentityHashMap<QueryPlan, String> paths, int depth) {
+        if (depth > PlanHash.MAX_PLAN_DEPTH || paths.containsKey(plan)) return;
+        paths.put(plan, path);
+        if (plan instanceof DerivedQueryPlan derived) indexDiagnosticPaths(derived.source(), path + ".source", paths, depth + 1);
+        if (plan instanceof JoinPlan join) {
+            indexDiagnosticPaths(join.left(), path + ".left", paths, depth + 1);
+            indexDiagnosticPaths(join.right(), path + ".right", paths, depth + 1);
+        }
+        if (plan instanceof UnionPlan union) {
+            indexDiagnosticPaths(union.left(), path + ".left", paths, depth + 1);
+            indexDiagnosticPaths(union.right(), path + ".right", paths, depth + 1);
+        }
+    }
 
     private static Object compileAny(QueryPlan plan, CompileState state) {
         int depth = state.enterDepth();
@@ -1537,7 +1580,10 @@ public final class ComposePlanner {
     }
 
     private static Object compileDerived(DerivedQueryPlan plan, CompileState state) {
-        Object inner = compileAny(plan.source(), state);
+        List<PlanColumnRef> refs = plan.columns().stream()
+                .flatMap(column -> ComposePlanAwarePermissionValidator.collectPlanRefs(column).stream()).toList();
+        ScopedSource scoped = compileScopedSource(plan.source(), refs, state);
+        Object inner = scoped.compiled();
         boolean innerWasJoin = inner instanceof ComposedSql;
         CteUnit innerUnit;
         if (innerWasJoin) {
@@ -1551,7 +1597,8 @@ public final class ComposePlanner {
         validateDerivedOutputRefs(plan, sourceColumns);
 
         List<Object> outerParams = new ArrayList<>();
-        String outerSql = renderOuterSelect(plan, innerUnit.getAlias(), innerUnit.getSql(), sourceColumns, outerParams, state);
+        String outerSql = renderOuterSelect(plan, innerUnit.getAlias(), innerUnit.getSql(), sourceColumns, outerParams, state,
+                new ScopedAliases(scoped.fields(), state.g10Enabled ? innerUnit.getAlias() : null));
 
         List<Object> merged = new ArrayList<>();
         if (innerUnit.getParams() != null) merged.addAll(innerUnit.getParams());
@@ -1575,6 +1622,57 @@ public final class ComposePlanner {
     }
 
     private static ComposedSql compileJoin(JoinPlan plan, CompileState state) {
+        return (ComposedSql) compileScopedJoin(plan, List.of(), state).compiled();
+    }
+
+    /** Bind references in the scope actually exposed by a relation, never an old CTE alias. */
+    private static final class ScopedAliases extends IdentityHashMap<QueryPlan, String> {
+        final Map<PlanColumnRef, String> fields;
+        final String alias;
+        ScopedAliases(Map<PlanColumnRef, String> fields, String alias) { this.fields = fields; this.alias = alias; }
+    }
+
+    private record ScopedSource(Object compiled, Map<PlanColumnRef, String> fields) {}
+
+    private static ScopedSource compileScopedSource(QueryPlan source, List<PlanColumnRef> refs, CompileState state) {
+        if (source instanceof JoinPlan join) {
+            try {
+                if (state.enterDepth() > PlanHash.MAX_PLAN_DEPTH) throw new ComposeCompileException(
+                        ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE, ComposeCompileErrorCodes.PHASE_PLAN_LOWER, "Plan depth exceeds MAX_PLAN_DEPTH");
+                return compileScopedJoin(join, refs, state);
+            } finally { state.exitDepth(); }
+        }
+        Object compiled = compileAny(source, state);
+        Map<PlanColumnRef, String> fields = new IdentityHashMap<>();
+        for (PlanColumnRef ref : refs) {
+            String field = visibleField(source, ref, state);
+            List<String> outputs = inputOutputColumns(compiled, source, state);
+            if (field != null && (outputs.isEmpty() || outputs.contains(field))) fields.put(ref, field);
+        }
+        return new ScopedSource(compiled, fields);
+    }
+
+    private static String visibleField(QueryPlan source, PlanColumnRef ref, CompileState state) {
+        if (ref.plan() == null || ref.plan() == source) return ref.name();
+        if (source instanceof DerivedQueryPlan derived) {
+            String input = visibleField(derived.source(), ref, state);
+            if (input == null) return null;
+            if (derived.columns().isEmpty()) return input;
+            for (Object column : derived.columns()) {
+                ColumnAliasParts parts = AliasExtractor.extract(String.valueOf(column));
+                if (parts.expression().equals(input) && parts.outputName().equals(input)) return input;
+            }
+        }
+        if (source instanceof JoinPlan join) {
+            String left = visibleField(join.left(), ref, state), right = visibleField(join.right(), ref, state);
+            if (left != null && right != null) return null;
+            if (left != null) return left;
+            if (right != null && !boundOutputColumnsForPlan(join.left(), state).contains(right)) return right;
+        }
+        return null;
+    }
+
+    private static ScopedSource compileScopedJoin(JoinPlan plan, List<PlanColumnRef> refs, CompileState state) {
         checkCrossDatasource(plan, state, "join");
 
         if (plan.type() == JoinType.FULL && "sqlite".equals(state.dialect)) {
@@ -1585,32 +1683,58 @@ public final class ComposePlanner {
                             + "use inner/left/right or switch dialects.");
         }
 
-        Object leftObj = compileAny(plan.left(), state);
-        Object rightObj = compileAny(plan.right(), state);
+        ScopedSource leftSource = compileScopedSource(plan.left(), refs, state);
+        ScopedSource rightSource = compileScopedSource(plan.right(), refs, state);
+        Object leftObj = leftSource.compiled();
+        Object rightObj = rightSource.compiled();
         CteUnit left = leftObj instanceof ComposedSql
                 ? wrapComposedAsUnit((ComposedSql) leftObj, state)
                 : (CteUnit) leftObj;
         CteUnit right = rightObj instanceof ComposedSql
                 ? wrapComposedAsUnit((ComposedSql) rightObj, state)
                 : (CteUnit) rightObj;
+        // Cached definition identity is not FROM occurrence identity (including structural cache hits).
+        if (left.getAlias().equals(right.getAlias())) right = new CteUnit(state.nextAlias(), right.getSql(), right.getParams(), right.getSelectColumns());
 
         SchemaDerivation.validateJoinKeys(plan,
                 new LinkedHashSet<>(inputOutputColumns(left, plan.left(), state)),
-                new LinkedHashSet<>(inputOutputColumns(right, plan.right(), state)), "JoinPlan");
+                new LinkedHashSet<>(inputOutputColumns(right, plan.right(), state)),
+                state.diagnosticPaths.getOrDefault(plan, "root"), true);
 
         String onCondition = buildOnCondition(plan.on(), left.getAlias(), right.getAlias(), state.dialect);
 
-        // Dedup anchor units: if both sides resolved to the same CteUnit
-        // (via id-cache / hash-cache — typical for self-join on the same
-        // plan instance), emit just one CTE.
+        // Compilation may be cached, but both occurrence aliases must remain in FROM.
         List<CteUnit> anchors = new ArrayList<>();
         anchors.add(left);
         if (!right.getAlias().equals(left.getAlias())) {
             anchors.add(right);
         }
 
-        return assembleJoinSql(anchors, plan.type().sqlKeyword(), onCondition,
-                left.getAlias(), right.getAlias(), state.useCte, state.dialect);
+        Map<PlanColumnRef, String> fields = new IdentityHashMap<>();
+        Map<String, String> extras = new java.util.LinkedHashMap<>();
+        Set<String> used = new LinkedHashSet<>(joinOutputColumns(left, right));
+        for (PlanColumnRef ref : refs) {
+            if (ref.plan() == plan || ref.plan() == null) {
+                if (used.contains(ref.name())) fields.put(ref, ref.name());
+                continue;
+            }
+            String l = leftSource.fields().get(ref), r = rightSource.fields().get(ref);
+            if (l != null && r != null) throw new ComposeSchemaException(ComposeSchemaErrorCodes.JOIN_AMBIGUOUS_COLUMN,
+                    "Field reference targets both JOIN occurrences; use distinct input plan handles", ComposeSchemaErrorCodes.PHASE_SCHEMA_DERIVE, "JoinPlan", ref.name());
+            if (l != null) fields.put(ref, l);
+            else if (r != null) {
+                if (!compiledOutputColumns(left).contains(r)) fields.put(ref, r);
+                else {
+                    String hidden;
+                    int i = extras.size();
+                    do { hidden = "__compose_ref_" + i++; } while (!used.add(hidden));
+                    extras.put(hidden, r);
+                    fields.put(ref, hidden);
+                }
+            }
+        }
+        return new ScopedSource(assembleJoinSql(anchors, plan.type().sqlKeyword(), onCondition,
+                left.getAlias(), right.getAlias(), state.useCte, state.dialect, extras), fields);
     }
 
     private static ComposedSql compileUnion(UnionPlan plan, CompileState state) {
@@ -1825,7 +1949,7 @@ public final class ComposePlanner {
             String leftAlias,
             String rightAlias,
             boolean useCte,
-            String dialect) {
+            String dialect, Map<String, String> extraRightColumns) {
 
         List<Object> params = new ArrayList<>();
         StringBuilder sb = new StringBuilder();
@@ -1845,6 +1969,7 @@ public final class ComposePlanner {
             }
             sb.append("\n");
             sb.append(buildJoinSelectClause(left, right, leftAlias, rightAlias, dialect));
+            appendExtraColumns(sb, extraRightColumns, rightAlias, dialect);
             sb.append("\nFROM ").append(leftAlias);
             if (anchors.size() > 1) {
                 sb.append("\n").append(joinKeyword).append(" JOIN ").append(rightAlias)
@@ -1863,6 +1988,7 @@ public final class ComposePlanner {
             String newRightAlias = right != null ? rename.get(rightAlias) : null;
 
             sb.append(buildJoinSelectClause(left, right, newLeftAlias, newRightAlias, dialect));
+            appendExtraColumns(sb, extraRightColumns, newRightAlias, dialect);
             sb.append("\nFROM (").append(left.getSql()).append(") AS ")
                     .append(newLeftAlias);
             if (left.getParams() != null) params.addAll(left.getParams());
@@ -1877,7 +2003,14 @@ public final class ComposePlanner {
                 sb.append("\nWHERE ").append(renamedOn);
             }
         }
-        return new ComposedSql(sb.toString(), params, joinOutputColumns(left, right));
+        List<String> outputs = new ArrayList<>(joinOutputColumns(left, right));
+        outputs.addAll(extraRightColumns.keySet());
+        return new ComposedSql(sb.toString(), params, outputs);
+    }
+
+    private static void appendExtraColumns(StringBuilder sql, Map<String, String> extras, String alias, String dialect) {
+        extras.forEach((output, input) -> sql.append(", ").append(alias).append(".")
+                .append(quoteIdentIfNeeded(input, dialect)).append(" AS ").append(quoteIdentIfNeeded(output, dialect)));
     }
 
     private static List<String> compiledOutputColumns(Object compiled) {
@@ -1953,22 +2086,14 @@ public final class ComposePlanner {
 
     /** Extract the base column name — the part before " AS " if present. */
     private static String extractBaseColName(String col) {
-        int asIdx = col.toUpperCase(Locale.ROOT).indexOf(" AS ");
-        if (asIdx > 0) {
-            return col.substring(0, asIdx).trim();
-        }
-        return col.trim();
+        return AliasExtractor.extract(col).expression();
     }
 
     /** Extract the output column name — the alias after " AS " if present,
      *  or the full column name if no alias. This is the name the column will
      *  have in the result set. */
     private static String extractOutputColName(String col) {
-        int asIdx = col.toUpperCase(Locale.ROOT).indexOf(" AS ");
-        if (asIdx > 0) {
-            return col.substring(asIdx + 4).trim();
-        }
-        return col.trim();
+        return AliasExtractor.extract(col).outputName();
     }
 
     private static String unquoteIdentifier(String identifier) {
@@ -2071,7 +2196,7 @@ public final class ComposePlanner {
      */
     private static String renderOuterSelect(
             DerivedQueryPlan plan, String innerAlias, String innerSql,
-            List<String> sourceColumns, List<Object> outerParams, CompileState state) {
+            List<String> sourceColumns, List<Object> outerParams, CompileState state, Map<QueryPlan, String> scopedAliases) {
 
         String dialect = state.dialect;
         StringBuilder sb = new StringBuilder();
@@ -2087,7 +2212,7 @@ public final class ComposePlanner {
         } else {
             List<String> quotedCols = new ArrayList<>(plan.columns().size());
             for (Object colObj : plan.columns()) {
-                quotedCols.add(compileExpression(colObj, dialect, state.planAliasMap));
+                quotedCols.add(compileExpression(colObj, dialect, scopedAliases));
             }
             sb.append(String.join(", ", quotedCols));
         }
@@ -2109,7 +2234,7 @@ public final class ComposePlanner {
         if (!plan.groupBy().isEmpty()) {
             List<String> quotedGroupBy = new ArrayList<>(plan.groupBy().size());
             for (String g : plan.groupBy()) {
-                quotedGroupBy.add(renderDerivedGroupKey(g, plan, sourceColumns, state));
+                quotedGroupBy.add(renderDerivedGroupKey(g, plan, sourceColumns, state, scopedAliases));
             }
             sb.append("\nGROUP BY ").append(String.join(", ", quotedGroupBy));
         }
@@ -2135,7 +2260,7 @@ public final class ComposePlanner {
     }
 
     private static String renderDerivedGroupKey(String key, DerivedQueryPlan plan,
-                                                 List<String> sourceColumns, CompileState state) {
+                                                 List<String> sourceColumns, CompileState state, Map<QueryPlan, String> scopedAliases) {
         String name = unquoteIdentifier(key);
         // SQL Server does not allow same-stage SELECT aliases in GROUP BY.
         // A real input name has precedence, preserving existing SQL name binding.
@@ -2143,17 +2268,17 @@ public final class ComposePlanner {
                 && !sourceColumns.contains(name)) {
             for (Object column : plan.columns()) {
                 if (column instanceof ProjectedColumn projected && name.equals(projected.alias())) {
-                    return compileExpression(projected.expr(), state.dialect, state.planAliasMap);
+                    return compileExpression(projected.expr(), state.dialect, scopedAliases);
                 }
                 if (column instanceof String text) {
                     ColumnAliasParts parts = AliasExtractor.extract(text);
                     if (parts.hasAlias() && name.equals(parts.outputName())) {
-                        return compileExpression(parts.expression(), state.dialect, state.planAliasMap);
+                        return compileExpression(parts.expression(), state.dialect, scopedAliases);
                     }
                 }
             }
         }
-        return quoteColumnExpr(name, state.dialect);
+        return ComposeScalarExpression.render(name, state.dialect, field -> quoteIdentIfNeeded(field, state.dialect));
     }
 
     private static String renderSliceEntry(
@@ -2200,6 +2325,8 @@ public final class ComposePlanner {
         String fieldSql = renderDerivedSliceField(innerAlias, s.field, dialect);
         String op = normalizeSliceOp(s.op);
         if (s.hasFieldReferenceValue()) {
+            if (!Set.of("=", "!=", "<>", "<", ">", "<=", ">=").contains(op)) throw new ComposeCompileException(
+                    ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE, ComposeCompileErrorCodes.PHASE_PLAN_LOWER, "Field-reference filters require a comparison operator");
             String ref = s.fieldReferenceValue();
             return fieldSql + " " + op + " "
                     + renderDerivedSliceField(innerAlias, ref, dialect);
@@ -2380,7 +2507,7 @@ public final class ComposePlanner {
         if (isSimpleOutputColumn(unquoted)) {
             return innerAlias + "." + quoteColumnExpr(unquoted, dialect);
         }
-        return quoteColumnExpr(unquoted, dialect);
+        return ComposeScalarExpression.render(unquoted, dialect, name -> innerAlias + "." + quoteIdentIfNeeded(name, dialect));
     }
 
     private static void validateDerivedSliceNotSameStageAlias(
@@ -2437,6 +2564,6 @@ public final class ComposePlanner {
 
     private static String renderOrderEntry(String entry, String dialect) {
         ComposeOrderByNormalizer.OrderSpec spec = ComposeOrderByNormalizer.parse(entry);
-        return quoteColumnExpr(unquoteIdentifier(spec.field()), dialect) + " " + spec.dirUpper();
+        return ComposeScalarExpression.render(unquoteIdentifier(spec.field()), dialect, name -> quoteIdentIfNeeded(name, dialect)) + " " + spec.dirUpper();
     }
 }

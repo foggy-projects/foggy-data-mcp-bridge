@@ -10,6 +10,11 @@ public class ComposeExecutionException extends RuntimeException {
         COMPILE
     }
 
+    private java.util.Map<String, Object> details = java.util.Map.of();
+    public java.util.Map<String, Object> details() { return details; }
+    public ComposeExecutionException withDetails(java.util.Map<String, Object> value) {
+        details = java.util.Map.copyOf(value); return this;
+    }
     private final Kind kind;
     private final String code;
     private final String enginePhase;

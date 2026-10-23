@@ -41,6 +41,12 @@ public class ComposeSchemaException extends RuntimeException {
 
     private static final long serialVersionUID = 1L;
 
+    private java.util.Map<String, Object> details = java.util.Map.of();
+    public java.util.Map<String, Object> details() { return details; }
+    public ComposeSchemaException withDetails(java.util.Map<String, Object> value) {
+        details = java.util.Map.copyOf(value); return this;
+    }
+
     private final String code;
     private final String phase;
     private final String planPath;        // nullable

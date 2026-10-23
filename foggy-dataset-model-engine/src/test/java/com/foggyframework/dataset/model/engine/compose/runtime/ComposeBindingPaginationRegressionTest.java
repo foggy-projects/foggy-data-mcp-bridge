@@ -27,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class ComposeBindingPaginationRegressionTest extends EcommerceTestSupport {
     @Resource SystemBundlesContext bundles;
     @Resource SemanticQueryServiceV3 semantic;
+    boolean enforcePhysicalAndRowPolicy;
     @TempDir static Path root;
     @BeforeAll void setup() throws Exception {
         jdbcTemplate.execute("CREATE TABLE compose_page(id INTEGER PRIMARY KEY,grp INTEGER,amount INTEGER)");
@@ -46,6 +47,12 @@ class ComposeBindingPaginationRegressionTest extends EcommerceTestSupport {
             columnGroups:[{caption:'Fields',items:[{ref:m.id},{ref:m.amount},
             {name:'ranked',formula:'ROW_NUMBER()',type:'INTEGER',windowOrderBy:[{field:'amount',dir:'DESC'}]}]}],accesses:[]};
             """);
+        Files.writeString(root.resolve("query/PageSummaryQM.qm"), """
+            const m=loadTableModel('Page');export const queryModel={name:'PageSummaryQM',loader:'v2',model:m,
+            columnGroups:[{caption:'Fields',items:[{ref:m.id},{ref:m.grp},{ref:m.amount},
+            {name:'average',formula:'avg(amount)',type:'NUMBER'},
+            {name:'ratio',formula:'sum(amount)*1.0/nullif(sum(id),0)',type:'NUMBER'}]}],accesses:[]};
+            """);
         assertTrue(bundles.addExternalBundle("compose-page-regression","",root.toString(),false));
     }
     @AfterAll void cleanup() {
@@ -64,7 +71,10 @@ class ComposeBindingPaginationRegressionTest extends EcommerceTestSupport {
             .authorityResolver(request -> {
                 Map<String,ModelBinding> bindings=new LinkedHashMap<>();
                 for(String name:request.modelNames()) bindings.put(name, restricted
-                    ? ModelBinding.builder().fieldAccess(List.of("id","grp","queryId")).build():ModelBinding.builder().build());
+                    ? ModelBinding.builder().fieldAccess(List.of("id","grp","queryId"))
+                    .deniedColumns(enforcePhysicalAndRowPolicy ? List.of(new com.foggyframework.dataset.model.semantic.domain.DeniedPhysicalColumn(null,"compose_page","amount")) : List.of())
+                    .systemSlice(enforcePhysicalAndRowPolicy ? List.of(new com.foggyframework.dataset.model.def.query.request.SliceRequestDef("id","=",1)) : List.of())
+                    .build():ModelBinding.builder().build());
                 return AuthorityResolution.builder().bindings(bindings).build();
             }).build();
     }
@@ -84,7 +94,147 @@ class ComposeBindingPaginationRegressionTest extends EcommerceTestSupport {
     List<Integer> ids(List<Map<String,Object>> rows,String key) {
         return rows.stream().map(r->((Number)r.get(key)).intValue()).sorted().toList();
     }
+    @Test void summariesFollowBoundGroupsIncludingAggregateRatiosAndAliases() {
+        var mapper = new com.foggyframework.dataset.model.semantic.support.SemanticQueryPayloadMapper(new com.fasterxml.jackson.databind.ObjectMapper());
+        for (var columns : List.of(List.of("average", "ratio"), List.of("sum(amount) as total_amount", "average", "ratio"), List.of("grp as category", "average", "ratio"))) {
+            var request = mapper.toQueryRequest(Map.of("columns", columns, "limit", 20));
+            var response = semantic.queryModel("PageSummaryQM", request, "execute",
+                    com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext.empty());
+            String summary = response.getSchema().getSummary();
+            assertNotNull(summary);
+            if (!columns.get(0).startsWith("grp")) {
+                assertTrue(summary.startsWith("整体汇总"), summary);
+                assertEquals(1, response.getItems().size());
+                assertEquals(10.0, ((Number)response.getItems().get(0).get("ratio")).doubleValue(), 0.0001);
+            } else {
+                assertTrue(summary.contains("category") && summary.contains("分组"), summary);
+                assertEquals(3, response.getItems().size());
+            }
+            assertFalse(summary.contains("按 ratio 分组"), summary);
+        }
+    }
+
+    @Test void detailAndWindowQueriesDoNotClaimOverallAggregation() {
+        var mapper = new com.foggyframework.dataset.model.semantic.support.SemanticQueryPayloadMapper(new com.fasterxml.jackson.databind.ObjectMapper());
+        var detail = semantic.queryModel("PageQM",mapper.toQueryRequest(Map.of("columns",List.of("id","amount"))),
+                "execute",com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext.empty());
+        assertNull(detail.getSchema().getSummary());
+        if (supportsWindowFunctions()) {
+            var window = semantic.queryModel("PageWindowQM",mapper.toQueryRequest(Map.of("columns",List.of("id","ranked"))),
+                    "execute",com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext.empty());
+            assertNull(window.getSchema().getSummary());
+            assertEquals(6,window.getItems().size());
+        }
+    }
+
+    @Test void ordinaryGroupingProjectionContractIsPreserved() {
+        var mapper = new com.foggyframework.dataset.model.semantic.support.SemanticQueryPayloadMapper(new com.fasterxml.jackson.databind.ObjectMapper());
+        var request = mapper.toQueryRequest(Map.of("columns",List.of("count(id) as n"),"groupBy",List.of("grp")));
+        var failure = assertThrows(RuntimeException.class, () -> semantic.queryModel("PageQM",request,"execute",
+                com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext.empty()));
+        assertTrue(failure.getMessage().contains("grp"));
+    }
+
+    @ParameterizedTest @ValueSource(booleans={false,true})
+    void nestedJoinDiagnosticsUseBoundVisibleCandidates(boolean g10) {
+        ComposeFeatureFlags.overrideG10Enabled(g10);
+        try {
+            String script="const a="+base("")+"; const b=dsl({model:'PageQM',columns:['id as public_id']});"
+                    +"return {plans:a.join(b,'left',[{left:'id',op:'=',right:'missing'}]).query({columns:['id']})};";
+            for (var mode : ComposeScriptService.Mode.values()) {
+                var error=assertThrows(com.foggyframework.dataset.model.engine.compose.schema.ComposeSchemaException.class,
+                        () -> run(script, mode, true));
+                assertEquals("root.source.on[0].right", error.details().get("path"));
+                assertEquals("right", error.details().get("joinSide"));
+                assertEquals(0, error.details().get("onIndex"));
+                assertEquals(List.of("public_id"), error.details().get("availableFields"));
+                assertFalse(error.getMessage().contains("amount"));
+            }
+        } finally {ComposeFeatureFlags.overrideG10Enabled(null);}
+    }
+
     String base(String extra) { return "dsl({model:'PageQM',columns:['id'],orderBy:['id']"+extra+"})"; }
+
+    @ParameterizedTest @ValueSource(booleans={false,true})
+    void rawScalarCannotEscapeAuthorizedRelations(boolean g10) {
+        ComposeFeatureFlags.overrideG10Enabled(g10);
+        enforcePhysicalAndRowPolicy=true;
+        try {
+            String base="const a=dsl({model:'PageQM',columns:['id as compose_page','id as SELECT','id as FROM','id as WHERE','id as public_value','id']})"
+                    + ".query({columns:['compose_page','SELECT','FROM','WHERE','id','public_value as amount']});";
+            for(var mode:ComposeScriptService.Mode.values()) assertNotNull(run(base+"return {plans:a};",mode,true));
+            for(String expr:List.of("(SELECT amount FROM compose_page WHERE id=2)","(select amount from compose_page)",
+                    "COALESCE((SELECT amount FROM compose_page WHERE id=2),0)","id; SELECT amount FROM compose_page")) {
+                String script=base+"return {plans:a.query({columns:[\""+expr+" as leaked\"]})};";
+                for(var mode:ComposeScriptService.Mode.values()) assertThrows(RuntimeException.class,()->run(script,mode,true),expr+" "+mode);
+            }
+            String control="return {plans:dsl({model:'PageQM',columns:['id']})};";
+            var actual=(List<?>)((Map<?,?>)run(control,ComposeScriptService.Mode.EXECUTE,true)).get("plans");
+            assertEquals(1,actual.size());
+            assertEquals(1,((Number)((Map<?,?>)actual.get(0)).get("id")).intValue());
+        } finally { enforcePhysicalAndRowPolicy=false; ComposeFeatureFlags.overrideG10Enabled(null); }
+    }
+
+    @ParameterizedTest @ValueSource(booleans={false,true})
+    void qualifiedRightFieldsAndAggregatesKeepTheirProducer(boolean g10) {
+        ComposeFeatureFlags.overrideG10Enabled(g10);
+        try {
+            String setup="const a=dsl({model:'PageQM',columns:['id as lid','grp as lg','amount'],slice:[{field:'id',op:'=',value:1}]});"
+                    +"const b=dsl({model:'PageQM',columns:['id as rid','grp as rg','amount'],slice:[{field:'id',op:'=',value:2}]});"
+                    +"const j=a.join(b,'inner',[{left:'lg',right:'rg',op:'='}]);";
+            for(String field:List.of("b.amount.as('v')","b.amount.sum().as('v')")) {
+                var actual=rows(setup+"return {plans:j.query({columns:["+field+"]})};");
+                assertEquals(1,actual.size()); assertEquals(20,((Number)actual.get(0).get("v")).intValue());
+                assertEquals(Set.of("v"),actual.get(0).keySet());
+            }
+            var nested=rows(setup+"const c=dsl({model:'PageQM',columns:['grp as cg'],slice:[{field:'id',op:'=',value:1}]});"
+                    +"return {plans:c.join(j,'inner',[{left:'cg',right:'rg',op:'='}]).query({columns:[b.amount.as('v')]})};");
+            assertEquals(20,((Number)nested.get(0).get("v")).intValue());
+            var projected=rows(setup+"const p=j.query({columns:[b.amount.as('renamed')]});return {plans:p.query({columns:[p.renamed.as('v')]})};");
+            assertEquals(20,((Number)projected.get(0).get("v")).intValue());
+        } finally { ComposeFeatureFlags.overrideG10Enabled(null); }
+    }
+
+    @ParameterizedTest @ValueSource(booleans={false,true})
+    void selfJoinRetainsBothOccurrencesIncludingStructuralCacheHits(boolean g10) {
+        ComposeFeatureFlags.overrideG10Enabled(g10);
+        try {
+            String input="dsl({model:'PageQM',columns:['id','grp','amount'],slice:[{field:'grp',op:'=',value:1}]})";
+            for(String right:List.of("a",input)) {
+                var actual=rows("const a="+input+";const b="+right+";return {plans:a.join(b,'inner',[{left:'grp',right:'grp',op:'='}])};");
+                assertEquals(4,actual.size()); assertEquals(List.of(1,1,2,2),ids(actual,"id"));
+            }
+            assertEquals(8,rows("const a="+input+";const j=a.join(a,'inner',[{left:'grp',right:'grp',op:'='}]);return {plans:j.join(a,'inner',[{left:'grp',right:'grp',op:'='}])};").size());
+        } finally { ComposeFeatureFlags.overrideG10Enabled(null); }
+    }
+
+    @ParameterizedTest @ValueSource(booleans={false,true})
+    void derivedValidationAndAliasPermissionsAgreeAcrossModes(boolean g10) {
+        ComposeFeatureFlags.overrideG10Enabled(g10);
+        try {
+            String base="dsl({model:'PageQM',columns:['id','grp','amount']})";
+            for(String options:List.of("columns:['count(id) as n'],groupBy:['missing']", "columns:['id'],slice:[{field:'id',op:'=',value:{$field:'missing'}}]",
+                    "columns:['id as x','amount as x']","columns:['*']")) {
+                String script="return {plans:"+base+".query({"+options+"})};";
+                for(var mode:ComposeScriptService.Mode.values()) assertThrows(RuntimeException.class,()->run(script,mode,false),options);
+            }
+            assertEquals(3,rows("return {plans:"+base+".query({columns:['count(id) as n'],groupBy:['grp']})};").size());
+            assertEquals(List.of(1,2,3,4,5,6),ids(rows("return {plans:"+base+".query({columns:['CAST(id AS DECIMAL(10,0)) as cast_id']}).query({columns:['cast_id']})};"),"cast_id"));
+            String alias="const a=dsl({model:'PageQM',columns:['queryId']});return {plans:a.query({columns:[a.resultId.as('key')]})};";
+            for(var mode:ComposeScriptService.Mode.values()) assertNotNull(run(alias,mode,true));
+            assertEquals(6,rows("const a=dsl({model:'PageQM',columns:['queryId']});return {plans:a.union(a,{all:true}).query({columns:['resultId'],limit:6})};").size());
+        } finally { ComposeFeatureFlags.overrideG10Enabled(null); }
+    }
+
+    @Test void relationSchemaUsesCompiledAliasesAcrossUnionAndDerived() {
+        var base=com.foggyframework.dataset.model.engine.compose.plan.BaseModelPlan.builder().model("PageQM").columns(List.of("queryId")).build();
+        for(var plan:List.of(base,base.union(base,true),base.union(base,true).query(com.foggyframework.dataset.model.engine.compose.plan.QueryOptions.of(List.of("resultId"))))) {
+            var relation=com.foggyframework.dataset.model.engine.compose.compilation.ComposeRelationCompiler.compileToRelation(plan,context(false),
+                    com.foggyframework.dataset.model.engine.compose.compilation.RelationCompileOptions.builder().semanticService(semantic).dialect(dialect()).build());
+            assertEquals(List.of("resultId"),relation.outputSchema().names());
+            assertTrue(jdbcTemplate.queryForList(relation.relationSql().bodySql(),relation.params().toArray()).get(0).containsKey("resultId"));
+        }
+    }
     String joined(String leftExtra,String rightExtra,String key) {
         return "const a=dsl({model:'PageQM',columns:['id as left_id'],orderBy:['left_id']"+leftExtra+
             "});const b=dsl({model:'PageQM',columns:['id as right_id','amount'],orderBy:['right_id']"+rightExtra+

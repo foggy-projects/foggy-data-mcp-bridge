@@ -86,6 +86,7 @@ import org.springframework.context.annotation.Import;
         RuntimeModelsController.class,
         RuntimeMembersController.class,
         RuntimeQueryController.class,
+        com.foggyframework.runtime.api.controller.RuntimeNullOutputAdvice.class,
         RuntimeQueryExplainController.class,
         RuntimeResourcesController.class,
         RuntimeTablesController.class

@@ -120,6 +120,7 @@ public class RuntimeComposeRunner {
     private static RuntimeDiagnostics compilerDiagnostics(RuntimeComposeContext context, ComposeExecutionException error) {
         RuntimeDiagnostics original = diagnostics(context);
         java.util.Map<String, Object> attributes = new java.util.LinkedHashMap<>(original.attributes());
+        attributes.putAll(error.details());
         if (error.code() != null) attributes.put("composeErrorCode", error.code());
         if (error.enginePhase() != null) attributes.put("composeErrorPhase", error.enginePhase());
         return new RuntimeDiagnostics(original.sql(), original.plan(), original.warnings(), attributes);

@@ -272,6 +272,19 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         DbQueryResult dbQueryResult = queryFacade.queryModelResult(resultContext);
         PagingResultImpl queryResult = resultContext.getPagingResult();
         context.extData = resultContext.getExtData();
+        if (dbQueryResult != null && dbQueryResult.getQueryEngine() != null) {
+            var bound = dbQueryResult.getQueryEngine().getJdbcQuery();
+            if (bound != null && bound.getSelect() != null) {
+                context.boundAggregate = bound.getSelect().getColumns().stream().anyMatch(column -> {
+                    var calculated = column instanceof com.foggyframework.dataset.model.spi.support.CalculatedDbColumn c
+                            ? c : column.getDecorate(com.foggyframework.dataset.model.spi.support.CalculatedDbColumn.class);
+                    if (calculated != null && (calculated.hasWindow() || calculated.getResultStageDepth() > 0)) return false;
+                    return (calculated != null && calculated.hasAggregate())
+                            || (column.getAggregation() != null && column.getAggregation() != com.foggyframework.dataset.model.spi.DbAggregation.NONE);
+                });
+            }
+            if (bound != null) context.boundGroups = bound.getGroup() == null ? List.of() : bound.getGroup().getGroups();
+        }
 
         // 6. 构建响应
         SemanticQueryResponse response = buildResponse(
@@ -1772,7 +1785,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         response.setWarnings(context.warnings.isEmpty() ? null : context.warnings);
 
         // 构建 Schema 信息（包含 summary）
-        response.setSchema(buildSchemaInfo(queryModel, request, queryResult, context.outputFormattingByField,
+        response.setSchema(buildSchemaInfo(queryModel, request, queryResult, context.outputFormattingByField, context.boundGroups, context.boundAggregate,
                 context.extData == null ? null : (String) context.extData.get("timeWindowDateAxis")));
 
         // 设置数据截断信息（如果存在）
@@ -1916,7 +1929,8 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                                                              DbQueryRequestDef request,
                                                              PagingResultImpl queryResult,
                                                              Map<String, SemanticQueryResponse.SchemaInfo.DisplayFormat> outputFormattingByField,
-                                                             String timeWindowDateAxis) {
+                                                             List<com.foggyframework.dataset.model.impl.query.DbQueryGroupColumnImpl> boundGroups,
+                                                             boolean boundAggregate, String timeWindowDateAxis) {
         SemanticQueryResponse.SchemaInfo schemaInfo = new SemanticQueryResponse.SchemaInfo();
         List<SemanticQueryResponse.SchemaInfo.ColumnDef> columnDefs = new ArrayList<>();
 
@@ -1950,7 +1964,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         schemaInfo.setColumns(columnDefs);
 
         // 生成 Markdown summary
-        schemaInfo.setSummary(buildSchemaSummary(columnDefs, request, queryResult));
+        schemaInfo.setSummary(buildSchemaSummary(columnDefs, request, queryResult, boundGroups, boundAggregate));
 
         return schemaInfo;
     }
@@ -1960,11 +1974,12 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
      */
     private String buildSchemaSummary(List<SemanticQueryResponse.SchemaInfo.ColumnDef> columnDefs,
                                       DbQueryRequestDef request,
-                                      PagingResultImpl queryResult) {
+                                      PagingResultImpl queryResult,
+                                      List<com.foggyframework.dataset.model.impl.query.DbQueryGroupColumnImpl> boundGroups, boolean boundAggregate) {
         List<GroupRequestDef> groupBy = request.getGroupBy();
 
-        // 无分组时不生成 summary
-        if (groupBy == null || groupBy.isEmpty()) {
+        // Detail and deferred queries without bound grouping information have no aggregate summary.
+        if (boundGroups == null || ((groupBy == null || groupBy.isEmpty()) && !boundAggregate)) {
             return null;
         }
 
@@ -1974,17 +1989,18 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         List<String> dimensions = new ArrayList<>();
         List<String> measures = new ArrayList<>();
 
-        Set<String> groupByNames = new HashSet<>();
-        for (GroupRequestDef g : groupBy) {
-            if (g.getAgg() == null || g.getAgg().isEmpty()) {
-                // 无聚合类型 = 分组维度
-                groupByNames.add(g.getField());
+        Set<String> groupByNames = new LinkedHashSet<>();
+        // Use the exact grouping predicate used by SimpleSqlJdbcQueryVisitor.
+        // A ratio with multiple aggregates has no single agg type, but is not a dimension.
+        for (var group : boundGroups == null ? List.<com.foggyframework.dataset.model.impl.query.DbQueryGroupColumnImpl>of() : boundGroups) {
+            if (group.getAggColumn().getGroupByName() != null) {
+                groupByNames.add(group.getAggColumn().getAlias());
             }
         }
 
         for (SemanticQueryResponse.SchemaInfo.ColumnDef col : columnDefs) {
             String queryName = col.getQueryName() != null ? col.getQueryName() : col.getName();
-            if (groupByNames.contains(queryName)) {
+            if (groupByNames.contains(col.getName())) {
                 dimensions.add(col.getTitle() != null ? col.getTitle() : queryName);
             } else {
                 // 找到对应的聚合类型
@@ -1999,12 +2015,21 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             }
         }
 
+        // GROUP BY inputs need not be projected (e.g. SELECT COUNT(*) GROUP BY category).
+        for (String grouped : groupByNames) {
+            if (columnDefs.stream().noneMatch(col -> grouped.equals(col.getName()))) dimensions.add(grouped);
+        }
+
         // 构建摘要
         if (!dimensions.isEmpty() && !measures.isEmpty()) {
             sb.append("按 ").append(String.join("、", dimensions)).append(" 分组");
             sb.append("，统计 ").append(String.join("、", measures));
         } else if (!dimensions.isEmpty()) {
             sb.append("按 ").append(String.join("、", dimensions)).append(" 分组");
+        }
+
+        if (dimensions.isEmpty() && !measures.isEmpty()) {
+            sb.append("整体汇总，统计 ").append(String.join("、", measures));
         }
 
         // 添加数据量信息
@@ -2372,6 +2397,8 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
      * V3查询上下文
      */
     private static class QueryContextV3 {
+        boolean boundAggregate;
+        List<com.foggyframework.dataset.model.impl.query.DbQueryGroupColumnImpl> boundGroups;
         String model;
         SemanticQueryRequest originalRequest;
         Map<String, Object> extData = new HashMap<>();

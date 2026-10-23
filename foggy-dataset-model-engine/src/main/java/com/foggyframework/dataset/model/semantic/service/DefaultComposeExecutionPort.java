@@ -80,7 +80,7 @@ public class DefaultComposeExecutionPort implements ComposeExecutionPort {
         } catch (ComposeSchemaException e) {
             throw new ComposeExecutionException(
                     ComposeExecutionException.Kind.SCHEMA,
-                    e.code(), e.phase(), e.getMessage(), e.offendingField(), null, e);
+                    e.code(), e.phase(), e.getMessage(), e.offendingField(), null, e).withDetails(e.details());
         } catch (ComposeCompileException e) {
             throw new ComposeExecutionException(
                     ComposeExecutionException.Kind.COMPILE,

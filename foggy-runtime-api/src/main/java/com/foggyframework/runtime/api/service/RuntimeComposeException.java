@@ -50,7 +50,7 @@ public final class RuntimeComposeException extends RuntimeException {
                 getMessage(),
                 null,
                 field,
-                null,
+                (String) diagnostics.attributes().get("path"),
                 suggestedNextAction,
                 safeToAutoRepair
         );

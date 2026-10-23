@@ -14,6 +14,11 @@ public final class DateDifferenceSql {
         public String getCode() { return code; }
     }
 
+    public static List<String> supportedUnits(FDialect dialect) {
+        List<String> units = List.of("MICROSECOND", "SECOND", "MINUTE", "HOUR", "DAY", "WEEK", "MONTH", "QUARTER", "YEAR");
+        return dialect != null && "SQLITE".equalsIgnoreCase(dialect.getProductName()) ? units.subList(1, units.size()) : units;
+    }
+
     public static boolean supports(String function) {
         return "DATEDIFF".equalsIgnoreCase(function) || "TIMESTAMPDIFF".equalsIgnoreCase(function);
     }
@@ -61,12 +66,25 @@ public final class DateDifferenceSql {
             default -> 604800000000L;
         };
         String elapsed = switch (family) {
-            case "postgres" -> "(EXTRACT(EPOCH FROM (CAST(" + end + " AS timestamp) - CAST(" + start + " AS timestamp))) * 1000000.0)";
-            case "sqlserver" -> "DATEDIFF_BIG(microsecond, " + start + ", " + end + ")";
+            // Extract from each typed operand: casting timestamptz to timestamp loses DST offsets.
+            case "postgres" -> "((" + postgresEpoch(end) + " - " + postgresEpoch(start) + ") * 1000000.0)";
+            // DATEDIFF counts boundaries. Restore the sub-microsecond remainder before truncation;
+            // using nanoseconds for the entire interval would overflow for long date ranges.
+            case "sqlserver" -> "(CAST(DATEDIFF_BIG(microsecond, " + start + ", " + end + ") AS decimal(20,1)) + "
+                    + "(DATEPART(nanosecond, CAST(" + end + " AS datetime2(7))) % 1000 - "
+                    + "DATEPART(nanosecond, CAST(" + start + " AS datetime2(7))) % 1000) / 1000.0)";
             // Round to SQLite's millisecond resolution BEFORE truncating whole units.
             default -> "(ROUND((julianday(" + end + ") - julianday(" + start + ")) * 86400000.0) * 1000.0)";
         };
         return truncate(family, "(" + elapsed + ") / " + micros + ".0");
+    }
+
+    private static String postgresEpoch(String expression) {
+        // Keep the historical timestamp conversion for text-valued date formulas and literals,
+        // while preserving the instant when the operand already carries a timezone.
+        return "(CASE WHEN pg_typeof(" + expression + ") = 'timestamp with time zone'::regtype "
+                + "THEN EXTRACT(EPOCH FROM CAST(" + expression + " AS timestamptz)) "
+                + "ELSE EXTRACT(EPOCH FROM CAST(" + expression + " AS timestamp)) END)";
     }
 
     private static String truncate(String family, String value) {
@@ -87,6 +105,8 @@ public final class DateDifferenceSql {
             sm = "EXTRACT(MONTH FROM " + start + ")"; em = "EXTRACT(MONTH FROM " + end + ")";
             st = "TO_CHAR(" + start + ", 'DD HH24:MI:SS.US')"; et = "TO_CHAR(" + end + ", 'DD HH24:MI:SS.US')";
         } else {
+            start = "CAST(" + start + " AS datetime2(7))";
+            end = "CAST(" + end + " AS datetime2(7))";
             sy = "YEAR(" + start + ")"; ey = "YEAR(" + end + ")";
             sm = "MONTH(" + start + ")"; em = "MONTH(" + end + ")";
             st = "SUBSTRING(CONVERT(varchar(30), " + start + ", 121), 9, 22)";

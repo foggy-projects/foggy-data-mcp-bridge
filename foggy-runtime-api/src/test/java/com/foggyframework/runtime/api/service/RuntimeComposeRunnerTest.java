@@ -152,11 +152,13 @@ class RuntimeComposeRunnerTest {
                 org.mockito.ArgumentMatchers.any())).thenReturn(context("ns", null, Map.of(), "sqlite", "default"));
         when(composeExecutionPort.execute(org.mockito.ArgumentMatchers.any())).thenThrow(new ComposeExecutionException(
                 ComposeExecutionException.Kind.SCHEMA, "JOIN_ON_RIGHT_UNKNOWN_FIELD", "schema-derive",
-                "JoinPlan.on[0].right='missing' not in right side's output schema [right_id]", "missing", null, null));
+                "JoinPlan.on[0].right='missing' not in right side's output schema [right_id]", "missing", null, null).withDetails(Map.of("path","root.source.right.on[0].right", "planPath","root.source.right", "joinSide","right", "onIndex",0,"availableFields",List.of("right_id"))));
         for (ComposeOperation mode : ComposeOperation.values()) {
             assertThatThrownBy(() -> runner.run(mode, "compose." + mode.name().toLowerCase(), invocation))
                 .isInstanceOfSatisfying(RuntimeComposeException.class, e -> {
                     assertThat(e.toRuntimeError().field()).isEqualTo("missing");
+                    assertThat(e.toRuntimeError().path()).isEqualTo("root.source.right.on[0].right");
+                    assertThat(e.diagnostics().attributes()).containsEntry("availableFields", List.of("right_id"));
                     assertThat(e.toRuntimeError().safeToAutoRepair()).isTrue();
                     assertThat(e.diagnostics().attributes()).containsEntry("composeErrorCode", "JOIN_ON_RIGHT_UNKNOWN_FIELD")
                         .containsEntry("composeErrorPhase", "schema-derive").containsEntry("namespace", "ns");

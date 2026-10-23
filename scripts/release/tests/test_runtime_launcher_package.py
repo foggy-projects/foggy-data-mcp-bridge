@@ -27,6 +27,20 @@ class RuntimeLauncherPackageTest(unittest.TestCase):
             self.assertNotIn("--foggy.data-viewer.enabled=false", script)
             self.assertIn("--server.address=127.0.0.1", script)
 
+    def test_lite_exclusions_survive_command_line_override(self) -> None:
+        required = {
+            "com.foggyframework.odoo.bridge.OdooBridgeAutoConfiguration",
+            "org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration",
+            "org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration",
+            "org.springframework.boot.autoconfigure.data.mongo.MongoRepositoriesAutoConfiguration",
+        }
+        for name in ("start-foggy-runtime.ps1", "start-foggy-runtime.sh"):
+            script = (release.LAUNCHER_MODULE / "src/main/distribution" / name).read_text(encoding="utf-8")
+            argument = next(line.strip().strip('" ,\\') for line in script.splitlines()
+                            if "--spring.autoconfigure.exclude=" in line)
+            actual = set(argument.split("=", 1)[1].split(","))
+            self.assertEqual(required, actual, name)
+
     def test_release_sources_embed_console_as_standard_launcher_dependency(self) -> None:
         release.verify_release_sources()
 

@@ -278,8 +278,13 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
             if (typed != null) throw typed;
             for (Throwable cause = e; cause != null; cause = cause.getCause()) {
                 if (cause instanceof com.foggyframework.dataset.db.dialect.DateDifferenceSql.InvalidCall invalid) {
-                    throw diagnostic(fieldDef, invalid.getCode(), invalid.getMessage(),
+                    var base = diagnostic(fieldDef, invalid.getCode(), invalid.getMessage(),
                             "Use DATEDIFF(end, start) or TIMESTAMPDIFF(unit, start, end) with a supported literal unit and datasource dialect.");
+                    Map<String,Object> details = new LinkedHashMap<>(base.getDetails());
+                    if (invalid.getCode().startsWith("DATE_FUNCTION_UNIT_"))
+                        details.put("allowedValues", com.foggyframework.dataset.db.dialect.DateDifferenceSql.supportedUnits(dialect));
+                    throw new QueryCalculationException(base.getCode(), base.getField(), base.getPath(),
+                            invalid.getMessage(), base.getSuggestion(), details);
                 }
                 if (cause.getCause() == cause) break;
             }

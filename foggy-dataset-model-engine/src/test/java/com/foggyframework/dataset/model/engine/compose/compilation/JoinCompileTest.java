@@ -168,14 +168,14 @@ class JoinCompileTest {
     }
 
     @Test
-    @DisplayName("self-join · 两侧同一 plan 实例 → 单 CTE")
-    void selfJoinProducesSingleCte() {
+    @DisplayName("self-join reuses compilation but keeps two relation occurrences")
+    void selfJoinReusesCompilationWithDistinctOccurrences() {
         FakeSemanticService svc = new FakeSemanticService();
         svc.stub("M", "SELECT id FROM tm");
         BaseModelPlan base = CompileTestHelpers.base("M", "id");
         JoinPlan j = base.join(base, JoinType.INNER, List.of(JoinOn.of("id", "=", "id")));
         ComposedSql sql = compile(j, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlite");
-        // Only one generateSql invocation, and SQL contains only one CTE clause.
+        // One semantic compilation, two independent FROM occurrences.
         assertEquals(1, svc.invocations.size());
         int count = 0;
         int idx = 0;
@@ -183,7 +183,8 @@ class JoinCompileTest {
             count += 1;
             idx += 1;
         }
-        assertEquals(1, count);
+        assertEquals(2, count);
+        assertTrue(sql.getSql().contains("JOIN cte_1 ON cte_0.id = cte_1.id"));
     }
 
     @Test

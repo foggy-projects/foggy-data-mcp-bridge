@@ -117,10 +117,11 @@ public final class ComposeRelationCompiler {
 
         // ---- 5. Compile plan to ComposedSql ----
         String namespace = context == null ? null : context.namespace();
+        List<OutputSchema> compiledSchemas = new ArrayList<>(1);
         ComposedSql composedSql = ComposePlanner.compileToComposedSql(
                 effectivePlan, bindings, opts.planningPort(), namespace,
                 ComposeSqlCompiler.semanticRequestContext(context), dialect,
-                datasourceIds);
+                datasourceIds, compiledSchemas::add);
 
         String sql = composedSql.getSql();
         List<Object> params = composedSql.getParams() != null
@@ -149,7 +150,7 @@ public final class ComposeRelationCompiler {
         assertNoFromWith(sql, dialect);
 
         // ---- 9. Derive OutputSchema ----
-        OutputSchema outputSchema = deriveOutputSchema(effectivePlan, opts);
+        OutputSchema outputSchema = deriveOutputSchema(compiledSchemas.get(0), opts);
 
         // ---- 10. Build RelationSql ----
         String alias = opts.relationAlias();
@@ -188,7 +189,7 @@ public final class ComposeRelationCompiler {
      * {@link SchemaDerivation#derive} for a basic structural schema.</p>
      */
     private static OutputSchema deriveOutputSchema(
-            QueryPlan plan, RelationCompileOptions opts) {
+            OutputSchema actual, RelationCompileOptions opts) {
         if (opts.timeWindowDef() != null
                 && opts.dimensionFields() != null
                 && opts.measureFields() != null) {
@@ -196,11 +197,10 @@ public final class ComposeRelationCompiler {
                     opts.timeWindowDef(),
                     opts.dimensionFields(),
                     opts.measureFields());
-            OutputSchema actual = SchemaDerivation.derive(plan);
             return OutputSchema.of(actual.columns().stream()
                     .map(column -> metadata.contains(column.name()) ? metadata.get(column.name()) : column).toList());
         }
-        return SchemaDerivation.derive(plan);
+        return actual;
     }
 
     /**

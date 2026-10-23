@@ -58,7 +58,7 @@ nohup "$JAVA_EXE" \
   --foggy.datasource.config.dir="$LEGACY_DATASOURCE_CONFIG_DIR" \
   --foggy.mcp.audit.enabled=false \
   --foggy.demo.enabled=false \
-  --spring.autoconfigure.exclude=com.foggyframework.odoo.bridge.OdooBridgeAutoConfiguration \
+  --spring.autoconfigure.exclude=com.foggyframework.odoo.bridge.OdooBridgeAutoConfiguration,org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration,org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration,org.springframework.boot.autoconfigure.data.mongo.MongoRepositoriesAutoConfiguration \
   --spring.datasource.url="jdbc:sqlite:$SQLITE_PATH" \
   --logging.level.org.springframework.ai=INFO \
   --logging.level.com.foggyframework.core.spring.proxy=WARN \
