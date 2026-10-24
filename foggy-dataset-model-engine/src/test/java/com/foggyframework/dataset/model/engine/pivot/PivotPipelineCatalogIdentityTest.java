@@ -1,8 +1,25 @@
 package com.foggyframework.dataset.model.engine.pivot;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.foggyframework.dataset.client.domain.PagingRequest;
-import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.model.def.permission.ModelPermissionsDef;
+import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogResolution;
 import com.foggyframework.dataset.model.lifecycle.identity.CatalogGeneration;
 import com.foggyframework.dataset.model.lifecycle.identity.CatalogIdentity;
@@ -22,29 +39,13 @@ import com.foggyframework.dataset.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.model.spi.QueryModel;
 import com.foggyframework.dataset.model.spi.QueryModelLoader;
 import com.foggyframework.fsscript.exp.FsscriptFunction;
+
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 class PivotPipelineCatalogIdentityTest {
 
@@ -54,7 +55,8 @@ class PivotPipelineCatalogIdentityTest {
     @Test
     void entryResolvesOncePinsEveryPhaseAndUsesStrongIdentityForReadAndWrite() {
         QueryModel model = queryModel(MODEL);
-        CatalogResolution<QueryModel> resolution = resolution(model, NAMESPACE, "catalog-a", true, true);
+        CatalogResolution<QueryModel> resolution =
+                resolution(model, NAMESPACE, "catalog-a", true, true);
         QueryModelLoader loader = mock(QueryModelLoader.class);
         when(loader.resolveJdbcQueryModel(MODEL, NAMESPACE)).thenReturn(resolution);
         SemanticQueryServiceV3 service = emptySemanticService();
@@ -94,7 +96,8 @@ class PivotPipelineCatalogIdentityTest {
     @Test
     void completeLifecycleStillRefusesCacheWhenSupplementaryProviderThrows() {
         QueryModel model = queryModel(MODEL);
-        CatalogResolution<QueryModel> resolution = resolution(model, NAMESPACE, "catalog-a", true, true);
+        CatalogResolution<QueryModel> resolution =
+                resolution(model, NAMESPACE, "catalog-a", true, true);
         QueryModelLoader loader = mock(QueryModelLoader.class);
         when(loader.resolveJdbcQueryModel(MODEL, NAMESPACE)).thenReturn(resolution);
         SemanticQueryServiceV3 service = emptySemanticService();
@@ -255,7 +258,8 @@ class PivotPipelineCatalogIdentityTest {
     void midRequestGenerationSwitchFailsBeforeOldKeyCanBeStored() {
         QueryModel model = queryModel(MODEL);
         CatalogResolution<QueryModel> first = resolution(model, NAMESPACE, "catalog-a", true, true);
-        CatalogResolution<QueryModel> switched = resolution(model, NAMESPACE, "catalog-b", true, true);
+        CatalogResolution<QueryModel> switched =
+                resolution(model, NAMESPACE, "catalog-b", true, true);
         QueryModelLoader loader = mock(QueryModelLoader.class);
         when(loader.resolveJdbcQueryModel(MODEL, NAMESPACE)).thenReturn(first);
         SemanticQueryServiceV3 service = mock(SemanticQueryServiceV3.class);
@@ -287,7 +291,8 @@ class PivotPipelineCatalogIdentityTest {
     @Test
     void directManagedRelationContextCarriesTheSameCatalogPin() {
         QueryModel model = queryModel(MODEL);
-        CatalogResolution<QueryModel> resolution = resolution(model, NAMESPACE, "catalog-a", true, true);
+        CatalogResolution<QueryModel> resolution =
+                resolution(model, NAMESPACE, "catalog-a", true, true);
         PivotPipeline pipeline = pipeline(
                 emptySemanticService(), mock(QueryModelLoader.class), enabledMissCache(),
                 PivotOuterCacheModelIdentityProvider.empty(),
@@ -314,7 +319,8 @@ class PivotPipelineCatalogIdentityTest {
     @Test
     void semanticServiceBuildsAResultContextWithTheExactCatalogPin() {
         QueryModel model = queryModel(MODEL);
-        CatalogResolution<QueryModel> resolution = resolution(model, NAMESPACE, "catalog-a", true, true);
+        CatalogResolution<QueryModel> resolution =
+                resolution(model, NAMESPACE, "catalog-a", true, true);
         SemanticRequestContext requestContext = SemanticRequestContext.ofNamespace(NAMESPACE)
                 .withCatalogResolution(resolution);
         DbQueryRequestDef queryDefinition = new DbQueryRequestDef();
@@ -383,7 +389,8 @@ class PivotPipelineCatalogIdentityTest {
         verify(cache, never()).store(anyString(), any(), anyLong(), any(), any());
         Map<String, Object> identityDiagnostic = diagnostic(response, "pivot.cache.identity");
         assertEquals(expectedStatus, identityDiagnostic.get("status"));
-        assertEquals(resolution.dependencyBindings().size(), identityDiagnostic.get("bindingCount"));
+        assertEquals(
+                resolution.dependencyBindings().size(), identityDiagnostic.get("bindingCount"));
         assertEquals(expectedReason, diagnostic(response, "pivot.cache.refused").get("reason"));
         assertFalse(hasDiagnostic(response, "pivot.cache.lookup"));
         if (PivotOuterCacheStrongIdentity.STATUS_INCOMPLETE.equals(expectedStatus)) {
@@ -396,13 +403,63 @@ class PivotPipelineCatalogIdentityTest {
         assertNotNull(model);
     }
 
+    @Test
+    void completeCatalogWithoutAGovernedAuthorizationPlanCannotUseOuterCache() {
+        QueryModel model = queryModel(MODEL);
+        QueryModelLoader loader = mock(QueryModelLoader.class);
+        CatalogResolution<QueryModel> complete =
+                resolution(model, NAMESPACE, "catalog-a", true, true);
+        when(loader.resolveJdbcQueryModel(MODEL, NAMESPACE)).thenReturn(complete);
+        PivotOuterCacheProvider cache = enabledMissCache();
+        PivotPipeline pipeline =
+                new PivotPipeline(
+                        emptySemanticService(),
+                        new CardinalityBreaker(),
+                        loader,
+                        null,
+                        new PivotPipeline.OuterCacheOptions(true, 60_000L, 16),
+                        PivotOuterCacheModelIdentityProvider.empty(),
+                        cache);
+        SemanticQueryResponse result =
+                pipeline.execute(MODEL, request(), SemanticRequestContext.ofNamespace(NAMESPACE));
+        assertEquals(
+                "missing_authorization_signature",
+                diagnostic(result, "pivot.cache.refused").get("reason"));
+        verify(cache, never()).lookup(anyString(), anyLong());
+        verify(cache, never()).store(anyString(), any(), anyLong(), any(), any());
+    }
+
     private PivotPipeline pipeline(SemanticQueryServiceV3 service,
                                    QueryModelLoader loader,
                                    PivotOuterCacheProvider cache,
                                    PivotOuterCacheModelIdentityProvider identityProvider,
                                    PivotPipeline.OuterCacheOptions options) {
+        var governance =
+                mock(com.foggyframework.dataset.model.port.ManagedRelationExecutionPort.class);
+        when(governance.prepareManagedRelation(any(), any()))
+                .thenAnswer(
+                        invocation -> {
+                            ModelResultContext context = invocation.getArgument(0);
+                            context.setPermissionDecision(
+                                    com.foggyframework.dataset.model.semantic.permission
+                                            .PermissionDecision.publicAllow());
+                            var relation =
+                                    mock(
+                                            com.foggyframework.dataset.model.plugins.query_execution
+                                                    .ManagedSqlRelation.class);
+                            when(relation.isPermissionValidated()).thenReturn(true);
+                            when(relation.getSql()).thenReturn("SELECT region, amount");
+                            when(relation.getParams()).thenReturn(List.of());
+                            return relation;
+                        });
         return new PivotPipeline(
-                service, new CardinalityBreaker(), loader, null, options, identityProvider, cache);
+                service,
+                new CardinalityBreaker(),
+                loader,
+                governance,
+                options,
+                identityProvider,
+                cache);
     }
 
     private SemanticQueryServiceV3 emptySemanticService() {

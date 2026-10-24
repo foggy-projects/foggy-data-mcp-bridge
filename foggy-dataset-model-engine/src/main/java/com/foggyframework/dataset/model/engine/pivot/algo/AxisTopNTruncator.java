@@ -4,7 +4,6 @@ import com.foggyframework.dataset.model.semantic.domain.pivot.AxisField;
 import com.foggyframework.dataset.model.spi.DbAggregation;
 
 import java.math.BigDecimal;
-
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -31,7 +30,7 @@ public class AxisTopNTruncator {
         if (axisFields == null || resultSet.isEmpty()) return resultSet;
         Set<String> axisNames = axisFields.stream().map(AxisField::getField).collect(Collectors.toSet());
         for (AxisField field : axisFields) {
-            if (field.getLimit() == null || field.getLimit() <= 0 || field.getOrderBy() == null) continue;
+            if (!controlled(field) || field.getOrderBy() == null) continue;
             for (String spec : field.getOrderBy()) {
                 String name = spec.startsWith("-") ? spec.substring(1) : spec;
                 if (!axisNames.contains(name) && !aggregations.containsKey(name))
@@ -42,7 +41,8 @@ public class AxisTopNTruncator {
         List<Map<String, Object>> current = new ArrayList<>(resultSet);
         List<String> parents = new ArrayList<>();
         for (AxisField field : axisFields) {
-            if (field.getLimit() != null && field.getLimit() > 0) {
+            if (Integer.valueOf(0).equals(field.getLimit())) return Collections.emptyList();
+            if (controlled(field)) {
                 Map<List<Object>, Map<Object, List<Map<String, Object>>>> partitions = new LinkedHashMap<>();
                 for (var row : current) {
                     List<Object> key = parents.stream().map(row::get).collect(Collectors.toList());
@@ -66,9 +66,15 @@ public class AxisTopNTruncator {
                         }
                         ranking.add(member);
                     }
-                    if (field.getOrderBy() != null && !field.getOrderBy().isEmpty()) ranking.sort(buildComparator(field.getOrderBy()));
+                    ranking.sort(buildComparator(orders(field)));
                     int start = Math.min(field.getEffectiveOffset(), ranking.size());
-                    int end = (int) Math.min((long) start + field.getLimit(), ranking.size());
+                    int end =
+                            field.getLimit() == null
+                                    ? ranking.size()
+                                    : (int)
+                                            Math.min(
+                                                    (long) start + field.getLimit(),
+                                                    ranking.size());
                     for (var member : ranking.subList(start, end)) selected.addAll(members.get(member.get(field.getField())));
                 }
                 current = selected;
@@ -95,9 +101,8 @@ public class AxisTopNTruncator {
 
         for (int i = 0; i < axisFields.size(); i++) {
             AxisField field = axisFields.get(i);
-            if (field.getLimit() == null || field.getLimit() <= 0) {
-                continue;
-            }
+            if (Integer.valueOf(0).equals(field.getLimit())) return Collections.emptyList();
+            if (!controlled(field)) continue;
 
             // 隐式父级分区键 = 排在当前字段前面的所有字段
             List<String> partitionKeys = new ArrayList<>();
@@ -120,8 +125,8 @@ public class AxisTopNTruncator {
             List<String> partitionKeys) {
 
         int offset = field.getEffectiveOffset();
-        int limit = field.getLimit();
-        List<String> orderBySpecs = field.getOrderBy();
+        int limit = field.getLimit() == null ? Integer.MAX_VALUE : field.getLimit();
+        List<String> orderBySpecs = orders(field);
 
         // 按分区键分组
         Map<List<Object>, List<Map<String, Object>>> partitions = resultSet.stream()
@@ -143,7 +148,7 @@ public class AxisTopNTruncator {
             if (offset >= partition.size()) {
                 continue;
             }
-            int end = Math.min(offset + limit, partition.size());
+            int end = (int) Math.min((long) offset + limit, partition.size());
             result.addAll(partition.subList(offset, end));
         }
 
@@ -155,46 +160,25 @@ public class AxisTopNTruncator {
      *
      * @param orderBySpecs 排序规则列表，负号前缀表示降序
      */
-    private static Comparator<Map<String, Object>> buildComparator(List<String> orderBySpecs) {
-        Comparator<Map<String, Object>> comparator = null;
-
-        for (String spec : orderBySpecs) {
-            boolean desc = spec.startsWith("-");
-            String fieldName = desc ? spec.substring(1) : spec;
-
-            Comparator<Map<String, Object>> fieldComparator = (a, b) -> {
-                Object va = a.get(fieldName);
-                Object vb = b.get(fieldName);
-                return compareValues(va, vb);
-            };
-
-            if (desc) {
-                fieldComparator = fieldComparator.reversed();
-            }
-
-            comparator = (comparator == null) ? fieldComparator : comparator.thenComparing(fieldComparator);
-        }
-
-        return comparator != null ? comparator : (a, b) -> 0;
+    private static Comparator<Map<String, Object>> buildComparator(List<String> orders) {
+        return PivotOrdering.comparator(orders);
     }
 
-    /**
-     * 通用值比较（null-safe，数值优先）
-     */
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static boolean controlled(AxisField field) {
+        return field.getLimit() != null
+                || (field.getOrderBy() != null && !field.getOrderBy().isEmpty());
+    }
+
+    private static List<String> orders(AxisField field) {
+        List<String> result =
+                new ArrayList<>(field.getOrderBy() == null ? List.of() : field.getOrderBy());
+        if (result.stream()
+                .noneMatch(o -> o.equals(field.getField()) || o.equals("-" + field.getField())))
+            result.add(field.getField());
+        return result;
+    }
+
     private static int compareValues(Object a, Object b) {
-        if (a == null && b == null) return 0;
-        if (a == null) return -1;
-        if (b == null) return 1;
-
-        if (a instanceof Number && b instanceof Number) {
-            return new BigDecimal(a.toString()).compareTo(new BigDecimal(b.toString()));
-        }
-
-        if (a instanceof Comparable && b instanceof Comparable) {
-            return ((Comparable) a).compareTo(b);
-        }
-
-        return a.toString().compareTo(b.toString());
+        return PivotOrdering.compare(a, b, false);
     }
 }

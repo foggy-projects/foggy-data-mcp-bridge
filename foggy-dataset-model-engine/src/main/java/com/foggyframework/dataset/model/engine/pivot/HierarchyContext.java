@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.model.engine.pivot;
 
 import com.foggyframework.dataset.model.semantic.domain.pivot.AxisField;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -63,12 +64,18 @@ public class HierarchyContext {
                 new HierarchyContext(
                         shape.treeAxisField,
                         dimension,
-                        PivotFieldBinding.role(model, dimension, "id"));
+                        PivotFieldBinding.roleOnAxis(
+                                        model,
+                                        dimension,
+                                        "id",
+                                        rows.stream().map(AxisField::getField).toList())
+                                .orElseGet(() -> PivotFieldBinding.role(model, dimension, "id")));
         bound.parentField = PivotFieldBinding.role(model, dimension, "parentId");
         for (var field : rows) {
             if (!dimension.equals(PivotFieldBinding.dimension(model, field.getField())))
                 throw new IllegalArgumentException(
-                        "PIVOT_TREE_GRAIN_UNSUPPORTED: extra rows must belong to the tree node dimension");
+                        "PIVOT_TREE_GRAIN_UNSUPPORTED: extra rows must belong to the tree node"
+                                + " dimension");
             if (field != shape.treeAxisField
                     && (field.getLimit() != null
                             || field.getHaving() != null

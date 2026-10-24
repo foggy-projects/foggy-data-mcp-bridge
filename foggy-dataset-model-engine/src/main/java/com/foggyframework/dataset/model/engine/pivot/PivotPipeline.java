@@ -1,5 +1,7 @@
 package com.foggyframework.dataset.model.engine.pivot;
 
+import com.foggyframework.dataset.model.def.query.request.CalculatedFieldDef;
+import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.model.engine.pivot.algo.*;
 import com.foggyframework.dataset.model.engine.pivot.cascade.PivotCascadeException;
 import com.foggyframework.dataset.model.engine.pivot.cascade.PivotCascadeRules;
@@ -9,13 +11,11 @@ import com.foggyframework.dataset.model.engine.pivot.sql.PivotPushdownUnsupporte
 import com.foggyframework.dataset.model.engine.pivot.transport.DomainTransportField;
 import com.foggyframework.dataset.model.engine.pivot.transport.DomainTransportPlan;
 import com.foggyframework.dataset.model.engine.pivot.transport.DomainTransportTuple;
-import com.foggyframework.dataset.model.def.query.request.CalculatedFieldDef;
-import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
+import com.foggyframework.dataset.model.impl.query.QueryFieldBindings;
+import com.foggyframework.dataset.model.lifecycle.catalog.CatalogResolution;
 import com.foggyframework.dataset.model.plugins.query_execution.ManagedRelationOptions;
 import com.foggyframework.dataset.model.plugins.query_execution.ManagedSqlRelation;
-import com.foggyframework.dataset.model.impl.query.QueryFieldBindings;
 import com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext;
-import com.foggyframework.dataset.model.lifecycle.catalog.CatalogResolution;
 import com.foggyframework.dataset.model.port.ManagedRelationExecutionPort;
 import com.foggyframework.dataset.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.model.semantic.domain.SemanticQueryResponse;
@@ -30,12 +30,11 @@ import com.foggyframework.dataset.model.semantic.permission.AuthorizationSignatu
 import com.foggyframework.dataset.model.semantic.permission.ModelPermissionException;
 import com.foggyframework.dataset.model.semantic.permission.ModelPermissionService;
 import com.foggyframework.dataset.model.semantic.permission.PermissionAction;
-import com.foggyframework.dataset.model.semantic.permission.PermissionDecision;
-import com.foggyframework.dataset.model.semantic.permission.PermissionPredicate;
 import com.foggyframework.dataset.model.semantic.port.PivotRollupExecutionPort;
 import com.foggyframework.dataset.model.spi.DbAggregation;
 import com.foggyframework.dataset.model.spi.QueryModel;
 import com.foggyframework.dataset.model.spi.QueryModelLoader;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -197,8 +196,8 @@ public class PivotPipeline {
         boolean cascadeRequest = PivotCascadeRules.isCascadeRequest(pivot);
         long startTime = System.currentTimeMillis();
         PivotDiagnosticCollector diagnostics = new PivotDiagnosticCollector(model);
-        AuthorizationSignature authorizationSignature = authorizeForOuterCache(queryModel,
-                strongIdentityAssessment.pinnable() ? catalogResolution : null, request, context);
+        AuthorizationSignature authorizationSignature =
+                authorizeForOuterCache(model, request, prepared);
 
         boolean outerCacheEnabled = outerResponseCache.isEnabled();
         Optional<PivotOuterCacheSafeProvider.UnavailableEvent> cacheEnabledUnavailable =
@@ -259,6 +258,29 @@ public class PivotPipeline {
         if (prepared.queryModel() != null && pivotRollupExecutionPort != null)
             for (var auxiliary : staticAuxiliaryRequests(request, prepared))
                 pivotRollupExecutionPort.generateRollupSql(model, auxiliary, context);
+
+        if (hasZeroWindow(pivot)) {
+            // Empty windows still compile all requested fields under the execution action.
+            pivotRollupExecutionPort.generateRollupSql(
+                    model,
+                    buildPhase1FlatRequest(request, rowFields, colFields, metrics, queryModel),
+                    context);
+            return buildEmptyResponse(
+                    pivot,
+                    startTime,
+                    buildPivotCapabilityContract(
+                            pivot,
+                            pivot.getOutputFormat(),
+                            hierarchyCtx,
+                            null,
+                            rowFields,
+                            colFields,
+                            outputMetricsForContract(pivot),
+                            false,
+                            false,
+                            cascadeRequest),
+                    diagnostics.snapshot());
+        }
 
         // ===== Phase 1: SQL 萃取（不含 properties）=====
         // 检测是否可以使用 SQL pushdown（CTE + Window Function + 有 having/limit）
@@ -343,7 +365,9 @@ public class PivotPipeline {
         // ===== Phase 1.5: 父子维度骨架查询 =====
         HierarchyTreeBuilder.Skeleton hierarchySkeleton = null;
         if (hierarchyCtx.isTree()) {
-            logger.debug("[Pivot] Phase 1.5: Hierarchy skeleton query for dim={}", hierarchyCtx.getDimName());
+            logger.debug(
+                    "[Pivot] Phase 1.5: Hierarchy skeleton query for dim={}",
+                    hierarchyCtx.getDimName());
             hierarchySkeleton =
                     executeHierarchySkeleton(
                             model,
@@ -423,7 +447,9 @@ public class PivotPipeline {
                                 resultSet,
                                 true);
         } else if (axisDomainSelectionUsed) {
-            logger.debug("[Pivot] Phase 2: Skipping Having/TopN (already done by axis domain selection)");
+            logger.debug(
+                    "[Pivot] Phase 2: Skipping Having/TopN (already done by axis domain"
+                            + " selection)");
         } else {
             logger.debug("[Pivot] Phase 2: Skipping Having/TopN (already done in SQL pushdown)");
         }
@@ -457,7 +483,8 @@ public class PivotPipeline {
             // 如果有 non-additive metrics，执行辅助查询
             if (MetricAdditivityAnalyzer.hasNonAdditiveMetrics(rollupPlans)) {
                 List<RollupGrain> grains = RollupGrainEnumerator.enumerate(rowFields, colFields, options);
-                logger.debug("[Pivot] Phase 2.4: Auxiliary rollup queries, {} grains", grains.size());
+                logger.debug(
+                        "[Pivot] Phase 2.4: Auxiliary rollup queries, {} grains", grains.size());
 
                 NonAdditiveRollupExecutor executor = new NonAdditiveRollupExecutor(pivotRollupExecutionPort, queryModel);
                 try {
@@ -471,9 +498,14 @@ public class PivotPipeline {
                     PivotTelemetry.domainLimitExceeded(logger, model, e.getDomainSize(), e.getMaxAllowed(),
                             sqlPushdownUsed, rowDomain.size(), colDomain.size());
                     throw new IllegalStateException(
-                            "Pivot subtotal/grandTotal: non-additive metric (AVG/COUNT_DISTINCT) 的辅助查询 " +
-                            "surviving domain 超过安全限制（" + e.getDomainSize() + " > " + e.getMaxAllowed() + "）。" +
-                            "请减少 TopN limit 数量，或关闭 rowSubtotals/columnSubtotals/grandTotal。", e);
+                            "Pivot subtotal/grandTotal: non-additive metric (AVG/COUNT_DISTINCT)"
+                                    + " 的辅助查询 surviving domain 超过安全限制（"
+                                    + e.getDomainSize()
+                                    + " > "
+                                    + e.getMaxAllowed()
+                                    + "）。请减少 TopN limit 数量，或关闭"
+                                    + " rowSubtotals/columnSubtotals/grandTotal。",
+                            e);
                 }
             }
         }
@@ -491,7 +523,9 @@ public class PivotPipeline {
 
         // ===== Phase 2.7: Properties 后置贴合 =====
         if (!resolvedProps.isEmpty()) {
-            logger.debug("[Pivot] Phase 2.7: Property attachment for {} properties", resolvedProps.size());
+            logger.debug(
+                    "[Pivot] Phase 2.7: Property attachment for {} properties",
+                    resolvedProps.size());
             Map<String, Map<Object, Map<String, Object>>> lookupTables =
                     executePropertyLookup(model, request, context, resolvedProps, queryModel);
             PropertyAttacher.attach(resultSet, resolvedProps, lookupTables);
@@ -524,7 +558,9 @@ public class PivotPipeline {
         if (hierarchySkeleton != null && !hierarchySkeleton.isEmpty()) {
             // 使用 HierarchyTreeBuilder 替代 ResultShaper
             // 注意：tree + parentShare 已在 validate 中 fail-closed，此处不会包含 parentShare
-            logger.debug("[Pivot] Phase 3: Hierarchy tree shaping, skeleton size={}", hierarchySkeleton.size());
+            logger.debug(
+                    "[Pivot] Phase 3: Hierarchy tree shaping, skeleton size={}",
+                    hierarchySkeleton.size());
             List<String> displayFields = extractFieldNames(pivot.getRows());
             List<PivotResult.TreeNode> treeData = HierarchyTreeBuilder.build(
                     resultSet, hierarchySkeleton, hierarchyCtx.getIdField(),
@@ -568,7 +604,8 @@ public class PivotPipeline {
         String skip = getSqlPushdownSkipReason(pivot, prepared.hierarchy());
         if (hasAxisDomainSelectionRequest(pivot)) {
             if (PivotCascadeRules.isCascadeRequest(pivot)) {
-                throw PivotCascadeException.sqlRequired("SQL pushdown is unavailable: axisDomainSelectionRequiresTwoPhaseQuery.");
+                throw PivotCascadeException.sqlRequired(
+                        "SQL pushdown is unavailable: axisDomainSelectionRequiresTwoPhaseQuery.");
             }
             for (List<AxisField> axis : List.of(pivot.getRows(),
                     pivot.getColumns() == null ? List.<AxisField>of() : pivot.getColumns())) {
@@ -583,7 +620,8 @@ public class PivotPipeline {
                         prepared.metrics(), pivot, prepared.queryModel());
             } catch (PivotPushdownUnsupportedException | UnsupportedOperationException failure) {
                 if (PivotCascadeRules.isCascadeRequest(pivot)) {
-                    throw PivotCascadeException.sqlRequired("Planner failure: " + failure.getMessage(), failure);
+                    throw PivotCascadeException.sqlRequired(
+                            "Planner failure: " + failure.getMessage(), failure);
                 }
                 // Match execution's optional memory fallback.
             }
@@ -639,7 +677,8 @@ public class PivotPipeline {
 
     private void validateFlatRequest(String model, SemanticQueryRequest flatRequest,
                                      SemanticRequestContext context, List<String> warnings) {
-        SemanticQueryResponse response = pivotRollupExecutionPort.queryModel(model, flatRequest, "validate", context);
+        SemanticQueryResponse response =
+                pivotRollupExecutionPort.queryModel(model, flatRequest, "validate", context);
         if (response != null && response.getWarnings() != null) warnings.addAll(response.getWarnings());
     }
 
@@ -654,7 +693,15 @@ public class PivotPipeline {
         // ===== 提前加载 QueryModel（用于 S8.3 度量元数据 + Properties）=====
         CatalogResolution<QueryModel> catalogResolution = null;
         QueryModel queryModel = null;
-        if (queryModelLoader != null) {
+        if (context.getCatalogResolution() != null) {
+            catalogResolution = context.getCatalogResolution();
+            if (!model.equals(catalogResolution.canonicalName())
+                    || !com.foggyframework.dataset.model.lifecycle.identity.CatalogIdentity
+                            .canonicalNamespace(context.getNamespace())
+                            .equals(catalogResolution.catalogIdentity().namespace()))
+                throw new IllegalArgumentException("PIVOT_CATALOG_PIN_MISMATCH");
+            queryModel = catalogResolution.model();
+        } else if (queryModelLoader != null) {
             catalogResolution = queryModelLoader.resolveJdbcQueryModel(model, context.getNamespace());
             queryModel = catalogResolution != null
                     ? catalogResolution.model()
@@ -706,7 +753,8 @@ public class PivotPipeline {
         // ===== 检测 hierarchyMode=tree =====
         HierarchyContext hierarchyCtx = HierarchyContext.bind(pivot.getRows(), queryModel);
         if (hierarchyCtx.isTree() && !pivot.getBaselineRatioMetrics().isEmpty()) {
-            throw new IllegalArgumentException("当前版本不支持 hierarchyMode=tree 与 baselineRatio 派生指标同时使用");
+            throw new IllegalArgumentException(
+                    "当前版本不支持 hierarchyMode=tree 与 baselineRatio 派生指标同时使用");
         }
 
         List<String> rowFields = extractFieldNames(pivot.getRows());
@@ -728,7 +776,9 @@ public class PivotPipeline {
                 resolvedProps = PropertyResolver.resolve(queryModel, pivot.getProperties(), allAxisFields);
                 logger.debug("[Pivot] Properties validated: {}", resolvedProps);
             } else {
-                logger.debug("[Pivot] QueryModelLoader not available, properties will be included in Phase 1 as fallback");
+                logger.debug(
+                        "[Pivot] QueryModelLoader not available, properties will be included in"
+                                + " Phase 1 as fallback");
             }
         }
 
@@ -754,8 +804,7 @@ public class PivotPipeline {
             AxisField tree = hierarchyCtx.getTreeAxisField();
             if (tree.getEffectiveExpandDepth() < -1)
                 throw new IllegalArgumentException("PIVOT_TREE_DEPTH_INVALID");
-            if (tree.getLimit() != null
-                    || (tree.getHaving() != null && !tree.getHaving().isEmpty())) {
+            if (hasMemberControl(tree)) {
                 Map<String, DbAggregation> aggs = metricAggregations(metrics, queryModel);
                 Set<String> needed = new HashSet<>();
                 if (tree.getHaving() != null)
@@ -817,50 +866,48 @@ public class PivotPipeline {
             List<RollupMetricPlan> rollupPlans) {}
 
     private AuthorizationSignature authorizeForOuterCache(
-            QueryModel queryModel,
-            CatalogResolution<QueryModel> catalogResolution,
-            SemanticQueryRequest request,
-            SemanticRequestContext context
-    ) {
+            String model, SemanticQueryRequest request, PreparedPivot prepared) {
         if (!outerCacheOptions.enabled()
-                || queryModel == null
-                || modelPermissionService == null
-                || authorizationSignatureService == null) {
-            return null;
+                || !prepared.strongIdentityAssessment().pinnable()
+                || queryFacade == null
+                || authorizationSignatureService == null) return null;
+        List<SemanticQueryRequest> requests = new ArrayList<>();
+        requests.add(
+                buildPhase1FlatRequest(
+                        request,
+                        prepared.rowFields(),
+                        prepared.colFields(),
+                        prepared.metrics(),
+                        prepared.queryModel()));
+        requests.addAll(staticAuxiliaryRequests(request, prepared));
+        List<AuthorizationSignature> signatures = new ArrayList<>();
+        List<com.foggyframework.dataset.model.semantic.port.SemanticSqlGeneration> plans =
+                new ArrayList<>();
+        for (SemanticQueryRequest flat : requests) {
+            ModelResultContext permissionContext =
+                    buildManagedRelationContext(model, flat, prepared.context());
+            try {
+                ManagedSqlRelation relation =
+                        queryFacade.prepareManagedRelation(
+                                permissionContext,
+                                ManagedRelationOptions.builder()
+                                        .purpose("PivotCacheAuthorization")
+                                        .disableInnerCacheShortCircuit(true)
+                                        .build());
+                if (!relation.isPermissionValidated()) return null;
+                signatures.add(
+                        authorizationSignatureService.compute(permissionContext).orElse(null));
+                plans.add(
+                        new com.foggyframework.dataset.model.semantic.port.SemanticSqlGeneration(
+                                relation.getSql(), relation.getParams()));
+            } catch (PivotPushdownUnsupportedException
+                    | UnsupportedOperationException unsupported) {
+                // An adapter unable to expose a complete governed plan is deliberately
+                // non-cacheable.
+                return null;
+            }
         }
-        ModelResultContext permissionContext = new ModelResultContext();
-        if (catalogResolution != null) {
-            permissionContext.pinCatalogResolution(catalogResolution, context.getNamespace());
-        } else {
-            permissionContext.pinUntrackedQueryModel(queryModel);
-        }
-        permissionContext.setNamespace(context.getNamespace());
-        permissionContext.setSecurityContext(copySecurityContext(context.getSecurityContext()));
-        permissionContext.setRequestIdentity(context.getRequestIdentity());
-        permissionContext.setPermissionSession(context.getPermissionSession());
-        permissionContext.setPermissionAction(PermissionAction.EXECUTE);
-        permissionContext.setFieldAccess(context.getFieldAccess());
-        permissionContext.setDeniedColumns(context.getDeniedColumns());
-        permissionContext.setSystemSlice(context.getSystemSlice());
-        if (request != null) {
-            permissionContext.mergeRequestExtData(request.getHints());
-            permissionContext.mergeRequestExtData(request.getExtData());
-        }
-
-        PermissionDecision decision = modelPermissionService.evaluate(
-                queryModel,
-                context.getNamespace(),
-                PermissionAction.EXECUTE,
-                context.getRequestIdentity(),
-                context.getPermissionSession()
-        );
-        if (!decision.isAllow()) {
-            throw ModelPermissionException.denied();
-        }
-        permissionContext.setPermissionDecision(decision);
-        mergePermissionAttributes(permissionContext, decision);
-        mergePermissionPredicates(permissionContext, decision);
-        return authorizationSignatureService.compute(permissionContext).orElse(null);
+        return PivotOuterCacheTelemetry.authorizationSnapshot(signatures, plans);
     }
 
     private ModelResultContext.SecurityContext copySecurityContext(
@@ -872,52 +919,14 @@ public class PivotPipeline {
         return ModelResultContext.SecurityContext.builder()
                 .authorization(source.getAuthorization())
                 .userId(source.getUserId())
-                .roles(source.getRoles() == null ? null : List.copyOf(source.getRoles()))
+                .roles(source.getRoles() == null ? null : new ArrayList<>(source.getRoles()))
                 .tenantId(source.getTenantId())
                 .deptId(source.getDeptId())
-                .attributes(source.getAttributes() == null
-                        ? null
-                        : Map.copyOf(source.getAttributes()))
+                .attributes(
+                        source.getAttributes() == null
+                                ? null
+                                : new LinkedHashMap<>(source.getAttributes()))
                 .build();
-    }
-
-    private void mergePermissionAttributes(
-            ModelResultContext permissionContext,
-            PermissionDecision decision
-    ) {
-        if (decision.getAttributes().isEmpty()) {
-            return;
-        }
-        ModelResultContext.SecurityContext securityContext = permissionContext.getSecurityContext();
-        if (securityContext == null) {
-            securityContext = ModelResultContext.SecurityContext.fromAuthorization(
-                    permissionContext.getAuthorization());
-            permissionContext.setSecurityContext(securityContext);
-            permissionContext.setRequestIdentity(permissionContext.getRequestIdentity());
-        }
-        Map<String, Object> attributes = new LinkedHashMap<>();
-        if (securityContext.getAttributes() != null) {
-            attributes.putAll(securityContext.getAttributes());
-        }
-        attributes.putAll(decision.getAttributes());
-        securityContext.setAttributes(Map.copyOf(attributes));
-    }
-
-    private void mergePermissionPredicates(
-            ModelResultContext permissionContext,
-            PermissionDecision decision
-    ) {
-        if (decision.getRowPredicates().isEmpty()) {
-            return;
-        }
-        List<SliceRequestDef> systemSlice = new ArrayList<>();
-        if (permissionContext.getSystemSlice() != null) {
-            systemSlice.addAll(permissionContext.getSystemSlice());
-        }
-        decision.getRowPredicates().stream()
-                .map(PermissionPredicate::toSlice)
-                .forEach(systemSlice::add);
-        permissionContext.setSystemSlice(List.copyOf(systemSlice));
     }
 
     private void injectPredefinedCalculatedFields(SemanticQueryRequest request, QueryModel queryModel) {
@@ -997,8 +1006,11 @@ public class PivotPipeline {
             provided = modelIdentityProvider.resolve(context != null ? context.getNamespace() : null, model, queryModel);
         } catch (Exception e) {
             providerFailureType = e.getClass();
-            logger.warn("[Pivot] Outer cache supplementary identity provider failed: model={}, reasonClass={}",
-                    model, e.getClass().getSimpleName());
+            logger.warn(
+                    "[Pivot] Outer cache supplementary identity provider failed: model={},"
+                            + " reasonClass={}",
+                    model,
+                    e.getClass().getSimpleName());
         }
         PivotOuterCacheModelIdentity normalized = provided == null
                 ? PivotOuterCacheModelIdentity.empty()
@@ -1122,7 +1134,8 @@ public class PivotPipeline {
                                                      List<String> rowFields, List<String> colFields,
                                                      List<String> metrics, QueryModel queryModel) {
         SemanticQueryRequest flatRequest = buildPhase1FlatRequest(originalRequest, rowFields, colFields, metrics, queryModel);
-        SemanticQueryResponse response = pivotRollupExecutionPort.queryModel(model, flatRequest, "execute", context);
+        SemanticQueryResponse response =
+                pivotRollupExecutionPort.queryModel(model, flatRequest, "execute", context);
         return QueryFieldBindings.logicalRows(response.getItems(), queryModel, flatRequest.getColumns(), flatRequest.getCalculatedFields());
     }
 
@@ -1168,6 +1181,22 @@ public class PivotPipeline {
         if (columnDomain != null) {
             filtered = filterByAxisDomain(filtered, pivot.getColumns().get(0).getField(), columnDomain);
         }
+        Map<Object, Integer> rowOrder = new LinkedHashMap<>(), colOrder = new LinkedHashMap<>();
+        if (rowDomain != null) for (Object value : rowDomain) rowOrder.put(value, rowOrder.size());
+        if (columnDomain != null)
+            for (Object value : columnDomain) colOrder.put(value, colOrder.size());
+        filtered = new ArrayList<>(filtered);
+        filtered.sort(
+                Comparator.comparingInt(
+                                (Map<String, Object> row) ->
+                                        rowDomain == null
+                                                ? 0
+                                                : rowOrder.get(row.get(rowFields.get(0))))
+                        .thenComparingInt(
+                                row ->
+                                        columnDomain == null
+                                                ? 0
+                                                : colOrder.get(row.get(colFields.get(0)))));
         BaselineRatioPrePageAxisDomainResult baselineRatioPrePageResult =
                 executeBaselineRatioPrePageAxisDomain(model, originalRequest, context,
                         rowFields, colFields, metrics, pivot, queryModel,
@@ -1248,7 +1277,22 @@ public class PivotPipeline {
                                          List<DomainTransportPlan> transportPlans,
                                          String axisName) {
         if (domain.size() <= AXIS_DOMAIN_TRANSPORT_THRESHOLD) {
-            slices.add(inSlice(field, domain));
+            if (!domain.contains(null)) slices.add(inSlice(field, domain));
+            else {
+                SemanticQueryRequest.SliceItem isNull = new SemanticQueryRequest.SliceItem();
+                isNull.setField(field);
+                isNull.setOp("is null");
+                Set<Object> nonNull =
+                        domain.stream()
+                                .filter(Objects::nonNull)
+                                .collect(Collectors.toCollection(LinkedHashSet::new));
+                if (nonNull.isEmpty()) slices.add(isNull);
+                else {
+                    SemanticQueryRequest.SliceItem either = new SemanticQueryRequest.SliceItem();
+                    either.setOr(List.of(inSlice(field, nonNull), isNull));
+                    slices.add(either);
+                }
+            }
             return;
         }
         transportPlans.add(buildSingleFieldDomainTransportPlan(
@@ -1327,12 +1371,29 @@ public class PivotPipeline {
         SemanticQueryRequest domainRequest = buildAxisDomainRequest(originalRequest, axisField, metrics, queryModel, applyWindow);
         List<String> columns = domainRequest.getColumns();
 
-        SemanticQueryResponse response = pivotRollupExecutionPort.queryModel(model, domainRequest, "execute", context);
+        SemanticQueryResponse response =
+                pivotRollupExecutionPort.queryModel(model, domainRequest, "execute", context);
         List<Map<String, Object>> domainRows = QueryFieldBindings.logicalRows(response.getItems(), queryModel, columns, domainRequest.getCalculatedFields());
+        boolean sqlWindow = applyWindow && axisField.getLimit() != null;
+        if ((!sqlWindow
+                        && (domainRows.size() > CardinalityBreaker.DEFAULT_ROW_LIMIT
+                                || Boolean.TRUE.equals(response.getHasNext())
+                                || (response.getPagination() != null
+                                        && Boolean.TRUE.equals(
+                                                response.getPagination().getHasMore()))))
+                || (response.getTruncationInfo() != null && !response.getTruncationInfo().isEmpty())
+                || (sqlWindow
+                        && response.getPagination() != null
+                        && response.getPagination().getLimit() != null
+                        && response.getPagination().getLimit() < axisField.getLimit()))
+            throw new IllegalArgumentException(
+                    "PIVOT_AXIS_DOMAIN_LIMIT: complete domain exceeds "
+                            + CardinalityBreaker.DEFAULT_ROW_LIMIT
+                            + " members");
 
         domainRows = AxisHavingFilter.apply(domainRows, List.of(axisField), metrics);
         sortAxisDomainRows(domainRows, axisField);
-        if (applyWindow && !isAxisDomainWindowPushedDown(axisField)) {
+        if (applyWindow && !sqlWindow) {
             domainRows = applyAxisDomainWindow(domainRows, axisField);
         }
 
@@ -1361,11 +1422,11 @@ public class PivotPipeline {
         domainRequest.setSlice(mergeSlices(originalRequest.getSlice(), axisField.getDomainSlice()));
         domainRequest.setHaving(toHavingSlices(axisField.getHaving()));
         domainRequest.setOrderBy(buildAxisDomainOrderBy(axisField));
-        if (applyWindow) {
-            domainRequest.setStart(axisField.getEffectiveOffset());
-        }
         domainRequest.setCalculatedFields(originalRequest.getCalculatedFields());
-        domainRequest.setLimit(applyWindow ? resolveAxisDomainQueryLimit(axisField) : CardinalityBreaker.DEFAULT_ROW_LIMIT);
+        if (applyWindow && axisField.getLimit() != null) {
+            domainRequest.setStart(axisField.getEffectiveOffset());
+            domainRequest.setLimit(axisField.getLimit());
+        } else domainRequest.setLimit(CardinalityBreaker.DEFAULT_ROW_LIMIT + 1);
         domainRequest.setReturnTotal(false);
 
         return domainRequest;
@@ -1449,7 +1510,9 @@ public class PivotPipeline {
         evidence.put("baselineColumnVisible",
                 visibleColumnDomain == null || visibleColumnDomain.contains(baselineColumnKey));
         evidence.put("prePageAxisDomainSize", orderedColumnDomain.size());
-        evidence.put("visibleAxisDomainSize", visibleColumnDomain == null ? null : visibleColumnDomain.size());
+        evidence.put(
+                "visibleAxisDomainSize",
+                visibleColumnDomain == null ? null : visibleColumnDomain.size());
         evidence.put("baselineRows", baselineValuesByRow.size());
         evidence.put("source", "auxiliaryBaselineRelation");
         return evidence;
@@ -1509,7 +1572,8 @@ public class PivotPipeline {
 
     private boolean hasMemberControl(AxisField axis) {
         return (axis.getHaving() != null && !axis.getHaving().isEmpty())
-                || (axis.getLimit() != null && axis.getLimit() > 0);
+                || axis.getLimit() != null
+                || (axis.getOrderBy() != null && !axis.getOrderBy().isEmpty());
     }
 
     private SemanticQueryRequest buildMemberRequest(
@@ -1555,13 +1619,18 @@ public class PivotPipeline {
                     filtered, original.getPivot().getColumns(), metricAggregations(metrics, null));
         }
         List<Map<String, Object>> filtered = new ArrayList<>(cells);
+        List<Map<List<Object>, Integer>> outputOrders = new ArrayList<>();
         for (var axis :
                 List.of(
                         original.getPivot().getRows(),
                         original.getPivot().getColumns() == null
                                 ? List.<AxisField>of()
                                 : original.getPivot().getColumns())) {
-            if (axis.stream().anyMatch(AxisField::isTreeMode)) continue;
+            if (axis.stream().anyMatch(AxisField::isTreeMode)) {
+                outputOrders.add(
+                        domainOrder(cells, axis.stream().map(AxisField::getField).toList()));
+                continue;
+            }
             List<Map<String, Object>> axisCells = new ArrayList<>(cells);
             for (int i = 0; i < axis.size(); i++) {
                 AxisField field = axis.get(i);
@@ -1603,6 +1672,15 @@ public class PivotPipeline {
                                 .filter(r -> visible.contains(PivotCoordinates.tuple(r, keys)))
                                 .toList();
                 if (window) {
+                    Map<List<Object>, Integer> parentOrder =
+                            domainOrder(axisCells, keys.subList(0, keys.size() - 1));
+                    members = new ArrayList<>(members);
+                    members.sort(
+                            Comparator.comparingInt(
+                                    r ->
+                                            parentOrder.get(
+                                                    PivotCoordinates.tuple(
+                                                            r, keys.subList(0, keys.size() - 1)))));
                     List<AxisField> rankingAxis = new ArrayList<>();
                     for (int j = 0; j < i; j++) {
                         var parent = new AxisField();
@@ -1629,20 +1707,49 @@ public class PivotPipeline {
                 }
                 Set<List<Object>> selected = new HashSet<>();
                 for (var member : members) selected.add(PivotCoordinates.tuple(member, keys));
+                Map<List<Object>, Integer> selectedOrder = domainOrder(members, keys);
                 axisCells =
                         axisCells.stream()
                                 .filter(r -> selected.contains(PivotCoordinates.tuple(r, keys)))
+                                .sorted(
+                                        Comparator.comparingInt(
+                                                r ->
+                                                        selectedOrder.get(
+                                                                PivotCoordinates.tuple(r, keys))))
                                 .toList();
             }
             List<String> axisKeys = axis.stream().map(AxisField::getField).toList();
             Set<List<Object>> axisDomain = new HashSet<>();
             for (var row : axisCells) axisDomain.add(PivotCoordinates.tuple(row, axisKeys));
+            outputOrders.add(domainOrder(axisCells, axisKeys));
             filtered =
                     filtered.stream()
                             .filter(r -> axisDomain.contains(PivotCoordinates.tuple(r, axisKeys)))
                             .toList();
         }
-        return new ArrayList<>(filtered);
+        List<Map<String, Object>> ordered = new ArrayList<>(filtered);
+        List<String> displayRows = extractFieldNames(original.getPivot().getRows());
+        List<String> displayColumns = extractFieldNames(original.getPivot().getColumns());
+        ordered.sort(
+                Comparator.comparingInt(
+                                (Map<String, Object> row) ->
+                                        outputOrders
+                                                .get(0)
+                                                .get(PivotCoordinates.tuple(row, displayRows)))
+                        .thenComparingInt(
+                                row ->
+                                        outputOrders
+                                                .get(1)
+                                                .get(PivotCoordinates.tuple(row, displayColumns))));
+        return ordered;
+    }
+
+    private Map<List<Object>, Integer> domainOrder(
+            List<Map<String, Object>> members, List<String> fields) {
+        Map<List<Object>, Integer> result = new LinkedHashMap<>();
+        for (var row : members)
+            result.putIfAbsent(PivotCoordinates.tuple(row, fields), result.size());
+        return result;
     }
 
     private String buildPivotKey(Map<String, Object> row, List<String> fields) {
@@ -1678,6 +1785,7 @@ public class PivotPipeline {
             SemanticQueryRequest.OrderItem tieBreaker = new SemanticQueryRequest.OrderItem();
             tieBreaker.setField(axisField.getField());
             tieBreaker.setDir("asc");
+            tieBreaker.setNullLast(true);
             orderItems.add(tieBreaker);
         }
         return orderItems;
@@ -1692,6 +1800,7 @@ public class PivotPipeline {
             item.setField(spec);
             item.setDir("asc");
         }
+        item.setNullLast(true);
         return item;
     }
 
@@ -1727,24 +1836,16 @@ public class PivotPipeline {
     }
 
     private Comparator<Map<String, Object>> buildAxisDomainComparator(AxisField axisField) {
-        Comparator<Map<String, Object>> comparator = null;
-        List<String> orderBySpecs = axisField.getOrderBy();
-        if (orderBySpecs != null) {
-            for (String spec : orderBySpecs) {
-                boolean desc = spec.startsWith("-");
-                String fieldName = desc ? spec.substring(1) : spec;
-                Comparator<Map<String, Object>> fieldComparator =
-                        (a, b) -> compareAxisDomainValues(a.get(fieldName), b.get(fieldName));
-                if (desc) {
-                    fieldComparator = fieldComparator.reversed();
-                }
-                comparator = comparator == null ? fieldComparator : comparator.thenComparing(fieldComparator);
-            }
-        }
-
-        Comparator<Map<String, Object>> stableTieBreaker =
-                (a, b) -> compareAxisDomainValues(a.get(axisField.getField()), b.get(axisField.getField()));
-        return comparator == null ? stableTieBreaker : comparator.thenComparing(stableTieBreaker);
+        List<String> orders =
+                new ArrayList<>(
+                        axisField.getOrderBy() == null ? List.of() : axisField.getOrderBy());
+        if (orders.stream()
+                .noneMatch(
+                        o ->
+                                o.equals(axisField.getField())
+                                        || o.equals("-" + axisField.getField())))
+            orders.add(axisField.getField());
+        return PivotOrdering.comparator(orders);
     }
 
     private List<Map<String, Object>> applyAxisDomainWindow(List<Map<String, Object>> rows, AxisField axisField) {
@@ -1754,38 +1855,13 @@ public class PivotPipeline {
         }
         int end = rows.size();
         if (axisField.getLimit() != null) {
-            end = Math.min(start + axisField.getLimit(), rows.size());
+            end = (int) Math.min((long) start + axisField.getLimit(), rows.size());
         }
         return new ArrayList<>(rows.subList(start, end));
     }
 
-    private int resolveAxisDomainQueryLimit(AxisField axisField) {
-        if (axisField.getLimit() != null) {
-            return axisField.getLimit();
-        }
-        return CardinalityBreaker.DEFAULT_ROW_LIMIT;
-    }
-
-    private boolean isAxisDomainWindowPushedDown(AxisField axisField) {
-        return axisField.getLimit() != null && axisField.getLimit() > 0;
-    }
-
-    @SuppressWarnings({"unchecked", "rawtypes"})
     private int compareAxisDomainValues(Object a, Object b) {
-        if (a == null && b == null) return 0;
-        if (a == null) return -1;
-        if (b == null) return 1;
-
-        if (a instanceof Number && b instanceof Number) {
-            return new java.math.BigDecimal(a.toString())
-                    .compareTo(new java.math.BigDecimal(b.toString()));
-        }
-
-        if (a instanceof Comparable && b instanceof Comparable && a.getClass().isInstance(b)) {
-            return ((Comparable) a).compareTo(b);
-        }
-
-        return a.toString().compareTo(b.toString());
+        return PivotOrdering.compare(a, b, false);
     }
 
     /**
@@ -1805,6 +1881,17 @@ public class PivotPipeline {
         if (!SQL_PUSHDOWN_ENABLED) {
             return "disabled";
         }
+        if (java.util.stream.Stream.concat(
+                        pivot.getRows().stream(),
+                        pivot.getColumns() == null
+                                ? java.util.stream.Stream.empty()
+                                : pivot.getColumns().stream())
+                .anyMatch(
+                        axis ->
+                                axis.getOrderBy() != null
+                                        && !axis.getOrderBy().isEmpty()
+                                        && axis.getLimit() == null))
+            return "orderingOnlyRequiresMemberQuery";
         if (queryFacade == null) {
             return "queryFacadeUnavailable";
         }
@@ -2026,14 +2113,8 @@ public class PivotPipeline {
         // slice
         if (flatRequest.getSlice() != null) {
             List<com.foggyframework.dataset.model.def.query.request.SliceRequestDef> jdbcSlice = new ArrayList<>();
-            for (SemanticQueryRequest.SliceItem sliceItem : flatRequest.getSlice()) {
-                com.foggyframework.dataset.model.def.query.request.SliceRequestDef s =
-                        new com.foggyframework.dataset.model.def.query.request.SliceRequestDef();
-                s.setField(sliceItem.getField());
-                s.setOp(sliceItem.getOp());
-                s.setValue(sliceItem.getValue());
-                jdbcSlice.add(s);
-            }
+            for (SemanticQueryRequest.SliceItem sliceItem : flatRequest.getSlice())
+                jdbcSlice.add(toJdbcSlice(sliceItem));
             queryDef.setSlice(jdbcSlice);
         }
 
@@ -2051,9 +2132,10 @@ public class PivotPipeline {
         com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext resultContext =
                 new com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext();
         resultContext.setRequest(pagingRequest);
+        resultContext.setCacheConfig(ModelResultContext.QueryCacheConfig.disabled());
         resultContext.setQueryType(com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext.QueryType.SEMANTIC);
         resultContext.setNamespace(reqContext.getNamespace());
-        resultContext.setSecurityContext(reqContext.getSecurityContext());
+        resultContext.setSecurityContext(copySecurityContext(reqContext.getSecurityContext()));
         resultContext.setRequestIdentity(reqContext.getRequestIdentity());
         resultContext.setPermissionSession(reqContext.getPermissionSession());
         resultContext.setPermissionAction(
@@ -2069,6 +2151,41 @@ public class PivotPipeline {
         }
 
         return resultContext;
+    }
+
+    private SliceRequestDef toJdbcSlice(SemanticQueryRequest.SliceItem item) {
+        SliceRequestDef result =
+                new SliceRequestDef(item.getField(), item.getOp(), item.getValue());
+        result.setMaxDepth(item.getMaxDepth());
+        result.setExpr(item.getExpr());
+        if (item.getOr() != null)
+            result.setOr(
+                    item.getOr().stream()
+                            .map(
+                                    v ->
+                                            (com.foggyframework.dataset.model.def.query.request
+                                                            .CondRequestDef)
+                                                    toJdbcSlice(v))
+                            .toList());
+        if (item.getAnd() != null)
+            result.setAnd(
+                    item.getAnd().stream()
+                            .map(
+                                    v ->
+                                            (com.foggyframework.dataset.model.def.query.request
+                                                            .CondRequestDef)
+                                                    toJdbcSlice(v))
+                            .toList());
+        return result;
+    }
+
+    private boolean hasZeroWindow(PivotRequest pivot) {
+        return java.util.stream.Stream.concat(
+                        pivot.getRows().stream(),
+                        pivot.getColumns() == null
+                                ? java.util.stream.Stream.empty()
+                                : pivot.getColumns().stream())
+                .anyMatch(axis -> Integer.valueOf(0).equals(axis.getLimit()));
     }
 
     /**
@@ -2231,19 +2348,23 @@ public class PivotPipeline {
         // pivot 轴 TopN / 排序只能写在轴字段上，避免顶层分页排序被误解释为轴控件
         if (request.getOrderBy() != null && !request.getOrderBy().isEmpty()) {
             throw new IllegalArgumentException(
-                    "pivot 模式不支持顶层 orderBy。请使用 pivot.rows[*].orderBy 或 pivot.columns[*].orderBy 作为透视轴排序控制");
+                    "pivot 模式不支持顶层 orderBy。请使用 pivot.rows[*].orderBy 或 pivot.columns[*].orderBy"
+                            + " 作为透视轴排序控制");
         }
         if (request.getLimit() != null) {
             throw new IllegalArgumentException(
-                    "pivot 模式不支持顶层 limit。请使用 pivot.rows[*].limit 或 pivot.columns[*].limit 作为透视轴 TopN 控制");
+                    "pivot 模式不支持顶层 limit。请使用 pivot.rows[*].limit 或 pivot.columns[*].limit 作为透视轴"
+                            + " TopN 控制");
         }
         if (request.getPostAggregateCalculations() != null && !request.getPostAggregateCalculations().isEmpty()) {
             throw new IllegalArgumentException(
-                    "pivot 模式不支持顶层 postAggregateCalculations。请使用 pivot.metrics 的结构化派生指标，或拆分为普通 query_model result-stage 请求");
+                    "pivot 模式不支持顶层 postAggregateCalculations。请使用 pivot.metrics 的结构化派生指标，或拆分为普通"
+                            + " query_model result-stage 请求");
         }
         if (request.getPostSlice() != null && !request.getPostSlice().isEmpty()) {
             throw new IllegalArgumentException(
-                    "pivot 模式不支持顶层 postSlice。Pivot 轴过滤请使用 pivot.rows[*].having / pivot.columns[*].having；结果阶段过滤请拆分请求");
+                    "pivot 模式不支持顶层 postSlice。Pivot 轴过滤请使用 pivot.rows[*].having /"
+                            + " pivot.columns[*].having；结果阶段过滤请拆分请求");
         }
 
         // 基本完整性校验
@@ -2268,8 +2389,9 @@ public class PivotPipeline {
         // columns 轴不支持 hierarchyMode=tree
         if (colHierarchy.isTree()) {
             throw new IllegalArgumentException(
-                    "hierarchyMode=tree 当前仅支持 rows 轴。请将 '" + colHierarchy.getTreeAxisField().getField() +
-                    "' 从 columns 移到 rows，或移除 hierarchyMode");
+                    "hierarchyMode=tree 当前仅支持 rows 轴。请将 '"
+                            + colHierarchy.getTreeAxisField().getField()
+                            + "' 从 columns 移到 rows，或移除 hierarchyMode");
         }
 
         if (rowHierarchy.isTree()) {
@@ -2332,7 +2454,10 @@ public class PivotPipeline {
         for (int i = 0; i < fields.size(); i++) {
             AxisField field = fields.get(i);
             if (field == null || field.getField() == null || field.getField().isBlank()) {
-                throw pivotReferenceFailure(null, "pivot." + axis + "[" + i + "].field", "Axis field must not be empty");
+                throw pivotReferenceFailure(
+                        null,
+                        "pivot." + axis + "[" + i + "].field",
+                        "Axis field must not be empty");
             }
         }
     }
@@ -2355,7 +2480,8 @@ public class PivotPipeline {
             if (field.getOrderBy() != null) {
                 for (int j = 0; j < field.getOrderBy().size(); j++) {
                     String order = field.getOrderBy().get(j);
-                    String name = order != null && order.startsWith("-") ? order.substring(1) : order;
+                    String name =
+                            order != null && order.startsWith("-") ? order.substring(1) : order;
                     boolean atGrain =
                             fields.subList(0, i + 1).stream()
                                     .anyMatch(f -> Objects.equals(f.getField(), name));
@@ -2363,7 +2489,8 @@ public class PivotPipeline {
                         throw pivotReferenceFailure(
                                 name,
                                 path + ".orderBy[" + j + "]",
-                                "Axis ordering must reference a coordinate at its member grain or a selected SQL metric");
+                                "Axis ordering must reference a coordinate at its member grain or a"
+                                        + " selected SQL metric");
                     }
                 }
             }
@@ -2371,10 +2498,13 @@ public class PivotPipeline {
                 for (int j = 0; j < field.getHaving().size(); j++) {
                     MetricFilter filter = field.getHaving().get(j);
                     if (filter == null || !metrics.contains(filter.getMetric())) {
-                        throw pivotReferenceFailure(filter == null ? null : filter.getMetric(),
-                                path + ".having[" + j + "].metric", "Axis having must reference a selected SQL metric");
+                        throw pivotReferenceFailure(
+                                filter == null ? null : filter.getMetric(),
+                                path + ".having[" + j + "].metric",
+                                "Axis having must reference a selected SQL metric");
                     }
-                    if (filter.getOp() == null || !Set.of(">", ">=", "<", "<=", "=", "!=").contains(filter.getOp())
+                    if (filter.getOp() == null
+                            || !Set.of(">", ">=", "<", "<=", "=", "!=").contains(filter.getOp())
                             || filter.getValue() == null) {
                         throw pivotReferenceFailure(filter.getMetric(), path + ".having[" + j + "]",
                                 "Axis having requires a supported comparison and numeric value");
@@ -2387,8 +2517,12 @@ public class PivotPipeline {
     private com.foggyframework.dataset.model.engine.expression.QueryCalculationException pivotReferenceFailure(
             String field, String path, String message) {
         return new com.foggyframework.dataset.model.engine.expression.QueryCalculationException(
-                "PIVOT_INVALID_REFERENCE", field, path, message,
-                "Use the logical field names in pivot axes and metrics; output aliases are not input synonyms.",
+                "PIVOT_INVALID_REFERENCE",
+                field,
+                path,
+                message,
+                "Use the logical field names in pivot axes and metrics; output aliases are not"
+                        + " input synonyms.",
                 Map.of("path", path));
     }
 
@@ -2406,7 +2540,8 @@ public class PivotPipeline {
 
         if (hasDomainSlice && (pivot.getRowLevelCount() > 1 || pivot.getColumnLevelCount() > 1)) {
             throw new IllegalArgumentException(
-                    "domainSlice/start/offset 当前仅支持单层 rows 和单层 columns。多层轴分页需要显式 domain tree/cursor 语义");
+                    "domainSlice/start/offset 当前仅支持单层 rows 和单层 columns。多层轴分页需要显式 domain tree/cursor"
+                            + " 语义");
         }
         if (pivot.getColumnLevelCount() > 1 && hasAxisStartOffsetRequest(pivot.getColumns())) {
             throw new IllegalArgumentException(
@@ -2420,7 +2555,8 @@ public class PivotPipeline {
         if (!pivot.getParentShareMetrics().isEmpty()) {
             if (!allParentShareMetricsUsePrePageParent(pivot)) {
                 throw new IllegalArgumentException(
-                        "domainSlice/start/offset 与 parentShare 组合时必须显式指定 denominatorScope=prePageParent");
+                        "domainSlice/start/offset 与 parentShare 组合时必须显式指定"
+                                + " denominatorScope=prePageParent");
             }
             if (!isSupportedParentSharePrePageParentWindow(pivot)) {
                 throw new IllegalArgumentException(
@@ -2430,7 +2566,8 @@ public class PivotPipeline {
         }
         if (!pivot.getBaselineRatioMetrics().isEmpty() && !allBaselineRatioMetricsUsePrePageAxisDomain(pivot)) {
             throw new IllegalArgumentException(
-                    "domainSlice/start/offset 与 baselineRatio 组合时必须显式指定 baselineScope=prePageAxisDomain");
+                    "domainSlice/start/offset 与 baselineRatio 组合时必须显式指定"
+                            + " baselineScope=prePageAxisDomain");
         }
     }
 
@@ -2444,7 +2581,8 @@ public class PivotPipeline {
             return;
         }
         validateDerivedMetricsNotUsedAsAxisControls(pivot.getRows(), "rows", derivedMetricNames);
-        validateDerivedMetricsNotUsedAsAxisControls(pivot.getColumns(), "columns", derivedMetricNames);
+        validateDerivedMetricsNotUsedAsAxisControls(
+                pivot.getColumns(), "columns", derivedMetricNames);
     }
 
     private void validateDerivedMetricsNotUsedAsAxisControls(
@@ -2518,10 +2656,10 @@ public class PivotPipeline {
             if (field.getLimit() != null && field.getLimit() < 0) {
                 throw new IllegalArgumentException(axisName + "." + fieldName + ".limit 不能小于 0");
             }
-            if ((field.getStart() != null || field.getOffset() != null) &&
-                    (field.getLimit() == null || field.getLimit() <= 0)) {
-                throw new IllegalArgumentException(axisName + "." + fieldName +
-                        " 使用 start/offset 时必须同时指定正数 limit");
+            if ((field.getStart() != null || field.getOffset() != null)
+                    && (field.getLimit() == null)) {
+                throw new IllegalArgumentException(
+                        axisName + "." + fieldName + " 使用 start/offset 时必须同时指定非负 limit");
             }
             if (field.getStart() != null && field.getOffset() != null &&
                     !field.getStart().equals(field.getOffset())) {
@@ -2574,8 +2712,12 @@ public class PivotPipeline {
         contract.put("execution_path", executionPath);
 
         contract.put("axes", buildAxisContracts(pivot));
-        contract.put("tree_axis_contract", buildTreeAxisContract(hierarchyCtx, hierarchySkeleton, outputFormat));
-        contract.put("drilldown_contract", buildDrilldownContract(pivot, axisDomainSelectionUsed, cascadeRequest));
+        contract.put(
+                "tree_axis_contract",
+                buildTreeAxisContract(hierarchyCtx, hierarchySkeleton, outputFormat));
+        contract.put(
+                "drilldown_contract",
+                buildDrilldownContract(pivot, axisDomainSelectionUsed, cascadeRequest));
         contract.put("required_capabilities", buildPivotRequiredCapabilities(
                 hierarchyCtx, axisDomainSelectionUsed, cascadeRequest, hasPerParentWindowRequest(pivot)));
         return contract;
@@ -2603,7 +2745,9 @@ public class PivotPipeline {
             axis.put("start", field.getStart());
             axis.put("offset", field.getOffset());
             axis.put("effective_offset", field.getEffectiveOffset());
-            axis.put("has_domain_slice", field.getDomainSlice() != null && !field.getDomainSlice().isEmpty());
+            axis.put(
+                    "has_domain_slice",
+                    field.getDomainSlice() != null && !field.getDomainSlice().isEmpty());
             axis.put("has_having", field.getHaving() != null && !field.getHaving().isEmpty());
             axis.put("order_by", field.getOrderBy());
             axes.add(axis);

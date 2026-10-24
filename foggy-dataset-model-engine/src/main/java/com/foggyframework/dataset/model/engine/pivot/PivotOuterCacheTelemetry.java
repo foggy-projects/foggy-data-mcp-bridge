@@ -128,6 +128,28 @@ final class PivotOuterCacheTelemetry {
                 safeIdentity.supplementaryProviderFailureClass());
     }
 
+    /**
+     * Seal every governed dependency and compiled predicate after the complete beforeQuery
+     * pipeline.
+     */
+    static AuthorizationSignature authorizationSnapshot(
+            List<AuthorizationSignature> signatures,
+            List<com.foggyframework.dataset.model.semantic.port.SemanticSqlGeneration> plans) {
+        if (signatures.isEmpty() || signatures.stream().anyMatch(java.util.Objects::isNull))
+            return null;
+        for (AuthorizationSignature signature : signatures)
+            if (!signature.publicIdentity()) return signature;
+        StringBuilder material = new StringBuilder("pivot-governed-authorization-v1");
+        for (AuthorizationSignature signature : signatures)
+            append(material, "permission", signature.value());
+        for (var plan : plans) {
+            append(material, "sql", plan.sql());
+            append(material, "params", stableValue(plan.params()));
+        }
+        return new AuthorizationSignature(
+                "PUBLIC:PIVOT:" + sha256(material.toString()), true, null);
+    }
+
     private static String authorizationRefusalReason(AuthorizationSignature signature) {
         if (signature == null) {
             return MISSING_AUTHORIZATION_SIGNATURE_REASON;
@@ -247,11 +269,17 @@ final class PivotOuterCacheTelemetry {
         append(key, "namespace", context != null ? normalizeToken(context.getNamespace()) : "");
         append(key, "pivot", stableValue(request != null ? request.getPivot() : null));
         append(key, "slice", stableValue(request != null ? request.getSlice() : null));
-        append(key, "calculatedFields", stableValue(request != null ? request.getCalculatedFields() : null));
+        append(
+                key,
+                "calculatedFields",
+                stableValue(request != null ? request.getCalculatedFields() : null));
         append(key, "extData", stableValue(request != null ? request.getExtData() : null));
         append(key, "systemSlice", stableValue(context != null ? context.getSystemSlice() : null));
         append(key, "fieldAccess", stableValue(context != null ? context.getFieldAccess() : null));
-        append(key, "deniedColumns", stableValue(context != null ? context.getDeniedColumns() : null));
+        append(
+                key,
+                "deniedColumns",
+                stableValue(context != null ? context.getDeniedColumns() : null));
         return "v3:" + sha256(key.toString());
     }
 
@@ -426,8 +454,11 @@ final class PivotOuterCacheTelemetry {
 
         /** Compatibility factory for direct telemetry callers; tokens never establish lifecycle identity. */
         static ModelIdentity of(String bundleFingerprint, String modelFreshnessToken) {
-            return from(PivotOuterCacheStrongIdentity.assess(null, null),
-                    new PivotOuterCacheModelIdentity(bundleFingerprint, modelFreshnessToken), "", "");
+            return from(
+                    PivotOuterCacheStrongIdentity.assess(null, null),
+                    new PivotOuterCacheModelIdentity(bundleFingerprint, modelFreshnessToken),
+                    "",
+                    "");
         }
 
         static ModelIdentity from(PivotOuterCacheStrongIdentity.Assessment assessment,
@@ -514,8 +545,12 @@ final class PivotOuterCacheTelemetry {
             append(value, "identityStatus", identityStatus);
             append(value, "supplementaryProviderFailed",
                     String.valueOf(supplementaryProviderFailed));
-            append(value, "supplementaryProviderFailureClass",
-                    supplementaryProviderFailureClass == null ? "" : supplementaryProviderFailureClass);
+            append(
+                    value,
+                    "supplementaryProviderFailureClass",
+                    supplementaryProviderFailureClass == null
+                            ? ""
+                            : supplementaryProviderFailureClass);
             return value.toString();
         }
 

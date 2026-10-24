@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.model.engine.pivot.algo;
 
 import com.foggyframework.dataset.model.engine.pivot.PivotResult;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -247,7 +248,10 @@ public class HierarchyTreeBuilder {
             }
             if (visible) kept.add(node);
         }
-        return rows.stream().filter(r -> kept.contains(r.get(id))).toList();
+        List<Map<String, Object>> ordered = new ArrayList<>();
+        for (var member : members)
+            if (kept.contains(member.get(id))) ordered.addAll(groups.get(member.get(id)));
+        return ordered;
     }
 
     public static void limitDepth(List<PivotResult.TreeNode> nodes, int depth) {

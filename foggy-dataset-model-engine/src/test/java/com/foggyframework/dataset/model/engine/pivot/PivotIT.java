@@ -1,5 +1,7 @@
 package com.foggyframework.dataset.model.engine.pivot;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import com.foggyframework.dataset.model.def.query.request.PostAggregateCalculationDef;
 import com.foggyframework.dataset.model.ecommerce.EcommerceTestSupport;
 import com.foggyframework.dataset.model.engine.pivot.transport.DomainTransportPlan;
@@ -23,8 +25,11 @@ import com.foggyframework.dataset.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.model.semantic.service.impl.SemanticQueryServiceV3Impl;
 import com.foggyframework.dataset.model.spi.NamedDataSourceResolver;
 import com.foggyframework.dataset.model.spi.ProcessLocalDefaultDataSourceResolver;
+
 import jakarta.annotation.Resource;
+
 import lombok.extern.slf4j.Slf4j;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -33,7 +38,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import javax.sql.DataSource;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -44,7 +48,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 
-import static org.junit.jupiter.api.Assertions.*;
+import javax.sql.DataSource;
 
 /**
  * Pivot 端到端集成测试
@@ -234,7 +238,8 @@ class PivotIT extends EcommerceTestSupport {
         assertTrue(rowHeaders.get(0).containsKey("product$categoryName"));
 
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> colHeaders = (List<Map<String, Object>>) grid.get("columnHeaders");
+        List<Map<String, Object>> colHeaders =
+                (List<Map<String, Object>>) grid.get("columnHeaders");
         assertFalse(colHeaders.isEmpty());
         assertTrue(colHeaders.get(0).containsKey("salesDate$month"));
         assertTrue(colHeaders.get(0).containsKey("metric"));
@@ -244,7 +249,8 @@ class PivotIT extends EcommerceTestSupport {
     @DisplayName("v9.2: E1b outer cache 命中只返回缓存响应，不重跑 Pivot pipeline")
     void testOuterCacheHitFlatPivotE1b() {
         SemanticQueryServiceV3Impl impl = (SemanticQueryServiceV3Impl) semanticQueryServiceV3;
-        PivotPipeline originalPipeline = (PivotPipeline) ReflectionTestUtils.getField(impl, "pivotPipeline");
+        PivotPipeline originalPipeline =
+                (PivotPipeline) ReflectionTestUtils.getField(impl, "pivotPipeline");
         try {
             ReflectionTestUtils.setField(impl, "pivotPipeline", outerCachePipeline(60_000L));
 
@@ -254,10 +260,14 @@ class PivotIT extends EcommerceTestSupport {
             SemanticQueryResponse first = execute(request);
             SemanticQueryResponse second = execute(request);
 
-            assertEquals(first.getItems(), second.getItems(), "cache hit should return the same Pivot payload");
+            assertEquals(
+                    first.getItems(),
+                    second.getItems(),
+                    "cache hit should return the same Pivot payload");
 
             List<Map<String, Object>> firstDiagnostics = pivotDiagnostics(first);
-            Map<String, Object> firstLookup = diagnosticEvent(firstDiagnostics, "pivot.cache.lookup");
+            Map<String, Object> firstLookup =
+                    diagnosticEvent(firstDiagnostics, "pivot.cache.lookup");
             assertEquals("E1b", firstLookup.get("eligibilityStage"));
             Map<String, Object> firstMiss = diagnosticEvent(firstDiagnostics, "pivot.cache.miss");
             assertEquals("cache_not_found", firstMiss.get("reason"));
@@ -266,7 +276,8 @@ class PivotIT extends EcommerceTestSupport {
             assertTrue(((Number) store.get("payloadBytes")).intValue() > 0);
 
             List<Map<String, Object>> secondDiagnostics = pivotDiagnostics(second);
-            Map<String, Object> secondLookup = diagnosticEvent(secondDiagnostics, "pivot.cache.lookup");
+            Map<String, Object> secondLookup =
+                    diagnosticEvent(secondDiagnostics, "pivot.cache.lookup");
             assertEquals("E1b", secondLookup.get("eligibilityStage"));
             Map<String, Object> hit = diagnosticEvent(secondDiagnostics, "pivot.cache.hit");
             assertEquals(secondLookup.get("keyHash"), hit.get("keyHash"));
@@ -282,7 +293,8 @@ class PivotIT extends EcommerceTestSupport {
     @DisplayName("v9.2: E1b outer cache TTL 过期后重新执行并写入")
     void testOuterCacheTtlExpiryFlatPivotE1b() {
         SemanticQueryServiceV3Impl impl = (SemanticQueryServiceV3Impl) semanticQueryServiceV3;
-        PivotPipeline originalPipeline = (PivotPipeline) ReflectionTestUtils.getField(impl, "pivotPipeline");
+        PivotPipeline originalPipeline =
+                (PivotPipeline) ReflectionTestUtils.getField(impl, "pivotPipeline");
         try {
             ControlledTimeOuterCacheProvider outerCache = new ControlledTimeOuterCacheProvider(1L, 100L);
             ReflectionTestUtils.setField(impl, "pivotPipeline", outerCachePipeline(outerCache));
@@ -296,7 +308,10 @@ class PivotIT extends EcommerceTestSupport {
             outerCache.advanceTo(102L);
 
             SemanticQueryResponse second = execute(request);
-            assertEquals(first.getItems(), second.getItems(), "TTL refresh should preserve query result payload");
+            assertEquals(
+                    first.getItems(),
+                    second.getItems(),
+                    "TTL refresh should preserve query result payload");
             List<Map<String, Object>> diagnostics = pivotDiagnostics(second);
             Map<String, Object> evicted = diagnosticEvent(diagnostics, "pivot.cache.evicted");
             assertEquals("ttl_expired", evicted.get("reason"));
@@ -313,7 +328,8 @@ class PivotIT extends EcommerceTestSupport {
     @DisplayName("v9.2: E1b outer cache 不跨安全上下文命中")
     void testOuterCacheMissesAcrossSecurityContextsE1b() {
         SemanticQueryServiceV3Impl impl = (SemanticQueryServiceV3Impl) semanticQueryServiceV3;
-        PivotPipeline originalPipeline = (PivotPipeline) ReflectionTestUtils.getField(impl, "pivotPipeline");
+        PivotPipeline originalPipeline =
+                (PivotPipeline) ReflectionTestUtils.getField(impl, "pivotPipeline");
         try {
             ReflectionTestUtils.setField(impl, "pivotPipeline", outerCachePipeline(60_000L));
 
@@ -324,15 +340,21 @@ class PivotIT extends EcommerceTestSupport {
             SemanticQueryResponse userBFirst = execute(request, outerCacheContext("user-b"));
             SemanticQueryResponse userASecond = execute(request, outerCacheContext("user-a"));
 
-            Map<String, Object> userALookup = diagnosticEvent(pivotDiagnostics(userAFirst), "pivot.cache.lookup");
-            Map<String, Object> userBLookup = diagnosticEvent(pivotDiagnostics(userBFirst), "pivot.cache.lookup");
+            Map<String, Object> userALookup =
+                    diagnosticEvent(pivotDiagnostics(userAFirst), "pivot.cache.lookup");
+            Map<String, Object> userBLookup =
+                    diagnosticEvent(pivotDiagnostics(userBFirst), "pivot.cache.lookup");
             assertNotEquals(userALookup.get("keyHash"), userBLookup.get("keyHash"),
                     "different effective field permissions must not share cache keys");
-            assertEquals("cache_not_found",
-                    diagnosticEvent(pivotDiagnostics(userBFirst), "pivot.cache.miss").get("reason"));
+            assertEquals(
+                    "cache_not_found",
+                    diagnosticEvent(pivotDiagnostics(userBFirst), "pivot.cache.miss")
+                            .get("reason"));
             assertFalse(hasDiagnosticEvent(pivotDiagnostics(userBFirst), "pivot.cache.hit"));
-            assertEquals(userALookup.get("keyHash"),
-                    diagnosticEvent(pivotDiagnostics(userASecond), "pivot.cache.hit").get("keyHash"));
+            assertEquals(
+                    userALookup.get("keyHash"),
+                    diagnosticEvent(pivotDiagnostics(userASecond), "pivot.cache.hit")
+                            .get("keyHash"));
         } finally {
             ReflectionTestUtils.setField(impl, "pivotPipeline", originalPipeline);
         }
@@ -342,7 +364,8 @@ class PivotIT extends EcommerceTestSupport {
     @DisplayName("v9.2: E1b outer cache 可按 namespace/model 手动清理")
     void testOuterCacheEvictByNamespaceAndModelE1b() {
         SemanticQueryServiceV3Impl impl = (SemanticQueryServiceV3Impl) semanticQueryServiceV3;
-        PivotPipeline originalPipeline = (PivotPipeline) ReflectionTestUtils.getField(impl, "pivotPipeline");
+        PivotPipeline originalPipeline =
+                (PivotPipeline) ReflectionTestUtils.getField(impl, "pivotPipeline");
         try {
             ReflectionTestUtils.setField(impl, "pivotPipeline", outerCachePipeline(60_000L));
 
@@ -359,7 +382,9 @@ class PivotIT extends EcommerceTestSupport {
 
             SemanticQueryResponse third = execute(request);
             List<Map<String, Object>> diagnostics = pivotDiagnostics(third);
-            assertEquals("cache_not_found", diagnosticEvent(diagnostics, "pivot.cache.miss").get("reason"));
+            assertEquals(
+                    "cache_not_found",
+                    diagnosticEvent(diagnostics, "pivot.cache.miss").get("reason"));
             assertFalse(hasDiagnosticEvent(diagnostics, "pivot.cache.hit"));
             assertDiagnosticEvent(diagnostics, "pivot.execution_path");
             assertDiagnosticEvent(diagnostics, "pivot.cache.store");
@@ -387,16 +412,20 @@ class PivotIT extends EcommerceTestSupport {
                 evaluation, PivotOuterCacheTelemetry.CACHE_STAGE, diagnostics, response);
 
         List<Map<String, Object>> diagnosticsOutput = pivotDiagnostics(result);
-        Map<String, Object> skipped = diagnosticEvent(diagnosticsOutput, "pivot.cache.store_skipped");
-        assertEquals(PivotOuterCacheTelemetry.CACHE_STORE_SKIPPED_WARNING_REASON, skipped.get("reason"));
+        Map<String, Object> skipped =
+                diagnosticEvent(diagnosticsOutput, "pivot.cache.store_skipped");
+        assertEquals(
+                PivotOuterCacheTelemetry.CACHE_STORE_SKIPPED_WARNING_REASON, skipped.get("reason"));
         assertFalse(hasDiagnosticEvent(diagnosticsOutput, "pivot.cache.store"));
     }
 
     @Test
-    @DisplayName("v9.2: E1b external provider unavailable degrades to query execution with diagnostics")
+    @DisplayName(
+            "v9.2: E1b external provider unavailable degrades to query execution with diagnostics")
     void testOuterCacheProviderUnavailableDegradesWithDiagnosticsE1b() {
         SemanticQueryServiceV3Impl impl = (SemanticQueryServiceV3Impl) semanticQueryServiceV3;
-        PivotPipeline originalPipeline = (PivotPipeline) ReflectionTestUtils.getField(impl, "pivotPipeline");
+        PivotPipeline originalPipeline =
+                (PivotPipeline) ReflectionTestUtils.getField(impl, "pivotPipeline");
         try {
             ReflectionTestUtils.setField(impl, "pivotPipeline", outerCachePipeline(
                     PivotOuterCacheSafeProvider.wrap(new UnavailableOuterCacheProvider(), false)));
@@ -415,9 +444,13 @@ class PivotIT extends EcommerceTestSupport {
             assertEquals("redis unavailable", unavailable.get("reason"));
 
             Map<String, Object> miss = diagnosticEvent(diagnostics, "pivot.cache.miss");
-            assertEquals(PivotOuterCacheTelemetry.CACHE_PROVIDER_UNAVAILABLE_REASON, miss.get("reason"));
-            Map<String, Object> storeSkipped = diagnosticEvent(diagnostics, "pivot.cache.store_skipped");
-            assertEquals(PivotOuterCacheTelemetry.CACHE_PROVIDER_UNAVAILABLE_REASON, storeSkipped.get("reason"));
+            assertEquals(
+                    PivotOuterCacheTelemetry.CACHE_PROVIDER_UNAVAILABLE_REASON, miss.get("reason"));
+            Map<String, Object> storeSkipped =
+                    diagnosticEvent(diagnostics, "pivot.cache.store_skipped");
+            assertEquals(
+                    PivotOuterCacheTelemetry.CACHE_PROVIDER_UNAVAILABLE_REASON,
+                    storeSkipped.get("reason"));
             assertDiagnosticEvent(diagnostics, "pivot.execution_path");
         } finally {
             ReflectionTestUtils.setField(impl, "pivotPipeline", originalPipeline);
@@ -745,7 +778,10 @@ class PivotIT extends EcommerceTestSupport {
 
         IllegalArgumentException postAggregateException =
                 assertThrows(IllegalArgumentException.class, () -> execute(postAggregateRequest));
-        assertTrue(postAggregateException.getMessage().contains("pivot 模式不支持顶层 postAggregateCalculations"));
+        assertTrue(
+                postAggregateException
+                        .getMessage()
+                        .contains("pivot 模式不支持顶层 postAggregateCalculations"));
         assertTrue(postAggregateException.getMessage().contains("pivot.metrics"));
 
         SemanticQueryRequest postSliceRequest = new SemanticQueryRequest();
@@ -767,14 +803,16 @@ class PivotIT extends EcommerceTestSupport {
         paymentShare.setName("paymentShare");
         paymentShare.setType("parentShare");
         paymentShare.setOf("salesAmount");
-        parentSharePivot.setMetricItems(List.of(PivotMetricItem.ofNative("salesAmount"), paymentShare));
+        parentSharePivot.setMetricItems(
+                List.of(PivotMetricItem.ofNative("salesAmount"), paymentShare));
         parentSharePivot.getRows().get(1).setOrderBy(List.of("-paymentShare"));
 
         SemanticQueryRequest parentShareRequest = new SemanticQueryRequest();
         parentShareRequest.setPivot(parentSharePivot);
         IllegalArgumentException orderByException =
                 assertThrows(IllegalArgumentException.class, () -> execute(parentShareRequest));
-        assertTrue(orderByException.getMessage().contains("orderBy 不支持引用派生 Pivot 指标 'paymentShare'"));
+        assertTrue(
+                orderByException.getMessage().contains("orderBy 不支持引用派生 Pivot 指标 'paymentShare'"));
         assertTrue(orderByException.getMessage().contains("parentShare/baselineRatio 是后处理输出"));
 
         PivotRequest baselineRatioPivot = basicSalesPivot();
@@ -785,7 +823,8 @@ class PivotIT extends EcommerceTestSupport {
         monthRatio.setOf("salesAmount");
         monthRatio.setAxis("columns");
         monthRatio.setBaseline("first");
-        baselineRatioPivot.setMetricItems(List.of(PivotMetricItem.ofNative("salesAmount"), monthRatio));
+        baselineRatioPivot.setMetricItems(
+                List.of(PivotMetricItem.ofNative("salesAmount"), monthRatio));
         MetricFilter having = new MetricFilter();
         having.setMetric("monthRatio");
         having.setOp(">");
@@ -805,7 +844,8 @@ class PivotIT extends EcommerceTestSupport {
     void testCardinalityCircuitBreaker() {
         // 原始 pipeline 保存
         SemanticQueryServiceV3Impl impl = (SemanticQueryServiceV3Impl) semanticQueryServiceV3;
-        PivotPipeline originalPipeline = (PivotPipeline) ReflectionTestUtils.getField(impl, "pivotPipeline");
+        PivotPipeline originalPipeline =
+                (PivotPipeline) ReflectionTestUtils.getField(impl, "pivotPipeline");
 
         try {
             // 构造极低阈值的 CardinalityBreaker 和 Pipeline
@@ -914,7 +954,8 @@ class PivotIT extends EcommerceTestSupport {
 
         @SuppressWarnings("unchecked")
         List<com.foggyframework.dataset.model.engine.pivot.PivotResult.TreeNode> roots =
-                (List<com.foggyframework.dataset.model.engine.pivot.PivotResult.TreeNode>) pivotData.get("data");
+                (List<com.foggyframework.dataset.model.engine.pivot.PivotResult.TreeNode>)
+                        pivotData.get("data");
 
         assertNotNull(roots);
         // DimTeam 只有 1 个真正的根节点：总公司 (T001)
@@ -1081,7 +1122,9 @@ class PivotIT extends EcommerceTestSupport {
         // Fail-Closed: tree+subtotals is now silently ignored rather than throwing an exception
         SemanticQueryResponse response = execute("FactTeamSalesQueryModel", request);
         org.junit.jupiter.api.Assertions.assertNotNull(response);
-        org.junit.jupiter.api.Assertions.assertFalse(pivot.getOptions().isRowSubtotals(), "RowSubtotals should be silently set to false");
+        org.junit.jupiter.api.Assertions.assertFalse(
+                pivot.getOptions().isRowSubtotals(),
+                "RowSubtotals should be silently set to false");
         List<Map<String, Object>> diagnostics = pivotDiagnostics(response);
         Map<String, Object> cacheRefused = diagnosticEvent(diagnostics, "pivot.cache.refused");
         assertEquals("E1a", cacheRefused.get("eligibilityStage"));
@@ -1118,8 +1161,11 @@ class PivotIT extends EcommerceTestSupport {
                     subtotalCount++;
                     assertEquals("ALL", row.get("salesDate$month"));
                     assertNotNull(row.get("salesAmount"), "小计行 salesAmount (SUM) 不应为 null");
-                    log.info("Row subtotal: category={}, salesAmount={}, uniqueCustomers={}",
-                            row.get("product$categoryName"), row.get("salesAmount"), row.get("uniqueCustomers"));
+                    log.info(
+                            "Row subtotal: category={}, salesAmount={}, uniqueCustomers={}",
+                            row.get("product$categoryName"),
+                            row.get("salesAmount"),
+                            row.get("uniqueCustomers"));
                 }
             }
         }
@@ -1135,7 +1181,8 @@ class PivotIT extends EcommerceTestSupport {
         // 刻意使用复杂的维度组合，产生多个不同列数的 grain
         pivot.setRows(List.of(axis("product$categoryName"), axis("salesDate$year")));
         pivot.setColumns(List.of(axis("customer$customerType")));
-        pivot.setMetrics(List.of("uniqueCustomers", "salesAmount")); // uniqueCustomers is COUNT_DISTINCT
+        pivot.setMetrics(
+                List.of("uniqueCustomers", "salesAmount")); // uniqueCustomers is COUNT_DISTINCT
         pivot.setOutputFormat("flat");
 
         PivotOptions options = new PivotOptions();
@@ -1223,7 +1270,8 @@ class PivotIT extends EcommerceTestSupport {
         assertEquals("grid", grid.get("format"));
 
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> columnHeaders = (List<Map<String, Object>>) grid.get("columnHeaders");
+        List<Map<String, Object>> columnHeaders =
+                (List<Map<String, Object>>) grid.get("columnHeaders");
         // columnHeaders 应包含 monthShare 度量
         boolean hasMonthShareHeader = columnHeaders.stream()
                 .anyMatch(h -> "monthShare".equals(h.get("metric")));
@@ -1318,7 +1366,9 @@ class PivotIT extends EcommerceTestSupport {
         request.setPivot(pivot);
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> execute(request));
-        assertTrue(ex.getMessage().contains("不支持 hierarchyMode=tree") || ex.getMessage().contains("tree"),
+        assertTrue(
+                ex.getMessage().contains("不支持 hierarchyMode=tree")
+                        || ex.getMessage().contains("tree"),
                 "Should reject tree hierarchy with baselineRatio: " + ex.getMessage());
         log.info("S12: baselineRatio tree mode 拒绝通过");
     }
@@ -1363,7 +1413,8 @@ class PivotIT extends EcommerceTestSupport {
                     salesTotal += sales.doubleValue();
                 }
             }
-            assertTrue(hasZeroDiscountCell, "domainSlice 不能把同一 orderId 下 discountAmount=0 的 cell 删除");
+            assertTrue(
+                    hasZeroDiscountCell, "domainSlice 不能把同一 orderId 下 discountAmount=0 的 cell 删除");
             assertEquals(180d, salesTotal, 0.001d);
         } finally {
             deletePivotDomainSliceFixture();
@@ -1514,7 +1565,8 @@ class PivotIT extends EcommerceTestSupport {
 
         assertNotNull(cellRequest);
         assertNotNull(context);
-        assertEquals(1, cellRequest.getSlice().size(), "大域应放入 domain transport，不应追加 orderId IN slice");
+        assertEquals(
+                1, cellRequest.getSlice().size(), "大域应放入 domain transport，不应追加 orderId IN slice");
         assertEquals("orderStatus", cellRequest.getSlice().get(0).getField());
         assertEquals(1, context.getDomainTransportPlans().size());
 
@@ -1551,13 +1603,15 @@ class PivotIT extends EcommerceTestSupport {
             assertDiagnosticEvent(diagnostics, "pivot.sql_pushdown.skipped");
             assertDiagnosticEvent(diagnostics, "pivot.axis_domain_selection.started");
 
-            Map<String, Object> transport = diagnosticEvent(diagnostics, "pivot.domain_transport.planned");
+            Map<String, Object> transport =
+                    diagnosticEvent(diagnostics, "pivot.domain_transport.planned");
             assertEquals("_pivot_axis_domain_row_0", transport.get("relation"));
             assertEquals(1, ((Number) transport.get("fieldCount")).intValue());
             assertEquals(600, ((Number) transport.get("tupleCount")).intValue());
             assertEquals(600, ((Number) transport.get("parameterCount")).intValue());
 
-            Map<String, Object> executionPath = diagnosticEvent(diagnostics, "pivot.execution_path");
+            Map<String, Object> executionPath =
+                    diagnosticEvent(diagnostics, "pivot.execution_path");
             assertEquals(Boolean.FALSE, executionPath.get("sqlPushdownUsed"));
             assertEquals(Boolean.TRUE, executionPath.get("axisDomainSelectionUsed"));
             assertEquals(Boolean.FALSE, executionPath.get("cascadeGenerateUsed"));
@@ -1624,7 +1678,8 @@ class PivotIT extends EcommerceTestSupport {
             assertEquals(1, response.getItems().size());
             Map<String, Object> onlyCell = response.getItems().get(0);
             assertEquals("PDS_O1", onlyCell.get("orderId"));
-            assertEquals(pivotDomainSliceDiscountedProductCaption(), onlyCell.get("product$caption"));
+            assertEquals(
+                    pivotDomainSliceDiscountedProductCaption(), onlyCell.get("product$caption"));
             assertEquals(80d, ((Number) onlyCell.get("discountAmount")).doubleValue(), 0.001d);
         } finally {
             deletePivotDomainSliceFixture();
@@ -1655,12 +1710,14 @@ class PivotIT extends EcommerceTestSupport {
             assertEquals("grid", grid.get("format"));
 
             @SuppressWarnings("unchecked")
-            List<Map<String, Object>> rowHeaders = (List<Map<String, Object>>) grid.get("rowHeaders");
+            List<Map<String, Object>> rowHeaders =
+                    (List<Map<String, Object>>) grid.get("rowHeaders");
             assertEquals(1, rowHeaders.size());
             assertEquals("PDS_O1", rowHeaders.get(0).get("orderId"));
 
             @SuppressWarnings("unchecked")
-            List<Map<String, Object>> columnHeaders = (List<Map<String, Object>>) grid.get("columnHeaders");
+            List<Map<String, Object>> columnHeaders =
+                    (List<Map<String, Object>>) grid.get("columnHeaders");
             assertEquals(2, columnHeaders.size(), "PDS_O1 下两个商品 cell 都应参与 grid 列头");
         } finally {
             deletePivotDomainSliceFixture();
@@ -1668,7 +1725,7 @@ class PivotIT extends EcommerceTestSupport {
     }
 
     @Test
-    @DisplayName("v3.7: start/offset 轴域分页必须配合正数 limit，且不能冲突")
+    @DisplayName("v3.7: start/offset 轴域分页必须配合非负 limit，且不能冲突")
     void testAxisDomainPaginationValidation() {
         PivotRequest noLimitPivot = new PivotRequest();
         AxisField rowWithoutLimit = axis("orderId");
@@ -1681,7 +1738,7 @@ class PivotIT extends EcommerceTestSupport {
 
         IllegalArgumentException noLimit = assertThrows(IllegalArgumentException.class,
                 () -> execute(noLimitRequest));
-        assertTrue(noLimit.getMessage().contains("必须同时指定正数 limit"));
+        assertTrue(noLimit.getMessage().contains("必须同时指定非负 limit"));
 
         PivotRequest conflictPivot = new PivotRequest();
         AxisField conflictRow = axis("orderId");
@@ -1825,8 +1882,10 @@ class PivotIT extends EcommerceTestSupport {
         request.setPivot(pivot);
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> execute(request));
-        assertTrue(ex.getMessage().contains("baselineScope=prePageAxisDomain"),
-                "baselineRatio + domainSlice/start/offset 应说明 baseline scope 尚未定义: " + ex.getMessage());
+        assertTrue(
+                ex.getMessage().contains("baselineScope=prePageAxisDomain"),
+                "baselineRatio + domainSlice/start/offset 应说明 baseline scope 尚未定义: "
+                        + ex.getMessage());
 
         AxisField pagedColumn = axis("salesDate$month");
         pagedColumn.setStart(1);
@@ -1897,9 +1956,13 @@ class PivotIT extends EcommerceTestSupport {
             assertTrue(byDayOfWeek.containsKey(2), "可见列应包含 dayOfWeek=2");
             assertTrue(byDayOfWeek.containsKey(3), "可见列应包含 dayOfWeek=3");
             assertFalse(byDayOfWeek.containsKey(1), "分页前基准列 dayOfWeek=1 不应出现在可见结果中");
-            assertEquals(2.0d, ((Number) byDayOfWeek.get(2).get("salesIndex")).doubleValue(), 0.001d,
+            assertEquals(
+                    2.0d,
+                    ((Number) byDayOfWeek.get(2).get("salesIndex")).doubleValue(),
+                    0.001d,
                     "dayOfWeek=2 应除以分页前 dayOfWeek=1 的 100，而不是页内 dayOfWeek=2 的 200");
-            assertEquals(3.0d, ((Number) byDayOfWeek.get(3).get("salesIndex")).doubleValue(), 0.001d);
+            assertEquals(
+                    3.0d, ((Number) byDayOfWeek.get(3).get("salesIndex")).doubleValue(), 0.001d);
 
             Map<String, Object> extra = response.getDebug().getExtra();
             assertNotNull(extra);
@@ -2014,23 +2077,41 @@ class PivotIT extends EcommerceTestSupport {
         List<Map<String, Object>> items = response.getItems();
 
         assertFalse(items.isEmpty(), "Pivot grandTotal 引用 QM 预定义 formula 应返回数据");
-        assertTrue(items.stream().anyMatch(row -> {
-            Object meta = row.get("_sys_meta");
-            return meta instanceof Map<?, ?> && Boolean.TRUE.equals(((Map<?, ?>) meta).get("isGrandTotal"));
-        }), "Pivot 输出应包含 grandTotal 行");
+        assertTrue(
+                items.stream()
+                        .anyMatch(
+                                row -> {
+                                    Object meta = row.get("_sys_meta");
+                                    return meta instanceof Map<?, ?>
+                                            && Boolean.TRUE.equals(
+                                                    ((Map<?, ?>) meta).get("isGrandTotal"));
+                                }),
+                "Pivot 输出应包含 grandTotal 行");
     }
 
     // ========== 辅助方法 ==========
 
+    @Resource
+    private com.foggyframework.dataset.model.service.AdvancedQueryFacade cacheGovernanceFacade;
+
     private PivotPipeline outerCachePipeline(long ttlMillis) {
-        return new PivotPipeline(semanticQueryServiceV3, new CardinalityBreaker(), queryModelLoader, null,
+        return new PivotPipeline(
+                semanticQueryServiceV3,
+                new CardinalityBreaker(),
+                queryModelLoader,
+                cacheGovernanceFacade,
                 new PivotPipeline.OuterCacheOptions(true, ttlMillis, 16));
     }
 
     private PivotPipeline outerCachePipeline(PivotOuterCacheProvider provider) {
-        return new PivotPipeline(semanticQueryServiceV3, new CardinalityBreaker(), queryModelLoader, null,
+        return new PivotPipeline(
+                semanticQueryServiceV3,
+                new CardinalityBreaker(),
+                queryModelLoader,
+                cacheGovernanceFacade,
                 new PivotPipeline.OuterCacheOptions(true, 60_000L, 16),
-                PivotOuterCacheModelIdentityProvider.empty(), provider);
+                PivotOuterCacheModelIdentityProvider.empty(),
+                provider);
     }
 
     private SemanticQueryResponse execute(SemanticQueryRequest request) {
@@ -2083,10 +2164,13 @@ class PivotIT extends EcommerceTestSupport {
 
     private void assertContractListContains(Map<?, ?> section, String listName, String... expectedValues) {
         Object value = section.get(listName);
-        assertTrue(value instanceof List<?>, "pivot contract section should include list " + listName);
+        assertTrue(
+                value instanceof List<?>, "pivot contract section should include list " + listName);
         List<?> values = (List<?>) value;
         for (String expected : expectedValues) {
-            assertTrue(values.contains(expected), listName + " should contain " + expected + ": " + values);
+            assertTrue(
+                    values.contains(expected),
+                    listName + " should contain " + expected + ": " + values);
         }
     }
 
@@ -2106,7 +2190,13 @@ class PivotIT extends EcommerceTestSupport {
         return diagnostics.stream()
                 .filter(item -> event.equals(item.get("event")))
                 .findFirst()
-                .orElseThrow(() -> new AssertionError("pivotDiagnostics should contain " + event + ": " + diagnostics));
+                .orElseThrow(
+                        () ->
+                                new AssertionError(
+                                        "pivotDiagnostics should contain "
+                                                + event
+                                                + ": "
+                                                + diagnostics));
     }
 
     private void assertDiagnosticEvent(List<Map<String, Object>> diagnostics, String event) {
@@ -2184,7 +2274,9 @@ class PivotIT extends EcommerceTestSupport {
                 WHERE brand = ? AND sub_category_name = ?
                 ORDER BY product_key
                 """, 1), brand, subCategory);
-        assertFalse(rows.isEmpty(), "Missing pivot fixture product: brand=" + brand + ", subCategory=" + subCategory);
+        assertFalse(
+                rows.isEmpty(),
+                "Missing pivot fixture product: brand=" + brand + ", subCategory=" + subCategory);
         return rows.get(0);
     }
 
@@ -2205,20 +2297,123 @@ class PivotIT extends EcommerceTestSupport {
                  order_status, payment_method)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
-        jdbcTemplate.batchUpdate(sql, List.of(
-                new Object[] {"PDS_WIN_A_TOP", 1, 20240101, 1, 1, 1, 1, null,
-                        1, 300d, 0d, 0d, 300d, 0d, 300d, PARENT_CHILD_WINDOW_STATUS_A, "PDS_PAY_TOP"},
-                new Object[] {"PDS_WIN_A_KEEP", 1, 20240101, 1, 1, 1, 1, null,
-                        1, 200d, 0d, 0d, 200d, 0d, 200d, PARENT_CHILD_WINDOW_STATUS_A, "PDS_PAY_KEEP"},
-                new Object[] {"PDS_WIN_A_LOW", 1, 20240101, 1, 1, 1, 1, null,
-                        1, 100d, 0d, 0d, 100d, 0d, 100d, PARENT_CHILD_WINDOW_STATUS_A, "PDS_PAY_LOW"},
-                new Object[] {"PDS_WIN_B_TOP", 1, 20240101, 1, 1, 1, 1, null,
-                        1, 300d, 0d, 0d, 300d, 0d, 300d, PARENT_CHILD_WINDOW_STATUS_B, "PDS_PAY_TOP"},
-                new Object[] {"PDS_WIN_B_KEEP", 1, 20240101, 1, 1, 1, 1, null,
-                        1, 200d, 0d, 0d, 200d, 0d, 200d, PARENT_CHILD_WINDOW_STATUS_B, "PDS_PAY_KEEP"},
-                new Object[] {"PDS_WIN_B_LOW", 1, 20240101, 1, 1, 1, 1, null,
-                        1, 100d, 0d, 0d, 100d, 0d, 100d, PARENT_CHILD_WINDOW_STATUS_B, "PDS_PAY_LOW"}
-        ));
+        jdbcTemplate.batchUpdate(
+                sql,
+                List.of(
+                        new Object[] {
+                            "PDS_WIN_A_TOP",
+                            1,
+                            20240101,
+                            1,
+                            1,
+                            1,
+                            1,
+                            null,
+                            1,
+                            300d,
+                            0d,
+                            0d,
+                            300d,
+                            0d,
+                            300d,
+                            PARENT_CHILD_WINDOW_STATUS_A,
+                            "PDS_PAY_TOP"
+                        },
+                        new Object[] {
+                            "PDS_WIN_A_KEEP",
+                            1,
+                            20240101,
+                            1,
+                            1,
+                            1,
+                            1,
+                            null,
+                            1,
+                            200d,
+                            0d,
+                            0d,
+                            200d,
+                            0d,
+                            200d,
+                            PARENT_CHILD_WINDOW_STATUS_A,
+                            "PDS_PAY_KEEP"
+                        },
+                        new Object[] {
+                            "PDS_WIN_A_LOW",
+                            1,
+                            20240101,
+                            1,
+                            1,
+                            1,
+                            1,
+                            null,
+                            1,
+                            100d,
+                            0d,
+                            0d,
+                            100d,
+                            0d,
+                            100d,
+                            PARENT_CHILD_WINDOW_STATUS_A,
+                            "PDS_PAY_LOW"
+                        },
+                        new Object[] {
+                            "PDS_WIN_B_TOP",
+                            1,
+                            20240101,
+                            1,
+                            1,
+                            1,
+                            1,
+                            null,
+                            1,
+                            300d,
+                            0d,
+                            0d,
+                            300d,
+                            0d,
+                            300d,
+                            PARENT_CHILD_WINDOW_STATUS_B,
+                            "PDS_PAY_TOP"
+                        },
+                        new Object[] {
+                            "PDS_WIN_B_KEEP",
+                            1,
+                            20240101,
+                            1,
+                            1,
+                            1,
+                            1,
+                            null,
+                            1,
+                            200d,
+                            0d,
+                            0d,
+                            200d,
+                            0d,
+                            200d,
+                            PARENT_CHILD_WINDOW_STATUS_B,
+                            "PDS_PAY_KEEP"
+                        },
+                        new Object[] {
+                            "PDS_WIN_B_LOW",
+                            1,
+                            20240101,
+                            1,
+                            1,
+                            1,
+                            1,
+                            null,
+                            1,
+                            100d,
+                            0d,
+                            0d,
+                            100d,
+                            0d,
+                            100d,
+                            PARENT_CHILD_WINDOW_STATUS_B,
+                            "PDS_PAY_LOW"
+                        }));
     }
 
     private void deleteParentChildWindowFixture() {
@@ -2263,7 +2458,8 @@ class PivotIT extends EcommerceTestSupport {
     }
 
     private void deleteBaselineRatioScopeFixture() {
-        jdbcTemplate.update("DELETE FROM fact_sales WHERE order_status = ?", BASELINE_RATIO_SCOPE_STATUS);
+        jdbcTemplate.update(
+                "DELETE FROM fact_sales WHERE order_status = ?", BASELINE_RATIO_SCOPE_STATUS);
     }
 
     private void insertLargePivotDomainSliceFixture() {

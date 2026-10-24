@@ -1,21 +1,23 @@
 package io.foggytest.runtime;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.bundle.SystemBundlesContext;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.nio.file.*;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 /** Real auto-configured engine and Runtime controller; the semantic service is not mocked. */
 class RuntimePivotValidationIntegrationTest {
@@ -29,9 +31,16 @@ class RuntimePivotValidationIntegrationTest {
               measures:[{name:'amount',column:'amount',type:'NUMBER',aggregation:'sum'}]};
             """);
         for (String model : new String[]{"RuntimePivotQM", "RuntimePivotDenied"}) {
-            Files.writeString(models.resolve(model + ".qm"), "const m=loadTableModel('RuntimePivot');export const queryModel={name:'" + model
-                    + "',loader:'v2',model:m,columnGroups:[{caption:'Fields',items:[{ref:m.id},{ref:m.category,name:'region',alias:'regionOut'},{ref:m.amount,name:'revenue',alias:'revenueOut'}]}],accesses:[]"
-                    + (model.endsWith("Denied") ? ",modelPermissions:{mode:'resolver',resolver:(ctx)=>{return {allow:false};}}" : "") + "};");
+            Files.writeString(
+                    models.resolve(model + ".qm"),
+                    "const m=loadTableModel('RuntimePivot');export const queryModel={name:'"
+                            + model
+                            + "',loader:'v2',model:m,columnGroups:[{caption:'Fields',items:[{ref:m.id},{ref:m.category,name:'region',alias:'regionOut'},{ref:m.amount,name:'revenue',alias:'revenueOut'}]}],accesses:[]"
+                            + (model.endsWith("Denied")
+                                    ? ",modelPermissions:{mode:'resolver',resolver:(ctx)=>{return"
+                                            + " {allow:false};}}"
+                                    : "")
+                            + "};");
         }
         new WebApplicationContextRunner()
                 .withUserConfiguration(QueryApplication.class)
@@ -48,9 +57,11 @@ class RuntimePivotValidationIntegrationTest {
                             assertThat(context).hasNotFailed();
                             var jdbc = context.getBean(JdbcTemplate.class);
                             jdbc.execute(
-                                    "CREATE TABLE runtime_pivot(id INTEGER PRIMARY KEY,category TEXT,amount NUMERIC)");
+                                    "CREATE TABLE runtime_pivot(id INTEGER PRIMARY KEY,category"
+                                            + " TEXT,amount NUMERIC)");
                             jdbc.update(
-                                    "INSERT INTO runtime_pivot VALUES(1,'A',10),(2,'A',20),(3,'B',40)");
+                                    "INSERT INTO runtime_pivot"
+                                            + " VALUES(1,'A',10),(2,'A',20),(3,'B',40)");
                             var bundles = context.getBean(SystemBundlesContext.class);
                             assertThat(
                                             bundles.addExternalBundle(
@@ -87,6 +98,35 @@ class RuntimePivotValidationIntegrationTest {
                                                         .path("revenue")
                                                         .asInt())
                                         .isEqualTo(30);
+                                String zero =
+                                        payload.replace(
+                                                "[\"region\"]",
+                                                "[{\"field\":\"region\",\"start\":0,\"limit\":0}]");
+                                for (String mode : new String[] {"validate", "execute"}) {
+                                    var empty = query(mvc, "RuntimePivotQM", zero, mode);
+                                    assertThat(empty.path("success").asBoolean()).isTrue();
+                                    if ("execute".equals(mode)) {
+                                        assertThat(empty.path("data").path("items").size())
+                                                .isZero();
+                                        assertThat(empty.path("data").path("total").asLong())
+                                                .isZero();
+                                    }
+                                    assertThat(
+                                                    query(mvc, "RuntimePivotDenied", zero, mode)
+                                                            .path("success")
+                                                            .asBoolean())
+                                            .isFalse();
+                                    assertThat(
+                                                    query(
+                                                                    mvc,
+                                                                    "RuntimePivotQM",
+                                                                    zero.replace(
+                                                                            "region", "missing"),
+                                                                    mode)
+                                                            .path("success")
+                                                            .asBoolean())
+                                            .isFalse();
+                                }
                                 String total =
                                         "{\"calculatedFields\":[{\"name\":\"doubleRevenue\",\"expression\":\"sum(revenue)*2\"}],\"pivot\":{\"rows\":[\"region\"],\"metrics\":[\"doubleRevenue\"],\"outputFormat\":\"flat\",\"options\":{\"grandTotal\":true}}}";
                                 assertThat(

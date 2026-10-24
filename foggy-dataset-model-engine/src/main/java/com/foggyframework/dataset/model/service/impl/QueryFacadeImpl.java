@@ -2,6 +2,9 @@ package com.foggyframework.dataset.model.service.impl;
 
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.dataset.client.domain.PagingRequest;
+import com.foggyframework.dataset.model.PagingResultImpl;
+import com.foggyframework.dataset.model.api.QueryFacadeRequest;
+import com.foggyframework.dataset.model.api.QueryFacadeResult;
 import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.model.engine.query.DbQueryResult;
@@ -16,11 +19,11 @@ import com.foggyframework.dataset.model.spi.NamespaceScope;
 import com.foggyframework.dataset.model.spi.QueryEngine;
 import com.foggyframework.dataset.model.spi.QueryModel;
 import com.foggyframework.dataset.model.spi.QueryModelLoader;
-import com.foggyframework.dataset.model.PagingResultImpl;
-import com.foggyframework.dataset.model.api.QueryFacadeRequest;
-import com.foggyframework.dataset.model.api.QueryFacadeResult;
+
 import jakarta.annotation.Resource;
+
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.stereotype.Service;
 
 /**
@@ -52,6 +55,9 @@ public class QueryFacadeImpl implements AdvancedQueryFacade {
 
     @Resource
     private DataSetResultFilterManager dataSetResultFilterManager;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.foggyframework.dataset.model.spi.NamedDataSourceResolver namedDataSourceResolver;
 
     @Override
     public QueryFacadeResult query(QueryFacadeRequest request) {
@@ -159,8 +165,13 @@ public class QueryFacadeImpl implements AdvancedQueryFacade {
             dataSetResultFilterManager.beforeQuery(context);
 
             if (log.isDebugEnabled()) {
-                log.debug("AdvancedQueryFacade.beforeQuery completed, queryType={}, model={}, skipQuery={}, namespace={}",
-                        context.getQueryType(), queryModelName, context.isSkipQuery(), context.getNamespace());
+                log.debug(
+                        "AdvancedQueryFacade.beforeQuery completed, queryType={}, model={},"
+                                + " skipQuery={}, namespace={}",
+                        context.getQueryType(),
+                        queryModelName,
+                        context.isSkipQuery(),
+                        context.getNamespace());
             }
 
             // 3. 检查是否跳过查询（如 L1 缓存命中，或 TimeWindow 拦截）
@@ -222,8 +233,8 @@ public class QueryFacadeImpl implements AdvancedQueryFacade {
         }
         if (queryEngine.getJdbcQueryModel() != pinnedModel) {
             throw new IllegalStateException(
-                    "QUERY_ENGINE_MODEL_MISMATCH: query engine did not retain the pinned query model"
-            );
+                    "QUERY_ENGINE_MODEL_MISMATCH: query engine did not retain the pinned query"
+                            + " model");
         }
         context.setQuery(queryEngine.getJdbcQuery());
     }
@@ -260,7 +271,8 @@ public class QueryFacadeImpl implements AdvancedQueryFacade {
             }
 
             throw new UnsupportedOperationException(
-                    "buildSqlOnly only supports JDBC query models, got: " + queryModel.getClass().getName());
+                    "buildSqlOnly only supports JDBC query models, got: "
+                            + queryModel.getClass().getName());
         }
     }
 
@@ -281,8 +293,10 @@ public class QueryFacadeImpl implements AdvancedQueryFacade {
             dataSetResultFilterManager.beforeQuery(context);
 
             if (context.isSkipQuery()) {
-                throw new com.foggyframework.dataset.model.engine.pivot.sql.PivotPushdownUnsupportedException(
-                        "prepareManagedRelation does not support skipQuery (e.g. TimeWindow intercept). Fallback to memory path.");
+                throw new com.foggyframework.dataset.model.engine.pivot.sql
+                        .PivotPushdownUnsupportedException(
+                        "prepareManagedRelation does not support skipQuery (e.g. TimeWindow"
+                                + " intercept). Fallback to memory path.");
             }
 
             if (queryModel instanceof JdbcQueryModelImpl jdbcImpl) {
@@ -290,8 +304,10 @@ public class QueryFacadeImpl implements AdvancedQueryFacade {
                         executionBundlesContext(context), context, options);
             }
 
-            throw new com.foggyframework.dataset.model.engine.pivot.sql.PivotPushdownUnsupportedException(
-                    "prepareManagedRelation only supports JDBC query models, got: " + queryModel.getClass().getName());
+            throw new com.foggyframework.dataset.model.engine.pivot.sql
+                    .PivotPushdownUnsupportedException(
+                    "prepareManagedRelation only supports JDBC query models, got: "
+                            + queryModel.getClass().getName());
         }
     }
 
@@ -300,6 +316,25 @@ public class QueryFacadeImpl implements AdvancedQueryFacade {
             String queryModelName,
             String namespace
     ) {
+        CatalogResolution<QueryModel> pinned = context.getCatalogResolution();
+        if (pinned != null) {
+            if (!queryModelName.equals(pinned.canonicalName())) {
+                throw new IllegalStateException("PINNED_QUERY_MODEL_MISMATCH");
+            }
+            // Validate namespace and the context's complete projection, without resolving
+            // a newer active generation in the middle of this request.
+            context.pinCatalogResolution(pinned, namespace);
+            if (namedDataSourceResolver != null) {
+                for (var binding : pinned.dependencyBindings().values()) {
+                    if (namedDataSourceResolver.currentness(binding)
+                            == com.foggyframework.dataset.model.lifecycle.port.BindingCurrentness
+                                    .STALE)
+                        throw new com.foggyframework.dataset.model.lifecycle.port
+                                .StaleDatasourceBindingException(binding.bindingKey());
+                }
+            }
+            return pinned.model();
+        }
         if (context.getExecutionBundlesContext() != null) {
             if (context.getCatalogIdentity() == null
                     || context.getQueryModel() == null

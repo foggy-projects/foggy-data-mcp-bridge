@@ -1,7 +1,19 @@
 package com.foggyframework.dataset.model.lifecycle.catalog;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.dataset.client.domain.PagingRequest;
+import com.foggyframework.dataset.model.PagingResultImpl;
 import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.model.lifecycle.identity.CatalogGeneration;
@@ -15,22 +27,11 @@ import com.foggyframework.dataset.model.service.impl.QueryFacadeImpl;
 import com.foggyframework.dataset.model.spi.QueryEngine;
 import com.foggyframework.dataset.model.spi.QueryModel;
 import com.foggyframework.dataset.model.spi.QueryModelLoader;
-import com.foggyframework.dataset.model.PagingResultImpl;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 class QueryFacadeCatalogIdentityTest {
 
@@ -61,12 +62,12 @@ class QueryFacadeCatalogIdentityTest {
         assertSame(model, context.getQueryModel());
         assertEquals(resolution.catalogIdentity(), context.getCatalogIdentity());
         assertEquals(resolution.dependencyBindings(), context.getDatasourceBindingIdentities());
-        verify(loader).resolveJdbcQueryModel(modelName, namespace);
+        verify(loader, never()).resolveJdbcQueryModel(any(), any());
         verify(loader, never()).getJdbcQueryModel(any(), any());
     }
 
     @Test
-    void prePinnedGenerationSwitchIsRejectedBeforeFiltersOrQueryExecution() {
+    void stalePinnedBindingIsRejectedBeforeFiltersOrQueryExecution() {
         String namespace = "tenant-catalog";
         String modelName = "FactOrderQueryModel";
         QueryModel model = mock(QueryModel.class);
@@ -80,17 +81,55 @@ class QueryFacadeCatalogIdentityTest {
         QueryFacadeImpl facade = facade(loader, filters);
         ModelResultContext context = context(modelName, namespace);
         context.pinCatalogResolution(first, namespace);
+        var bindingResolver =
+                mock(com.foggyframework.dataset.model.spi.NamedDataSourceResolver.class);
+        when(bindingResolver.currentness(any()))
+                .thenReturn(
+                        com.foggyframework.dataset.model.lifecycle.port.BindingCurrentness.STALE);
+        ReflectionTestUtils.setField(facade, "namedDataSourceResolver", bindingResolver);
 
         IllegalStateException failure = assertThrows(
                 IllegalStateException.class,
                 () -> facade.queryModelResult(context));
 
-        assertEquals("CONFLICTING_CATALOG_REPIN", failure.getMessage());
+        org.junit.jupiter.api.Assertions.assertTrue(
+                failure.getMessage().startsWith("STALE_DATASOURCE_BINDING:"));
+        verify(loader, never()).resolveJdbcQueryModel(any(), any());
         assertSame(model, context.getQueryModel());
         assertEquals(first.catalogIdentity(), context.getCatalogIdentity());
         assertEquals(first.dependencyBindings(), context.getDatasourceBindingIdentities());
         verify(filters, never()).beforeQuery(any(ModelResultContext.class));
         verify(model, never()).query(any(SystemBundlesContext.class), any(ModelResultContext.class));
+    }
+
+    @Test
+    void activeCatalogAdvancementDoesNotReplaceAnAdmittedRequestPin() {
+        String namespace = "tenant-catalog", modelName = "FactOrderQueryModel";
+        QueryModel admitted = mock(QueryModel.class), newer = mock(QueryModel.class);
+        var first =
+                resolution(modelName, admitted, namespace, "catalog-a", "source-a", "binding-a");
+        var switched =
+                resolution(modelName, newer, namespace, "catalog-b", "source-b", "binding-a");
+        QueryModelLoader loader = mock(QueryModelLoader.class);
+        when(loader.resolveJdbcQueryModel(modelName, namespace)).thenReturn(switched);
+        var filters = mock(DataSetResultFilterManager.class);
+        doAnswer(
+                        invocation -> {
+                            ModelResultContext ctx = invocation.getArgument(0);
+                            PagingResultImpl result = new PagingResultImpl();
+                            ctx.setPagingResult(result);
+                            ctx.setQueryResult(DbQueryResult.of(result, null));
+                            ctx.setSkipQuery(true);
+                            return null;
+                        })
+                .when(filters)
+                .beforeQuery(any(ModelResultContext.class));
+        ModelResultContext context = context(modelName, namespace);
+        context.pinCatalogResolution(first, namespace);
+        facade(loader, filters).queryModelResult(context);
+        assertSame(admitted, context.getQueryModel());
+        assertEquals(first.catalogIdentity(), context.getCatalogIdentity());
+        verify(loader, never()).resolveJdbcQueryModel(any(), any());
     }
 
     @Test
@@ -130,7 +169,8 @@ class QueryFacadeCatalogIdentityTest {
 
         QueryFacadeImpl facade = new QueryFacadeImpl();
         ReflectionTestUtils.setField(facade, "queryModelLoader", loader);
-        ReflectionTestUtils.setField(facade, "systemBundlesContext", mock(SystemBundlesContext.class));
+        ReflectionTestUtils.setField(
+                facade, "systemBundlesContext", mock(SystemBundlesContext.class));
         ReflectionTestUtils.setField(facade, "dataSetResultFilterManager", filters);
 
         DbQueryRequestDef request = new DbQueryRequestDef();
@@ -183,7 +223,8 @@ class QueryFacadeCatalogIdentityTest {
 
         QueryFacadeImpl facade = new QueryFacadeImpl();
         ReflectionTestUtils.setField(facade, "queryModelLoader", loader);
-        ReflectionTestUtils.setField(facade, "systemBundlesContext", mock(SystemBundlesContext.class));
+        ReflectionTestUtils.setField(
+                facade, "systemBundlesContext", mock(SystemBundlesContext.class));
         ReflectionTestUtils.setField(facade, "dataSetResultFilterManager", filters);
 
         DbQueryRequestDef request = new DbQueryRequestDef();
@@ -339,7 +380,8 @@ class QueryFacadeCatalogIdentityTest {
     private QueryFacadeImpl facade(QueryModelLoader loader, DataSetResultFilterManager filters) {
         QueryFacadeImpl facade = new QueryFacadeImpl();
         ReflectionTestUtils.setField(facade, "queryModelLoader", loader);
-        ReflectionTestUtils.setField(facade, "systemBundlesContext", mock(SystemBundlesContext.class));
+        ReflectionTestUtils.setField(
+                facade, "systemBundlesContext", mock(SystemBundlesContext.class));
         ReflectionTestUtils.setField(facade, "dataSetResultFilterManager", filters);
         return facade;
     }

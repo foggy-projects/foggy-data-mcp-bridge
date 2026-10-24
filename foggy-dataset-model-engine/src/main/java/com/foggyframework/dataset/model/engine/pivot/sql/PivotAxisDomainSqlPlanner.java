@@ -1,15 +1,17 @@
 package com.foggyframework.dataset.model.engine.pivot.sql;
 
-import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.db.dialect.DbType;
+import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.model.plugins.query_execution.AdditiveKind;
 import com.foggyframework.dataset.model.plugins.query_execution.ManagedMetricMetadata;
 import com.foggyframework.dataset.model.plugins.query_execution.ManagedSqlRelation;
 import com.foggyframework.dataset.model.semantic.domain.pivot.AxisField;
 import com.foggyframework.dataset.model.semantic.domain.pivot.MetricFilter;
 import com.foggyframework.dataset.model.semantic.domain.pivot.PivotRequest;
+
 import lombok.Builder;
 import lombok.Getter;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -78,13 +80,16 @@ public class PivotAxisDomainSqlPlanner {
         }
         if (!baseRelation.isPermissionValidated()) {
             throw new PivotPushdownUnsupportedException(
-                    "ManagedSqlRelation permission has not been validated. Fail-closed for Pivot SQL pushdown.");
+                    "ManagedSqlRelation permission has not been validated. Fail-closed for Pivot"
+                            + " SQL pushdown.");
         }
 
         FDialect dialect = baseRelation.getDialect();
         if (!isSupported(dialect)) {
             throw new PivotPushdownUnsupportedException(
-                    "Dialect " + dialect.getProductName() + " does not support CTE/Window Functions for Pivot SQL pushdown.");
+                    "Dialect "
+                            + dialect.getProductName()
+                            + " does not support CTE/Window Functions for Pivot SQL pushdown.");
         }
 
         // Build metric metadata index
@@ -112,18 +117,64 @@ public class PivotAxisDomainSqlPlanner {
 
         List<String> joinConditions = new ArrayList<>();
         int cteIndex = 1;
-
-        cteIndex = processPlans(sql, finalParams, rowPlans, "row", cteIndex, joinConditions, dialect);
-        cteIndex = processPlans(sql, finalParams, colPlans, "col", cteIndex, joinConditions, dialect);
+        Map<String, String> rankExpressions = new LinkedHashMap<>();
+        cteIndex =
+                processPlans(
+                        sql,
+                        finalParams,
+                        rowPlans,
+                        "row",
+                        cteIndex,
+                        joinConditions,
+                        dialect,
+                        rankExpressions);
+        cteIndex =
+                processPlans(
+                        sql,
+                        finalParams,
+                        colPlans,
+                        "col",
+                        cteIndex,
+                        joinConditions,
+                        dialect,
+                        rankExpressions);
 
         // Final filtered select
         sql.append(",\n_filtered AS (\n");
-        sql.append("  SELECT b.* FROM _base_relation b\n");
+        sql.append("  SELECT b.*");
+        Map<String, String> rankColumns = new LinkedHashMap<>();
+        for (var rank : rankExpressions.entrySet()) {
+            String alias = "_pivot_order_" + rankColumns.size();
+            rankColumns.put(rank.getKey(), alias);
+            sql.append(", ")
+                    .append(rank.getValue())
+                    .append(" AS ")
+                    .append(dialect.quoteIdentifier(alias));
+        }
+        sql.append(" FROM _base_relation b\n");
         for (String joinCond : joinConditions) {
             sql.append("  ").append(joinCond).append("\n");
         }
         sql.append(")\n");
-        sql.append("SELECT * FROM _filtered");
+        List<String> outputs = new ArrayList<>(rowFields);
+        outputs.addAll(colFields);
+        outputs.addAll(metrics);
+        sql.append("SELECT ")
+                .append(
+                        outputs.stream()
+                                .distinct()
+                                .map(dialect::quoteIdentifier)
+                                .collect(java.util.stream.Collectors.joining(", ")))
+                .append(" FROM _filtered");
+        List<String> outputOrder = new ArrayList<>();
+        List<String> coordinates = new ArrayList<>(rowFields);
+        coordinates.addAll(colFields);
+        for (String field : coordinates) {
+            if (rankColumns.containsKey(field))
+                outputOrder.add(dialect.quoteIdentifier(rankColumns.get(field)) + " ASC");
+            else addDimensionTieBreaker(outputOrder, dialect.quoteIdentifier(field));
+        }
+        if (!outputOrder.isEmpty()) sql.append(" ORDER BY ").append(String.join(", ", outputOrder));
 
         return PlannedSql.builder()
                 .sql(sql.toString())
@@ -171,7 +222,9 @@ public class PivotAxisDomainSqlPlanner {
                     String field = desc ? ob.substring(1) : ob;
                     if (!availableMetrics.contains(field)) {
                         throw new PivotPushdownUnsupportedException(
-                                "Cannot pushdown order by field '" + field + "': not an available metric.");
+                                "Cannot pushdown order by field '"
+                                        + field
+                                        + "': not an available metric.");
                     }
                     AggregateEntry entry = resolveAggregate(field, metricIndex);
                     entry.usedByOrderBy = true;
@@ -185,7 +238,9 @@ public class PivotAxisDomainSqlPlanner {
                 String field = filter.getMetric();
                 if (!availableMetrics.contains(field)) {
                     throw new PivotPushdownUnsupportedException(
-                            "Cannot pushdown having filter on field '" + field + "': not an available metric.");
+                            "Cannot pushdown having filter on field '"
+                                    + field
+                                    + "': not an available metric.");
                 }
                 AggregateEntry existing = registry.get(field);
                 if (existing == null) {
@@ -227,8 +282,10 @@ public class PivotAxisDomainSqlPlanner {
             // Not in queryModel measures — could be calculatedField
             // Default to SUM with UNKNOWN additiveKind → fail-closed
             throw new PivotPushdownUnsupportedException(
-                    "Cannot pushdown domain aggregate for field '" + field +
-                    "': no metric metadata available. Metric may be a calculatedField not supported for SQL pushdown.");
+                    "Cannot pushdown domain aggregate for field '"
+                            + field
+                            + "': no metric metadata available. Metric may be a calculatedField not"
+                            + " supported for SQL pushdown.");
         }
 
         if (meta.getAdditiveKind() == AdditiveKind.NON_ADDITIVE) {
@@ -265,9 +322,15 @@ public class PivotAxisDomainSqlPlanner {
 
     // ========== CTE SQL Generation ==========
 
-    private static int processPlans(StringBuilder sql, List<Object> finalParams,
-                                     List<DomainPlanDef> plans, String prefix,
-                                    int startIndex, List<String> globalJoinConditions, FDialect dialect) {
+    private static int processPlans(
+            StringBuilder sql,
+            List<Object> finalParams,
+            List<DomainPlanDef> plans,
+            String prefix,
+            int startIndex,
+            List<String> globalJoinConditions,
+            FDialect dialect,
+            Map<String, String> rankExpressions) {
         int cteIndex = startIndex;
         List<String> currentAxisJoinConditions = new ArrayList<>();
 
@@ -298,7 +361,12 @@ public class PivotAxisDomainSqlPlanner {
                 sql.append(", ");
                 List<String> aggExprs = new ArrayList<>();
                 for (AggregateEntry entry : plan.aggregateRegistry) {
-                    aggExprs.add(entry.aggFunction + "(b." + dialect.quoteIdentifier(entry.metricName) + ") AS " + entry.registryAlias);
+                    aggExprs.add(
+                            entry.aggFunction
+                                    + "(b."
+                                    + dialect.quoteIdentifier(entry.metricName)
+                                    + ") AS "
+                                    + entry.registryAlias);
                 }
                 sql.append(String.join(", ", aggExprs));
             }
@@ -348,7 +416,8 @@ public class PivotAxisDomainSqlPlanner {
                 List<String> orderClauses = new ArrayList<>();
                 for (OrderSpec spec : plan.orderSpecs) {
                     // NULL bucket for deterministic tie-breaking
-                    orderClauses.add("CASE WHEN " + spec.registryAlias + " IS NULL THEN 1 ELSE 0 END ASC");
+                    orderClauses.add(
+                            "CASE WHEN " + spec.registryAlias + " IS NULL THEN 1 ELSE 0 END ASC");
                     orderClauses.add(spec.registryAlias + (spec.desc ? " DESC" : " ASC"));
                 }
                 // Tie-breakers: full prefix key and current key with explicit NULL buckets.
@@ -368,6 +437,8 @@ public class PivotAxisDomainSqlPlanner {
                     finalSelectFields.add(dialect.quoteIdentifier(pk));
                 }
                 finalSelectFields.add(targetQ);
+                finalSelectFields.add("rn");
+                rankExpressions.put(plan.targetKey, filteredCte + ".rn");
                 sql.append(String.join(", ", finalSelectFields));
                 sql.append("\n  FROM ").append(rankedCte);
                 if (plan.offset > 0) {
@@ -386,13 +457,43 @@ public class PivotAxisDomainSqlPlanner {
 
             // ---- Join condition for NEXT level and FINAL assembly ----
             StringBuilder joinCond = new StringBuilder();
-            joinCond.append("INNER JOIN ").append(filteredCte).append(" ").append(filteredCte).append(" ON ");
+            joinCond.append("INNER JOIN ")
+                    .append(filteredCte)
+                    .append(" ")
+                    .append(filteredCte)
+                    .append(" ON ");
             List<String> joinOn = new ArrayList<>();
             for (String field : plan.partitionKeys) {
                 String q = dialect.quoteIdentifier(field);
-                joinOn.add("(b." + q + " = " + filteredCte + "." + q + " OR (b." + q + " IS NULL AND " + filteredCte + "." + q + " IS NULL))");
+                joinOn.add(
+                        "(b."
+                                + q
+                                + " = "
+                                + filteredCte
+                                + "."
+                                + q
+                                + " OR (b."
+                                + q
+                                + " IS NULL AND "
+                                + filteredCte
+                                + "."
+                                + q
+                                + " IS NULL))");
             }
-            joinOn.add("(b." + targetQ + " = " + filteredCte + "." + targetQ + " OR (b." + targetQ + " IS NULL AND " + filteredCte + "." + targetQ + " IS NULL))");
+            joinOn.add(
+                    "(b."
+                            + targetQ
+                            + " = "
+                            + filteredCte
+                            + "."
+                            + targetQ
+                            + " OR (b."
+                            + targetQ
+                            + " IS NULL AND "
+                            + filteredCte
+                            + "."
+                            + targetQ
+                            + " IS NULL))");
             joinCond.append(String.join(" AND ", joinOn));
 
             String currentJoin = joinCond.toString();
@@ -413,7 +514,8 @@ public class PivotAxisDomainSqlPlanner {
         for (AggregateEntry e : registry) {
             if (e.metricName.equals(metricName)) return e;
         }
-        throw new IllegalStateException("Aggregate registry missing entry for metric: " + metricName);
+        throw new IllegalStateException(
+                "Aggregate registry missing entry for metric: " + metricName);
     }
 
     // ========== Internal Data Structures ==========

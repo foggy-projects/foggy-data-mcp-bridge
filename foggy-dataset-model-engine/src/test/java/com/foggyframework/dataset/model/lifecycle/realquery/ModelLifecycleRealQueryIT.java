@@ -1,5 +1,14 @@
 package com.foggyframework.dataset.model.lifecycle.realquery;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
@@ -39,12 +48,12 @@ import com.foggyframework.dataset.model.spi.ProcessLocalDefaultDataSourceResolve
 import com.foggyframework.dataset.model.spi.QueryModel;
 import com.foggyframework.dataset.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.model.test.JdbcModelTestApplication;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
-import org.sqlite.SQLiteDataSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -53,8 +62,8 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.sqlite.SQLiteDataSource;
 
-import javax.sql.DataSource;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.lang.reflect.InvocationTargetException;
@@ -84,14 +93,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.logging.Logger;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import javax.sql.DataSource;
 
 /**
  * SQLite execution evidence for the lifecycle boundaries that cannot be
@@ -375,7 +377,7 @@ class ModelLifecycleRealQueryIT {
             IllegalStateException repin = assertThrows(
                     IllegalStateException.class,
                     () -> queryFacade.queryModelResult(stalePinned));
-            assertEquals("CONFLICTING_CATALOG_REPIN", repin.getMessage());
+            assertTrue(repin.getMessage().startsWith("STALE_DATASOURCE_BINDING"));
 
             connectionGate.releaseConnection();
             Observation completedOld = get(oldInFlight, "old in-flight query");
@@ -437,8 +439,9 @@ class ModelLifecycleRealQueryIT {
             assertEquals(nativeOld, pivotRows(second));
             assertEquals(firstLookup.get("keyHash"),
                     diagnostic(second, "pivot.cache.hit").get("keyHash"));
-            assertEquals(oldExecutionCount, identityCaptureStep.size(),
-                    "second Pivot query must be served by the outer cache");
+            assertTrue(
+                    identityCaptureStep.size() > oldExecutionCount,
+                    "cache hits must repeat SQL-only governance before returning cached data");
 
             selector.selectMainNew();
             refreshCoordinator.refresh(modelRefresh(MAIN_NAMESPACE));
@@ -465,8 +468,9 @@ class ModelLifecycleRealQueryIT {
             assertEquals(nativeNew, pivotRows(fourth));
             assertEquals(thirdLookup.get("keyHash"),
                     diagnostic(fourth, "pivot.cache.hit").get("keyHash"));
-            assertEquals(newExecutionCount, identityCaptureStep.size(),
-                    "new generation's second Pivot query must hit its own cache entry");
+            assertTrue(
+                    identityCaptureStep.size() > newExecutionCount,
+                    "new generation's cache hit must retain SQL-only permission preparation");
         } finally {
             ReflectionTestUtils.setField(service, "pivotPipeline", original);
         }

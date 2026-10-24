@@ -5,6 +5,7 @@ import com.foggyframework.dataset.model.semantic.domain.pivot.PivotMetricItem;
 import com.foggyframework.dataset.model.semantic.domain.pivot.PivotRequest;
 import com.foggyframework.dataset.model.spi.DbAggregation;
 import com.foggyframework.dataset.model.spi.QueryModel;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -99,7 +100,8 @@ public class BaselineRatioCalculator {
             return 0;
         });
 
-        if (colDomains.isEmpty()) {
+        if (colDomains.isEmpty()
+                && (externalBaselineValues == null || externalBaselineValues.isEmpty())) {
             // 没有有效数据列
             for (PivotMetricItem brMetric : brMetrics) {
                 for (Map<String, Object> row : resultSet) {
@@ -126,16 +128,22 @@ public class BaselineRatioCalculator {
             String ofMetric = brMetric.getOf();
             String baselineType = brMetric.getBaseline(); // "first" or "last"
 
-            Map<String, Object> firstColKeyMap = colDomains.get(0);
-            Map<String, Object> lastColKeyMap = colDomains.get(colDomains.size() - 1);
-
-            String firstColKey = buildKey(firstColKeyMap, colFields);
-            String lastColKey = buildKey(lastColKeyMap, colFields);
+            String firstColKey =
+                    colDomains.isEmpty() ? null : buildKey(colDomains.get(0), colFields);
+            String lastColKey =
+                    colDomains.isEmpty()
+                            ? null
+                            : buildKey(colDomains.get(colDomains.size() - 1), colFields);
 
             String targetColKey = "last".equals(baselineType) ? lastColKey : firstColKey;
 
-            logger.debug("[Pivot] Phase 2.9: Computing baselineRatio '{}' of '{}', baseline={}, colDomains={}",
-                    brMetric.getName(), ofMetric, baselineType, colDomains.size());
+            logger.debug(
+                    "[Pivot] Phase 2.9: Computing baselineRatio '{}' of '{}', baseline={},"
+                            + " colDomains={}",
+                    brMetric.getName(),
+                    ofMetric,
+                    baselineType,
+                    colDomains.size());
 
             for (Map<String, Object> row : resultSet) {
                 if (isSubtotalRow(row)) {

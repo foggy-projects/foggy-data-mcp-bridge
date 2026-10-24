@@ -4,6 +4,7 @@ import com.foggyframework.dataset.model.path.DimensionPath;
 import com.foggyframework.dataset.model.spi.DbDimension;
 import com.foggyframework.dataset.model.spi.DbProperty;
 import com.foggyframework.dataset.model.spi.QueryModel;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -115,8 +116,9 @@ public class PropertyResolver {
             // 函数依赖验证：轴上必须包含该维度的 $id 字段
             String idField =
                     declared
-                            ? com.foggyframework.dataset.model.engine.pivot.PivotFieldBinding.role(
-                                    queryModel, dimName, "id")
+                            ? com.foggyframework.dataset.model.engine.pivot.PivotFieldBinding
+                                    .roleOnAxis(queryModel, dimName, "id", axisFields)
+                                    .orElse(null)
                             : dimName + "$id";
             if (!axisFields.contains(idField)) {
                 // 尝试匹配其他可能的主键引用格式

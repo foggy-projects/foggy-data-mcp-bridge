@@ -3,8 +3,10 @@ package com.foggyframework.dataset.model.semantic.domain.pivot;
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.foggyframework.dataset.model.semantic.domain.SemanticQueryRequest;
+
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
+
 import lombok.Data;
 
 import java.util.List;
@@ -26,14 +28,17 @@ public class AxisField {
             notes = "JSON 键名为 field，与 DSL 示例保持一致")
     private String field;
 
-    @ApiModelProperty(value = "按度量排序规则",
+    @ApiModelProperty(
+            value = "按度量排序规则",
             example = "[\"-salesAmount\", \"orderCount\"]",
-            notes = "负号前缀表示降序；支持引用 calculatedFields 中的虚拟字段")
+            notes = "负号前缀表示降序；NULL 在任一方向均排最后；无 limit 时也排序；支持 calculatedFields 虚拟字段")
     private List<String> orderBy;
 
-    @ApiModelProperty(value = "截断阈值",
-            notes = "在其所有父级分组（即在 rows 数组中排在它前面的所有字段）确定的上下文中，取 Top N。" +
-                    "当 hierarchyMode=tree 时，语义变为：每个父节点下取 Top N 子节点（逐层截断）")
+    @ApiModelProperty(
+            value = "截断阈值",
+            notes =
+                    "在其所有父级分组（即在 rows 数组中排在它前面的所有字段）确定的上下文中，取 Top N。null 为无窗口，0 返回零成员，负数拒绝。当"
+                            + " hierarchyMode=tree 时，每个父节点下取 Top N 子节点（逐层截断）")
     private Integer limit;
 
     @ApiModelProperty(value = "起始偏移",
@@ -55,15 +60,19 @@ public class AxisField {
                     "执行顺序：Having → TopN（先过滤再截断）")
     private List<MetricFilter> having;
 
-    @ApiModelProperty(value = "父子维度层级展开模式",
+    @ApiModelProperty(
+            value = "父子维度层级展开模式",
             allowableValues = "tree",
-            notes = "null: 普通维度（默认）; tree: 启用父子维度树形展开，" +
-                    "引擎通过 TM 元数据获取 parentKey 邻接关系，在内存中动态建树并递归卷起度量")
+            notes =
+                    "null: 普通维度（默认）; tree: 启用父子维度树形展开，"
+                            + "引擎通过 TM 元数据获取 parentKey 邻接关系，在内存中动态建树；节点保留自身直接聚合值，不递归累加后代")
     private String hierarchyMode;
 
-    @ApiModelProperty(value = "树形展开深度（仅 hierarchyMode=tree 时生效）",
-            notes = "-1: 全展开到叶子节点（默认）; 0: 仅根节点; N: 展开到第 N 层。" +
-                    "expandDepth 控制的是展示层级，不影响聚合范围——折叠的节点度量仍含后代汇总")
+    @ApiModelProperty(
+            value = "树形展开深度（仅 hierarchyMode=tree 时生效）",
+            notes =
+                    "-1: 全展开到叶子节点（默认）; 0: 仅根节点; N: 展开到第 N 层。"
+                            + "expandDepth 控制的是展示层级，不改变节点直接聚合值，不包含后代递归汇总")
     private Integer expandDepth;
 
     /**
