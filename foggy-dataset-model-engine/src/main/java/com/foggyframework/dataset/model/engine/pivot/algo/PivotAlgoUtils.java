@@ -24,7 +24,7 @@ public final class PivotAlgoUtils {
     public static String buildCellKey(Map<String, Object> row, List<String> colFields) {
         if (colFields.isEmpty()) return "";
         return colFields.stream()
-                .map(f -> String.valueOf(row.getOrDefault(f, "")))
+                .map(f -> PivotCoordinates.display(row.get(f)))
                 .collect(Collectors.joining("|"));
     }
 }

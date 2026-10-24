@@ -21,11 +21,13 @@ public class HierarchyContext {
     private final AxisField treeAxisField;
     private final String dimName;
     private final String idField;
+    private String parentField;
 
     private HierarchyContext(AxisField treeAxisField, String dimName, String idField) {
         this.treeAxisField = treeAxisField;
         this.dimName = dimName;
         this.idField = idField;
+        this.parentField = dimName + "$parentId";
     }
 
     /**
@@ -50,6 +52,35 @@ public class HierarchyContext {
         String idField = dimName + "$id";
 
         return new HierarchyContext(treeField, dimName, idField);
+    }
+
+    public static HierarchyContext bind(
+            List<AxisField> rows, com.foggyframework.dataset.model.spi.QueryModel model) {
+        HierarchyContext shape = detect(rows);
+        if (!shape.isTree() || model == null) return shape;
+        String dimension = PivotFieldBinding.dimension(model, shape.treeAxisField.getField());
+        HierarchyContext bound =
+                new HierarchyContext(
+                        shape.treeAxisField,
+                        dimension,
+                        PivotFieldBinding.role(model, dimension, "id"));
+        bound.parentField = PivotFieldBinding.role(model, dimension, "parentId");
+        for (var field : rows) {
+            if (!dimension.equals(PivotFieldBinding.dimension(model, field.getField())))
+                throw new IllegalArgumentException(
+                        "PIVOT_TREE_GRAIN_UNSUPPORTED: extra rows must belong to the tree node dimension");
+            if (field != shape.treeAxisField
+                    && (field.getLimit() != null
+                            || field.getHaving() != null
+                            || field.getOrderBy() != null))
+                throw new IllegalArgumentException(
+                        "PIVOT_TREE_CONTROL_UNSUPPORTED: controls belong on the tree field");
+        }
+        return bound;
+    }
+
+    public String getParentField() {
+        return parentField;
     }
 
     public boolean isTree() {

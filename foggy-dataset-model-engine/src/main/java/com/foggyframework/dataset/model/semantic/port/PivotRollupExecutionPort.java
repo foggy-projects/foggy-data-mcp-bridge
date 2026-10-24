@@ -15,4 +15,14 @@ public interface PivotRollupExecutionPort extends SemanticQueryExecutionPort {
                                              SemanticRequestContext context);
 
     List<Map<String, Object>> executeRollupSql(String sql, List<Object> params, String routeModel);
+
+    /** Legacy adapters fall back to governed serial queries; never route a batch using ambient state. */
+    default List<Map<String, Object>> executeBoundRollupSql(
+            String sql,
+            List<Object> params,
+            String model,
+            SemanticRequestContext context,
+            com.foggyframework.dataset.model.spi.QueryModel binding) {
+        throw new UnsupportedOperationException("Pinned rollup execution unavailable");
+    }
 }

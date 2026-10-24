@@ -111,6 +111,30 @@ public class NonAdditiveRollupExecutor {
         return cache;
     }
 
+    /** Static grain dependencies only: no surviving-domain enumeration and no JDBC execution. */
+    public List<SemanticQueryRequest> validationRequests(
+            SemanticQueryRequest request,
+            List<RollupGrain> grains,
+            List<RollupMetricPlan> plans,
+            List<String> rows,
+            List<String> columns) {
+        Set<String> metrics = MetricAdditivityAnalyzer.collectAuxQueryMetrics(plans);
+        if (metrics.isEmpty()) return List.of();
+        return grains.stream()
+                .map(
+                        g ->
+                                buildGrainRequest(
+                                        g,
+                                        metrics,
+                                        request,
+                                        rows,
+                                        columns,
+                                        null,
+                                        null,
+                                        new ArrayList<>()))
+                .toList();
+    }
+
     // ========== UNION ALL 批量执行 ==========
 
     /**
@@ -207,13 +231,13 @@ public class NonAdditiveRollupExecutor {
             
             for (String dim : allDimFields) {
                 if (part.grain.getGroupByFields().contains(dim)) {
-                    unionSql.append(", _pivot_sub.").append(dim);
+                    unionSql.append(", _pivot_sub.").append(quoted(dim));
                 } else {
-                    unionSql.append(", NULL AS ").append(dim);
+                    unionSql.append(", NULL AS ").append(quoted(dim));
                 }
             }
             for (String metric : auxMetrics) {
-                unionSql.append(", _pivot_sub.").append(metric);
+                unionSql.append(", _pivot_sub.").append(quoted(metric));
             }
             
             unionSql.append(" FROM (\n");
@@ -228,8 +252,9 @@ public class NonAdditiveRollupExecutor {
                 parts.size(), mergedParams.size(), finalSql.length());
 
         // 3. 执行合并 SQL
-        List<Map<String, Object>> rows = pivotRollupExecutionPort.executeRollupSql(
-                finalSql, mergedParams, model);
+        List<Map<String, Object>> rows =
+                pivotRollupExecutionPort.executeBoundRollupSql(
+                        finalSql, mergedParams, model, context, queryModel);
 
         // 4. 按 grain_idx 分桶，写入 cache
         Map<Integer, List<Map<String, Object>>> buckets = new LinkedHashMap<>();
@@ -255,6 +280,12 @@ public class NonAdditiveRollupExecutor {
 
             logger.debug("[Pivot] UNION ALL grain={}: {} rows", grain.getGrainKey(), grainRows.size());
         }
+    }
+
+    private String quoted(String field) {
+        return queryModel instanceof com.foggyframework.dataset.model.spi.JdbcQueryModel jdbc
+                ? jdbc.getDialect().quoteIdentifier(field)
+                : field;
     }
 
     /**

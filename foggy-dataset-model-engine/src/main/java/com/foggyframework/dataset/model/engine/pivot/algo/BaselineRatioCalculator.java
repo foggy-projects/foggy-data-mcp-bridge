@@ -81,7 +81,7 @@ public class BaselineRatioCalculator {
             }
             if (hasNull) continue; // 跳过包含 null 列值的行
 
-            String keyStr = colKeyMap.toString();
+            String keyStr = PivotCoordinates.key(colKeyMap, colFields);
             if (!colDomainKeys.contains(keyStr)) {
                 colDomainKeys.add(keyStr);
                 colDomains.add(colKeyMap);
@@ -153,7 +153,9 @@ public class BaselineRatioCalculator {
 
                 Object baselineValObj = externalBaselineValue(
                         externalBaselineValues, brMetric.getName(), rowKey);
-                if (baselineValObj == null) {
+                if (baselineValObj == null
+                        && (externalBaselineValues == null
+                                || !externalBaselineValues.containsKey(brMetric.getName()))) {
                     Map<String, Map<String, Object>> colMap = groupedByRow.get(rowKey);
                     Map<String, Object> baselineRow = colMap != null ? colMap.get(targetColKey) : null;
                     if (baselineRow == null) {
@@ -202,13 +204,7 @@ public class BaselineRatioCalculator {
      * 提取指定字段列表的值构造用于 HashMap 的 Key
      */
     private static String buildKey(Map<String, Object> row, List<String> fields) {
-        if (fields.isEmpty()) return "ALL";
-        StringBuilder sb = new StringBuilder();
-        for (String field : fields) {
-            Object val = row.get(field);
-            sb.append(val != null ? val.toString() : "null").append("|");
-        }
-        return sb.toString();
+        return PivotCoordinates.key(row, fields);
     }
 
     /**
@@ -223,7 +219,8 @@ public class BaselineRatioCalculator {
         if (b == null) return -1;
 
         if (a instanceof Number && b instanceof Number) {
-            return Double.compare(((Number) a).doubleValue(), ((Number) b).doubleValue());
+            return new java.math.BigDecimal(a.toString())
+                    .compareTo(new java.math.BigDecimal(b.toString()));
         }
         if (a instanceof Comparable && b instanceof Comparable && a.getClass().equals(b.getClass())) {
             return ((Comparable) a).compareTo(b);

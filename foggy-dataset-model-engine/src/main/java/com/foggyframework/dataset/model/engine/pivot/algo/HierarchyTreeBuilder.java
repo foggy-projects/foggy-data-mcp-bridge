@@ -169,6 +169,95 @@ public class HierarchyTreeBuilder {
         return roots;
     }
 
+    /** Validate actual adjacency, then window siblings while preserving complete node cells. */
+    public static List<Map<String, Object>> window(
+            List<Map<String, Object>> rows,
+            Skeleton skeleton,
+            String id,
+            com.foggyframework.dataset.model.semantic.domain.pivot.AxisField field,
+            Map<String, com.foggyframework.dataset.model.spi.DbAggregation> aggregations) {
+        Map<Object, List<Map<String, Object>>> groups = new LinkedHashMap<>();
+        for (var row : rows)
+            if (row.get(id) != null)
+                groups.computeIfAbsent(row.get(id), k -> new ArrayList<>()).add(row);
+        for (Object node : groups.keySet()) {
+            Set<Object> path = new HashSet<>();
+            Object cursor = node;
+            while (cursor != null && groups.containsKey(cursor)) {
+                if (!path.add(cursor))
+                    throw new IllegalArgumentException("PIVOT_TREE_CYCLE: " + node);
+                if (path.size() > 512)
+                    throw new IllegalArgumentException("PIVOT_TREE_DEPTH_LIMIT: 512");
+                Object parent = skeleton.getParentId(cursor);
+                if (Objects.equals(parent, cursor)) break;
+                cursor = parent;
+            }
+        }
+        List<Map<String, Object>> members = new ArrayList<>();
+        String partition = "_pivot_parent";
+        for (var entry : groups.entrySet()) {
+            var member = new LinkedHashMap<>(entry.getValue().get(0));
+            Object parent = skeleton.getParentId(entry.getKey());
+            member.put(
+                    partition,
+                    !Objects.equals(parent, entry.getKey()) && groups.containsKey(parent)
+                            ? parent
+                            : null);
+            for (var agg : aggregations.entrySet())
+                if (Set.of(
+                                com.foggyframework.dataset.model.spi.DbAggregation.SUM,
+                                com.foggyframework.dataset.model.spi.DbAggregation.COUNT,
+                                com.foggyframework.dataset.model.spi.DbAggregation.MIN,
+                                com.foggyframework.dataset.model.spi.DbAggregation.MAX)
+                        .contains(agg.getValue()))
+                    member.put(
+                            agg.getKey(),
+                            PivotMetricAggregation.aggregate(
+                                    entry.getValue(), agg.getKey(), agg.getValue()));
+            if (field.getHaving() == null
+                    || field.getHaving().stream()
+                            .allMatch(f -> f.evaluate((Number) member.get(f.getMetric()))))
+                members.add(member);
+        }
+        var parentAxis = new com.foggyframework.dataset.model.semantic.domain.pivot.AxisField();
+        parentAxis.setField(partition);
+        var nodeAxis = new com.foggyframework.dataset.model.semantic.domain.pivot.AxisField();
+        nodeAxis.setField(id);
+        nodeAxis.setLimit(field.getLimit());
+        List<String> orders =
+                new ArrayList<>(field.getOrderBy() == null ? List.of() : field.getOrderBy());
+        if (orders.stream().noneMatch(o -> o.equals(id) || o.equals("-" + id))) orders.add(id);
+        nodeAxis.setOrderBy(orders);
+        // A rank row is already one exact member, so no metric reaggregation is needed here.
+        members = AxisTopNTruncator.apply(members, List.of(parentAxis, nodeAxis));
+        Set<Object> candidates = new HashSet<>();
+        for (var member : members) candidates.add(member.get(id));
+        Set<Object> kept = new HashSet<>();
+        for (Object node : candidates) {
+            Object cursor = node;
+            boolean visible = true;
+            while (cursor != null && groups.containsKey(cursor)) {
+                if (!candidates.contains(cursor)) {
+                    visible = false;
+                    break;
+                }
+                Object parent = skeleton.getParentId(cursor);
+                if (Objects.equals(parent, cursor)) break;
+                cursor = parent;
+            }
+            if (visible) kept.add(node);
+        }
+        return rows.stream().filter(r -> kept.contains(r.get(id))).toList();
+    }
+
+    public static void limitDepth(List<PivotResult.TreeNode> nodes, int depth) {
+        if (depth < 0) return;
+        for (var node : nodes) {
+            if (depth == 0) node.setChildren(null);
+            else if (node.getChildren() != null) limitDepth(node.getChildren(), depth - 1);
+        }
+    }
+
     /**
      * 递归构建单个节点
      *
@@ -210,8 +299,11 @@ public class HierarchyTreeBuilder {
         for (Map<String, Object> row : nodeRows) {
             String cellKey = PivotAlgoUtils.buildCellKey(row, ctx.colFields);
             for (String metric : ctx.metrics) {
-                String fullKey = cellKey.isEmpty() ? metric : cellKey + "|" + metric;
-                cells.put(fullKey, row.get(metric));
+                String fullKey =
+                        cellKey.isEmpty()
+                                ? PivotCoordinates.display(metric)
+                                : cellKey + "|" + PivotCoordinates.display(metric);
+                PivotCoordinates.putCell(cells, fullKey, row.get(metric));
             }
         }
         treeNode.setCells(cells);

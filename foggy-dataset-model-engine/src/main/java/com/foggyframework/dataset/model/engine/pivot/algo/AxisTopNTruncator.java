@@ -21,19 +21,22 @@ public class AxisTopNTruncator {
     /**
      * Window additive member domains, retaining every cell of a surviving member.
      * Ranking across other axis buckets uses the metric's declared reaggregation.
-     * Non-additive/unknown rankings keep the existing fallback contract; their
+     * Non-additive/unknown rankings require an exact governed member query; their
      * parent value cannot be inferred from already aggregated cells.
      */
-    public static List<Map<String, Object>> apply(List<Map<String, Object>> resultSet,
-                                                 List<AxisField> axisFields,
-                                                 Map<String, DbAggregation> aggregations) {
+    public static List<Map<String, Object>> apply(
+            List<Map<String, Object>> resultSet,
+            List<AxisField> axisFields,
+            Map<String, DbAggregation> aggregations) {
         if (axisFields == null || resultSet.isEmpty()) return resultSet;
         Set<String> axisNames = axisFields.stream().map(AxisField::getField).collect(Collectors.toSet());
         for (AxisField field : axisFields) {
             if (field.getLimit() == null || field.getLimit() <= 0 || field.getOrderBy() == null) continue;
             for (String spec : field.getOrderBy()) {
                 String name = spec.startsWith("-") ? spec.substring(1) : spec;
-                if (!axisNames.contains(name) && !aggregations.containsKey(name)) return apply(resultSet, axisFields);
+                if (!axisNames.contains(name) && !aggregations.containsKey(name))
+                    throw new IllegalArgumentException(
+                            "PIVOT_RANK_REAGGREGATION_UNSUPPORTED: " + name);
             }
         }
         List<Map<String, Object>> current = new ArrayList<>(resultSet);

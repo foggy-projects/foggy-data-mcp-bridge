@@ -9,8 +9,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * 度量可加性分析器
@@ -31,9 +29,6 @@ import java.util.regex.Pattern;
 public class MetricAdditivityAnalyzer {
 
     private static final Logger logger = LoggerFactory.getLogger(MetricAdditivityAnalyzer.class);
-
-    /** 匹配 calculatedField 表达式中的标识符引用 */
-    private static final Pattern IDENTIFIER_PATTERN = Pattern.compile("\\b([a-zA-Z_][a-zA-Z0-9_$]*)\\b");
 
     /** 不可加的高风险函数 */
     private static final Set<String> UNSUPPORTED_FUNCTIONS = Set.of(
@@ -119,6 +114,8 @@ public class MetricAdditivityAnalyzer {
         try {
             CalculatedFieldDef cf = cfMap.get(metric);
             String expression = cf.getExpression();
+            if (cf.getWindowOrderBy() != null && !cf.getWindowOrderBy().isEmpty())
+                return new RollupMetricPlan(metric, RollupStrategy.UNSUPPORTED, null);
 
             if (expression == null || expression.isBlank()) {
                 return new RollupMetricPlan(metric, RollupStrategy.UNSUPPORTED, null);
@@ -135,12 +132,10 @@ public class MetricAdditivityAnalyzer {
             }
 
             // 提取表达式中引用的标识符
-            Set<String> referenced = extractIdentifiers(expression);
-
-            // 移除 SQL 函数名和关键字
-            referenced.removeAll(Set.of("NULLIF", "COALESCE", "CASE", "WHEN", "THEN", "ELSE", "END",
-                    "AND", "OR", "NOT", "IS", "NULL", "IF", "IIF", "ABS", "ROUND", "CAST", "AS",
-                    "INTEGER", "DECIMAL", "FLOAT", "DOUBLE", "REAL", "VARCHAR", "TEXT"));
+            Set<String> referenced =
+                    new LinkedHashSet<>(
+                            com.foggyframework.dataset.model.engine.expression
+                                    .CalculatedFieldService.extractColumnReferences(expression));
 
             // 在剩余标识符中找到实际的 base metrics
             List<String> baseMetrics = new ArrayList<>();
@@ -171,10 +166,6 @@ public class MetricAdditivityAnalyzer {
                 }
             }
 
-            if (baseMetrics.isEmpty()) {
-                // 无法识别 base metrics，默认 UNSUPPORTED
-                return new RollupMetricPlan(metric, RollupStrategy.UNSUPPORTED, null);
-            }
 
             return new RollupMetricPlan(metric, RollupStrategy.RECOMPUTE_FROM_BASE, null,
                     baseMetrics, expression);
@@ -217,18 +208,6 @@ public class MetricAdditivityAnalyzer {
     }
 
     /**
-     * 提取表达式中的标识符
-     */
-    private static Set<String> extractIdentifiers(String expression) {
-        Set<String> identifiers = new LinkedHashSet<>();
-        Matcher matcher = IDENTIFIER_PATTERN.matcher(expression);
-        while (matcher.find()) {
-            identifiers.add(matcher.group(1));
-        }
-        return identifiers;
-    }
-
-    /**
      * 判断 metrics 中是否有需要辅助查询的度量
      */
     public static boolean hasNonAdditiveMetrics(List<RollupMetricPlan> plans) {
@@ -244,7 +223,7 @@ public class MetricAdditivityAnalyzer {
             if (plan.getStrategy() == RollupStrategy.AUX_REQUERY) {
                 result.add(plan.getMetricName());
             } else if (plan.getStrategy() == RollupStrategy.RECOMPUTE_FROM_BASE) {
-                result.addAll(plan.getRequiredBaseMetrics());
+                result.add(plan.getMetricName());
             }
         }
         return result;

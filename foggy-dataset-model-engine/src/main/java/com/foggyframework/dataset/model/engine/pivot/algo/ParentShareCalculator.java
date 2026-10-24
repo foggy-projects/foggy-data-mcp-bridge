@@ -64,6 +64,16 @@ public class ParentShareCalculator {
             List<String> colFields,
             Map<String, Map<String, Number>> externalParentAggIndex) {
 
+        return apply(resultSet, pivot, rowFields, colFields, externalParentAggIndex, Map.of());
+    }
+
+    public static List<Map<String, Object>> apply(
+            List<Map<String, Object>> resultSet,
+            PivotRequest pivot,
+            List<String> rowFields,
+            List<String> colFields,
+            Map<String, Map<String, Number>> externalParentAggIndex,
+            Map<String, DbAggregation> aggregations) {
         List<PivotMetricItem> parentShareMetrics = pivot.getParentShareMetrics();
         if (parentShareMetrics.isEmpty()) {
             return resultSet;
@@ -78,8 +88,12 @@ public class ParentShareCalculator {
                     resolved.axis, resolved.level, resolved.parentLevel);
 
             // 构建父级聚合索引：groupKey → sum of 'of' metric
-            Map<String, Double> visibleParentAggIndex = buildParentAggIndex(
-                    resultSet, resolved, colFields);
+            Map<String, Number> visibleParentAggIndex =
+                    buildParentAggIndex(
+                            resultSet,
+                            resolved,
+                            colFields,
+                            aggregations.getOrDefault(psMetric.getOf(), DbAggregation.SUM));
             Map<String, Number> externalParentValues = externalParentAggIndex == null
                     ? Collections.emptyMap()
                     : externalParentAggIndex.getOrDefault(psMetric.getName(), Collections.emptyMap());
@@ -100,14 +114,15 @@ public class ParentShareCalculator {
 
                 String parentKey = buildParentKey(row, resolved, colFields);
                 Number externalParentVal = externalParentValues.get(parentKey);
-                Double parentVal = externalParentVal != null
-                        ? externalParentVal.doubleValue()
-                        : visibleParentAggIndex.get(parentKey);
+                Number parentVal =
+                        externalParentVal != null
+                                ? externalParentVal
+                                : visibleParentAggIndex.get(parentKey);
 
-                if (parentVal == null || parentVal == 0.0) {
+                if (parentVal == null || parentVal.doubleValue() == 0.0) {
                     row.put(psMetric.getName(), null);
                 } else {
-                    double share = ((Number) currentVal).doubleValue() / parentVal;
+                    double share = ((Number) currentVal).doubleValue() / parentVal.doubleValue();
                     row.put(psMetric.getName(), share);
                 }
             }
@@ -125,6 +140,15 @@ public class ParentShareCalculator {
             List<String> rowFields,
             List<String> colFields) {
 
+        return buildExternalParentAggIndex(resultSet, pivot, rowFields, colFields, Map.of());
+    }
+
+    public static Map<String, Map<String, Number>> buildExternalParentAggIndex(
+            List<Map<String, Object>> resultSet,
+            PivotRequest pivot,
+            List<String> rowFields,
+            List<String> colFields,
+            Map<String, DbAggregation> aggregations) {
         List<PivotMetricItem> parentShareMetrics = pivot.getParentShareMetrics();
         if (parentShareMetrics.isEmpty()) {
             return Collections.emptyMap();
@@ -137,7 +161,12 @@ public class ParentShareCalculator {
             }
             ResolvedParentShare resolved = resolve(psMetric, rowFields, colFields, pivot);
             resolved.ofMetric = psMetric.getOf();
-            Map<String, Double> index = buildParentAggIndex(resultSet, resolved, colFields);
+            Map<String, Number> index =
+                    buildParentAggIndex(
+                            resultSet,
+                            resolved,
+                            colFields,
+                            aggregations.getOrDefault(psMetric.getOf(), DbAggregation.SUM));
             result.put(psMetric.getName(), new LinkedHashMap<>(index));
         }
         return result;
@@ -221,10 +250,11 @@ public class ParentShareCalculator {
      * 构建父级聚合索引
      * <p>key = parentLevel值 + colField值, value = SUM(of metric)</p>
      */
-    private static Map<String, Double> buildParentAggIndex(
+    private static Map<String, Number> buildParentAggIndex(
             List<Map<String, Object>> resultSet,
             ResolvedParentShare resolved,
-            List<String> colFields) {
+            List<String> colFields,
+            DbAggregation aggregation) {
 
         // 分组键 = parentLevel 及其前面的所有轴字段 + 交叉轴字段
         List<String> groupKeys = new ArrayList<>();
@@ -241,20 +271,17 @@ public class ParentShareCalculator {
         }
         // 注意：如果 axis=columns，交叉轴是 rows — 但第一版只支持 rows 轴的 parentShare
 
-        Map<String, Double> index = new LinkedHashMap<>();
-
-        for (Map<String, Object> row : resultSet) {
-            if (isSubtotalRow(row)) continue;
-
-            String key = groupKeys.stream()
-                    .map(k -> String.valueOf(row.getOrDefault(k, "__null__")))
-                    .collect(Collectors.joining("\u001F"));
-
-            Object val = row.get(resolved.ofMetric);
-            if (val instanceof Number) {
-                index.merge(key, ((Number) val).doubleValue(), Double::sum);
-            }
-        }
+        Map<String, List<Map<String, Object>>> groups = new LinkedHashMap<>();
+        for (var row : resultSet)
+            if (!isSubtotalRow(row))
+                groups.computeIfAbsent(PivotCoordinates.key(row, groupKeys), k -> new ArrayList<>())
+                        .add(row);
+        Map<String, Number> index = new LinkedHashMap<>();
+        for (var entry : groups.entrySet())
+            index.put(
+                    entry.getKey(),
+                    PivotMetricAggregation.aggregate(
+                            entry.getValue(), resolved.ofMetric, aggregation));
 
         return index;
     }
@@ -277,9 +304,7 @@ public class ParentShareCalculator {
             groupKeys.addAll(colFields);
         }
 
-        return groupKeys.stream()
-                .map(k -> String.valueOf(row.getOrDefault(k, "__null__")))
-                .collect(Collectors.joining("\u001F"));
+        return PivotCoordinates.key(row, groupKeys);
     }
 
     @SuppressWarnings("unchecked")
@@ -365,10 +390,8 @@ public class ParentShareCalculator {
             DbAggregation agg = MetricAdditivityAnalyzer.resolveAggregation(
                     ps.getOf(), queryModel);
             if (agg == null) {
-                // calculatedField 或元数据缺失，默认允许（向后兼容）
-                logger.debug("[Pivot] parentShare '{}' of='{}' aggregation unknown, allowing",
-                        ps.getName(), ps.getOf());
-                continue;
+                throw new IllegalArgumentException(
+                        "PIVOT_PARENT_SHARE_AGGREGATION_UNKNOWN: " + ps.getOf());
             }
 
             if (!ADDITIVE.contains(agg)) {

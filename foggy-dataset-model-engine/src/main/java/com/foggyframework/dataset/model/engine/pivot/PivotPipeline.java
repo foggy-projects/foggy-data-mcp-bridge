@@ -254,6 +254,12 @@ public class PivotPipeline {
                     cacheEvaluation.shapeClass());
         }
 
+        // Same static dependencies as validate, compiled under the EXECUTE permission action.
+        // No business SQL is executed while preparing auxiliary plans.
+        if (prepared.queryModel() != null && pivotRollupExecutionPort != null)
+            for (var auxiliary : staticAuxiliaryRequests(request, prepared))
+                pivotRollupExecutionPort.generateRollupSql(model, auxiliary, context);
+
         // ===== Phase 1: SQL 萃取（不含 properties）=====
         // 检测是否可以使用 SQL pushdown（CTE + Window Function + 有 having/limit）
         boolean sqlPushdownUsed = false;
@@ -338,39 +344,84 @@ public class PivotPipeline {
         HierarchyTreeBuilder.Skeleton hierarchySkeleton = null;
         if (hierarchyCtx.isTree()) {
             logger.debug("[Pivot] Phase 1.5: Hierarchy skeleton query for dim={}", hierarchyCtx.getDimName());
-            hierarchySkeleton = executeHierarchySkeleton(
-                    model, request, context, hierarchyCtx.getDimName(), hierarchyCtx.getIdField(), queryModel);
+            hierarchySkeleton =
+                    executeHierarchySkeleton(
+                            model,
+                            request,
+                            context,
+                            hierarchyCtx.getParentField(),
+                            hierarchyCtx.getIdField(),
+                            queryModel);
         }
 
         // ===== Phase 2: 内存加工 =====
         logger.debug("[Pivot] Phase 2: Memory cube processing, {} rows", resultSet.size());
 
         if (!sqlPushdownUsed && !axisDomainSelectionUsed) {
-            // 2.1 轴级 Having 过滤（SQL pushdown 场景已在 SQL 层完成）
-            resultSet = AxisHavingFilter.apply(resultSet, pivot.getRows(), metrics);
-            resultSet = AxisHavingFilter.apply(resultSet, pivot.getColumns(), metrics);
-
             if (requiresPrePageParentDenominator(pivot)) {
-                parentShareExternalValues = ParentShareCalculator.buildExternalParentAggIndex(
-                        resultSet, pivot, rowFields, colFields);
-                parentShareEvidence = buildParentSharePrePageParentEvidence(
-                        pivot, rowFields, colFields, parentShareExternalValues, resultSet.size());
+                // Having precedes the parent denominator, while member windows follow it.
+                List<Map<String, Object>> beforeWindow =
+                        applyMemberControls(
+                                model,
+                                request,
+                                context,
+                                rowFields,
+                                colFields,
+                                metrics,
+                                queryModel,
+                                resultSet,
+                                false);
+                parentShareExternalValues =
+                        ParentShareCalculator.buildExternalParentAggIndex(
+                                beforeWindow,
+                                pivot,
+                                rowFields,
+                                colFields,
+                                metricAggregations(metrics, queryModel));
+                parentShareEvidence =
+                        buildParentSharePrePageParentEvidence(
+                                pivot,
+                                rowFields,
+                                colFields,
+                                parentShareExternalValues,
+                                beforeWindow.size());
             }
-
-            // 2.2 轴向 TopN 截断（SQL pushdown 场景已在 SQL 层完成）
-            Map<String, DbAggregation> rankingAggregations = new LinkedHashMap<>();
-            if (hasAxisDomainOperations(pivot.getRows()) || hasAxisDomainOperations(pivot.getColumns())) {
-                for (var metric : MetricAdditivityAnalyzer.analyze(metrics, queryModel, request.getCalculatedFields())) {
-                    switch (metric.getStrategy()) {
-                        case IN_MEMORY_SUM -> rankingAggregations.put(metric.getMetricName(), DbAggregation.SUM);
-                        case IN_MEMORY_MIN -> rankingAggregations.put(metric.getMetricName(), DbAggregation.MIN);
-                        case IN_MEMORY_MAX -> rankingAggregations.put(metric.getMetricName(), DbAggregation.MAX);
-                        default -> { /* Preserve existing non-additive fallback boundaries. */ }
-                    }
+            if (hierarchyCtx.isTree()) {
+                List<Map<String, Object>> allCells = resultSet;
+                resultSet =
+                        HierarchyTreeBuilder.window(
+                                resultSet,
+                                hierarchySkeleton,
+                                hierarchyCtx.getIdField(),
+                                hierarchyCtx.getTreeAxisField(),
+                                metricAggregations(metrics, queryModel));
+                if (hasAxisDomainOperations(pivot.getColumns())) {
+                    var columnCells =
+                            applyMemberControls(
+                                    model,
+                                    request,
+                                    context,
+                                    rowFields,
+                                    colFields,
+                                    metrics,
+                                    queryModel,
+                                    allCells,
+                                    true);
+                    Set<Map<String, Object>> selectedColumns = new HashSet<>(columnCells);
+                    resultSet = resultSet.stream().filter(selectedColumns::contains).toList();
                 }
-            }
-            resultSet = AxisTopNTruncator.apply(resultSet, pivot.getRows(), rankingAggregations);
-            resultSet = AxisTopNTruncator.apply(resultSet, pivot.getColumns(), rankingAggregations);
+            } else
+                resultSet =
+                        applyMemberControls(
+                                model,
+                                request,
+                                context,
+                                rowFields,
+                                colFields,
+                                metrics,
+                                queryModel,
+                                resultSet,
+                                true);
         } else if (axisDomainSelectionUsed) {
             logger.debug("[Pivot] Phase 2: Skipping Having/TopN (already done by axis domain selection)");
         } else {
@@ -390,8 +441,7 @@ public class PivotPipeline {
         List<RollupMetricPlan> rollupPlans = Collections.emptyList();
         RollupCache rollupCache = new RollupCache();
         if (needsSubtotal) {
-            rollupPlans = MetricAdditivityAnalyzer.analyze(
-                    metrics, queryModel, request.getCalculatedFields());
+            rollupPlans = prepared.rollupPlans();
             logger.debug("[Pivot] Phase 2.3: Rollup plans: {}", rollupPlans);
 
             // 检查是否有不支持的 metric 参与 subtotal
@@ -451,7 +501,13 @@ public class PivotPipeline {
         if (!pivot.getParentShareMetrics().isEmpty()) {
             logger.debug("[Pivot] Phase 2.8: ParentShare calculation, {} metrics",
                     pivot.getParentShareMetrics().size());
-            ParentShareCalculator.apply(resultSet, pivot, rowFields, colFields, parentShareExternalValues);
+            ParentShareCalculator.apply(
+                    resultSet,
+                    pivot,
+                    rowFields,
+                    colFields,
+                    parentShareExternalValues,
+                    metricAggregations(metrics, queryModel));
         }
 
         // ===== Phase 2.9: BaselineRatio 基准引用计算 =====
@@ -473,6 +529,8 @@ public class PivotPipeline {
             List<PivotResult.TreeNode> treeData = HierarchyTreeBuilder.build(
                     resultSet, hierarchySkeleton, hierarchyCtx.getIdField(),
                     displayFields, colFields, outputMetrics);
+            HierarchyTreeBuilder.limitDepth(
+                    treeData, hierarchyCtx.getTreeAxisField().getEffectiveExpandDepth());
             pivotResult = new PivotResult();
             pivotResult.setFormat("tree");
             pivotResult.setTreeData(treeData);
@@ -503,6 +561,8 @@ public class PivotPipeline {
         List<String> warnings = new ArrayList<>();
         validateFlatRequest(model, buildPhase1FlatRequest(request, prepared.rowFields(), prepared.colFields(),
                 prepared.metrics(), prepared.queryModel()), context, warnings);
+        for (var auxiliary : staticAuxiliaryRequests(request, prepared))
+            validateFlatRequest(model, auxiliary, context, warnings);
 
         // Compile the same optional pushdown plan without executing the resulting SQL.
         String skip = getSqlPushdownSkipReason(pivot, prepared.hierarchy());
@@ -530,16 +590,51 @@ public class PivotPipeline {
         } else if (PivotCascadeRules.isCascadeRequest(pivot)) {
             throw PivotCascadeException.sqlRequired("SQL pushdown is unavailable: " + skip + ".");
         }
-        if (prepared.hierarchy().isTree()) {
-            validateFlatRequest(model, buildHierarchySkeletonRequest(prepared.hierarchy().getDimName(),
-                    prepared.hierarchy().getIdField()), context, warnings);
-        }
-        for (var properties : groupProperties(prepared.properties()).values()) {
-            validateFlatRequest(model, buildPropertyLookupRequest(request, properties), context, warnings);
-        }
         SemanticQueryResponse response = new SemanticQueryResponse();
         response.setWarnings(warnings.isEmpty() ? null : new ArrayList<>(new LinkedHashSet<>(warnings)));
         return response;
+    }
+
+    private List<SemanticQueryRequest> staticAuxiliaryRequests(
+            SemanticQueryRequest request, PreparedPivot prepared) {
+        List<SemanticQueryRequest> requests = new ArrayList<>();
+        PivotRequest pivot = request.getPivot();
+        {
+            for (var axis :
+                    List.of(
+                            pivot.getRows(),
+                            pivot.getColumns() == null ? List.<AxisField>of() : pivot.getColumns()))
+                for (int i = 0; i < axis.size(); i++)
+                    if (axis.stream().noneMatch(AxisField::isTreeMode)
+                            && hasMemberControl(axis.get(i)))
+                        requests.add(
+                                buildMemberRequest(
+                                        request,
+                                        axis,
+                                        i,
+                                        prepared.metrics(),
+                                        prepared.queryModel()));
+        }
+        if (!prepared.rollupPlans().isEmpty())
+            requests.addAll(
+                    new NonAdditiveRollupExecutor(pivotRollupExecutionPort, prepared.queryModel())
+                            .validationRequests(
+                                    request,
+                                    RollupGrainEnumerator.enumerate(
+                                            prepared.rowFields(),
+                                            prepared.colFields(),
+                                            pivot.getOptions()),
+                                    prepared.rollupPlans(),
+                                    prepared.rowFields(),
+                                    prepared.colFields()));
+        if (prepared.hierarchy().isTree())
+            requests.add(
+                    buildHierarchySkeletonRequest(
+                            prepared.hierarchy().getParentField(),
+                            prepared.hierarchy().getIdField()));
+        for (var properties : groupProperties(prepared.properties()).values())
+            requests.add(buildPropertyLookupRequest(request, properties));
+        return requests;
     }
 
     private void validateFlatRequest(String model, SemanticQueryRequest flatRequest,
@@ -609,7 +704,7 @@ public class PivotPipeline {
         }
 
         // ===== 检测 hierarchyMode=tree =====
-        HierarchyContext hierarchyCtx = HierarchyContext.detect(pivot.getRows());
+        HierarchyContext hierarchyCtx = HierarchyContext.bind(pivot.getRows(), queryModel);
         if (hierarchyCtx.isTree() && !pivot.getBaselineRatioMetrics().isEmpty()) {
             throw new IllegalArgumentException("当前版本不支持 hierarchyMode=tree 与 baselineRatio 派生指标同时使用");
         }
@@ -637,16 +732,89 @@ public class PivotPipeline {
             }
         }
 
+        Set<String> identities = new LinkedHashSet<>();
+        for (String field : rowFields)
+            if (!identities.add(field))
+                throw new IllegalArgumentException("PIVOT_DUPLICATE_AXIS: " + field);
+        for (String field : colFields)
+            if (!identities.add(field))
+                throw new IllegalArgumentException("PIVOT_DUPLICATE_AXIS: " + field);
+        if (pivot.getProperties() != null)
+            for (String field : pivot.getProperties())
+                if (!identities.add(field))
+                    throw new IllegalArgumentException("PIVOT_OUTPUT_COLLISION: " + field);
+        for (String field : pivot.getAllOutputMetricNames())
+            if (field.startsWith("_pivot_") || field.equals("_sys_meta") || !identities.add(field))
+                throw new IllegalArgumentException("PIVOT_OUTPUT_COLLISION: " + field);
+        if (identities.contains("_sys_meta")
+                || identities.stream().anyMatch(f -> f.startsWith("_pivot_")))
+            throw new IllegalArgumentException("PIVOT_RESERVED_OUTPUT");
         validateAxisControlReferences(pivot, rowFields, colFields, metrics);
-        return new PreparedPivot(context, queryModel, catalogResolution, strongIdentityAssessment,
-                hierarchyCtx, rowFields, colFields, metrics, resolvedProps);
+        if (hierarchyCtx.isTree()) {
+            AxisField tree = hierarchyCtx.getTreeAxisField();
+            if (tree.getEffectiveExpandDepth() < -1)
+                throw new IllegalArgumentException("PIVOT_TREE_DEPTH_INVALID");
+            if (tree.getLimit() != null
+                    || (tree.getHaving() != null && !tree.getHaving().isEmpty())) {
+                Map<String, DbAggregation> aggs = metricAggregations(metrics, queryModel);
+                Set<String> needed = new HashSet<>();
+                if (tree.getHaving() != null)
+                    tree.getHaving().forEach(f -> needed.add(f.getMetric()));
+                if (tree.getOrderBy() != null)
+                    tree.getOrderBy()
+                            .forEach(
+                                    f -> {
+                                        String n = f.startsWith("-") ? f.substring(1) : f;
+                                        if (metrics.contains(n)) needed.add(n);
+                                    });
+                for (String n : needed)
+                    if (aggs.get(n) == null
+                            || !Set.of(
+                                            DbAggregation.SUM,
+                                            DbAggregation.COUNT,
+                                            DbAggregation.MIN,
+                                            DbAggregation.MAX)
+                                    .contains(aggs.get(n)))
+                        throw new IllegalArgumentException(
+                                "PIVOT_TREE_RANK_REAGGREGATION_UNSUPPORTED: " + n);
+            }
+        }
+        List<RollupMetricPlan> rollupPlans = List.of();
+        PivotOptions opts = pivot.getOptions();
+        if (opts != null
+                && (opts.isRowSubtotals() || opts.isColumnSubtotals() || opts.isGrandTotal())) {
+            rollupPlans =
+                    MetricAdditivityAnalyzer.analyze(
+                            metrics, queryModel, request.getCalculatedFields());
+            for (var plan : rollupPlans)
+                if (plan.getStrategy() == RollupStrategy.UNSUPPORTED)
+                    throw new IllegalArgumentException(
+                            "PIVOT_ROLLUP_UNSUPPORTED: " + plan.getMetricName());
+        }
+        return new PreparedPivot(
+                context,
+                queryModel,
+                catalogResolution,
+                strongIdentityAssessment,
+                hierarchyCtx,
+                rowFields,
+                colFields,
+                metrics,
+                resolvedProps,
+                rollupPlans);
     }
 
-    private record PreparedPivot(SemanticRequestContext context, QueryModel queryModel,
-                                 CatalogResolution<QueryModel> catalogResolution,
-                                 PivotOuterCacheStrongIdentity.Assessment strongIdentityAssessment,
-                                 HierarchyContext hierarchy, List<String> rowFields, List<String> colFields,
-                                 List<String> metrics, List<PropertyResolver.ResolvedProperty> properties) { }
+    private record PreparedPivot(
+            SemanticRequestContext context,
+            QueryModel queryModel,
+            CatalogResolution<QueryModel> catalogResolution,
+            PivotOuterCacheStrongIdentity.Assessment strongIdentityAssessment,
+            HierarchyContext hierarchy,
+            List<String> rowFields,
+            List<String> colFields,
+            List<String> metrics,
+            List<PropertyResolver.ResolvedProperty> properties,
+            List<RollupMetricPlan> rollupPlans) {}
 
     private AuthorizationSignature authorizeForOuterCache(
             QueryModel queryModel,
@@ -1218,6 +1386,9 @@ public class PivotPipeline {
         }
 
         List<Object> orderedColumnDomain = new ArrayList<>(prePageColumnDomain);
+        orderedColumnDomain.removeIf(Objects::isNull);
+        orderedColumnDomain.sort(this::compareAxisDomainValues);
+        if (orderedColumnDomain.isEmpty()) return BaselineRatioPrePageAxisDomainResult.empty();
         Set<Object> baselineColumnDomain = new LinkedHashSet<>();
         Map<String, Object> targetColumnByMetric = new LinkedHashMap<>();
         for (PivotMetricItem br : pivot.getBaselineRatioMetrics()) {
@@ -1234,7 +1405,10 @@ public class PivotPipeline {
                 baselineRequest.context(), rowFields, colFields, metrics, queryModel);
 
         if (baselineRows.isEmpty()) {
-            return BaselineRatioPrePageAxisDomainResult.empty();
+            Map<String, Map<String, Number>> missing = new LinkedHashMap<>();
+            for (var br : pivot.getBaselineRatioMetrics())
+                missing.put(br.getName(), Collections.emptyMap());
+            return new BaselineRatioPrePageAxisDomainResult(missing, List.of());
         }
 
         String columnField = colFields.get(0);
@@ -1323,16 +1497,156 @@ public class PivotPipeline {
         return evidence;
     }
 
+    private Map<String, DbAggregation> metricAggregations(List<String> metrics, QueryModel model) {
+        Map<String, DbAggregation> result = new LinkedHashMap<>();
+        for (String metric : metrics) {
+            DbAggregation agg = MetricAdditivityAnalyzer.resolveAggregation(metric, model);
+            if (agg == null && model == null) agg = DbAggregation.SUM;
+            if (agg != null) result.put(metric, agg);
+        }
+        return result;
+    }
+
+    private boolean hasMemberControl(AxisField axis) {
+        return (axis.getHaving() != null && !axis.getHaving().isEmpty())
+                || (axis.getLimit() != null && axis.getLimit() > 0);
+    }
+
+    private SemanticQueryRequest buildMemberRequest(
+            SemanticQueryRequest original,
+            List<AxisField> axis,
+            int level,
+            List<String> metrics,
+            QueryModel model) {
+        var fields = axis.subList(0, level + 1).stream().map(AxisField::getField).toList();
+        AxisField field = axis.get(level);
+        Set<String> controls = new LinkedHashSet<>();
+        if (field.getHaving() != null) field.getHaving().forEach(f -> controls.add(f.getMetric()));
+        if (field.getOrderBy() != null)
+            field.getOrderBy().forEach(o -> controls.add(o.startsWith("-") ? o.substring(1) : o));
+        return buildPhase1FlatRequest(
+                original,
+                fields,
+                List.of(),
+                metrics.stream().filter(controls::contains).toList(),
+                model);
+    }
+
+    private List<Map<String, Object>> applyMemberControls(
+            String model,
+            SemanticQueryRequest original,
+            SemanticRequestContext context,
+            List<String> rows,
+            List<String> columns,
+            List<String> metrics,
+            QueryModel queryModel,
+            List<Map<String, Object>> cells,
+            boolean window) {
+        if (queryModel == null) {
+            var filtered = AxisHavingFilter.apply(cells, original.getPivot().getRows(), metrics);
+            filtered = AxisHavingFilter.apply(filtered, original.getPivot().getColumns(), metrics);
+            if (!window) return filtered;
+            filtered =
+                    AxisTopNTruncator.apply(
+                            filtered,
+                            original.getPivot().getRows(),
+                            metricAggregations(metrics, null));
+            return AxisTopNTruncator.apply(
+                    filtered, original.getPivot().getColumns(), metricAggregations(metrics, null));
+        }
+        List<Map<String, Object>> filtered = new ArrayList<>(cells);
+        for (var axis :
+                List.of(
+                        original.getPivot().getRows(),
+                        original.getPivot().getColumns() == null
+                                ? List.<AxisField>of()
+                                : original.getPivot().getColumns())) {
+            if (axis.stream().anyMatch(AxisField::isTreeMode)) continue;
+            List<Map<String, Object>> axisCells = new ArrayList<>(cells);
+            for (int i = 0; i < axis.size(); i++) {
+                AxisField field = axis.get(i);
+                if (!hasMemberControl(field)
+                        || (!window && (field.getHaving() == null || field.getHaving().isEmpty())))
+                    continue;
+                var request = buildMemberRequest(original, axis, i, metrics, queryModel);
+                var response =
+                        pivotRollupExecutionPort.queryModel(model, request, "execute", context);
+                var members =
+                        QueryFieldBindings.logicalRows(
+                                response.getItems(),
+                                queryModel,
+                                request.getColumns(),
+                                request.getCalculatedFields());
+                if (members.size() >= request.getLimit())
+                    throw new IllegalArgumentException("PIVOT_MEMBER_DOMAIN_LIMIT");
+                if (field.getHaving() != null)
+                    members =
+                            members.stream()
+                                    .filter(
+                                            r ->
+                                                    field.getHaving().stream()
+                                                            .allMatch(
+                                                                    f ->
+                                                                            f.evaluate(
+                                                                                    (Number)
+                                                                                            r.get(
+                                                                                                    f
+                                                                                                            .getMetric()))))
+                                    .toList();
+                List<String> keys =
+                        axis.subList(0, i + 1).stream().map(AxisField::getField).toList();
+                // Remove children of already eliminated parents before ranking their siblings.
+                Set<List<Object>> visible = new HashSet<>();
+                for (var row : axisCells) visible.add(PivotCoordinates.tuple(row, keys));
+                members =
+                        members.stream()
+                                .filter(r -> visible.contains(PivotCoordinates.tuple(r, keys)))
+                                .toList();
+                if (window) {
+                    List<AxisField> rankingAxis = new ArrayList<>();
+                    for (int j = 0; j < i; j++) {
+                        var parent = new AxisField();
+                        parent.setField(axis.get(j).getField());
+                        rankingAxis.add(parent);
+                    }
+                    var rankingField = new AxisField();
+                    rankingField.setField(field.getField());
+                    rankingField.setLimit(field.getLimit());
+                    rankingField.setStart(field.getStart());
+                    rankingField.setOffset(field.getOffset());
+                    List<String> orders =
+                            new ArrayList<>(
+                                    field.getOrderBy() == null ? List.of() : field.getOrderBy());
+                    if (orders.stream()
+                            .noneMatch(
+                                    o ->
+                                            o.equals(field.getField())
+                                                    || o.equals("-" + field.getField())))
+                        orders.add(field.getField());
+                    rankingField.setOrderBy(orders);
+                    rankingAxis.add(rankingField);
+                    members = AxisTopNTruncator.apply(members, rankingAxis);
+                }
+                Set<List<Object>> selected = new HashSet<>();
+                for (var member : members) selected.add(PivotCoordinates.tuple(member, keys));
+                axisCells =
+                        axisCells.stream()
+                                .filter(r -> selected.contains(PivotCoordinates.tuple(r, keys)))
+                                .toList();
+            }
+            List<String> axisKeys = axis.stream().map(AxisField::getField).toList();
+            Set<List<Object>> axisDomain = new HashSet<>();
+            for (var row : axisCells) axisDomain.add(PivotCoordinates.tuple(row, axisKeys));
+            filtered =
+                    filtered.stream()
+                            .filter(r -> axisDomain.contains(PivotCoordinates.tuple(r, axisKeys)))
+                            .toList();
+        }
+        return new ArrayList<>(filtered);
+    }
+
     private String buildPivotKey(Map<String, Object> row, List<String> fields) {
-        if (fields == null || fields.isEmpty()) {
-            return "ALL";
-        }
-        StringBuilder sb = new StringBuilder();
-        for (String field : fields) {
-            Object val = row.get(field);
-            sb.append(val != null ? val.toString() : "null").append("|");
-        }
-        return sb.toString();
+        return PivotCoordinates.key(row, fields);
     }
 
     private List<SemanticQueryRequest.SliceItem> toHavingSlices(List<MetricFilter> filters) {
@@ -1463,7 +1777,8 @@ public class PivotPipeline {
         if (b == null) return 1;
 
         if (a instanceof Number && b instanceof Number) {
-            return Double.compare(((Number) a).doubleValue(), ((Number) b).doubleValue());
+            return new java.math.BigDecimal(a.toString())
+                    .compareTo(new java.math.BigDecimal(b.toString()));
         }
 
         if (a instanceof Comparable && b instanceof Comparable && a.getClass().isInstance(b)) {
@@ -1812,6 +2127,13 @@ public class PivotPipeline {
                     model, lookupRequest, "execute", context);
 
             List<Map<String, Object>> lookupRows = QueryFieldBindings.logicalRows(response.getItems(), queryModel, selectFields, lookupRequest.getCalculatedFields());
+            for (var row : lookupRows)
+                for (var property : props)
+                    row.put(
+                            property.getFullFieldName(),
+                            row.get(property.getLookupPropertyField()));
+            if (lookupRows.size() >= lookupRequest.getLimit())
+                throw new IllegalArgumentException("PIVOT_PROPERTY_DOMAIN_LIMIT");
 
             Map<Object, Map<String, Object>> lookupTable =
                     PropertyAttacher.buildLookupTable(lookupRows, keyField, propFieldNames);
@@ -1830,7 +2152,7 @@ public class PivotPipeline {
                                                             List<PropertyResolver.ResolvedProperty> properties) {
         List<String> fields = new ArrayList<>();
         fields.add(properties.get(0).getLookupKeyField());
-        for (var property : properties) fields.add(property.getFullFieldName());
+        for (var property : properties) fields.add(property.getLookupPropertyField());
         SemanticQueryRequest request = new SemanticQueryRequest();
         request.setColumns(fields);
         request.setDistinct(true);
@@ -1843,7 +2165,7 @@ public class PivotPipeline {
 
     private SemanticQueryRequest buildHierarchySkeletonRequest(String dimension, String idField) {
         SemanticQueryRequest request = new SemanticQueryRequest();
-        request.setColumns(List.of(idField, dimension + "$parentId"));
+        request.setColumns(List.of(idField, dimension));
         request.setDistinct(true);
         // No user slice: keep the existing complete skeleton contract; governed systemSlice still applies.
         request.setLimit(CardinalityBreaker.DEFAULT_ROW_LIMIT);
@@ -1862,7 +2184,7 @@ public class PivotPipeline {
             SemanticRequestContext context,
             String dimName, String idField, QueryModel queryModel) {
 
-        String parentField = dimName + "$parentId";
+        String parentField = dimName;
 
         SemanticQueryRequest skeletonRequest = buildHierarchySkeletonRequest(dimName, idField);
 
@@ -1877,9 +2199,8 @@ public class PivotPipeline {
 
         // 骨架截断警告：如果触达 limit 上限，可能丢失部分层级关系
         if (rows.size() >= CardinalityBreaker.DEFAULT_ROW_LIMIT) {
-            logger.warn("[Pivot] Hierarchy skeleton may be incomplete: limit={} reached for dim={}. " +
-                    "Tree structure may be partially correct.",
-                    CardinalityBreaker.DEFAULT_ROW_LIMIT, dimName);
+            throw new IllegalArgumentException(
+                    "PIVOT_TREE_SKELETON_LIMIT: " + CardinalityBreaker.DEFAULT_ROW_LIMIT);
         }
 
         logger.debug("[Pivot] Hierarchy skeleton loaded: {} nodes", rows.size());
@@ -1952,6 +2273,9 @@ public class PivotPipeline {
         }
 
         if (rowHierarchy.isTree()) {
+            if (!pivot.getBaselineRatioMetrics().isEmpty())
+                throw new IllegalArgumentException(
+                        "当前版本不支持 hierarchyMode=tree 与 baselineRatio 派生指标同时使用");
             // tree + outputFormat != tree 拒绝
             String format = pivot.getOutputFormat() != null ? pivot.getOutputFormat() : "tree";
             if (!"tree".equals(format)) {
@@ -2032,9 +2356,14 @@ public class PivotPipeline {
                 for (int j = 0; j < field.getOrderBy().size(); j++) {
                     String order = field.getOrderBy().get(j);
                     String name = order != null && order.startsWith("-") ? order.substring(1) : order;
-                    if (!sortable.contains(name)) {
-                        throw pivotReferenceFailure(name, path + ".orderBy[" + j + "]",
-                                "Axis ordering must reference a selected axis field or SQL metric");
+                    boolean atGrain =
+                            fields.subList(0, i + 1).stream()
+                                    .anyMatch(f -> Objects.equals(f.getField(), name));
+                    if (!sortable.contains(name) || (!metrics.contains(name) && !atGrain)) {
+                        throw pivotReferenceFailure(
+                                name,
+                                path + ".orderBy[" + j + "]",
+                                "Axis ordering must reference a coordinate at its member grain or a selected SQL metric");
                     }
                 }
             }

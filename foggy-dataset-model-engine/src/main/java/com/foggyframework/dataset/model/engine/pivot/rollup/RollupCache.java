@@ -19,7 +19,8 @@ public class RollupCache {
     /**
      * 缓存结构: grainKey → coordKey → metricName → value
      */
-    private final Map<String, Map<String, Map<String, Object>>> cache = new LinkedHashMap<>();
+    private final Map<String, Map<List<RollupCoordinate>, Map<String, Object>>> cache =
+            new LinkedHashMap<>();
 
     /**
      * 写入缓存
@@ -29,7 +30,7 @@ public class RollupCache {
      * @param metricValues metric → value 映射
      */
     public void put(String grainKey, List<RollupCoordinate> coordinates, Map<String, Object> metricValues) {
-        String coordKey = buildCoordKey(coordinates);
+        List<RollupCoordinate> coordKey = coordinateKey(coordinates);
         cache.computeIfAbsent(grainKey, k -> new LinkedHashMap<>())
                 .put(coordKey, metricValues);
     }
@@ -44,8 +45,8 @@ public class RollupCache {
      * @throws IllegalStateException 如果 cache miss
      */
     public Object get(String grainKey, List<RollupCoordinate> coordinates, String metricName) {
-        String coordKey = buildCoordKey(coordinates);
-        Map<String, Map<String, Object>> grainCache = cache.get(grainKey);
+        List<RollupCoordinate> coordKey = coordinateKey(coordinates);
+        Map<List<RollupCoordinate>, Map<String, Object>> grainCache = cache.get(grainKey);
         if (grainCache == null) {
             throw new IllegalStateException(
                     "[Pivot] Rollup cache miss: grainKey=" + grainKey + ", coordKey=" + coordKey);
@@ -62,8 +63,8 @@ public class RollupCache {
      * 尝试读取（不抛异常）
      */
     public Object getOrNull(String grainKey, List<RollupCoordinate> coordinates, String metricName) {
-        String coordKey = buildCoordKey(coordinates);
-        Map<String, Map<String, Object>> grainCache = cache.get(grainKey);
+        List<RollupCoordinate> coordKey = coordinateKey(coordinates);
+        Map<List<RollupCoordinate>, Map<String, Object>> grainCache = cache.get(grainKey);
         if (grainCache == null) return null;
         Map<String, Object> metricValues = grainCache.get(coordKey);
         if (metricValues == null) return null;
@@ -84,17 +85,20 @@ public class RollupCache {
         return cache.values().stream().mapToInt(Map::size).sum();
     }
 
-    /**
-     * 从 grain key 构建坐标索引 key
-     */
-    private String buildCoordKey(List<RollupCoordinate> coordinates) {
-        if (coordinates == null || coordinates.isEmpty()) return "";
-        StringBuilder sb = new StringBuilder();
-        for (RollupCoordinate coord : coordinates) {
-            if (sb.length() > 0) sb.append('\u001F');
-            sb.append(coord.field()).append('=').append(coord.displayValue());
-        }
-        return sb.toString();
+    private List<RollupCoordinate> coordinateKey(List<RollupCoordinate> coordinates) {
+        if (coordinates == null) return List.of();
+        return coordinates.stream()
+                .map(
+                        c ->
+                                new RollupCoordinate(
+                                        c.field(),
+                                        c.value() instanceof Number n
+                                                ? new java.math.BigDecimal(n.toString())
+                                                        .stripTrailingZeros()
+                                                : c.value(),
+                                        c.rolledUp(),
+                                        c.grandTotal()))
+                .toList();
     }
 
     @Override

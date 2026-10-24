@@ -873,13 +873,23 @@ class PivotSqlParityIT extends EcommerceTestSupport {
                 List.of("salesAmount", "idxFirst", "idxLast"));
         assertEquals(2, nullAxisTree.getTreeData().size(),
                 "tree output must keep unclassified and named categories separate");
-        PivotResult.TreeNode unclassifiedNode = nullAxisTree.getTreeData().stream()
-                .filter(node -> "__null__".equals(node.getNode().get("product$categoryName")))
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("null row axis must be exposed as an unclassified tree node"));
-        assertEquals(6.0, ((Number) unclassifiedNode.getCells().get("null|idxFirst")).doubleValue(), 0.001,
+        PivotResult.TreeNode unclassifiedNode =
+                nullAxisTree.getTreeData().stream()
+                        .filter(node -> node.getNode().get("product$categoryName") == null)
+                        .findFirst()
+                        .orElseThrow(
+                                () ->
+                                        new AssertionError(
+                                                "null row axis must be exposed as an unclassified tree node"));
+        assertEquals(
+                6.0,
+                ((Number) unclassifiedNode.getCells().get("~n|idxFirst")).doubleValue(),
+                0.001,
                 "unclassified tree node must retain the unmatched-column first ratio");
-        assertEquals(3.0, ((Number) unclassifiedNode.getCells().get("null|idxLast")).doubleValue(), 0.001,
+        assertEquals(
+                3.0,
+                ((Number) unclassifiedNode.getCells().get("~n|idxLast")).doubleValue(),
+                0.001,
                 "unclassified tree node must retain the unmatched-column last ratio");
         assertTrue(nullAxisTree.getTreeData().stream()
                         .anyMatch(node -> "Named".equals(node.getNode().get("product$categoryName"))),

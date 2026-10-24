@@ -84,23 +84,22 @@ public class ResultShaper {
         boolean isLeaf = (level == rowFields.size() - 1);
 
         // 按当前层级分组（保持插入顺序）
-        Map<Object, List<Map<String, Object>>> groups = rows.stream()
-                .collect(Collectors.groupingBy(
-                        row -> {
-                            Object value = row.get(currentField);
-                            return value != null ? value : "__null__";
-                        },
-                        LinkedHashMap::new,
-                        Collectors.toList()));
+        Map<List<Object>, List<Map<String, Object>>> groups =
+                rows.stream()
+                        .collect(
+                                Collectors.groupingBy(
+                                        row -> PivotCoordinates.tuple(row, List.of(currentField)),
+                                        LinkedHashMap::new,
+                                        Collectors.toList()));
 
         List<PivotResult.TreeNode> nodes = new ArrayList<>();
 
-        for (Map.Entry<Object, List<Map<String, Object>>> entry : groups.entrySet()) {
+        for (Map.Entry<List<Object>, List<Map<String, Object>>> entry : groups.entrySet()) {
             PivotResult.TreeNode node = new PivotResult.TreeNode();
 
             // 节点坐标
             Map<String, Object> nodeMap = new LinkedHashMap<>();
-            nodeMap.put(currentField, entry.getKey());
+            nodeMap.put(currentField, entry.getValue().get(0).get(currentField));
             node.setNode(nodeMap);
 
             // 小计标记
@@ -121,10 +120,11 @@ public class ResultShaper {
                 for (Map<String, Object> row : entry.getValue()) {
                     String cellKey = PivotAlgoUtils.buildCellKey(row, colFields);
                     for (String metric : metrics) {
-                        String fullKey = cellKey.isEmpty()
-                                ? metric
-                                : cellKey + "|" + metric;
-                        cells.put(fullKey, row.get(metric));
+                        String fullKey =
+                                cellKey.isEmpty()
+                                        ? PivotCoordinates.display(metric)
+                                        : cellKey + "|" + PivotCoordinates.display(metric);
+                        PivotCoordinates.putCell(cells, fullKey, row.get(metric));
                     }
                 }
                 node.setCells(cells);

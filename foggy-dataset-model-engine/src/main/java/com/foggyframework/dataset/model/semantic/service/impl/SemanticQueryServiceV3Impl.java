@@ -2410,6 +2410,18 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         Map<String, SemanticQueryResponse.SchemaInfo.DisplayFormat> outputFormattingByField = Map.of();
     }
 
+    @Override
+    public List<Map<String, Object>> executeBoundRollupSql(
+            String sql,
+            List<Object> params,
+            String model,
+            SemanticRequestContext context,
+            QueryModel binding) {
+        if (!(binding instanceof JdbcQueryModel jdbc) || jdbc.getDataSource() == null)
+            throw new UnsupportedOperationException("Pinned JDBC rollup binding required");
+        return executeSqlOnDataSource(sql, params, jdbc.getDataSource());
+    }
+
     // ---- M7: raw-SQL execution for Compose Query ----
 
     @Override

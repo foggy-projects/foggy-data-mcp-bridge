@@ -29,6 +29,7 @@ public class PropertyResolver {
         private final String dimensionName;
         private final String propertyName;
         private final String lookupKeyField; // 轴上用于 lookup 的字段名, e.g. "product$id"
+        private String lookupPropertyField;
         private final String fullFieldName;  // 完整字段名, e.g. "product$categoryName"
 
         public ResolvedProperty(String dimensionName, String propertyName,
@@ -37,12 +38,17 @@ public class PropertyResolver {
             this.propertyName = propertyName;
             this.lookupKeyField = lookupKeyField;
             this.fullFieldName = fullFieldName;
+            this.lookupPropertyField = fullFieldName;
         }
 
         public String getDimensionName() { return dimensionName; }
         public String getPropertyName() { return propertyName; }
         public String getLookupKeyField() { return lookupKeyField; }
         public String getFullFieldName() { return fullFieldName; }
+
+        public String getLookupPropertyField() {
+            return lookupPropertyField;
+        }
 
         @Override
         public String toString() {
@@ -80,8 +86,18 @@ public class PropertyResolver {
             String dimName = path.first();
             String propName = path.getColumnName();
 
-            // 验证维度存在
-            DbDimension dimension = queryModel.findDimension(dimName);
+            boolean declared =
+                    queryModel.getJdbcQueryColumns() != null
+                            && !queryModel.getJdbcQueryColumns().isEmpty();
+            DbDimension dimension;
+            if (declared) {
+                dimension =
+                        com.foggyframework.dataset.model.semantic.member.MemberFieldBinding.resolve(
+                                queryModel, prop);
+                dimName =
+                        com.foggyframework.dataset.model.semantic.member.MemberFieldBinding.path(
+                                dimension);
+            } else dimension = queryModel.findDimension(dimName);
             if (dimension == null) {
                 throw new IllegalArgumentException(
                         "property '" + prop + "' 引用了不存在的维度 '" + dimName + "'。"
@@ -97,7 +113,11 @@ public class PropertyResolver {
             }
 
             // 函数依赖验证：轴上必须包含该维度的 $id 字段
-            String idField = dimName + "$id";
+            String idField =
+                    declared
+                            ? com.foggyframework.dataset.model.engine.pivot.PivotFieldBinding.role(
+                                    queryModel, dimName, "id")
+                            : dimName + "$id";
             if (!axisFields.contains(idField)) {
                 // 尝试匹配其他可能的主键引用格式
                 boolean foundKey = false;
@@ -122,7 +142,12 @@ public class PropertyResolver {
             }
 
             logger.debug("[PropertyResolver] 已验证: {} → lookup by {}", prop, idField);
-            resolved.add(new ResolvedProperty(dimName, propName, idField, prop));
+            var binding = new ResolvedProperty(dimName, propName, idField, prop);
+            if (declared)
+                binding.lookupPropertyField =
+                        com.foggyframework.dataset.model.engine.pivot.PivotFieldBinding.role(
+                                queryModel, dimName, propName);
+            resolved.add(binding);
         }
 
         return resolved;

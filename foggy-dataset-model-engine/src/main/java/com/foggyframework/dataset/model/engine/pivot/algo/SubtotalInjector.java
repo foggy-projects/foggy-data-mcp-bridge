@@ -18,7 +18,7 @@ import java.util.stream.Collectors;
  *
  * <p>S8.3 增强：支持 cache-aware 的 non-additive 度量 rollup。
  * 根据 {@link RollupMetricPlan} 的策略，分别使用内存 SUM/MIN/MAX、
- * 从 {@link RollupCache} 读取辅助查询结果，或从 base metrics 重算。</p>
+ * 从 {@link RollupCache} 读取辅助查询结果，或读取计算指标在目标 grain 的 SQL 结果。</p>
  *
  * <p>小计节点强行打上 {@code _sys_meta: { isRowSubtotal: true, level: ... }} 的标签。</p>
  */
@@ -238,8 +238,17 @@ public class SubtotalInjector {
                     subtotalRow.put(metric, cacheValue);
                     break;
                 case RECOMPUTE_FROM_BASE:
-                    // 先放 null，第二遍从 base metrics 重算
-                    subtotalRow.put(metric, null);
+                    // Expression was compiled at this grain by the governed SQL compiler.
+                    subtotalRow.put(
+                            metric,
+                            tryReadFromCache(
+                                    rollupCache,
+                                    subtotalRow,
+                                    axisFields,
+                                    crossFields,
+                                    level,
+                                    isRow,
+                                    metric));
                     break;
                 case UNSUPPORTED:
                     subtotalRow.put(metric, null);
@@ -247,14 +256,7 @@ public class SubtotalInjector {
             }
         }
 
-        // 第二遍：RECOMPUTE_FROM_BASE —— 从已填好的 base metrics 重算
-        for (String metric : metrics) {
-            RollupMetricPlan plan = planIndex.get(metric);
-            if (plan != null && plan.getStrategy() == RollupStrategy.RECOMPUTE_FROM_BASE) {
-                Object recomputed = recomputeFromBase(subtotalRow, plan);
-                subtotalRow.put(metric, recomputed);
-            }
-        }
+
     }
 
     /**
@@ -289,7 +291,10 @@ public class SubtotalInjector {
                     grandRow.put(metric, cacheValue);
                     break;
                 case RECOMPUTE_FROM_BASE:
-                    grandRow.put(metric, null); // 第二遍重算
+                    grandRow.put(
+                            metric,
+                            tryReadGrandTotalFromCache(
+                                    rollupCache, grandRow, rowFields, colFields, metric));
                     break;
                 case UNSUPPORTED:
                     grandRow.put(metric, null);
@@ -297,14 +302,7 @@ public class SubtotalInjector {
             }
         }
 
-        // 第二遍重算
-        for (String metric : metrics) {
-            RollupMetricPlan plan = planIndex.get(metric);
-            if (plan != null && plan.getStrategy() == RollupStrategy.RECOMPUTE_FROM_BASE) {
-                Object recomputed = recomputeFromBase(grandRow, plan);
-                grandRow.put(metric, recomputed);
-            }
-        }
+
     }
 
     // ========== 内存聚合辅助方法 ==========
@@ -399,11 +397,8 @@ public class SubtotalInjector {
         }
         for (String cf : colFields) {
             Object val = grandRow.get(cf);
-            if ("GRAND_TOTAL".equals(val) || "__null__".equals(val)) {
-                coords.add(RollupCoordinate.grandTotal(cf));
-            } else {
-                coords.add(RollupCoordinate.of(cf, val));
-            }
+            // Grand totals retain the complete column grain, including literal business markers.
+            coords.add(RollupCoordinate.of(cf, val));
         }
 
         // Grand total grain key = only column fields
@@ -412,131 +407,6 @@ public class SubtotalInjector {
         return cache.getOrNull(grainKey, coords, metric);
     }
 
-    // ========== RECOMPUTE_FROM_BASE ==========
-
-    /**
-     * 从已填好的 base metrics 重算 calculatedField
-     *
-     * <p>简单表达式求值：支持 +, -, *, / 和 NULLIF。</p>
-     */
-    private static Object recomputeFromBase(Map<String, Object> row, RollupMetricPlan plan) {
-        String expression = plan.getExpression();
-        if (expression == null || expression.isBlank()) return null;
-
-        try {
-            // P0-2: 检查所有 base metrics 是否都有值，任何 null 则整体返回 null
-            for (String base : plan.getRequiredBaseMetrics()) {
-                Object val = row.get(base);
-                if (!(val instanceof Number)) {
-                    logger.debug("[SubtotalInjector] Recompute skipped for {}: base metric '{}' is null",
-                            plan.getMetricName(), base);
-                    return null;
-                }
-            }
-
-            // P0-1: 使用 \b 边界的 regex 替换，避免 "sales" 误替换 "salesAmount"
-            // 按名称长度降序排序，进一步避免子串碰撞
-            String expr = expression;
-            List<String> sortedBases = new ArrayList<>(plan.getRequiredBaseMetrics());
-            sortedBases.sort((a, b) -> b.length() - a.length());
-
-            for (String base : sortedBases) {
-                Object val = row.get(base);
-                String replacement = String.valueOf(((Number) val).doubleValue());
-                expr = expr.replaceAll("\\b" + java.util.regex.Pattern.quote(base) + "\\b", replacement);
-            }
-
-            // 处理 NULLIF(x, 0)
-            expr = expr.replaceAll("NULLIF\\(([^,]+),\\s*0\\)", "($1 == 0 ? null : $1)");
-
-            // 简单算术求值
-            return evalSimpleExpression(expr);
-        } catch (Exception e) {
-            logger.debug("[SubtotalInjector] Recompute failed for {}: {}", plan.getMetricName(), e.getMessage());
-            return null;
-        }
-    }
-
-    /**
-     * 简单算术表达式求值（只支持 +, -, *, / 和数字）
-     */
-    private static Object evalSimpleExpression(String expr) {
-        // 移除空格和括号中的 null 检查
-        expr = expr.trim();
-        if (expr.contains("null")) return null;
-
-        try {
-            // 用 ScriptEngine 不可行（安全），用简单栈式求值
-            // 简化实现：先处理乘除，再处理加减
-            return evalAddSub(expr, 0).value;
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    private record EvalResult(double value, int pos) {}
-
-    private static EvalResult evalAddSub(String expr, int pos) {
-        EvalResult left = evalMulDiv(expr, pos);
-        double result = left.value;
-        int i = left.pos;
-
-        while (i < expr.length()) {
-            char op = expr.charAt(i);
-            if (op != '+' && op != '-') break;
-            i++;
-            EvalResult right = evalMulDiv(expr, i);
-            if (op == '+') result += right.value;
-            else result -= right.value;
-            i = right.pos;
-        }
-        return new EvalResult(result, i);
-    }
-
-    private static EvalResult evalMulDiv(String expr, int pos) {
-        EvalResult left = evalAtom(expr, pos);
-        double result = left.value;
-        int i = left.pos;
-
-        while (i < expr.length()) {
-            char op = expr.charAt(i);
-            if (op != '*' && op != '/') break;
-            i++;
-            EvalResult right = evalAtom(expr, i);
-            if (op == '*') result *= right.value;
-            else {
-                if (right.value == 0) return new EvalResult(0, right.pos);
-                result /= right.value;
-            }
-            i = right.pos;
-        }
-        return new EvalResult(result, i);
-    }
-
-    private static EvalResult evalAtom(String expr, int pos) {
-        while (pos < expr.length() && expr.charAt(pos) == ' ') pos++;
-
-        if (pos < expr.length() && expr.charAt(pos) == '(') {
-            pos++; // skip '('
-            EvalResult r = evalAddSub(expr, pos);
-            if (r.pos < expr.length() && expr.charAt(r.pos) == ')') {
-                return new EvalResult(r.value, r.pos + 1);
-            }
-            return r;
-        }
-
-        // Parse number
-        int start = pos;
-        if (pos < expr.length() && (expr.charAt(pos) == '-' || expr.charAt(pos) == '+')) pos++;
-        while (pos < expr.length() && (Character.isDigit(expr.charAt(pos)) || expr.charAt(pos) == '.')) pos++;
-
-        if (start == pos) return new EvalResult(0, pos);
-        return new EvalResult(Double.parseDouble(expr.substring(start, pos)), pos);
-    }
-
-    /**
-     * 判断是否为小计行
-     */
     @SuppressWarnings("unchecked")
     static boolean isSubtotalRow(Map<String, Object> row) {
         Object meta = row.get(SYS_META_KEY);

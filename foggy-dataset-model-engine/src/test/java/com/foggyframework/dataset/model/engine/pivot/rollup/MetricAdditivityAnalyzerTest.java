@@ -163,9 +163,9 @@ class MetricAdditivityAnalyzerTest {
 
         var auxMetrics = MetricAdditivityAnalyzer.collectAuxQueryMetrics(plans);
         assertTrue(auxMetrics.contains("uniqueCustomers"));
-        assertTrue(auxMetrics.contains("profitAmount"));
-        assertTrue(auxMetrics.contains("salesAmount"));
-        assertFalse(auxMetrics.contains("profitRate")); // profitRate 本身不需要辅助查询
+        assertFalse(auxMetrics.contains("profitAmount"));
+        assertFalse(auxMetrics.contains("salesAmount"));
+        assertTrue(auxMetrics.contains("profitRate")); // compile expression at the exact grain
     }
 
     @Test
