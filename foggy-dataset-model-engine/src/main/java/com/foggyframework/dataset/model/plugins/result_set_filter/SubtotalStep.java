@@ -33,6 +33,12 @@ import java.util.*;
 public class SubtotalStep implements DataSetResultStep {
 
     @Override
+    public boolean composeResultProcessingIsIdentity(ModelResultContext context) {
+        return context != null && context.getRequest() != null && context.getRequest().getParam() != null
+                && !context.getRequest().getParam().isWithSubtotals();
+    }
+
+    @Override
     public boolean pivotResultProcessingIsIdentity(ModelResultContext context) {
         return true;
     }

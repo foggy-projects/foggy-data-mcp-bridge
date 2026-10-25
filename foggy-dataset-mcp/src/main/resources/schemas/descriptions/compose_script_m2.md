@@ -123,3 +123,12 @@ return { plans: yoy };
 - 派生查询的 `calculatedFields` 不要使用聚合函数或窗口字段（`partitionBy`、`windowOrderBy`、`windowFrame`）。
 - `dsl({ model: ... })` 的 `model` 必须是非空字符串；对已有 plan 使用 `.query({...})` 或 `dsl({ source: plan, ... })`。
 - 字段或主时间轴不确定时，先用 `dataset.list_models` 和 `dataset.describe_model_internal`。
+
+### Compose 输入与治理边界
+
+- `query` 只接受一个选项对象，来源是接收它的计划；来源选择用 `dsl({model: plan})` 或兼容的 `source: plan`。
+- 已知数组、布尔及分页参数严格校验。分页值必须是 0..2147483647 的整数，null 等同省略，limit=0 为空结果；不能用字符串数字。未知扩展键不会因此被全局禁止。
+- 基础模型 calculatedFields 保留 partitionBy、windowOrderBy、windowFrame 和 emptyDefault，并检查权限依赖；派生层非空 calculatedFields/having 仍不支持。
+- 限定字段必须由该计划实际产生并沿投影可见；UNION 只暴露合并输出，不能引用分支字段。输出 alias 不得仅大小写不同。
+- JOIN 条件可指定 `nullSafe: true`，仅用于 `op: '='`；默认 false，NULL 不匹配，true 时双方 NULL 匹配。参数有值必须为 boolean。
+- 若部署含脱敏、结果过滤等非恒等处理，或扩展尚未明确声明 Compose 安全能力，规划会以 COMPOSE_RESULT_GOVERNANCE_UNPROVEN 拒绝。改用普通受治理查询；不要删除权限或处理器绕过拒绝。validate/preview 不执行业务数据查询。

@@ -30,6 +30,65 @@ public final class ComposeOptionValidator {
         return result;
     }
 
+    /** Strict known options, without rejecting unrelated extension keys. Null means omitted. */
+    public static void validateOptions(java.util.Map<String, Object> options, String path, boolean derived) {
+        com.foggyframework.dataset.model.engine.compose.sandbox.SecurityParamGuard.validate(options, "script-eval");
+        if ("query".equals(path)) {
+            for (String selector : List.of("model", "source")) {
+                if (options.get(selector) != null) throw ComposeParameterException.invalidType(
+                        "COMPOSE_PARAMETER_TYPE_INVALID", path + "." + selector, selector,
+                        "omission (query uses its receiver as source)", options.get(selector));
+            }
+        }
+        if (derived) validateDerived(options.get("calculatedFields"), options.get("having"), path);
+        for (String key : List.of("columns", "slice", "groupBy", "orderBy", "having", "calculatedFields")) {
+            array(options.get(key), path + "." + key, key);
+        }
+        strings(options.get("groupBy"), path + ".groupBy", "groupBy");
+        for (String key : List.of("limit", "start", "offset")) integer(options.get(key), path + "." + key, key);
+        bool(options.get("distinct"), path + ".distinct", "distinct");
+    }
+
+    public static List<?> array(Object value, String path, String parameter) {
+        if (value == null) return List.of();
+        if (value instanceof List<?> list) return list;
+        throw ComposeParameterException.invalidType("COMPOSE_PARAMETER_TYPE_INVALID", path, parameter, "an array or null", value);
+    }
+
+    public static List<String> strings(Object value, String path, String parameter) {
+        List<?> raw = array(value, path, parameter);
+        List<String> result = new ArrayList<>();
+        for (int i = 0; i < raw.size(); i++) {
+            if (!(raw.get(i) instanceof String text) || text.isBlank()) throw ComposeParameterException.invalidType(
+                    "COMPOSE_PARAMETER_TYPE_INVALID", path + "[" + i + "]", parameter, "a non-blank string", raw.get(i));
+            result.add(text);
+        }
+        return result;
+    }
+
+    public static String string(Object value, String path, String parameter) {
+        if (value == null || value instanceof String) return (String) value;
+        throw ComposeParameterException.invalidType("COMPOSE_PARAMETER_TYPE_INVALID", path, parameter, "a string or null", value);
+    }
+
+    public static Integer integer(Object value, String path, String parameter) {
+        if (value == null) return null;
+        if (value instanceof Number number) {
+            try {
+                int exact = new java.math.BigDecimal(number.toString()).intValueExact();
+                if (exact >= 0) return exact;
+            } catch (NumberFormatException | ArithmeticException invalid) { /* fail below */ }
+        }
+        throw ComposeParameterException.invalidType("COMPOSE_PARAMETER_TYPE_INVALID", path, parameter,
+                "an integer from 0 to 2147483647 or null", value);
+    }
+
+    public static boolean bool(Object value, String path, String parameter) {
+        if (value == null) return false;
+        if (value instanceof Boolean flag) return flag;
+        throw ComposeParameterException.invalidType("COMPOSE_PARAMETER_TYPE_INVALID", path, parameter, "a boolean or null", value);
+    }
+
     private static void validateUnsupported(Object value, String parameter, String path) {
         if (value == null) return;
         if (!(value instanceof List<?> entries)) {

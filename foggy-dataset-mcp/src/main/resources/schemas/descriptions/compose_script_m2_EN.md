@@ -220,3 +220,12 @@ return { plans: yoy };
 ## Schema Discovery
 
 If you are uncertain about model fields or the primary time axis, first use `dataset.list_models` to discover models, then use `dataset.describe_model_internal` to inspect the exact schema and `timeRole` attributes before writing the script.
+
+### Compose input and governance boundaries
+
+- `query` accepts exactly one options object and uses its receiver as the source. Select sources with `dsl({model: plan})` or the compatible `source: plan` entry.
+- Known arrays, booleans and pagination values are strictly validated. Pagination accepts integers from 0 through 2147483647; null means omitted and limit=0 returns no rows. Numeric strings are invalid. Unrelated extension keys are not globally rejected.
+- Base calculatedFields retain partitionBy, windowOrderBy, windowFrame and emptyDefault, including permission dependencies. Nonempty derived calculatedFields/having remain unsupported.
+- A qualified field must belong to that producer and remain visible through each projection. UNION exposes merged outputs, not branch-qualified fields. Output aliases cannot differ only by case.
+- JOIN conditions accept optional boolean `nullSafe`, default false. Only equality `op: '='` permits true, which matches two NULL keys.
+- Compose planning rejects non-identity result processors (including masking/filtering) or extensions without an explicit Compose identity capability with COMPOSE_RESULT_GOVERNANCE_UNPROVEN. Use ordinary governed queries; do not remove authorization or processors to bypass rejection. validate/preview do not query business data.

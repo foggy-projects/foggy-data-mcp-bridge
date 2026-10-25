@@ -11,6 +11,11 @@ package com.foggyframework.dataset.model.plugins.result_set_filter;
 public class SemanticMoneyStep implements DataSetResultStep {
 
     @Override
+    public boolean composeResultProcessingIsIdentity(ModelResultContext context) {
+        return true;
+    }
+
+    @Override
     public boolean pivotResultProcessingIsIdentity(ModelResultContext context) {
         return true;
     }

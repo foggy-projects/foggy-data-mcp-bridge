@@ -47,6 +47,9 @@ public abstract class FsscriptDialect {
      * @param source 原始 FSScript 源码
      * @return 预处理后源码（v1.4 起默认即 source 本身）
      */
+    /** Preserve integer literal magnitude for hosts with strict numeric contracts. */
+    public boolean preservesIntegerMagnitude() { return false; }
+
     public String normalize(String source) {
         return source;
     }

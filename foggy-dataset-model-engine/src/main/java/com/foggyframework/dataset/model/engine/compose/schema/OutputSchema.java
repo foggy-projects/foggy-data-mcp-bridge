@@ -83,6 +83,7 @@ public final class OutputSchema {
         boolean g10 = ComposeFeatureFlags.g10Enabled();
         // LinkedHashMap preserves first-occurrence order for deterministic iteration.
         Map<String, List<Integer>> index = new LinkedHashMap<>();
+        validateOutputNames(columns.stream().filter(Objects::nonNull).map(ColumnSpec::name).toList());
         for (int i = 0; i < columns.size(); i++) {
             indexOne(columns, i, index, g10);
         }
@@ -92,6 +93,19 @@ public final class OutputSchema {
             frozen.put(e.getKey(), Collections.unmodifiableList(e.getValue()));
         }
         this.indicesByName = Collections.unmodifiableMap(frozen);
+    }
+
+    /** Case-only aliases cannot be represented consistently by SQL identifiers and row maps. */
+    public static void validateOutputNames(List<String> names) {
+        if (names == null) return;
+        Map<String, String> folded = new LinkedHashMap<>();
+        for (String name : names) {
+            String previous = folded.putIfAbsent(name.toLowerCase(java.util.Locale.ROOT), name);
+            if (previous != null && !previous.equals(name)) throw new ComposeSchemaException(
+                    ComposeSchemaErrorCodes.DUPLICATE_OUTPUT_COLUMN,
+                    "Output names differ only by case: '" + previous + "' and '" + name + "'",
+                    ComposeSchemaErrorCodes.PHASE_SCHEMA_DERIVE, "OutputSchema", name);
+        }
     }
 
     /**

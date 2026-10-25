@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Answers.CALLS_REAL_METHODS;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -102,10 +102,12 @@ class ComposeSemanticPlanningPortBoundaryTest {
                 List.of(new SqlGenerationResult.CteStage(
                         "stage1", "select ? as id", List.of(7))),
                 diagnostics);
-        when(service.generateSql("SalesQM", request, context)).thenReturn(generated);
+        when(service.generateSql(eq("SalesQM"), same(request), argThat(c -> c.isComposeResultIdentityRequired()
+                && java.util.Objects.equals(c.getNamespace(), context.getNamespace())))).thenReturn(generated);
 
         ComposeSqlGeneration bridged = service.generateComposeSql("SalesQM", request, context);
 
+        assertFalse(context.isComposeResultIdentityRequired());
         assertEquals(generated.getSql(), bridged.sql());
         assertEquals(generated.getParams(), bridged.params());
         assertEquals("stage1", bridged.cteStages().get(0).alias());

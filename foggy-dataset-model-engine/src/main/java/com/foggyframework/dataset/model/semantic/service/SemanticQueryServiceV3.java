@@ -101,7 +101,7 @@ public interface SemanticQueryServiceV3 extends ComposeSemanticPlanningPort, Com
             @Override
             public ComposeSqlGeneration generateComposeSql(
                     String model, SemanticQueryRequest request, SemanticRequestContext context) {
-                return toComposeSqlGeneration(service.generateSql(model, request, context));
+                return toComposeSqlGeneration(service.generateSql(model, request, context.requiringComposeResultIdentity()));
             }
 
             @Override
@@ -128,7 +128,7 @@ public interface SemanticQueryServiceV3 extends ComposeSemanticPlanningPort, Com
     @Override
     default ComposeSqlGeneration generateComposeSql(
             String model, SemanticQueryRequest request, SemanticRequestContext context) {
-        return toComposeSqlGeneration(generateSql(model, request, context));
+        return toComposeSqlGeneration(generateSql(model, request, context.requiringComposeResultIdentity()));
     }
 
     private static ComposeSqlGeneration toComposeSqlGeneration(SqlGenerationResult result) {

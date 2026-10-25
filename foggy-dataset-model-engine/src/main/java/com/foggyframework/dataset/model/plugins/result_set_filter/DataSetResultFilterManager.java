@@ -23,6 +23,11 @@ public interface DataSetResultFilterManager {
         return java.util.Optional.empty();
     }
 
+    /** True only if process preserves rows, columns, values and authorization for this Compose input. */
+    default boolean composeResultProcessingIsIdentity(ModelResultContext context) {
+        return false;
+    }
+
     default boolean pivotResultProcessingIsIdentity(ModelResultContext context) {
         return false;
     }

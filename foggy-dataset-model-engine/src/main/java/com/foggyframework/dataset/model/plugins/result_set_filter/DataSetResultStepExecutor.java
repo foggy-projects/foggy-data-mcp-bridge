@@ -145,6 +145,20 @@ public class DataSetResultStepExecutor extends FoggyStepExecutor<ModelResultCont
         return steps.stream().map(step -> step.getClass().getSimpleName()).toList();
     }
 
+    public boolean composeResultProcessingIsIdentity(ModelResultContext context) {
+        for (var step : processSteps) {
+            if (!overridesPhase(step, "process")) continue;
+            try {
+                Class<?> type = AopUtils.getTargetClass(step);
+                if (type.getMethod("composeResultProcessingIsIdentity", ModelResultContext.class)
+                        .getDeclaringClass() != type || !step.composeResultProcessingIsIdentity(context)) return false;
+            } catch (ReflectiveOperationException | RuntimeException unproven) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public boolean pivotResultProcessingIsIdentity(ModelResultContext context) {
         for (var step : processSteps) {
             if (!overridesPhase(step, "process")) continue;

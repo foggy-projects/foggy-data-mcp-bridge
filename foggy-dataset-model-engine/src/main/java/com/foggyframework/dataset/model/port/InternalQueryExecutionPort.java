@@ -18,4 +18,9 @@ public interface InternalQueryExecutionPort {
     DbQueryResult queryModelResult(ModelResultContext context);
 
     SqlGenerationResult buildSqlOnly(ModelResultContext context);
+
+    /** Implementations must prove result-processing identity before returning Compose SQL. */
+    default SqlGenerationResult buildComposeSqlOnly(ModelResultContext context) {
+        throw new UnsupportedOperationException("COMPOSE_RESULT_GOVERNANCE_UNPROVEN");
+    }
 }

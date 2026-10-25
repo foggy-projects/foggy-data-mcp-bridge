@@ -88,7 +88,13 @@ public final class JoinOn {
                             + typeOf(rawLeft) + ", op=" + typeOf(rawOp)
                             + ", right=" + typeOf(rawRight));
         }
-        return of((String) rawLeft, (String) rawOp, (String) rawRight);
+        Object nullSafe = map.get("nullSafe");
+        if (nullSafe != null && !(nullSafe instanceof Boolean)) {
+            throw com.foggyframework.dataset.model.engine.compose.schema.ComposeParameterException.invalidType(
+                    "COMPOSE_PARAMETER_TYPE_INVALID", "join.on.nullSafe", "nullSafe", "a boolean or null", nullSafe);
+        }
+        return builder().left((String) rawLeft).op((String) rawOp).right((String) rawRight)
+                .nullSafe(Boolean.TRUE.equals(nullSafe)).build();
     }
 
     private static String typeOf(Object o) {

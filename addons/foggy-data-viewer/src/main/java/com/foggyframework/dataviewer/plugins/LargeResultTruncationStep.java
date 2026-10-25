@@ -43,6 +43,11 @@ import java.util.Map;
 public class LargeResultTruncationStep implements DataSetResultStep {
 
     @Override
+    public boolean composeResultProcessingIsIdentity(ModelResultContext context) {
+        return context != null && !isFromMcp(context);
+    }
+
+    @Override
     public boolean pivotResultProcessingIsIdentity(ModelResultContext context) {
         return context != null && !isFromMcp(context);
     }

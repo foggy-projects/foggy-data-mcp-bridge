@@ -132,13 +132,25 @@ public final class SchemaDerivation {
         // Every expression must reference only names in sourceNames.
         // We can't fully parse SQL-ish expressions at M4 (that's M6's job),
         // but we can catch the common "bare identifier" miss.
-        for (ColumnAliasParts parts : partsList) {
+        for (int columnIndex = 0; columnIndex < partsList.size(); columnIndex++) {
+            ColumnAliasParts parts = partsList.get(columnIndex);
+            Set<String> qualifiedNames = new LinkedHashSet<>();
+            for (PlanColumnRef ref : com.foggyframework.dataset.model.engine.compose.security
+                    .ComposePlanAwarePermissionValidator.collectPlanRefs(plan.columns().get(columnIndex))) {
+                String bound = com.foggyframework.dataset.model.engine.compose.plan.PlanFieldOwnership.visibleFieldForReference(
+                        plan.source(), ref.plan(), ref.name(), producer -> deriveInternal(producer, sourcePath, bases).names());
+                if (bound == null || !sourceNames.contains(bound)) throw new ComposeSchemaException(
+                        ComposeSchemaErrorCodes.DERIVED_QUERY_UNKNOWN_FIELD,
+                        "derived query references unknown field '" + ref.name() + "' for its plan owner",
+                        ComposeSchemaErrorCodes.PHASE_SCHEMA_DERIVE, currentPath, ref.name());
+                qualifiedNames.add(ref.name());
+            }
             List<String> referenced = com.foggyframework.dataset.model.engine.compose.compilation.ComposeScalarExpression.references(parts.expression());
             for (String ident : referenced) {
                 if (isReservedToken(ident)) {
                     continue;
                 }
-                if (!sourceNames.contains(ident)) {
+                if (!qualifiedNames.contains(ident) && !sourceNames.contains(ident)) {
                     throw new ComposeSchemaException(
                             ComposeSchemaErrorCodes.DERIVED_QUERY_UNKNOWN_FIELD,
                             "derived query references unknown field '"

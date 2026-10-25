@@ -78,6 +78,12 @@ public class DefaultDataSetResultFilterManagerImpl implements DataSetResultFilte
     }
 
     @Override
+    public boolean composeResultProcessingIsIdentity(ModelResultContext context) {
+        if (!declaresPivotContract("composeResultProcessingIsIdentity")) return false;
+        return stepExecutor.composeResultProcessingIsIdentity(context);
+    }
+
+    @Override
     public boolean pivotResultProcessingIsIdentity(ModelResultContext context) {
         if (!declaresPivotContract("pivotResultProcessingIsIdentity")) return false;
         return stepExecutor.pivotResultProcessingIsIdentity(context);

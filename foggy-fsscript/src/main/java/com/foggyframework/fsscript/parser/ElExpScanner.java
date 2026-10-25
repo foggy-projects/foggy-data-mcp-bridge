@@ -692,7 +692,15 @@ public class ElExpScanner implements BaseScanner {
             double d = mantissa.movePointRight(exponent).doubleValue();
             return makeSymbol(ExpSymbols.NUMBER, d);
         } else {
-            int d = mantissa.movePointRight(exponent).intValue();
+            BigDecimal value = mantissa.movePointRight(exponent);
+            if (dialect != null && dialect.preservesIntegerMagnitude()) {
+                try {
+                    return makeSymbol(ExpSymbols.NUMBER, value.intValueExact());
+                } catch (ArithmeticException wide) {
+                    return makeSymbol(ExpSymbols.NUMBER, value);
+                }
+            }
+            int d = value.intValue();
             return makeSymbol(ExpSymbols.NUMBER, d);
         }
     }

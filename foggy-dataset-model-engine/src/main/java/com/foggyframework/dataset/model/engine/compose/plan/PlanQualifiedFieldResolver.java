@@ -279,10 +279,18 @@ final class PlanQualifiedFieldResolver {
         } else if (plan instanceof JoinPlan join) {
             collectAliasesRecursive(join.left(), aliases);
             collectAliasesRecursive(join.right(), aliases);
-        } else if (plan instanceof UnionPlan union) {
-            collectAliasesRecursive(union.left(), aliases);
-            collectAliasesRecursive(union.right(), aliases);
         }
+    }
+
+    private static Set<String> collectAllAliases(QueryPlan plan) {
+        Set<String> aliases = new LinkedHashSet<>(plan.composeSourceAliases());
+        if (plan instanceof DerivedQueryPlan derived) aliases.addAll(collectAllAliases(derived.source()));
+        else if (plan instanceof JoinPlan join) {
+            aliases.addAll(collectAllAliases(join.left())); aliases.addAll(collectAllAliases(join.right()));
+        } else if (plan instanceof UnionPlan union) {
+            aliases.addAll(collectAllAliases(union.left())); aliases.addAll(collectAllAliases(union.right()));
+        }
+        return aliases;
     }
 
     private record Scope(Map<String, String> qualified,
@@ -308,7 +316,7 @@ final class PlanQualifiedFieldResolver {
                 addSide(map, prefixes, null, source, declaredOutputColumns(source), Set.of(), !(source instanceof UnionPlan));
                 if (source instanceof UnionPlan) {
                     Set<String> localAliases = new LinkedHashSet<>(source.composeSourceAliases());
-                    for (String alias : collectAliases(source)) {
+                    for (String alias : collectAllAliases(source)) {
                         if (!localAliases.contains(alias)) {
                             prefixes.add(alias);
                         }
@@ -339,14 +347,28 @@ final class PlanQualifiedFieldResolver {
                     map.put(sideName + "." + col, col);
                 }
             }
-            Set<String> aliases = recursiveAliases
-                    ? collectAliases(plan)
-                    : new LinkedHashSet<>(plan.composeSourceAliases());
-            for (String alias : aliases) {
+            // Prefixes are retained even for hidden owners, so invalid qualified names fail closed.
+            prefixes.addAll(collectAllAliases(plan));
+            addOwnedAliases(map, prefixes, plan, plan, visible, recursiveAliases);
+        }
+
+        private static void addOwnedAliases(Map<String, String> map, Set<String> prefixes,
+                                            QueryPlan source, QueryPlan owner, Set<String> visible,
+                                            boolean recursive) {
+            for (String alias : owner.composeSourceAliases()) {
                 prefixes.add(alias);
-                for (String col : visible) {
-                    map.put(alias + "." + col, col);
+                for (String name : declaredOutputColumns(owner)) {
+                    String output = PlanFieldOwnership.visibleField(source, owner, name,
+                            PlanQualifiedFieldResolver::declaredOutputColumns);
+                    if (output != null && visible.contains(output)) map.put(alias + "." + name, output);
                 }
+            }
+            if (!recursive || owner instanceof UnionPlan) return;
+            if (owner instanceof DerivedQueryPlan derived) {
+                addOwnedAliases(map, prefixes, source, derived.source(), visible, true);
+            } else if (owner instanceof JoinPlan join) {
+                addOwnedAliases(map, prefixes, source, join.left(), visible, true);
+                addOwnedAliases(map, prefixes, source, join.right(), visible, true);
             }
         }
 

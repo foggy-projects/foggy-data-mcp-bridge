@@ -132,17 +132,13 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
             case "fullJoin" -> fullJoin((QueryPlan) args[0]);
             // Legacy union/join methods (still used)
             case "union" -> {
-                if (args.length > 1) {
-                    // union(other, {all: true}) — second arg may be a Map with "all" key
-                    boolean all = false;
-                    if (args[1] instanceof Boolean b) {
-                        all = b;
-                    } else if (args[1] instanceof Map<?, ?> m) {
-                        all = Boolean.TRUE.equals(m.get("all"));
-                    }
-                    yield union((QueryPlan) args[0], all);
+                if (args == null || args.length < 1 || args.length > 2 || !(args[0] instanceof QueryPlan other)) {
+                    throw com.foggyframework.dataset.model.engine.compose.schema.ComposeParameterException.invalidType(
+                            "COMPOSE_PARAMETER_TYPE_INVALID", "union", "options", "a QueryPlan and optional boolean/all object", args);
                 }
-                yield union((QueryPlan) args[0]);
+                Object all = args.length == 1 ? null : args[1];
+                if (all instanceof Map<?, ?> options) all = options.get("all");
+                yield union(other, ComposeOptionValidator.bool(all, "union.all", "all"));
             }
             case "join" -> {
                 if (args == null || args.length != 3) {
@@ -278,7 +274,7 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
 
     /** Limit result rows. */
     public final DerivedQueryPlan fluentLimit(Object... args) {
-        int n = args != null && args.length > 0 ? ((Number) args[0]).intValue() : 0;
+        Integer n = ComposeOptionValidator.integer(args != null && args.length > 0 ? args[0] : 0, "limit", "limit");
         return DerivedQueryPlan.builder()
                 .source(this)
                 .limit(n)
@@ -287,7 +283,7 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
 
     /** Offset (skip) rows. */
     public final DerivedQueryPlan fluentOffset(Object... args) {
-        int n = args != null && args.length > 0 ? ((Number) args[0]).intValue() : 0;
+        Integer n = ComposeOptionValidator.integer(args != null && args.length > 0 ? args[0] : 0, "offset", "offset");
         return DerivedQueryPlan.builder()
                 .source(this)
                 .start(n)
@@ -945,12 +941,12 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
 
     @SuppressWarnings("unchecked")
     private static QueryOptions queryOptionsFromArgs(Object[] args) {
-        if (args == null || args.length == 0 || !(args[0] instanceof Map<?, ?> raw)) {
-            throw new IllegalArgumentException(
-                    "QueryPlan.query(opts): opts must be an object");
+        if (args == null || args.length != 1 || !(args[0] instanceof Map<?, ?> raw)) {
+            throw com.foggyframework.dataset.model.engine.compose.schema.ComposeParameterException.invalidType(
+                    "COMPOSE_PARAMETER_TYPE_INVALID", "query", "options", "exactly one options object", args);
         }
         Map<String, Object> map = (Map<String, Object>) raw;
-        ComposeOptionValidator.validateDerived(map.get("calculatedFields"), map.get("having"), "query");
+        ComposeOptionValidator.validateOptions(map, "query", true);
         QueryOptions.Builder builder = QueryOptions.builder();
         Object columns = map.get("columns");
         builder.columns(columns instanceof List<?> list ? list : List.of());
@@ -968,17 +964,10 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
                     "QueryPlan.query(opts).orderBy must be an array; got: "
                             + simpleType(orderBy));
         }
-        if (map.get("limit") instanceof Number n) {
-            builder.limit(n.intValue());
-        }
-        if (map.get("start") instanceof Number n) {
-            builder.start(n.intValue());
-        } else if (map.get("offset") instanceof Number n) {
-            builder.start(n.intValue());
-        }
-        if (map.containsKey("distinct")) {
-            builder.distinct(Boolean.TRUE.equals(map.get("distinct")));
-        }
+        builder.limit(ComposeOptionValidator.integer(map.get("limit"), "query.limit", "limit"));
+        builder.start(ComposeOptionValidator.integer(map.get("start") != null ? map.get("start") : map.get("offset"),
+                "query.start", "start"));
+        builder.distinct(ComposeOptionValidator.bool(map.get("distinct"), "query.distinct", "distinct"));
         return builder.build();
     }
 

@@ -30,6 +30,11 @@ import org.springframework.stereotype.Component;
 public class L1CacheStep implements DataSetResultStep {
 
     @Override
+    public boolean composeResultProcessingIsIdentity(ModelResultContext context) {
+        return true;
+    }
+
+    @Override
     public boolean pivotResultProcessingIsIdentity(ModelResultContext context) {
         return true;
     }

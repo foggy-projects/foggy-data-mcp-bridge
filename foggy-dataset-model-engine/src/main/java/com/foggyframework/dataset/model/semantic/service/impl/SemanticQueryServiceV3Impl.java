@@ -396,7 +396,8 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         ModelResultContext resultContext = buildSemanticResultContext(jdbcRequest, request, context);
 
         // 5. 走 beforeQuery pipeline 然后截取 SQL（不执行）
-        SqlGenerationResult result = queryFacade.buildSqlOnly(resultContext);
+        SqlGenerationResult result = context.isComposeResultIdentityRequired()
+                ? queryFacade.buildComposeSqlOnly(resultContext) : queryFacade.buildSqlOnly(resultContext);
         if (resultContext.getExtData() != null
                 && (resultContext.getExtData().containsKey("timeWindowPlan")
                 || resultContext.getExtData().containsKey("comparativePlan"))) {

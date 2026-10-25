@@ -58,6 +58,11 @@ public interface DataSetResultStep extends FoggyStep<ModelResultContext> {
         return java.util.Optional.empty();
     }
 
+    /** True only if process preserves rows, columns, values and authorization for this Compose input. */
+    default boolean composeResultProcessingIsIdentity(ModelResultContext context) {
+        return false;
+    }
+
     /**
      * True only when process preserves Pivot values/membership; null requires an unconditional
      * proof.

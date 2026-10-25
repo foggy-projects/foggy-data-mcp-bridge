@@ -301,9 +301,10 @@ public final class ScriptRuntime {
                     ComposeOptionValidator.validateDerived(
                             args.get("calculatedFields"), args.get("having"), "dsl");
                 }
+                ComposeOptionValidator.validateOptions(args, "dsl", derived);
                 if (args.containsKey("columns")) {
                     @SuppressWarnings("unchecked")
-                    List<Object> rawColumns = (List<Object>) args.get("columns");
+                    List<Object> rawColumns = (List<Object>) ComposeOptionValidator.array(args.get("columns"), "dsl.columns", "columns");
                     // G5 Phase 1 (F4): Normalize {field, agg?, as?} Map entries to
                     // their canonical string form. F1-F3 strings and PlanColumnRef /
                     // other PlanExpression types pass through unchanged.
@@ -315,20 +316,20 @@ public final class ScriptRuntime {
                 }
                 if (args.containsKey("slice")) {
                     @SuppressWarnings("unchecked")
-                    List<Object> slice = (List<Object>) args.get("slice");
+                    List<Object> slice = (List<Object>) ComposeOptionValidator.array(args.get("slice"), "dsl.slice", "slice");
                     // Layer B: validate slice values for injection
                     ExpressionWhitelistValidator.validateSlice(slice, "script-eval");
                     builder.slice(slice);
                 }
                 if (args.containsKey("having")) {
                     @SuppressWarnings("unchecked")
-                    List<Object> having = (List<Object>) args.get("having");
+                    List<Object> having = (List<Object>) ComposeOptionValidator.array(args.get("having"), "dsl.having", "having");
                     ExpressionWhitelistValidator.validateSlice(having, "script-eval");
                     builder.having(having);
                 }
                 if (args.containsKey("groupBy")) {
                     @SuppressWarnings("unchecked")
-                    List<String> groupBy = (List<String>) args.get("groupBy");
+                    List<String> groupBy = (List<String>) ComposeOptionValidator.array(args.get("groupBy"), "dsl.groupBy", "groupBy");
                     builder.groupBy(groupBy);
                 }
                 if (args.containsKey("orderBy")) {
@@ -342,20 +343,13 @@ public final class ScriptRuntime {
                 }
                 if (args.containsKey("calculatedFields")) {
                     @SuppressWarnings("unchecked")
-                    List<Object> calculatedFields = (List<Object>) args.get("calculatedFields");
+                    List<Object> calculatedFields = (List<Object>) ComposeOptionValidator.array(args.get("calculatedFields"), "dsl.calculatedFields", "calculatedFields");
                     builder.calculatedFields(toCalculatedFields(calculatedFields));
                 }
-                if (args.containsKey("limit")) {
-                    builder.limit(((Number) args.get("limit")).intValue());
-                }
-                if (args.containsKey("start")) {
-                    builder.start(((Number) args.get("start")).intValue());
-                } else if (args.get("offset") instanceof Number offset) {
-                    builder.start(offset.intValue());
-                }
-                if (args.containsKey("distinct")) {
-                    builder.distinct(Boolean.TRUE.equals(args.get("distinct")));
-                }
+                builder.limit(ComposeOptionValidator.integer(args.get("limit"), "dsl.limit", "limit"));
+                builder.start(ComposeOptionValidator.integer(args.get("start") != null ? args.get("start") : args.get("offset"),
+                        "dsl.start", "start"));
+                builder.distinct(ComposeOptionValidator.bool(args.get("distinct"), "dsl.distinct", "distinct"));
                 return Dsl.from(builder.build());
             };
             evaluator.setVar("from", fromFunction);
@@ -570,28 +564,51 @@ public final class ScriptRuntime {
             return List.of();
         }
         List<CalculatedFieldDef> out = new ArrayList<>(raw.size());
-        for (Object item : raw) {
+        for (int i = 0; i < raw.size(); i++) {
+            Object item = raw.get(i);
             if (item instanceof CalculatedFieldDef def) {
                 out.add(def);
                 continue;
             }
             if (item instanceof Map<?, ?> map) {
-                out.add(toCalculatedField((Map<String, Object>) map));
+                out.add(toCalculatedField((Map<String, Object>) map, "dsl.calculatedFields[" + i + "]"));
                 continue;
             }
-            throw new IllegalArgumentException("calculatedFields entries must be objects");
+            throw ComposeParameterException.invalidType("COMPOSE_PARAMETER_TYPE_INVALID", "dsl.calculatedFields[" + i + "]", "calculatedFields", "an object", item);
         }
         return out;
     }
 
-    private static CalculatedFieldDef toCalculatedField(Map<String, Object> map) {
+    private static CalculatedFieldDef toCalculatedField(Map<String, Object> map, String path) {
         CalculatedFieldDef def = new CalculatedFieldDef();
-        def.setName((String) map.get("name"));
-        def.setCaption((String) map.get("caption"));
-        def.setExpression((String) map.get("expression"));
-        def.setAlias((String) map.get("alias"));
-        def.setDescription((String) map.get("description"));
-        def.setAgg((String) map.get("agg"));
+        def.setName(ComposeOptionValidator.string(map.get("name"), path + ".name", "name"));
+        def.setCaption(ComposeOptionValidator.string(map.get("caption"), path + ".caption", "caption"));
+        def.setExpression(ComposeOptionValidator.string(map.get("expression"), path + ".expression", "expression"));
+        def.setAlias(ComposeOptionValidator.string(map.get("alias"), path + ".alias", "alias"));
+        def.setDescription(ComposeOptionValidator.string(map.get("description"), path + ".description", "description"));
+        def.setAgg(ComposeOptionValidator.string(map.get("agg"), path + ".agg", "agg"));
+        def.setType(ComposeOptionValidator.string(map.get("type"), path + ".type", "type"));
+        if (map.get("partitionBy") != null) def.setPartitionBy(ComposeOptionValidator.strings(map.get("partitionBy"), path + ".partitionBy", "partitionBy"));
+        if (map.get("windowOrderBy") != null) {
+            List<com.foggyframework.dataset.model.def.query.request.WindowOrderDef> orders = new ArrayList<>();
+            List<?> raw = ComposeOptionValidator.array(map.get("windowOrderBy"), path + ".windowOrderBy", "windowOrderBy");
+            for (int i = 0; i < raw.size(); i++) {
+                String itemPath = path + ".windowOrderBy[" + i + "]";
+                if (!(raw.get(i) instanceof Map<?, ?> order)) throw ComposeParameterException.invalidType(
+                        "COMPOSE_PARAMETER_TYPE_INVALID", itemPath, "windowOrderBy", "an object", raw.get(i));
+                String field = ComposeOptionValidator.string(order.get("field"), itemPath + ".field", "field");
+                String dir = ComposeOptionValidator.string(order.get("dir"), itemPath + ".dir", "dir");
+                if (field == null || field.isBlank() || dir != null && !dir.equalsIgnoreCase("asc") && !dir.equalsIgnoreCase("desc")) {
+                    throw ComposeParameterException.invalidType("COMPOSE_PARAMETER_TYPE_INVALID", itemPath,
+                            "windowOrderBy", "an object with a non-blank field and optional asc/desc dir", raw.get(i));
+                }
+                orders.add(new com.foggyframework.dataset.model.def.query.request.WindowOrderDef(field, dir));
+            }
+            def.setWindowOrderBy(orders);
+        }
+        def.setWindowFrame(ComposeOptionValidator.string(map.get("windowFrame"), path + ".windowFrame", "windowFrame"));
+        def.setEmptyDefault(map.get("emptyDefault"));
+        def.setSourcePath(path);
         return def;
     }
 

@@ -249,6 +249,15 @@ public class QueryFacadeImpl implements AdvancedQueryFacade {
 
     @Override
     public SqlGenerationResult buildSqlOnly(ModelResultContext context) {
+        return buildSqlOnly(context, false);
+    }
+
+    @Override
+    public SqlGenerationResult buildComposeSqlOnly(ModelResultContext context) {
+        return buildSqlOnly(context, true);
+    }
+
+    private SqlGenerationResult buildSqlOnly(ModelResultContext context, boolean compose) {
         context.setCacheConfig(ModelResultContext.QueryCacheConfig.disabled());
         try (NamespaceScope ignored = openNamespaceScope(context, true)) {
             String effectiveNamespace = context.getNamespace();
@@ -266,6 +275,12 @@ public class QueryFacadeImpl implements AdvancedQueryFacade {
             dataSetResultFilterManager.beforeQuery(context);
             observePivotCacheProof(context);
 
+            if (compose && !dataSetResultFilterManager.composeResultProcessingIsIdentity(context)) {
+                throw new IllegalArgumentException("COMPOSE_RESULT_GOVERNANCE_UNPROVEN: model '"
+                        + context.getCanonicalModelName()
+                        + "' has non-identity or unproven result processing; use a governed ordinary query");
+            }
+
             // TimeWindowInterceptor may replace the query with a Compose plan.
             // The caller owns final plan compilation because it has the semantic service instance.
             if (context.isSkipQuery()
@@ -273,6 +288,11 @@ public class QueryFacadeImpl implements AdvancedQueryFacade {
                     && (context.getExtData().containsKey("timeWindowPlan")
                     || context.getExtData().containsKey("comparativePlan"))) {
                 return new SqlGenerationResult("", java.util.List.of(), null);
+            }
+
+            // An arbitrary result short-circuit cannot be represented by the raw SQL relation.
+            if (compose && context.isSkipQuery()) {
+                throw new IllegalArgumentException("COMPOSE_RESULT_GOVERNANCE_UNPROVEN: beforeQuery supplied a result short-circuit");
             }
 
             // 3. 仅生成 SQL，不执行

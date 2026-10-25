@@ -55,6 +55,7 @@ public class SemanticRequestContext {
     private final SystemBundlesContext executionBundlesContext;
     private final ExplainTraceCollector explainTraceCollector;
     private PermissionAction permissionAction;
+    private boolean composeResultIdentityRequired;
     private com.foggyframework.dataset.model.semantic.permission.PivotCacheProofSession
             pivotCacheProofSession;
 
@@ -233,6 +234,7 @@ public class SemanticRequestContext {
                 executionBundlesContext, explainTraceCollector);
         copy.permissionAction = permissionAction;
         copy.pivotCacheProofSession = pivotCacheProofSession;
+        copy.composeResultIdentityRequired = composeResultIdentityRequired;
         return copy;
     }
 
@@ -260,6 +262,7 @@ public class SemanticRequestContext {
         );
         copy.permissionAction = permissionAction;
         copy.pivotCacheProofSession = pivotCacheProofSession;
+        copy.composeResultIdentityRequired = composeResultIdentityRequired;
         return copy;
     }
 
@@ -358,6 +361,7 @@ public class SemanticRequestContext {
                 executionBundlesContext, collector);
         copy.permissionAction = permissionAction;
         copy.pivotCacheProofSession = pivotCacheProofSession;
+        copy.composeResultIdentityRequired = composeResultIdentityRequired;
         return copy;
     }
 
@@ -382,6 +386,7 @@ public class SemanticRequestContext {
                 executionBundlesContext, explainTraceCollector);
         copy.permissionAction = permissionAction;
         copy.pivotCacheProofSession = pivotCacheProofSession;
+        copy.composeResultIdentityRequired = composeResultIdentityRequired;
         return copy;
     }
 
@@ -418,6 +423,7 @@ public class SemanticRequestContext {
         );
         copy.permissionAction = pinned.permissionAction;
         copy.pivotCacheProofSession = pinned.pivotCacheProofSession;
+        copy.composeResultIdentityRequired = pinned.composeResultIdentityRequired;
         return copy;
     }
 
@@ -437,6 +443,7 @@ public class SemanticRequestContext {
                 executionBundlesContext, explainTraceCollector);
         copy.permissionAction = permissionAction;
         copy.pivotCacheProofSession = pivotCacheProofSession;
+        copy.composeResultIdentityRequired = composeResultIdentityRequired;
         return copy;
     }
 
@@ -453,6 +460,15 @@ public class SemanticRequestContext {
         return next;
     }
 
+    public boolean isComposeResultIdentityRequired() { return composeResultIdentityRequired; }
+
+    /** Engine-owned SQL planning capability, never a user hint/extData option. */
+    public SemanticRequestContext requiringComposeResultIdentity() {
+        SemanticRequestContext next = copy();
+        next.composeResultIdentityRequired = true;
+        return next;
+    }
+
     private SemanticRequestContext copy() {
         SemanticRequestContext copy = new SemanticRequestContext(
                 namespace, securityContext, fieldAccess, deniedColumns, systemSlice,
@@ -460,6 +476,7 @@ public class SemanticRequestContext {
                 executionBundlesContext, explainTraceCollector);
         copy.permissionAction = permissionAction;
         copy.pivotCacheProofSession = pivotCacheProofSession;
+        copy.composeResultIdentityRequired = composeResultIdentityRequired;
         return copy;
     }
 

@@ -39,6 +39,9 @@ public final class ComposeQueryDialect extends FsscriptDialect {
     private ComposeQueryDialect() { /* singleton */ }
 
     @Override
+    public boolean preservesIntegerMagnitude() { return true; }
+
+    @Override
     public String getName() {
         return "compose-query";
     }

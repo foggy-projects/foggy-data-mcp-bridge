@@ -110,7 +110,7 @@ final class PerBaseCompiler {
             SemanticRequestContext reqContext = buildContext(
                     namespace, baseRequestContext, binding);
             try {
-                buildResult = planningPort.generateComposeSql(plan.model(), request, reqContext);
+                buildResult = planningPort.generateComposeSql(plan.model(), request, reqContext.requiringComposeResultIdentity());
             } catch (RuntimeException ex) {
                 if (isModelNotFound(ex)) {
                     throw new ComposeCompileException(

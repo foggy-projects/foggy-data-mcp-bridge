@@ -499,7 +499,7 @@ public final class ComposePlanner {
         return out;
     }
 
-    private static void validateDerivedOutputRefs(DerivedQueryPlan plan, List<String> sourceColumns) {
+    private static void validateDerivedOutputRefs(DerivedQueryPlan plan, List<String> sourceColumns, Map<PlanColumnRef, String> fields) {
         if (sourceColumns == null || sourceColumns.isEmpty()) {
             return;
         }
@@ -512,9 +512,15 @@ public final class ComposePlanner {
                     "Duplicate derived output: " + output, ComposeSchemaErrorCodes.PHASE_SCHEMA_DERIVE, "DerivedQueryPlan", output);
         }
         for (Object col : plan.columns()) {
+            Set<String> qualifiedNames = new LinkedHashSet<>();
+            for (PlanColumnRef ref : ComposePlanAwarePermissionValidator.collectPlanRefs(col)) {
+                String bound = fields.get(ref);
+                if (bound == null || !sourceNames.contains(bound)) throw unknownDerivedField(ref.name());
+                qualifiedNames.add(ref.name());
+            }
             for (String ident : columnInputRefs(col)) {
                 String unquoted = unquoteIdentifier(ident);
-                if (!sourceNames.contains(unquoted)) {
+                if (!qualifiedNames.contains(unquoted) && !sourceNames.contains(unquoted)) {
                     throw new ComposeSchemaException(
                             ComposeSchemaErrorCodes.DERIVED_QUERY_UNKNOWN_FIELD,
                             "derived query references unknown field '" + unquoted
@@ -1257,6 +1263,12 @@ public final class ComposePlanner {
     }
 
     private static Object compileAny(QueryPlan plan, CompileState state) {
+        Object result = compileAnyUnchecked(plan, state);
+        OutputSchema.validateOutputNames(compiledOutputColumns(result));
+        return result;
+    }
+
+    private static Object compileAnyUnchecked(QueryPlan plan, CompileState state) {
         int depth = state.enterDepth();
         try {
             if (depth > PlanHash.MAX_PLAN_DEPTH) {
@@ -1323,6 +1335,8 @@ public final class ComposePlanner {
     // ------------------------------------------------------------------
 
     private static CteUnit compileBase(BaseModelPlan plan, CompileState state) {
+        OutputSchema.validateOutputNames(extractStringCols(plan.columns()).stream()
+                .map(column -> AliasExtractor.extract(column).outputName()).toList());
         ModelBinding binding = state.bindings.get(plan.model());
         if (binding == null) {
             throw new ComposeCompileException(
@@ -1594,7 +1608,7 @@ public final class ComposePlanner {
         validateDerivedSliceNotSameStageAlias(plan, innerUnit.getSelectColumns());
 
         List<String> sourceColumns = sourceOutputColumnsForDerived(plan.source(), innerUnit, state);
-        validateDerivedOutputRefs(plan, sourceColumns);
+        validateDerivedOutputRefs(plan, sourceColumns, scoped.fields());
 
         List<Object> outerParams = new ArrayList<>();
         String outerSql = renderOuterSelect(plan, innerUnit.getAlias(), innerUnit.getSql(), sourceColumns, outerParams, state,
@@ -1653,23 +1667,8 @@ public final class ComposePlanner {
     }
 
     private static String visibleField(QueryPlan source, PlanColumnRef ref, CompileState state) {
-        if (ref.plan() == null || ref.plan() == source) return ref.name();
-        if (source instanceof DerivedQueryPlan derived) {
-            String input = visibleField(derived.source(), ref, state);
-            if (input == null) return null;
-            if (derived.columns().isEmpty()) return input;
-            for (Object column : derived.columns()) {
-                ColumnAliasParts parts = AliasExtractor.extract(String.valueOf(column));
-                if (parts.expression().equals(input) && parts.outputName().equals(input)) return input;
-            }
-        }
-        if (source instanceof JoinPlan join) {
-            String left = visibleField(join.left(), ref, state), right = visibleField(join.right(), ref, state);
-            if (left != null && right != null) return null;
-            if (left != null) return left;
-            if (right != null && !boundOutputColumnsForPlan(join.left(), state).contains(right)) return right;
-        }
-        return null;
+        return com.foggyframework.dataset.model.engine.compose.plan.PlanFieldOwnership.visibleField(
+                source, ref.plan(), ref.name(), plan -> boundOutputColumnsForPlan(plan, state));
     }
 
     private static ScopedSource compileScopedJoin(JoinPlan plan, List<PlanColumnRef> refs, CompileState state) {
@@ -2005,6 +2004,7 @@ public final class ComposePlanner {
         }
         List<String> outputs = new ArrayList<>(joinOutputColumns(left, right));
         outputs.addAll(extraRightColumns.keySet());
+        OutputSchema.validateOutputNames(outputs);
         return new ComposedSql(sb.toString(), params, outputs);
     }
 
