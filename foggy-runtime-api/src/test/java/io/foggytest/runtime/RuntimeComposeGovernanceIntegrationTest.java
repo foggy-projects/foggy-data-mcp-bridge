@@ -41,7 +41,7 @@ public class RuntimeComposeGovernanceIntegrationTest {
         prepared.set(0);executed.set(0);maskCalls.set(0);
         Map<String,Object> item=new LinkedHashMap<>();item.put("case",label);item.put("g10",flag);item.put("mode",mode);
         item.put("script",script);item.put("nativePayload",nativePayload);
-        String endpoint=nativePayload==null?"/api/v1/compose/"+mode:"/api/v1/query/"+(label.equals("native-mask-control")?"ComposeFollowMasked":"ComposeFollowQM")+"/"+mode;
+        String endpoint=nativePayload==null?"/api/v1/compose/"+mode:"/api/v1/query/"+(label.equals("native-mask-control")?"ComposeFollowMasked":label.equals("native-execution-mask")?"ComposeFollowExecMask":label.equals("native-execution-deny")?"ComposeFollowExecDeny":"ComposeFollowQM")+"/"+mode;
         try {
             var response=mvc.perform(post(endpoint).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(body(label,script,nativePayload)))).andReturn().getResponse();
             item.put("httpStatus",response.getStatus());item.put("response",json.readTree(response.getContentAsString(StandardCharsets.UTF_8)));
@@ -78,7 +78,7 @@ public class RuntimeComposeGovernanceIntegrationTest {
 
         Files.writeString(out.resolve("engine-origin.txt"),origin);
         Files.writeString(models.resolve("ComposeFollow.tm"),"export const model={name:'ComposeFollow',tableName:'compose_followup',idColumn:'id',properties:[{name:'id',column:'id',type:'INTEGER'},{name:'grp',column:'grp',type:'INTEGER'},{name:'amount',column:'amount',type:'INTEGER'}]};");
-        for(String suffix:List.of("QM","Rows","Denied","Blocked","PlainQM","Masked","ShortCircuit"))Files.writeString(models.resolve("ComposeFollow"+suffix+".qm"),
+        for(String suffix:List.of("QM","Rows","Denied","Blocked","PlainQM","Masked","ShortCircuit","ExecMask","ExecDeny","PureCheck"))Files.writeString(models.resolve("ComposeFollow"+suffix+".qm"),
             "const m=loadTableModel('ComposeFollow');export const queryModel={name:'ComposeFollow"+suffix+"',model:m,loader:'v2',columnGroups:[{caption:'Fields',items:[{ref:m.id},{ref:m.grp,name:'category',alias:'categoryOut'},{ref:m.amount,name:'revenue',alias:'revenueOut'}]}],accesses:[]"+(suffix.equals("Blocked")?",modelPermissions:{mode:'resolver',resolver:(ctx)=>{return {allow:false};}}":"")+"};");
         Files.writeString(models.resolve("ComposeFollowPlainQM.qm"),"const m=loadTableModel('ComposeFollow');export const queryModel={name:'ComposeFollowPlainQM',model:m,loader:'v2',columnGroups:[{caption:'Fields',items:[{ref:m.id},{ref:m.grp,name:'category',alias:'category'},{ref:m.amount,name:'revenue',alias:'revenue'}]}],accesses:[]};");
         new WebApplicationContextRunner().withUserConfiguration(App.class).withPropertyValues(
@@ -92,13 +92,32 @@ public class RuntimeComposeGovernanceIntegrationTest {
                 var bundles=context.getBean(SystemBundlesContext.class);if(!bundles.addExternalBundle("compose-followup-audit","",models.toString(),false))throw new AssertionError();
                 var loader=context.getBean(QueryModelLoader.class);Map<JdbcQueryModelImpl,DataSource> originals=new IdentityHashMap<>();
                 try {
-                    for(String suffix:List.of("QM","Rows","Denied","Blocked","PlainQM","Masked","ShortCircuit")) {
+                    for(String suffix:List.of("QM","Rows","Denied","Blocked","PlainQM","Masked","ShortCircuit","ExecMask","ExecDeny","PureCheck")) {
                         var model=(JdbcQueryModelImpl)loader.getJdbcQueryModel("ComposeFollow"+suffix,"");var original=model.getDataSource();originals.put(model,original);
                         model.setDataSource(new DelegatingDataSource(original){public Connection getConnection()throws SQLException{return observe(super.getConnection());}});
                     }
                     var mvc=MockMvcBuilders.webAppContextSetup(context.getSourceApplicationContext()).build();
                     for(boolean g10:List.of(false,true)) {
                         flag=g10;ComposeFeatureFlags.overrideG10Enabled(g10);
+                        for(String model:List.of("ExecMask","ExecDeny","PureCheck")) {
+                            String governed="const p=dsl({model:'ComposeFollow"+model+"',columns:['id','revenue'],slice:[{field:'id',op:'=',value:1}]});";
+                            call(mvc,"execution-governance-"+model,governed+"return {plans:p};");
+                            call(mvc,"execution-governance-explicit-"+model,governed+"return {plans:p.execute()};");
+                        }
+                        request(mvc,"native-execution-mask","","execute",Map.of("columns",List.of("id","revenue"),"slice",List.of(Map.of("field","id","op","=","value",1))));
+                        request(mvc,"native-execution-deny","","execute",Map.of("columns",List.of("id","revenue")));
+                        call(mvc,"explicit-readonly","const p=dsl({model:'ComposeFollowQM',columns:['id','revenue'],slice:[{field:'id',op:'=',value:1}]});return {plans:p.execute()};");
+                        call(mvc,"explicit-discard","const p=dsl({model:'ComposeFollowQM',columns:['id'],limit:1});const rows=p.execute();return {ok:true};");
+                        call(mvc,"explicit-function","const p=dsl({model:'ComposeFollowQM',columns:['id'],limit:1});function read(){return p.execute();}return {plans:read()};");
+                        call(mvc,"explicit-toSql","const p=dsl({model:'ComposeFollowQM',columns:['id'],limit:1});return {plans:p.toSql()};");
+                        String fluent="const a=dsl({model:'ComposeFollowPlainQM',columns:['id','category'],slice:[{field:'id',op:'=',value:1}]});const b=dsl({model:'ComposeFollowPlainQM',columns:['id','category'],slice:[{field:'id',op:'=',value:2}]});const c=dsl({model:'ComposeFollowPlainQM',columns:['id','category'],slice:[{field:'id',op:'=',value:3}]});";
+                        call(mvc,"fluent-outsider",fluent+"return {plans:a.innerJoin(b).on(c.category,b.category)};");
+                        call(mvc,"fluent-union-branch",fluent+"const u=a.union(c,{all:true});return {plans:u.innerJoin(b).on(c.category,b.category)};");
+                        call(mvc,"fluent-and-outsider",fluent+"return {plans:a.innerJoin(b).on(a.category,b.category).and(c.id,b.id)};");
+                        call(mvc,"fluent-extra-nullsafe",fluent+"return {plans:a.innerJoin(b).on(a.category,b.category,{nullSafe:true})};");
+                        call(mvc,"fluent-and-extra",fluent+"return {plans:a.innerJoin(b).on(a.category,b.category).and(a.id,b.id,true)};");
+                        String nested="const a=dsl({model:'ComposeFollowPlainQM',columns:['id as aid','revenue as av'],slice:[{field:'id',op:'=',value:1}]});const b=dsl({model:'ComposeFollowPlainQM',columns:['id as bid','revenue as bv'],slice:[{field:'id',op:'=',value:3}]});const j=a.join(b,'inner',[{left:'aid',op:'<',right:'bid'}]);const w=j.query({columns:['aid','av as bv','bv as renamed']});const c=dsl({model:'ComposeFollowPlainQM',columns:['id as cid','revenue as cv'],slice:[{field:'id',op:'=',value:3}]});";
+                        call(mvc,"fluent-renamed-control",nested+"return {plans:w.innerJoin(c).on(b.bv,c.cv)};");
                         call(mvc,"control",BASE+"return {plans:base.query({columns:['id','v'],slice:[{field:'id',op:'=',value:1}]})};");
                         call(mvc,"slice-object",BASE+"return {plans:base.query({columns:['id','v'],slice:{field:'id',op:'=',value:1}})};");
                         call(mvc,"columns-scalar",BASE+"return {plans:base.query({columns:'id',limit:1})};");
@@ -183,10 +202,11 @@ public class RuntimeComposeGovernanceIntegrationTest {
         for(var item:observations) {
             String label=(String)item.get("case"),mode=(String)item.get("mode");
             JsonNode response=(JsonNode)item.get("response");
-            boolean expected=successCases.contains(label);
+            boolean expected=successCases.contains(label)||label.equals("native-execution-mask")||label.equals("fluent-renamed-control")||label.equals("explicit-toSql")
+                    ||Set.of("explicit-readonly","explicit-discard","explicit-function").contains(label)&&mode.equals("execute");
             if(response==null||response.path("success").asBoolean()!=expected)
                 failures.add(label+"/"+mode+"/"+item.get("g10")+": "+response);
-            if(!mode.equals("execute")||!expected) {
+            if(!mode.equals("execute")||!expected||label.equals("explicit-toSql")) {
                 org.junit.jupiter.api.Assertions.assertEquals(0,item.get("prepared"),item.toString());
                 org.junit.jupiter.api.Assertions.assertEquals(0,item.get("executed"),item.toString());
             } else {
@@ -209,6 +229,16 @@ public class RuntimeComposeGovernanceIntegrationTest {
                 }
                 if(label.equals("case-output-control"))org.junit.jupiter.api.Assertions.assertEquals(Set.of("X","value"),json.convertValue(rows.get(0),Map.class).keySet());
             }
+            if(label.equals("fluent-renamed-control")&&mode.equals("execute")) org.junit.jupiter.api.Assertions.assertEquals(30,response.at("/data/value/plans/0/renamed").asInt());
+            if(label.equals("native-execution-mask")) {
+                org.junit.jupiter.api.Assertions.assertEquals(0,response.at("/data/items/0/revenueOut").asInt(-1));
+                org.junit.jupiter.api.Assertions.assertEquals(1,item.get("maskProcessCalls"));
+            }
+            if(label.startsWith("execution-governance-")&&!label.contains("explicit")&&!label.endsWith("PureCheck"))
+                org.junit.jupiter.api.Assertions.assertTrue(response.toString().contains("COMPOSE_EXECUTION_GOVERNANCE_UNPROVEN"),response.toString());
+            if(Set.of("explicit-readonly","explicit-discard","explicit-function").contains(label)&&!mode.equals("execute"))
+                org.junit.jupiter.api.Assertions.assertTrue(response.toString().contains("COMPOSE_EXPLICIT_EXECUTE_FORBIDDEN"),response.toString());
+            if(label.equals("join-nullsafe-type-invalid"))org.junit.jupiter.api.Assertions.assertTrue(response.toString().contains("join.on[0].nullSafe"),response.toString());
             if(label.startsWith("compose-masked-"))org.junit.jupiter.api.Assertions.assertTrue(response.toString().contains("COMPOSE_RESULT_GOVERNANCE_UNPROVEN"),response.toString());
         }
         org.junit.jupiter.api.Assertions.assertEquals(List.of(),failures);
@@ -235,6 +265,19 @@ public class RuntimeComposeGovernanceIntegrationTest {
                         for(String key:List.of("revenueOut","revenue","val"))if(row.containsKey(key))((Map<Object,Object>)row).put(key,0);
                 }
                 return CONTINUE;
+            }
+        };}
+        @Bean com.foggyframework.dataset.model.plugins.query_execution.QueryExecutionStep executionGovernance(){return new com.foggyframework.dataset.model.plugins.query_execution.QueryExecutionStep(){
+            public int order(){return 17001;}
+            public boolean composeSqlOnlyIsSafe(com.foggyframework.dataset.model.plugins.query_execution.QueryExecutionContext c){
+                return c!=null&&!Set.of("ComposeFollowExecMask","ComposeFollowExecDeny").contains(c.getModelName());
+            }
+            public int prepareComposeSql(com.foggyframework.dataset.model.plugins.query_execution.QueryExecutionContext c){return beforeExecute(c);}
+            public int beforeExecute(com.foggyframework.dataset.model.plugins.query_execution.QueryExecutionContext c){
+                if(Set.of("ComposeFollowExecDeny","ComposeFollowPureCheck").contains(c.getModelName()))throw new IllegalArgumentException("EXECUTION_POLICY_DENIED");return CONTINUE;
+            }
+            @SuppressWarnings("unchecked") public int afterExecute(com.foggyframework.dataset.model.plugins.query_execution.QueryExecutionContext c){
+                if("ComposeFollowExecMask".equals(c.getModelName())&&c.getResult()!=null){maskCalls.incrementAndGet();for(Object item:c.getResult().getItems())if(item instanceof Map row)for(String k:List.of("revenueOut","revenue"))if(row.containsKey(k))row.put(k,0);}return CONTINUE;
             }
         };}
         @Bean AuthorityResolver auditAuthority(){return request->{Map<String,ModelBinding> bindings=new LinkedHashMap<>();for(String model:request.modelNames())bindings.put(model,ModelBinding.builder().fieldAccess(model.endsWith("Denied")?List.of("id","category"):null).systemSlice(model.endsWith("Rows")?List.of(new SliceRequestDef("id","<=",2)):List.of()).build());return AuthorityResolution.builder().bindings(bindings).build();};}

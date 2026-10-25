@@ -34,6 +34,21 @@ import com.foggyframework.dataset.model.plugins.pipeline.LoopDecision;
 public interface QueryExecutionStep extends FoggyStep<QueryExecutionContext> {
 
     /**
+     * Proves that this concrete extension is safe for Compose SQL-only lowering.
+     * Any required authorization must run in prepareComposeSql, without
+     * data access, result short-circuits or SQL rewrites. Omitted execution/result
+     * hooks must preserve rows, values and permission semantics. Unknown is denied.
+     */
+    default boolean composeSqlOnlyIsSafe(QueryExecutionContext ctx) {
+        return false;
+    }
+
+    /** Pure Compose authorization preparation; never execute SQL, rewrite SQL or supply results. */
+    default int prepareComposeSql(QueryExecutionContext ctx) {
+        return CONTINUE;
+    }
+
+    /**
      * 判断该步骤是否支持当前的执行阶段
      *
      * @param phase 执行阶段

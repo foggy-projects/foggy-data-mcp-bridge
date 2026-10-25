@@ -109,6 +109,33 @@ class ComposeOwnershipGovernanceRegressionTest extends EcommerceTestSupport {
             +"const j=a.join(b,'inner',[{left:'aid',op:'<',right:'bid'}]);";
 
     @ParameterizedTest @ValueSource(booleans={false,true})
+    void fluentJoinRetainsOwnersAcrossNestedRenamingAndUnion(boolean flag) throws Exception {
+        ComposeFeatureFlags.overrideG10Enabled(flag);
+        try {
+            String p="const a=dsl({model:'OwnershipInputQM',columns:['id as aid','revenue as av'],slice:[{field:'id',op:'=',value:1}]});"
+                +"const b=dsl({model:'OwnershipInputQM',columns:['id as bid','revenue as bv'],slice:[{field:'id',op:'=',value:3}]});"
+                +"const j=a.join(b,'inner',[{left:'aid',op:'<',right:'bid'}]);"
+                +"const w=j.query({columns:['aid','av as bv','bv as renamed']});"
+                +"const c=dsl({model:'OwnershipInputQM',columns:['id as cid','revenue as cv'],slice:[{field:'id',op:'=',value:3}]});";
+            var rows=checked("fluent-renamed-"+flag,p+"return {plans:w.innerJoin(c).on(b.bv,c.cv)};","open");
+            assertEquals(1,rows.size());assertEquals(30,((Number)rows.get(0).get("renamed")).intValue());
+            String basic="const a=dsl({model:'OwnershipInputQM',columns:['id','category as cat'],slice:[{field:'id',op:'=',value:1}]});"
+                +"const b=dsl({model:'OwnershipInputQM',columns:['id','category as cat'],slice:[{field:'id',op:'=',value:2}]});"
+                +"const c=dsl({model:'OwnershipInputQM',columns:['id','category as cat'],slice:[{field:'id',op:'=',value:3}]});";
+            for(String expr:List.of("a.innerJoin(b).on(c.cat,b.cat)","a.innerJoin(b).on(b.cat,a.cat)",
+                    "a.innerJoin(b).on(a.cat,b.cat).and(c.id,b.id)","a.union(c,{all:true}).innerJoin(b).on(c.cat,b.cat)",
+                    "a.innerJoin(b).on(a.cat,b.cat,{nullSafe:true})","a.innerJoin(b).on('cat',b.cat)",
+                    "a.innerJoin(b).on(a.cat,b.cat).and(a.id,b.id,true)"))
+                for(var mode:ComposeScriptService.Mode.values())assertThrows(RuntimeException.class,()->run("fluent-invalid",basic+"return {plans:"+expr+"};",mode,"open"));
+            for(var mode:ComposeScriptService.Mode.values())assertThrows(RuntimeException.class,()->run("fluent-denied",p+"return {plans:w.innerJoin(c).on(b.bv,c.cv)};",mode,"denied"));
+            String renamed="const x=a.query({columns:['id as key','cat']});return {plans:x.innerJoin(b).on(a.id,b.id)};";
+            assertEquals(0,checked("fluent-ancestor-key-"+flag,basic+renamed,"open").size());
+            String union="const u=a.union(c,{all:true});return {plans:u.innerJoin(b).on(u.cat,b.cat)};";
+            assertEquals(1,checked("fluent-union-output-"+flag,basic+union,"open").size());
+        } finally {ComposeFeatureFlags.overrideG10Enabled(null);}
+    }
+
+    @ParameterizedTest @ValueSource(booleans={false,true})
     void nestedOwnersAndOpaqueUnionAreConsistent(boolean flag) throws Exception {
         ComposeFeatureFlags.overrideG10Enabled(flag);
         try {

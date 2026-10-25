@@ -39,6 +39,10 @@ import java.util.Map;
 @Component
 public class PreAggRewriteStep implements QueryExecutionStep {
 
+    /** Compose uses the governed source relation; this optimization may be omitted. */
+    @Override
+    public boolean composeSqlOnlyIsSafe(QueryExecutionContext ctx) { return ctx != null; }
+
     private final ApplicationContext applicationContext;
 
     public PreAggRewriteStep(ApplicationContext applicationContext) {

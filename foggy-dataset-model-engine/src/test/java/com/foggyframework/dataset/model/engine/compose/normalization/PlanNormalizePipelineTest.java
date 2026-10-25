@@ -23,6 +23,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PlanNormalizePipelineTest {
 
     @Test
+    void typedJoinConditionsKeepTheirOccurrenceAndHashProvenance() {
+        QueryPlan a = base("Order"), b = base("Order");
+        QueryPlan wrapped = DerivedQueryPlan.builder().source(a).build();
+        JoinPlan join = wrapped.innerJoin(b).on(new PlanColumnRef(wrapped, "id"), new PlanColumnRef(b, "id"));
+        var normalized = new PlanNormalizePipeline(List.of(new RemoveEmptyDerivedQueryPlanRule())).normalize(join);
+        assertSame(join, normalized.normalizedPlan());
+        assertSame(wrapped, join.on().get(0).leftReference().plan());
+        JoinPlan wrongOwner = wrapped.innerJoin(b).on(new PlanColumnRef(b, "id"), new PlanColumnRef(b, "id"));
+        assertFalse(com.foggyframework.dataset.model.engine.compose.compilation.PlanHash.planHash(join)
+                .equals(com.foggyframework.dataset.model.engine.compose.compilation.PlanHash.planHash(wrongOwner)));
+    }
+
+    @Test
     void noRulesReturnOriginalPlanWithoutLoop() {
         QueryPlan base = base("Order");
         PlanNormalizePipeline pipeline = new PlanNormalizePipeline(List.of());

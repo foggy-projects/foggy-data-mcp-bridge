@@ -1698,9 +1698,9 @@ public final class ComposePlanner {
         SchemaDerivation.validateJoinKeys(plan,
                 new LinkedHashSet<>(inputOutputColumns(left, plan.left(), state)),
                 new LinkedHashSet<>(inputOutputColumns(right, plan.right(), state)),
-                state.diagnosticPaths.getOrDefault(plan, "root"), true);
+                state.diagnosticPaths.getOrDefault(plan, "root"), true, source -> boundOutputColumnsForPlan(source, state));
 
-        String onCondition = buildOnCondition(plan.on(), left.getAlias(), right.getAlias(), state.dialect);
+        String onCondition = buildOnCondition(plan.resolvedOn(source -> boundOutputColumnsForPlan(source, state)), left.getAlias(), right.getAlias(), state.dialect);
 
         // Compilation may be cached, but both occurrence aliases must remain in FROM.
         List<CteUnit> anchors = new ArrayList<>();

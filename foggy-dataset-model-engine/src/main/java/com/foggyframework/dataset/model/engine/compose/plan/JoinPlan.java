@@ -62,6 +62,31 @@ public final class JoinPlan extends QueryPlan {
     public JoinType type() { return type; }
     public List<JoinOn> on() { return on; }
 
+    /** Bind typed conditions against actual visible outputs, preserving UNION opacity. */
+    public List<JoinOn> resolvedOn(java.util.function.Function<QueryPlan, List<String>> outputs) {
+        List<JoinOn> resolved = new ArrayList<>();
+        for (int i = 0; i < on.size(); i++) {
+            JoinOn condition = on.get(i);
+            String l = resolveKey(left, condition.leftReference(), condition.left(), outputs, i, "left");
+            String r = resolveKey(right, condition.rightReference(), condition.right(), outputs, i, "right");
+            resolved.add(JoinOn.builder().left(l).op(condition.op()).right(r).nullSafe(condition.nullSafe()).build());
+        }
+        return resolved;
+    }
+
+    private static String resolveKey(QueryPlan source, PlanColumnRef ref, String fallback,
+                                     java.util.function.Function<QueryPlan, List<String>> outputs, int index, String side) {
+        if (ref == null) return fallback;
+        String field = ref.plan() == null ? null : PlanFieldOwnership.visibleField(source, ref.plan(), ref.name(), outputs);
+        if (field == null) throw new com.foggyframework.dataset.model.engine.compose.schema.ComposeSchemaException(
+                ("left".equals(side) ? com.foggyframework.dataset.model.engine.compose.schema.ComposeSchemaErrorCodes.JOIN_ON_LEFT_UNKNOWN_FIELD : com.foggyframework.dataset.model.engine.compose.schema.ComposeSchemaErrorCodes.JOIN_ON_RIGHT_UNKNOWN_FIELD),
+                "Typed JOIN field '" + ref.name() + "' is not visible from its " + side + " input",
+                com.foggyframework.dataset.model.engine.compose.schema.ComposeSchemaErrorCodes.PHASE_SCHEMA_DERIVE,
+                "JoinPlan", ref.name()).withDetails(java.util.Map.of("path", "join.on[" + index + "]." + side,
+                        "candidates", outputs.apply(source)));
+        return field;
+    }
+
     /**
      * Append an additional join condition (AND predicate).
      * Returns a new JoinPlan with the extra condition appended.
@@ -75,7 +100,7 @@ public final class JoinPlan extends QueryPlan {
      */
     public JoinPlan and(PlanColumnRef leftCol, PlanColumnRef rightCol) {
         List<JoinOn> extended = new ArrayList<>(this.on);
-        extended.add(JoinOn.of(leftCol.name(), "=", rightCol.name()));
+        extended.add(JoinOn.ofReferences(leftCol, rightCol));
         return JoinPlan.builder()
                 .left(this.left)
                 .right(this.right)

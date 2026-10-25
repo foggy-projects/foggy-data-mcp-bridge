@@ -32,6 +32,8 @@ public final class JoinOn {
     private final String op;
     private final String right;
     private final boolean nullSafe;
+    private final PlanColumnRef leftReference;
+    private final PlanColumnRef rightReference;
 
     private JoinOn(Builder b) {
         if (b.left == null || b.left.isEmpty()) {
@@ -49,12 +51,22 @@ public final class JoinOn {
         this.right = b.right;
         if (b.nullSafe && !"=".equals(b.op)) throw new IllegalArgumentException("nullSafe is supported only for equality");
         this.nullSafe = b.nullSafe;
+        this.leftReference = b.leftReference;
+        this.rightReference = b.rightReference;
     }
 
     public String left() { return left; }
     public String op() { return op; }
     public String right() { return right; }
     public boolean nullSafe() { return nullSafe; }
+    public PlanColumnRef leftReference() { return leftReference; }
+    public PlanColumnRef rightReference() { return rightReference; }
+
+    public static JoinOn ofReferences(PlanColumnRef left, PlanColumnRef right) {
+        if (left == null || right == null) throw new IllegalArgumentException("JOIN requires two field references");
+        return builder().left(left.name()).op("=").right(right.name())
+                .leftReference(left).rightReference(right).build();
+    }
 
     public static Builder builder() { return new Builder(); }
 
@@ -93,6 +105,11 @@ public final class JoinOn {
             throw com.foggyframework.dataset.model.engine.compose.schema.ComposeParameterException.invalidType(
                     "COMPOSE_PARAMETER_TYPE_INVALID", "join.on.nullSafe", "nullSafe", "a boolean or null", nullSafe);
         }
+        if (Boolean.TRUE.equals(nullSafe) && !"=".equals(rawOp)) {
+            throw com.foggyframework.dataset.model.engine.compose.schema.ComposeParameterException.invalidType(
+                    "COMPOSE_PARAMETER_COMBINATION_INVALID", "join.on.nullSafe", "nullSafe",
+                    "false or null for a non-equality operator", nullSafe);
+        }
         return builder().left((String) rawLeft).op((String) rawOp).right((String) rawRight)
                 .nullSafe(Boolean.TRUE.equals(nullSafe)).build();
     }
@@ -106,6 +123,10 @@ public final class JoinOn {
         private String op;
         private String right;
         private boolean nullSafe;
+        private PlanColumnRef leftReference;
+        private PlanColumnRef rightReference;
+        public Builder leftReference(PlanColumnRef v) { this.leftReference = v; return this; }
+        public Builder rightReference(PlanColumnRef v) { this.rightReference = v; return this; }
         public Builder nullSafe(boolean v) { this.nullSafe = v; return this; }
 
         public Builder left(String v) { this.left = v; return this; }
@@ -122,12 +143,13 @@ public final class JoinOn {
         JoinOn j = (JoinOn) o;
         return Objects.equals(left, j.left)
                 && Objects.equals(op, j.op)
-                && Objects.equals(right, j.right) && nullSafe == j.nullSafe;
+                && Objects.equals(right, j.right) && nullSafe == j.nullSafe
+                && Objects.equals(leftReference, j.leftReference) && Objects.equals(rightReference, j.rightReference);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(left, op, right, nullSafe);
+        return Objects.hash(left, op, right, nullSafe, leftReference, rightReference);
     }
 
     @Override

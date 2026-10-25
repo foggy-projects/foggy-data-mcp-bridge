@@ -297,7 +297,8 @@ public class QueryFacadeImpl implements AdvancedQueryFacade {
 
             // 3. 仅生成 SQL，不执行
             if (queryModel instanceof JdbcQueryModelImpl jdbcImpl) {
-                return jdbcImpl.generateSql(executionBundlesContext(context), context);
+                return compose ? jdbcImpl.generateComposeSql(executionBundlesContext(context), context)
+                        : jdbcImpl.generateSql(executionBundlesContext(context), context);
             }
 
             throw new UnsupportedOperationException(

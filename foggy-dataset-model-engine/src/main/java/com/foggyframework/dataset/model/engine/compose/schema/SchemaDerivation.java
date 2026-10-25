@@ -214,7 +214,7 @@ public final class SchemaDerivation {
         Set<String> leftNames = leftSchema.nameSet();
         Set<String> rightNames = rightSchema.nameSet();
 
-        validateJoinKeys(plan, leftNames, rightNames, currentPath);
+        validateJoinKeys(plan, leftNames, rightNames, currentPath, false, source -> deriveInternal(source, currentPath, bases).names());
 
         // Compute overlap (sorted so first offender is deterministic).
         TreeSet<String> overlap = new TreeSet<>();
@@ -278,8 +278,15 @@ public final class SchemaDerivation {
 
     public static void validateJoinKeys(JoinPlan plan, Set<String> leftNames,
             Set<String> rightNames, String currentPath, boolean permissionBound) {
-        for (int i = 0; i < plan.on().size(); i++) {
-            JoinOn j = plan.on().get(i);
+        validateJoinKeys(plan, leftNames, rightNames, currentPath, permissionBound, source -> derive(source).names());
+    }
+
+    public static void validateJoinKeys(JoinPlan plan, Set<String> leftNames,
+            Set<String> rightNames, String currentPath, boolean permissionBound,
+            java.util.function.Function<QueryPlan, List<String>> outputs) {
+        List<JoinOn> conditions = plan.resolvedOn(outputs);
+        for (int i = 0; i < conditions.size(); i++) {
+            JoinOn j = conditions.get(i);
             if (!leftNames.contains(j.left())) {
                 throw new ComposeSchemaException(
                         ComposeSchemaErrorCodes.JOIN_ON_LEFT_UNKNOWN_FIELD,

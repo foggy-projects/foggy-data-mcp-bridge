@@ -25,6 +25,48 @@ public class QueryExecutionStepExecutor {
 
     private final List<QueryExecutionStep> steps;
 
+    /** Check every concrete extension before invoking only its pure Compose prepare hook. */
+    public void prepareComposeSql(QueryExecutionContext ctx) {
+        try {
+            Class<?> type = org.springframework.aop.support.AopUtils.getTargetClass(this);
+            if (ctx == null || type.getMethod("prepareComposeSql", QueryExecutionContext.class).getDeclaringClass() != type)
+                throw composeUnproven("custom executor requires an explicit Compose preparation contract");
+        } catch (ReflectiveOperationException failure) {
+            throw composeUnproven("custom executor requires an explicit Compose preparation contract");
+        }
+        String sql = ctx.getSql();
+        List<Object> params = ctx.getParams() == null ? null : new ArrayList<>(ctx.getParams());
+        for (QueryExecutionStep step : steps) {
+            try {
+                Class<?> type = org.springframework.aop.support.AopUtils.getTargetClass(step);
+                if (type.getMethod("composeSqlOnlyIsSafe", QueryExecutionContext.class).getDeclaringClass() != type
+                        || !step.composeSqlOnlyIsSafe(ctx)) {
+                    throw composeUnproven(type.getName());
+                }
+            } catch (ReflectiveOperationException | RuntimeException failure) {
+                throw composeUnproven("extension did not prove SQL-only safety: "
+                        + org.springframework.aop.support.AopUtils.getTargetClass(step).getName());
+            }
+        }
+        requireUnchangedComposeRelation(ctx, sql, params);
+        for (QueryExecutionStep step : steps) {
+            int result = step.prepareComposeSql(ctx);
+            if (result != QueryExecutionStep.CONTINUE) throw composeUnproven("prepare hook aborted the relation");
+            requireUnchangedComposeRelation(ctx, sql, params);
+        }
+    }
+
+    private static void requireUnchangedComposeRelation(QueryExecutionContext ctx, String sql, List<Object> params) {
+        if (ctx.isSkipExecution() || ctx.getResult() != null || !Objects.equals(sql, ctx.getSql())
+                || !Objects.equals(params, ctx.getParams())) {
+            throw composeUnproven("prepare hook changed the SQL relation or supplied a result");
+        }
+    }
+
+    private static IllegalArgumentException composeUnproven(String reason) {
+        return new IllegalArgumentException("COMPOSE_EXECUTION_GOVERNANCE_UNPROVEN: " + reason);
+    }
+
     public QueryExecutionStepExecutor(List<QueryExecutionStep> steps) {
         if (steps != null && !steps.isEmpty()) {
             this.steps = new ArrayList<>(steps);

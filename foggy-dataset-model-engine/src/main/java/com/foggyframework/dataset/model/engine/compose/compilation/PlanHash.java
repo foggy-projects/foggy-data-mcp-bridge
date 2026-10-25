@@ -170,7 +170,7 @@ public final class PlanHash {
         }
         if (plan instanceof JoinPlan) {
             JoinPlan p = (JoinPlan) plan;
-            List<List<String>> onEntries = new ArrayList<>(p.on().size());
+            List<List<Object>> onEntries = new ArrayList<>(p.on().size());
             for (JoinOn o : p.on()) {
                 onEntries.add(canonicalJoinOn(o));
             }
@@ -188,8 +188,13 @@ public final class PlanHash {
     }
 
     /** Canonical form of one {@link JoinOn} — {@code [left, op, right]}. */
-    private static List<String> canonicalJoinOn(JoinOn o) {
-        return o.nullSafe() ? List.of(o.left(), o.op(), o.right(), "null-safe") : List.of(o.left(), o.op(), o.right());
+    private static List<Object> canonicalJoinOn(JoinOn o) {
+        List<Object> key = new ArrayList<>(List.of(o.left(), o.op(), o.right()));
+        if (o.nullSafe()) key.add("null-safe");
+        // Typed provenance is not interchangeable with a same-named field of another owner.
+        if (o.leftReference() != null) key.add(o.leftReference());
+        if (o.rightReference() != null) key.add(o.rightReference());
+        return List.copyOf(key);
     }
 
     /** Box {@code null} into the {@link #NULL_SENTINEL}; otherwise pass

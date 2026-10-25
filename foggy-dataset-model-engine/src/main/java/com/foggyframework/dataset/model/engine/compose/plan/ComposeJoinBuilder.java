@@ -38,7 +38,7 @@ public final class ComposeJoinBuilder implements PropertyFunction {
      */
     public JoinPlan on(PlanColumnRef leftCol, PlanColumnRef rightCol) {
         List<JoinOn> conditions = new ArrayList<>();
-        conditions.add(JoinOn.of(leftCol.name(), "=", rightCol.name()));
+        conditions.add(JoinOn.ofReferences(leftCol, rightCol));
         return JoinPlan.builder()
                 .left(left)
                 .right(right)
@@ -52,15 +52,21 @@ public final class ComposeJoinBuilder implements PropertyFunction {
     @Override
     public Object invoke(ExpEvaluator evaluator, String methodName, Object[] args) {
         if ("on".equals(methodName)) {
-            if (args == null || args.length < 2) {
-                throw new IllegalArgumentException(
-                        "on() requires exactly 2 arguments: on(leftFieldRef, rightFieldRef)");
-            }
+            validateArguments(args, "on");
             return on((PlanColumnRef) args[0], (PlanColumnRef) args[1]);
         }
         throw new IllegalArgumentException(
                 "ComposeJoinBuilder does not support method: " + methodName
                         + ". Available: on(leftRef, rightRef)");
+    }
+
+    static void validateArguments(Object[] args, String method) {
+        if (args == null || args.length != 2 || !(args[0] instanceof PlanColumnRef)
+                || !(args[1] instanceof PlanColumnRef)) {
+            throw com.foggyframework.dataset.model.engine.compose.schema.ComposeParameterException.invalidType(
+                    "COMPOSE_PARAMETER_TYPE_INVALID", "join." + method, method,
+                    "exactly two field references", args);
+        }
     }
 
     @Override

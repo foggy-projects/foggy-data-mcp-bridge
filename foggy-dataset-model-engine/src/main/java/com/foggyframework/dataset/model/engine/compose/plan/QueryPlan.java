@@ -167,6 +167,7 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
             case "toSql" -> toSql();
             case "and" -> {
                 if (this instanceof JoinPlan jp) {
+                    ComposeJoinBuilder.validateArguments(args, "and");
                     yield jp.and((PlanColumnRef) args[0], (PlanColumnRef) args[1]);
                 }
                 throw new IllegalArgumentException(".and() is only available on JoinPlan");
@@ -922,6 +923,8 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
             } else if (entry instanceof Map) {
                 try {
                     out.add(JoinOn.fromMap((Map<String, ?>) entry));
+                } catch (com.foggyframework.dataset.model.engine.compose.schema.ComposeParameterException ex) {
+                    throw ex.atPath("join.on[" + i + "]." + ex.parameter());
                 } catch (IllegalArgumentException ex) {
                     throw new IllegalArgumentException(
                             "join.on[" + i + "]: " + ex.getMessage(), ex);

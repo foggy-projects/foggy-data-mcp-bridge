@@ -231,10 +231,14 @@ public final class ScriptRuntime {
         if (executionPort == null) throw new IllegalArgumentException("semanticService must not be null");
 
         String effectiveDialect = dialect == null ? "mysql" : dialect;
+        ComposeSqlExecutionPort modeExecutionPort = previewMode ? (sql, params, model, namespace) -> {
+            throw com.foggyframework.dataset.model.engine.compose.schema.ComposeParameterException.explicitExecuteForbidden();
+        } : executionPort;
         ComposeRuntimeBundle bundle = ComposeRuntimeBundle.builder()
                 .ctx(ctx)
                 .planningPort(planningPort)
-                .executionPort(executionPort)
+                .executionPort(modeExecutionPort)
+                .executionAllowed(!previewMode)
                 .dialect(effectiveDialect)
                 .normalizePlan(normalizePlan)
                 .build();

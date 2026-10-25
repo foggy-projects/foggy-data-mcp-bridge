@@ -38,6 +38,12 @@ import java.util.Set;
 public class PhysicalColumnPermissionStep implements QueryExecutionStep {
 
     @Override
+    public boolean composeSqlOnlyIsSafe(QueryExecutionContext ctx) { return ctx != null; }
+
+    @Override
+    public int prepareComposeSql(QueryExecutionContext ctx) { return beforeExecute(ctx); }
+
+    @Override
     public int order() {
         // 在 PreAggRewriteStep(1000) 和保留终点顺序的 L2CacheStep 之前执行
         // 权限检查最先，避免对受限查询进行预聚合匹配或缓存查找

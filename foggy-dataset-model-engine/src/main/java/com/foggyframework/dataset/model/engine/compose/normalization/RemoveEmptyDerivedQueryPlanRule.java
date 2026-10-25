@@ -29,6 +29,9 @@ public final class RemoveEmptyDerivedQueryPlanRule implements PlanNormalizeRule 
             return derived;
         }
         if (plan instanceof JoinPlan join) {
+            // Removing an occurrence would invalidate typed condition owners. Keep
+            // the relation until a normalization rule can explicitly rebind lineage.
+            if (join.on().stream().anyMatch(on -> on.leftReference() != null || on.rightReference() != null)) return join;
             QueryPlan left = normalize(join.left());
             QueryPlan right = normalize(join.right());
             if (left == join.left() && right == join.right()) {

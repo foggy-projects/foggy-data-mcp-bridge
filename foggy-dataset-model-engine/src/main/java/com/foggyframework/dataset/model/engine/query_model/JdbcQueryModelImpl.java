@@ -183,8 +183,21 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
      * @return SQL 生成结果（含 SQL、参数、查询引擎引用）
      */
     public SqlGenerationResult generateSql(SystemBundlesContext systemBundlesContext, ModelResultContext context) {
+        return generateSql(systemBundlesContext, context, false);
+    }
+
+    public SqlGenerationResult generateComposeSql(SystemBundlesContext systemBundlesContext, ModelResultContext context) {
+        return generateSql(systemBundlesContext, context, true);
+    }
+
+    private SqlGenerationResult generateSql(SystemBundlesContext systemBundlesContext, ModelResultContext context, boolean compose) {
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(this, sqlFormulaService);
         queryEngine.analysisQueryRequest(systemBundlesContext, context);
+        if (compose) {
+            if (queryExecutionStepExecutor != null) {
+                queryExecutionStepExecutor.prepareComposeSql(createExecutionContext(systemBundlesContext, context, queryEngine));
+            }
+        }
         Map<String, Object> diagnostics = context != null && context.getExtData() != null
                 ? context.getExtData()
                 : Collections.emptyMap();

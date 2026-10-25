@@ -74,6 +74,10 @@ public final class PlanExecution {
             ComposeSqlExecutionPort executionPort,
             String dialect,
             boolean normalizePlan) {
+        ComposeRuntimeBundle ambient = ComposeRuntimeHolder.currentBundle();
+        if (ambient != null && !ambient.executionAllowed()) {
+            throw com.foggyframework.dataset.model.engine.compose.schema.ComposeParameterException.explicitExecuteForbidden();
+        }
         ComposedSql composed = ComposeSqlCompiler.compilePlanToSql(plan, ctx,
                 ComposeSqlCompiler.CompileOptions.builder()
                         .planningPort(planningPort)

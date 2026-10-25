@@ -37,6 +37,7 @@ public final class ComposeRuntimeBundle {
     private final ComposeSqlExecutionPort executionPort;
     private final String dialect;
     private final boolean normalizePlan;
+    private final boolean executionAllowed;
 
     private ComposeRuntimeBundle(Builder b) {
         this.ctx = Objects.requireNonNull(b.ctx,
@@ -58,6 +59,7 @@ public final class ComposeRuntimeBundle {
                 "ComposeRuntimeBundle.semanticService is required");
         this.dialect = b.dialect == null ? "mysql" : b.dialect;
         this.normalizePlan = b.normalizePlan;
+        this.executionAllowed = b.executionAllowed;
     }
 
     public ComposeQueryContext ctx() { return ctx; }
@@ -66,6 +68,7 @@ public final class ComposeRuntimeBundle {
     public ComposeSqlExecutionPort executionPort() { return executionPort; }
     public String dialect() { return dialect; }
     public boolean normalizePlan() { return normalizePlan; }
+    public boolean executionAllowed() { return executionAllowed; }
 
     public static Builder builder() { return new Builder(); }
 
@@ -76,6 +79,7 @@ public final class ComposeRuntimeBundle {
         private ComposeSqlExecutionPort executionPort;
         private String dialect;
         private boolean normalizePlan;
+        private boolean executionAllowed = true;
 
         public Builder ctx(ComposeQueryContext v) { this.ctx = v; return this; }
         public Builder semanticService(SemanticQueryServiceV3 v) {
@@ -88,6 +92,7 @@ public final class ComposeRuntimeBundle {
         public Builder executionPort(ComposeSqlExecutionPort v) { this.executionPort = v; return this; }
         public Builder dialect(String v) { this.dialect = v; return this; }
         public Builder normalizePlan(boolean v) { this.normalizePlan = v; return this; }
+        public Builder executionAllowed(boolean v) { this.executionAllowed = v; return this; }
 
         public ComposeRuntimeBundle build() { return new ComposeRuntimeBundle(this); }
     }

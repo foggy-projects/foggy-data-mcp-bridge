@@ -47,6 +47,18 @@ public final class ComposeParameterException extends IllegalArgumentException {
                 "Use model with a QM name or QueryPlan; remove the other source parameter.", Map.of());
     }
 
+    public static ComposeParameterException explicitExecuteForbidden() {
+        return new ComposeParameterException("COMPOSE_EXPLICIT_EXECUTE_FORBIDDEN", "execute", "execute",
+                "is unavailable in validate/preview",
+                "Return a QueryPlan or use toSql(); only execute mode may read data.", Map.of());
+    }
+
+    public ComposeParameterException atPath(String path) {
+        return new ComposeParameterException(code, path, parameter,
+                "requires " + details.getOrDefault("expectedType", "a valid value"),
+                "Correct " + path + ".", details);
+    }
+
     public static ComposeParameterException unsupportedDerived(String path, String parameter) {
         String action = "calculatedFields".equals(parameter)
                 ? "Project supported expressions in columns with AS aliases; add another .query(...) stage for filtering the new aliases."

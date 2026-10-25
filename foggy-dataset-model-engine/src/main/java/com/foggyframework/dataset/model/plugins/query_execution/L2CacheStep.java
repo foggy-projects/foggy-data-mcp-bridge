@@ -27,6 +27,10 @@ import java.util.Objects;
 @Component
 public class L2CacheStep implements QueryExecutionStep {
 
+    /** Compose disables inner caches and executes the governed source relation. */
+    @Override
+    public boolean composeSqlOnlyIsSafe(QueryExecutionContext ctx) { return ctx != null; }
+
     private static final String LOOKUP_PAGING_SQL = L2CacheStep.class.getName() + ".lookupPagingSql";
     private static final String LOOKUP_PARAMS = L2CacheStep.class.getName() + ".lookupParams";
 
