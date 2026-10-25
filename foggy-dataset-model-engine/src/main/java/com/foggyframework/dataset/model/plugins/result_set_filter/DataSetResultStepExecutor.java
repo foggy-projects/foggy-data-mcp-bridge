@@ -1,7 +1,9 @@
 package com.foggyframework.dataset.model.plugins.result_set_filter;
 
 import com.foggyframework.core.filter.FoggyStepExecutor;
+
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.aop.support.AopUtils;
 
 import java.lang.reflect.Method;
@@ -37,8 +39,12 @@ public class DataSetResultStepExecutor extends FoggyStepExecutor<ModelResultCont
         this.beforeQuerySteps = sort(safeSteps, DataSetResultStep::beforeQueryOrder);
         this.processSteps = sort(safeSteps, DataSetResultStep::processOrder);
         if (steps != null && !steps.isEmpty()) {
-            log.debug("DataSetResultStepExecutor initialized with {} steps; beforeQuery={}, process={}",
-                    steps.size(), stepNames(beforeQuerySteps), stepNames(processSteps));
+            log.debug(
+                    "DataSetResultStepExecutor initialized with {} steps; beforeQuery={},"
+                            + " process={}",
+                    steps.size(),
+                    stepNames(beforeQuerySteps),
+                    stepNames(processSteps));
         }
     }
 
@@ -111,9 +117,15 @@ public class DataSetResultStepExecutor extends FoggyStepExecutor<ModelResultCont
             int value = order.applyAsInt(step);
             DataSetResultStep previous = seen.putIfAbsent(value, step);
             if (previous != null) {
-                throw new IllegalStateException("Duplicate DataSetResultStep " + phase + " order=" + value
-                        + " for " + AopUtils.getTargetClass(previous).getName()
-                        + " and " + AopUtils.getTargetClass(step).getName());
+                throw new IllegalStateException(
+                        "Duplicate DataSetResultStep "
+                                + phase
+                                + " order="
+                                + value
+                                + " for "
+                                + AopUtils.getTargetClass(previous).getName()
+                                + " and "
+                                + AopUtils.getTargetClass(step).getName());
             }
         }
     }
@@ -131,5 +143,44 @@ public class DataSetResultStepExecutor extends FoggyStepExecutor<ModelResultCont
 
     private static List<String> stepNames(List<DataSetResultStep> steps) {
         return steps.stream().map(step -> step.getClass().getSimpleName()).toList();
+    }
+
+    public boolean pivotResultProcessingIsIdentity(ModelResultContext context) {
+        for (var step : processSteps) {
+            if (!overridesPhase(step, "process")) continue;
+            try {
+                Class<?> type = AopUtils.getTargetClass(step);
+                if (type.getMethod("pivotResultProcessingIsIdentity", ModelResultContext.class)
+                                        .getDeclaringClass()
+                                != type
+                        || !step.pivotResultProcessingIsIdentity(context)) return false;
+            } catch (ReflectiveOperationException | RuntimeException unproven) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public java.util.Optional<String> pivotCacheScope(ModelResultContext context) {
+        List<String> identities = new ArrayList<>();
+        for (DataSetResultStep step : beforeQuerySteps) {
+            try {
+                Class<?> type = AopUtils.getTargetClass(step);
+                Class<?> declaration =
+                        type.getMethod("pivotCacheScope", ModelResultContext.class)
+                                .getDeclaringClass();
+                // A new concrete extension must attest its own behavior, including inherited hooks.
+                if (declaration != type) return java.util.Optional.empty();
+                var scope = step.pivotCacheScope(context);
+                if (scope == null || scope.isEmpty() || scope.get().isBlank())
+                    return java.util.Optional.empty();
+                identities.add(type.getName());
+                identities.add(scope.get());
+            } catch (RuntimeException | ReflectiveOperationException unproven) {
+                return java.util.Optional.empty();
+            }
+        }
+        return com.foggyframework.dataset.model.semantic.permission.AuthorizationSignatureService
+                .canonicalFingerprint(identities);
     }
 }

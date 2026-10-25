@@ -11,6 +11,11 @@ import java.util.Map;
  */
 public interface PivotRollupExecutionPort extends SemanticQueryExecutionPort {
 
+    /** Raw UNION execution may skip process only with an explicit result-identity proof. */
+    default boolean supportsProcessedRollupBatch() {
+        return false;
+    }
+
     SemanticSqlGeneration generateRollupSql(String model, SemanticQueryRequest request,
                                              SemanticRequestContext context);
 

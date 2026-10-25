@@ -6,6 +6,7 @@ import com.foggyframework.dataset.model.engine.compose.context.Principal;
 import com.foggyframework.dataset.model.engine.compose.runtime.ComposeScriptService;
 import com.foggyframework.dataset.model.engine.compose.sandbox.ComposeSandboxViolationException;
 import com.foggyframework.dataset.model.engine.compose.schema.ComposeSchemaException;
+import com.foggyframework.dataset.model.engine.compose.schema.ComposeParameterException;
 import com.foggyframework.dataset.model.engine.compose.security.AuthorityResolution;
 import com.foggyframework.dataset.model.engine.compose.security.AuthorityResolutionException;
 import com.foggyframework.dataset.model.engine.compose.security.AuthorityResolver;
@@ -77,6 +78,10 @@ public class DefaultComposeExecutionPort implements ComposeExecutionPort {
             throw new ComposeExecutionException(
                     ComposeExecutionException.Kind.SANDBOX,
                     e.code(), e.phase(), e.getMessage(), null, null, e);
+        } catch (ComposeParameterException e) {
+            throw new ComposeExecutionException(
+                    ComposeExecutionException.Kind.SCHEMA,
+                    e.code(), e.phase(), e.getMessage(), e.parameter(), null, e).withDetails(e.details());
         } catch (ComposeSchemaException e) {
             throw new ComposeExecutionException(
                     ComposeExecutionException.Kind.SCHEMA,

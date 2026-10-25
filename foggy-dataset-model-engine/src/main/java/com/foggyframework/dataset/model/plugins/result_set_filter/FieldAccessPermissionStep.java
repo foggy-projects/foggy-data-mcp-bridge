@@ -8,14 +8,15 @@ import com.foggyframework.dataset.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.model.engine.compose.schema.AliasExtractor;
 import com.foggyframework.dataset.model.engine.compose.schema.ColumnAliasParts;
-import com.foggyframework.dataset.model.engine.expression.CalculatedFieldService;
-import com.foggyframework.dataset.model.engine.expression.CalculatedFieldDependencies;
 import com.foggyframework.dataset.model.engine.expression.CalculatedDependencyGraph;
+import com.foggyframework.dataset.model.engine.expression.CalculatedFieldDependencies;
 import com.foggyframework.dataset.model.engine.expression.InlineExpressionParser;
 import com.foggyframework.dataset.model.semantic.domain.DeniedPhysicalColumn;
 import com.foggyframework.dataset.model.spi.PhysicalColumnMapping;
 import com.foggyframework.dataset.model.spi.QueryModel;
+
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
@@ -44,6 +45,11 @@ import java.util.*;
 @Order(-25)
 @Slf4j
 public class FieldAccessPermissionStep implements DataSetResultStep {
+
+    @Override
+    public java.util.Optional<String> pivotCacheScope(ModelResultContext context) {
+        return java.util.Optional.of("engine-governed-v1");
+    }
 
     @Override
     public int beforeQuery(ModelResultContext ctx) {
@@ -157,7 +163,8 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
         for (String column : columns) {
             InlineExpressionParser.InlineExpression parsed = InlineExpressionParser.parse(column);
             if (parsed != null) {
-                validateExpressionDeps(parsed.getExpression(), column, "columns", access, calcFieldMap);
+                validateExpressionDeps(
+                        parsed.getExpression(), column, "columns", access, calcFieldMap);
             } else {
                 String fieldForCheck = stripAliasIfPresent(column);
                 String baseField = stripDimensionSuffix(fieldForCheck);
@@ -242,7 +249,8 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
         if (item.getExpr() != null && !item.getExpr().isBlank()) {
             validateExpressionDeps(item.getExpr(), item.getExpr(), clause, access, calcFieldMap);
         }
-        if (item.getValue() instanceof Map<?, ?> reference && reference.get("$field") instanceof String field) {
+        if (item.getValue() instanceof Map<?, ?> reference
+                && reference.get("$field") instanceof String field) {
             validateExpressionDeps(field, field, clause, access, calcFieldMap);
         }
         if (item.getAnd() != null) {
@@ -271,7 +279,8 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
                 continue;
             }
             if (outputBindings.containsKey(field)) {
-                validateExpressionDeps(outputBindings.get(field), field, "orderBy", access, calcFieldMap);
+                validateExpressionDeps(
+                        outputBindings.get(field), field, "orderBy", access, calcFieldMap);
                 continue;
             }
             if (calcFieldMap.containsKey(field)) {
@@ -280,7 +289,8 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
             }
             InlineExpressionParser.InlineExpression parsed = InlineExpressionParser.parse(field);
             if (parsed != null) {
-                validateExpressionDeps(parsed.getExpression(), field, "orderBy", access, calcFieldMap);
+                validateExpressionDeps(
+                        parsed.getExpression(), field, "orderBy", access, calcFieldMap);
             } else {
                 String baseField = stripDimensionSuffix(field);
                 checkField(baseField, field, "orderBy", access);
@@ -302,7 +312,8 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
             }
             String baseField = stripDimensionSuffix(field);
             checkField(baseField, field, "groupBy", access);
-            if (calcFieldMap.containsKey(field)) validateExpressionDeps(field, field, "groupBy", access, calcFieldMap);
+            if (calcFieldMap.containsKey(field))
+                validateExpressionDeps(field, field, "groupBy", access, calcFieldMap);
         }
     }
 

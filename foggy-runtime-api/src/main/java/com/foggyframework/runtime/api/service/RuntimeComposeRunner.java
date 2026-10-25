@@ -65,8 +65,13 @@ public class RuntimeComposeRunner {
             String action = e.kind() == ComposeExecutionException.Kind.SCHEMA
                     ? "Inspect compose fields/schema and retry."
                     : "Fix compose script or model metadata and retry.";
+            if (e.details().get("suggestedNextAction") instanceof String parameterAction
+                    && !parameterAction.isBlank()) {
+                action = parameterAction;
+            }
             throw failure(mapScriptErrorCode(phase), phase, e.getMessage(),
-                    e.field(), action, true, compilerDiagnostics(context, e), e);
+                    e.field(), action, !Boolean.FALSE.equals(e.details().get("safeToAutoRepair")),
+                    compilerDiagnostics(context, e), e);
         } catch (RuntimeComposeException e) {
             throw e;
         } catch (RuntimeException e) {

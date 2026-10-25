@@ -7,7 +7,9 @@ import com.foggyframework.dataset.model.impl.query.QueryFieldBindings;
 import com.foggyframework.dataset.model.semantic.member.MemberFieldBinding;
 import com.foggyframework.dataset.model.semantic.member.permission.*;
 import com.foggyframework.dataset.model.spi.*;
+
 import jakarta.annotation.Resource;
+
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
@@ -18,13 +20,20 @@ import java.util.function.Consumer;
 @Component
 @Order(-5)
 public class SyntheticMemberFinalPermissionStep implements DataSetResultStep {
+
+    @Override
+    public java.util.Optional<String> pivotCacheScope(ModelResultContext context) {
+        return java.util.Optional.of("engine-governed-v1");
+    }
+
     @Resource private QueryModelLoader queryModelLoader;
     @Resource private SyntheticMemberInternalPatchStep patches;
 
     @Override
     public int beforeQuery(ModelResultContext ctx) {
         QueryModel model = ctx.getQueryModel();
-        if (model == null || model.getName() == null || !model.getName().contains("#")) return CONTINUE;
+        if (model == null || model.getName() == null || !model.getName().contains("#"))
+            return CONTINUE;
         DbQueryRequestDef request = ctx.getRequest().getParam();
         String root = model.getName().substring(model.getName().indexOf('#') + 1);
         QueryModel source = MemberFieldBinding.sourceModel(model, queryModelLoader, ctx.getNamespace());
@@ -33,7 +42,8 @@ public class SyntheticMemberFinalPermissionStep implements DataSetResultStep {
         validateExternalDependencies(ctx, model, schema);
         Map<String, SyntheticMemberEffectivePermission> activated = new LinkedHashMap<>();
         Object rootPermission = ctx.getExtData().get(SyntheticMemberInternalPatchStep.EFFECTIVE_PERMISSION_KEY);
-        if (rootPermission instanceof SyntheticMemberEffectivePermission permission) activated.put("", permission);
+        if (rootPermission instanceof SyntheticMemberEffectivePermission permission)
+            activated.put("", permission);
 
         // A policy can introduce another child dependency. Iterate to a fixed point;
         // each dimension is applied once, with its TM/QM override resolved locally.
@@ -50,8 +60,10 @@ public class SyntheticMemberFinalPermissionStep implements DataSetResultStep {
                 if (permission == null) permission = new SyntheticMemberEffectivePermission();
                 activated.put(prefix, permission);
                 changed = true;
-                if (permission.hasQueryBuilders()) throw RX.throwAUserTip(
-                        "child member queryBuilder cannot be safely applied through ancestor: " + path);
+                if (permission.hasQueryBuilders())
+                    throw RX.throwAUserTip(
+                            "child member queryBuilder cannot be safely applied through ancestor: "
+                                    + path);
                 validateVisible(permission, prefix, schema, dependencies);
                 List<MemberPermissionSliceDef> slices = new ArrayList<>();
                 if (permission.getForcedSlice() != null) for (var original : permission.getForcedSlice()) {
@@ -88,7 +100,10 @@ public class SyntheticMemberFinalPermissionStep implements DataSetResultStep {
                 : model.getPhysicalColumnMapping().toDeniedQmFields(ctx.getDeniedColumns());
         if (ctx.getFieldAccess() == null && denied.isEmpty()) return;
         DbQueryRequestDef external = new DbQueryRequestDef();
-        external.setColumns(patch.getVisibleColumns() == null ? List.of("1 AS memberPermissionProbe") : patch.getVisibleColumns());
+        external.setColumns(
+                patch.getVisibleColumns() == null
+                        ? List.of("1 AS memberPermissionProbe")
+                        : patch.getVisibleColumns());
         external.setSlice(patch.getForcedSlice());
         external.setOrderBy(patch.getForcedOrderBy());
         for (String field : dependencies(model, external, schema)) {
@@ -109,7 +124,9 @@ public class SyntheticMemberFinalPermissionStep implements DataSetResultStep {
         Set<String> allowed = new HashSet<>();
         for (String field : permission.getVisibleColumns()) {
             String mapped = prefix + field;
-            if (!schema.contains(mapped)) throw RX.throwAUserTip("child member visibleColumns contains unknown field: " + mapped);
+            if (!schema.contains(mapped))
+                throw RX.throwAUserTip(
+                        "child member visibleColumns contains unknown field: " + mapped);
             allowed.add(mapped);
         }
         for (String field : dependencies) if (field.startsWith(prefix) && !allowed.contains(field))
@@ -117,15 +134,25 @@ public class SyntheticMemberFinalPermissionStep implements DataSetResultStep {
     }
 
     static void checkHierarchy(DbQueryRequestDef request, SyntheticMemberEffectivePermission permission, String prefix) {
-        Consumer<CondRequestDef> check = condition -> {
-            if (!Set.of("childrenOf", "descendantsOf", "ancestorsOf", "selfAndDescendantsOf", "selfAndAncestorsOf")
-                    .contains(Objects.toString(condition.getOp(), ""))) return;
-            if (!prefix.isEmpty() && (condition.getField() == null || !condition.getField().startsWith(prefix))) return;
-            if (Boolean.FALSE.equals(permission.getHierarchyEnabled()))
-                throw RX.throwAUserTip("synthetic member-QM 内部权限已禁用层级操作");
-            if (permission.getAllowedHierarchyOps() != null && !permission.getAllowedHierarchyOps().contains(condition.getOp()))
-                throw RX.throwAUserTip("synthetic member-QM 内部权限不允许层级操作: " + condition.getOp());
-        };
+        Consumer<CondRequestDef> check =
+                condition -> {
+                    if (!Set.of(
+                                    "childrenOf",
+                                    "descendantsOf",
+                                    "ancestorsOf",
+                                    "selfAndDescendantsOf",
+                                    "selfAndAncestorsOf")
+                            .contains(Objects.toString(condition.getOp(), ""))) return;
+                    if (!prefix.isEmpty()
+                            && (condition.getField() == null
+                                    || !condition.getField().startsWith(prefix))) return;
+                    if (Boolean.FALSE.equals(permission.getHierarchyEnabled()))
+                        throw RX.throwAUserTip("synthetic member-QM 内部权限已禁用层级操作");
+                    if (permission.getAllowedHierarchyOps() != null
+                            && !permission.getAllowedHierarchyOps().contains(condition.getOp()))
+                        throw RX.throwAUserTip(
+                                "synthetic member-QM 内部权限不允许层级操作: " + condition.getOp());
+                };
         visit(request.getSlice(), check);
         visit(request.getHaving(), check);
         visit(request.getPostSlice(), check);
@@ -151,11 +178,13 @@ public class SyntheticMemberFinalPermissionStep implements DataSetResultStep {
         }
         if (request.getCalculatedFields() != null) request.getCalculatedFields().forEach(c -> result.addAll(graph.base(c)));
         if (request.getPostAggregateCalculations() != null) request.getPostAggregateCalculations().forEach(c -> add.accept(c.getMeasure()));
-        Consumer<CondRequestDef> condition = c -> {
-            add.accept(c.getField());
-            add.accept(c.getExpr());
-            if (c.getValue() instanceof Map<?, ?> ref && ref.get("$field") instanceof String field) add.accept(field);
-        };
+        Consumer<CondRequestDef> condition =
+                c -> {
+                    add.accept(c.getField());
+                    add.accept(c.getExpr());
+                    if (c.getValue() instanceof Map<?, ?> ref
+                            && ref.get("$field") instanceof String field) add.accept(field);
+                };
         visit(request.getSlice(), condition);
         visit(request.getHaving(), condition);
         visit(request.getPostSlice(), condition);

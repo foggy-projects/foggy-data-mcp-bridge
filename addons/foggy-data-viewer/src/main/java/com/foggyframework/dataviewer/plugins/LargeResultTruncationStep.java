@@ -1,11 +1,12 @@
 package com.foggyframework.dataviewer.plugins;
 
-import com.foggyframework.dataviewer.config.DataViewerProperties;
-import com.foggyframework.dataviewer.service.QueryCacheService;
-import com.foggyframework.dataviewer.domain.CachedQueryContext;
-import com.foggyframework.dataviewer.service.ViewerLaunchLinkProvider;
 import com.foggyframework.dataset.model.plugins.result_set_filter.DataSetResultStep;
 import com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext;
+import com.foggyframework.dataviewer.config.DataViewerProperties;
+import com.foggyframework.dataviewer.domain.CachedQueryContext;
+import com.foggyframework.dataviewer.service.QueryCacheService;
+import com.foggyframework.dataviewer.service.ViewerLaunchLinkProvider;
+
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
@@ -40,6 +41,19 @@ import java.util.Map;
  */
 @Slf4j
 public class LargeResultTruncationStep implements DataSetResultStep {
+
+    @Override
+    public boolean pivotResultProcessingIsIdentity(ModelResultContext context) {
+        return context != null && !isFromMcp(context);
+    }
+
+    @Override
+    public java.util.Optional<String> pivotCacheScope(ModelResultContext context) {
+        // MCP truncation creates caller-owned Viewer links; a shared processed response is unsafe.
+        return isFromMcp(context)
+                ? java.util.Optional.empty()
+                : java.util.Optional.of("not-mcp-v1");
+    }
 
     private final QueryCacheService queryCacheService;
     private final DataViewerProperties properties;

@@ -11,6 +11,16 @@ package com.foggyframework.dataset.model.plugins.result_set_filter;
 public class SemanticMoneyStep implements DataSetResultStep {
 
     @Override
+    public boolean pivotResultProcessingIsIdentity(ModelResultContext context) {
+        return true;
+    }
+
+    @Override
+    public java.util.Optional<String> pivotCacheScope(ModelResultContext context) {
+        return java.util.Optional.of("engine-governed-v1");
+    }
+
+    @Override
     public int process(ModelResultContext ctx) {
         // 暂时注释，保留原逻辑供参考
 //        if (ctx.getQueryType() == ModelResultContext.QueryType.SEMANTIC) {

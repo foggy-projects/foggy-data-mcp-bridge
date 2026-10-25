@@ -1,7 +1,6 @@
 package com.foggyframework.dataset.model.engine.pivot.algo;
 
 import com.foggyframework.dataset.model.engine.pivot.PivotResult;
-import com.foggyframework.dataset.model.semantic.domain.pivot.PivotLayout;
 import com.foggyframework.dataset.model.semantic.domain.pivot.PivotRequest;
 
 import java.util.*;
@@ -31,6 +30,17 @@ public class ResultShaper {
                                      List<String> rowFields,
                                      List<String> colFields,
                                      List<String> metrics) {
+        return shape(resultSet, pivot, rowFields, colFields, metrics, Map.of(), Map.of());
+    }
+
+    public static PivotResult shape(
+            List<Map<String, Object>> resultSet,
+            PivotRequest pivot,
+            List<String> rowFields,
+            List<String> colFields,
+            List<String> metrics,
+            Map<List<Object>, Integer> rowOrder,
+            Map<List<Object>, Integer> columnOrder) {
         String format = pivot.getOutputFormat() != null ? pivot.getOutputFormat() : "tree";
 
         PivotResult result = new PivotResult();
@@ -44,7 +54,7 @@ public class ResultShaper {
 
         switch (format) {
             case "grid":
-                shapeGrid(result, resultSet, rowFields, colFields, metrics);
+                shapeGrid(result, resultSet, rowFields, colFields, metrics, rowOrder, columnOrder);
                 break;
             case "flat":
                 shapeFlat(result, resultSet);
@@ -139,13 +149,16 @@ public class ResultShaper {
         return nodes;
     }
 
-
-
     // ========== grid 格式 ==========
 
-    private static void shapeGrid(PivotResult result, List<Map<String, Object>> resultSet,
-                                   List<String> rowFields, List<String> colFields,
-                                   List<String> metrics) {
+    private static void shapeGrid(
+            PivotResult result,
+            List<Map<String, Object>> resultSet,
+            List<String> rowFields,
+            List<String> colFields,
+            List<String> metrics,
+            Map<List<Object>, Integer> rowOrder,
+            Map<List<Object>, Integer> columnOrder) {
         // 提取唯一的行头和列头
         List<Map<String, Object>> rowHeaders = new ArrayList<>();
         List<Map<String, Object>> columnHeaders = new ArrayList<>();
@@ -186,6 +199,22 @@ public class ResultShaper {
                 }
             }
         }
+
+        // Independent sparse axes cannot both be reconstructed from cell encounter order.
+        if (!rowOrder.isEmpty())
+            rowHeaders.sort(
+                    Comparator.comparingInt(
+                            h ->
+                                    rowOrder.getOrDefault(
+                                            PivotCoordinates.tuple(h, rowFields),
+                                            Integer.MAX_VALUE)));
+        if (!columnOrder.isEmpty())
+            columnHeaders.sort(
+                    Comparator.comparingInt(
+                            h ->
+                                    columnOrder.getOrDefault(
+                                            PivotCoordinates.tuple(h, colFields),
+                                            Integer.MAX_VALUE)));
 
         // 构建坐标索引
         Map<List<Object>, Map<String, Object>> dataIndex = new HashMap<>();

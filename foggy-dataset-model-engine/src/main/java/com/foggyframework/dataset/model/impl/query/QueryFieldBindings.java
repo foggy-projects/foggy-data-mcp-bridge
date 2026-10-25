@@ -32,9 +32,27 @@ public final class QueryFieldBindings {
         public String logicalSql(String sql, FDialect dialect) {
             if (bindings.stream().allMatch(b -> b.queryName().equals(b.outputName()))) return sql;
             List<String> columns = new ArrayList<>();
-            for (Binding binding : bindings) columns.add("fb." + dialect.quoteIdentifier(binding.outputName())
-                    + " AS " + dialect.quoteIdentifier(binding.queryName()));
+            for (Binding binding : bindings)
+                columns.add(
+                        "fb."
+                                + dialect.quoteIdentifier(binding.outputName())
+                                + " AS "
+                                + dialect.quoteIdentifier(binding.queryName()));
             return "SELECT " + String.join(", ", columns) + " FROM (" + sql + ") fb";
+        }
+
+        /** Restore ordinary QM output names before invoking a result processor. */
+        public List<Map<String, Object>> outputRows(List<Map<String, Object>> rows) {
+            if (rows == null) return List.of();
+            List<Map<String, Object>> result = new ArrayList<>(rows.size());
+            for (var row : rows) {
+                Map<String, Object> mapped =
+                        new org.springframework.util.LinkedCaseInsensitiveMap<>();
+                for (Binding binding : bindings)
+                    mapped.put(binding.outputName(), row.get(binding.queryName()));
+                result.add(mapped);
+            }
+            return result;
         }
     }
 

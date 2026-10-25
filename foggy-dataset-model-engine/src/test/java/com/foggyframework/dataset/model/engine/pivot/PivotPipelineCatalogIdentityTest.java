@@ -53,7 +53,7 @@ class PivotPipelineCatalogIdentityTest {
     private static final String NAMESPACE = "tenant-a";
 
     @Test
-    void entryResolvesOncePinsEveryPhaseAndUsesStrongIdentityForReadAndWrite() {
+    void entryResolvesOncePinsEveryPhaseButRefusesUnobservedAdapterStores() {
         QueryModel model = queryModel(MODEL);
         CatalogResolution<QueryModel> resolution =
                 resolution(model, NAMESPACE, "catalog-a", true, true);
@@ -78,8 +78,10 @@ class PivotPipelineCatalogIdentityTest {
                 eq("execute"), contextCaptor.capture());
         assertSame(resolution, contextCaptor.getValue().getCatalogResolution());
         verify(cache).lookup(anyString(), anyLong());
-        verify(cache).store(anyString(), any(SemanticQueryResponse.class), anyLong(),
-                eq(NAMESPACE), eq(MODEL));
+        verify(cache, never()).store(anyString(), any(), anyLong(), any(), any());
+        assertEquals(
+                "execution_governance_unproven_or_changed",
+                diagnostic(response, "pivot.cache.store_skipped").get("reason"));
 
         Map<String, Object> identity = diagnostic(response, "pivot.cache.identity");
         assertEquals(PivotOuterCacheStrongIdentity.STATUS_COMPLETE, identity.get("status"));
@@ -440,6 +442,10 @@ class PivotPipelineCatalogIdentityTest {
                 .thenAnswer(
                         invocation -> {
                             ModelResultContext context = invocation.getArgument(0);
+                            context.setPivotCacheOriginalConditions(
+                                    com.foggyframework.dataset.model.semantic.permission
+                                            .PivotCacheProofSession.conditions(context));
+                            context.setPivotCacheScope("test-governance-v1");
                             context.setPermissionDecision(
                                     com.foggyframework.dataset.model.semantic.permission
                                             .PermissionDecision.publicAllow());

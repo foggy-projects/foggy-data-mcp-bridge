@@ -1,8 +1,8 @@
 package com.foggyframework.dataset.model.plugins.result_set_filter;
 
 import com.foggyframework.dataset.client.domain.PagingRequest;
-import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.model.PagingResultImpl;
+import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
 
 public interface DataSetResultFilterManager {
 
@@ -17,4 +17,13 @@ public interface DataSetResultFilterManager {
     void process(ModelResultContext context);
 
     void beforeQuery(ModelResultContext context);
+
+    /** Unproven managers/extensions execute normally but cannot share processed Pivot responses. */
+    default java.util.Optional<String> pivotCacheScope(ModelResultContext context) {
+        return java.util.Optional.empty();
+    }
+
+    default boolean pivotResultProcessingIsIdentity(ModelResultContext context) {
+        return false;
+    }
 }

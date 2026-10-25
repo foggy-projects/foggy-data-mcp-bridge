@@ -2,7 +2,9 @@ package com.foggyframework.dataset.model.plugins.result_set_filter;
 
 import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.model.def.query.request.GroupRequestDef;
+
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
@@ -36,6 +38,11 @@ import java.util.*;
 @Component
 @Order(10)  // 在 InlineExpressionPreprocessStep(5) 之后执行
 public class AutoGroupByStep implements DataSetResultStep {
+
+    @Override
+    public java.util.Optional<String> pivotCacheScope(ModelResultContext context) {
+        return java.util.Optional.of("engine-governed-v1");
+    }
 
     @Override
     public int beforeQuery(ModelResultContext ctx) {
@@ -110,7 +117,10 @@ public class AutoGroupByStep implements DataSetResultStep {
                 // 聚合列，设置 agg 字段（稍后由 SimpleSqlJdbcQueryVisitor 根据 groupByName 过滤）
                 group.setAgg(aggType);
                 if (log.isDebugEnabled()) {
-                    log.debug("autoGroupBy: 添加聚合列 '{}' (agg={}) 到 groupBy（仅用于元数据，不会出现在 SQL GROUP BY）", columnName, aggType);
+                    log.debug(
+                            "autoGroupBy: 添加聚合列 '{}' (agg={}) 到 groupBy（仅用于元数据，不会出现在 SQL GROUP BY）",
+                            columnName,
+                            aggType);
                 }
             } else {
                 // 非聚合列，不设置 agg

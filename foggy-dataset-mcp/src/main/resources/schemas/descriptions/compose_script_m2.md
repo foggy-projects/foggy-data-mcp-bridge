@@ -19,7 +19,7 @@
 
 | 入口 | 用法 |
 |---|---|
-| `dsl({...})` | 从查询模型名字符串开始一个基础查询 |
+| `dsl({...})` | `model` 为 QM 名称时开始基础查询；为已有 plan 时开始派生查询 |
 | `plan.query({...})` | 对已有 plan 继续投影、过滤、排序、分页 |
 | `.join(other, type, on)` | 横向连接 plan |
 | `.union(other, options)` | 纵向合并同结构 plan |
@@ -48,7 +48,9 @@ const top = sales.query({
 return { plans: top };
 ```
 
-常用字段：`model`、`columns`、`slice`、`having`、`groupBy`、`orderBy`、`limit`、`start`、`distinct`、`calculatedFields`、`timeWindow`。字段语法与 `dataset.query_model` 一致。`model` 只接收查询模型名字符串；不得传已有 plan 或 join 结果。已有 plan 的二阶段处理使用 `previousPlan.query({...})`，内核形式是 `dsl({ source: previousPlan, ... })`。
+基础查询常用字段：`model`、`columns`、`slice`、`having`、`groupBy`、`orderBy`、`limit`、`start`、`distinct`、`calculatedFields`、`timeWindow`。基础字段语法与 `dataset.query_model` 一致。`model` 接收查询模型名字符串或已有 QueryPlan（含派生、Join、Union）；后者等价于 `previousPlan.query({...})`。旧 `dsl({ source: previousPlan, ... })` 保留兼容；两个非空来源不能同时指定。
+
+派生查询只引用前一阶段输出列，支持在 `columns` 中写表达式，如 `bill_amount * 2 as double_amount`。派生层不支持非空 `calculatedFields` 或 `having`，会返回参数路径和替代建议；`null` 或 `[]` 为无操作。对新别名筛选应再加一层 `.query({slice: [...]})`。不要把基础 QM 的完整计算字段能力推断为派生层能力。
 
 基础 `dsl({...})` 的 `slice` 过滤输入明细行，语义对应 WHERE；即使字段是 QM 聚合 measure，放在 `slice` 中也保持行级语义，不会自动转成 HAVING。分组后的聚合阈值必须显式放入 DSL 对象的顶层 `having`，例如 `having: [{"field":"arOverdueAmount","op":">","value":0}]`。不要在同一个 `$or` / `$and` 逻辑组内混合行级条件和聚合后条件；需要对 Join/Union/上一阶段输出继续过滤时，使用聚合后的 plan `.query({ slice: [...] })`。
 

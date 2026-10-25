@@ -162,7 +162,9 @@ public class QueryFacadeImpl implements AdvancedQueryFacade {
             context.setQueryModel(jdbcQueryModel);
 
             // 2. beforeQuery: 执行预处理 Step（L1Cache、Authorization、AutoGroupBy、InlineExpression 等）
+            capturePivotCacheConditions(context);
             dataSetResultFilterManager.beforeQuery(context);
+            observePivotCacheProof(context);
 
             if (log.isDebugEnabled()) {
                 log.debug(
@@ -192,6 +194,9 @@ public class QueryFacadeImpl implements AdvancedQueryFacade {
                 }
                 // 执行 process Step（缓存结果也需要经过结果处理）
                 dataSetResultFilterManager.process(context);
+                observePivotCacheProof(context);
+                if (context.getPivotCacheProofSession() != null)
+                    context.getPivotCacheProofSession().markExecuted();
                 return DbQueryResult.of(context.getPagingResult(), context.getQueryResult().getQueryEngine());
             }
 
@@ -212,6 +217,9 @@ public class QueryFacadeImpl implements AdvancedQueryFacade {
 
             // 6. process: 执行结果处理 Step（包含 L1 缓存写入）
             dataSetResultFilterManager.process(context);
+            observePivotCacheProof(context);
+            if (context.getPivotCacheProofSession() != null)
+                context.getPivotCacheProofSession().markExecuted();
 
             // 7. 更新结果（process 可能修改了 pagingResult）
             PagingResultImpl processedResult = context.getPagingResult();
@@ -254,7 +262,9 @@ public class QueryFacadeImpl implements AdvancedQueryFacade {
             QueryModel queryModel = resolveAndPin(context, queryModelName, effectiveNamespace);
 
             // 2. beforeQuery: 执行预处理（权限注入、AutoGroupBy 等）
+            capturePivotCacheConditions(context);
             dataSetResultFilterManager.beforeQuery(context);
+            observePivotCacheProof(context);
 
             // TimeWindowInterceptor may replace the query with a Compose plan.
             // The caller owns final plan compilation because it has the semantic service instance.
@@ -290,7 +300,17 @@ public class QueryFacadeImpl implements AdvancedQueryFacade {
             QueryModel queryModel = resolveAndPin(context, queryModelName, effectiveNamespace);
 
             // beforeQuery: Authorization, AutoGroupBy, InlineExpression, systemSlice, etc.
+            capturePivotCacheConditions(context);
             dataSetResultFilterManager.beforeQuery(context);
+            observePivotCacheProof(context);
+
+            if (options != null
+                    && "PivotAxisDomainSqlPlanner".equals(options.getPurpose())
+                    && !dataSetResultFilterManager.pivotResultProcessingIsIdentity(context)) {
+                throw new com.foggyframework.dataset.model.engine.pivot.sql
+                        .PivotPushdownUnsupportedException(
+                        "Pivot result processing is not identity; use governed dependency queries");
+            }
 
             if (context.isSkipQuery()) {
                 throw new com.foggyframework.dataset.model.engine.pivot.sql
@@ -308,6 +328,25 @@ public class QueryFacadeImpl implements AdvancedQueryFacade {
                     .PivotPushdownUnsupportedException(
                     "prepareManagedRelation only supports JDBC query models, got: "
                             + queryModel.getClass().getName());
+        }
+    }
+
+    private void capturePivotCacheConditions(ModelResultContext context) {
+        if (context.isPivotCacheProofRequested() || context.getPivotCacheProofSession() != null) {
+            context.setPivotCacheOriginalConditions(
+                    com.foggyframework.dataset.model.semantic.permission.PivotCacheProofSession
+                            .conditions(context));
+        }
+    }
+
+    private void observePivotCacheProof(ModelResultContext context) {
+        if (!context.isPivotCacheProofRequested() && context.getPivotCacheProofSession() == null)
+            return;
+        String scope = dataSetResultFilterManager.pivotCacheScope(context).orElse(null);
+        context.setPivotCacheScope(scope);
+        if (context.getPivotCacheProofSession() != null) {
+            context.getPivotCacheProofSession()
+                    .observe(context, context.getPivotCacheOriginalConditions(), scope);
         }
     }
 
@@ -378,7 +417,40 @@ public class QueryFacadeImpl implements AdvancedQueryFacade {
             com.foggyframework.dataset.model.spi.QueryModel qm =
                     relation.getQueryEngine().getJdbcQueryModel();
             if (qm instanceof JdbcQueryModelImpl jdbcImpl) {
-                return jdbcImpl.executeManagedRelation(executionContext, finalSql, finalParams);
+                DbQueryResult result =
+                        jdbcImpl.executeManagedRelation(executionContext, finalSql, finalParams);
+                var options = executionContext.getManagedRelationOptions();
+                if (resultContext != null
+                        && options != null
+                        && "PivotAxisDomainSqlPlanner".equals(options.getPurpose())) {
+                    var projection =
+                            executionContext.getExtData(
+                                    com.foggyframework.dataset.model.impl.query.QueryFieldBindings
+                                            .Projection.class
+                                            .getName());
+                    if (!(projection
+                            instanceof
+                            com.foggyframework.dataset.model.impl.query.QueryFieldBindings
+                                                    .Projection
+                                            bound))
+                        throw new IllegalStateException("PIVOT_RESULT_PROJECTION_REQUIRED");
+                    result.getPagingResult()
+                            .setItems(bound.outputRows(result.getPagingResult().getItems()));
+                    resultContext.setQueryResult(result);
+                    resultContext.setPagingResult(result.getPagingResult());
+                    dataSetResultFilterManager.process(resultContext);
+                    observePivotCacheProof(resultContext);
+                    resultContext
+                            .getPagingResult()
+                            .setItems(
+                                    bound.logicalRows(resultContext.getPagingResult().getItems()));
+                    result =
+                            DbQueryResult.of(
+                                    resultContext.getPagingResult(), result.getQueryEngine());
+                }
+                if (resultContext != null && resultContext.getPivotCacheProofSession() != null)
+                    resultContext.getPivotCacheProofSession().markExecuted();
+                return result;
             }
 
             throw new UnsupportedOperationException(

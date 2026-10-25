@@ -1,25 +1,27 @@
 package com.foggyframework.dataset.model.plugins.result_set_filter;
 
 import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
+import com.foggyframework.dataset.model.semantic.explain.ExplainTraceCollector;
+import com.foggyframework.dataset.model.semantic.explain.SemanticExplainResponse;
+import com.foggyframework.dataset.model.semantic.member.MemberFieldBinding;
+import com.foggyframework.dataset.model.semantic.member.SyntheticMemberQueryModelResolver;
 import com.foggyframework.dataset.model.semantic.permission.ModelPermissionException;
 import com.foggyframework.dataset.model.semantic.permission.ModelPermissionService;
 import com.foggyframework.dataset.model.semantic.permission.PermissionAction;
 import com.foggyframework.dataset.model.semantic.permission.PermissionDecision;
 import com.foggyframework.dataset.model.semantic.permission.PermissionPredicate;
-import com.foggyframework.dataset.model.semantic.explain.ExplainTraceCollector;
-import com.foggyframework.dataset.model.semantic.explain.SemanticExplainResponse;
-import com.foggyframework.dataset.model.semantic.member.SyntheticMemberQueryModelResolver;
 import com.foggyframework.dataset.model.spi.DbQueryColumn;
 import com.foggyframework.dataset.model.spi.QueryModel;
 import com.foggyframework.dataset.model.spi.QueryModelLoader;
+
 import jakarta.annotation.Resource;
-import com.foggyframework.dataset.model.semantic.member.MemberFieldBinding;
+
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -31,6 +33,11 @@ import java.util.Set;
 @Component
 @Order(-40)
 public class ModelPermissionEnforcementStep implements DataSetResultStep {
+
+    @Override
+    public java.util.Optional<String> pivotCacheScope(ModelResultContext context) {
+        return java.util.Optional.of("engine-governed-v1");
+    }
 
     @Resource
     private ModelPermissionService modelPermissionService;

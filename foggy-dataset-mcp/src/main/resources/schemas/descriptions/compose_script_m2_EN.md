@@ -21,7 +21,7 @@ Expose only these 3 entry points in generated scripts:
 
 | Entry | Trigger Scenario | Example |
 |---|---|---|
-| `dsl({...})` | Start a new query from a query model name string | `dsl({ model: "SalesQM", columns: [...] })` |
+| `dsl({...})` | Start a base query from a QM name, or a derived query from an existing plan | `dsl({ model: "SalesQM", columns: [...] })` or `dsl({model: prevPlan, columns: [...]})` |
 | `plan.query({...})` | Filter/process an existing plan (derived query) | `grouped.query({ columns: [...], orderBy: [...] })` |
 | `.join(other, type, on)` | Combine two plans side-by-side | `a.join(b, "inner", [{ left, op, right }])` |
 | `.union(other, options)` | Append one plan's rows to another | `a.union(b, { all: true })` |
@@ -47,7 +47,7 @@ Common fields:
 
 | Field | Type | Notes |
 |---|---|---|
-| `model` | `string` | Query model name for base queries. Do not pass a QueryPlan here. |
+| `model` | `string | QueryPlan` | A QM name starts a base query; a Base, Derived, Join or Union plan starts a derived query. |
 | `columns` | `string[] | object[]` | Projected columns and aliases |
 | `slice` | `object[]` | Filters: `{ field, op, value }` |
 | `having` | `object[]` | Explicit post-aggregation filters (SQL HAVING); use for grouped metric thresholds. |
@@ -56,14 +56,16 @@ Common fields:
 | `limit` | `number` | Row limit |
 | `start` | `number` | Offset |
 | `distinct` | `boolean` | SELECT DISTINCT |
-| `calculatedFields` | `object[]` | Post/base calculated fields when supported by the query model |
+| `calculatedFields` | `object[]` | Base-model calculation definitions; nonempty definitions are unsupported on derived plans. |
 
 `slice` filters input detail rows and keeps SQL WHERE semantics, including when a field is declared as a QM aggregate measure. The engine must not silently promote a `slice` condition to HAVING based on field metadata. Put grouped aggregate thresholds explicitly in the top-level `having` array. Keep row-level conditions and post-aggregation conditions out of the same `$or` / `$and` expression.
 | `timeWindow` | `object` | Time-window expansion |
 
 ## Derived Query
 
-Use `previousPlan.query({...})` for derived queries. Derived queries may only reference columns already projected by the previous stage. The lower-level form is `dsl({ source: previousPlan, ... })`; do not pass an existing plan through the `model` field.
+Use `previousPlan.query({...})` or the equivalent `dsl({model: previousPlan, ...})` for derived queries. Derived queries may only reference columns already projected by the previous stage. The legacy `dsl({source: previousPlan, ...})` remains compatible; do not supply two non-null source parameters.
+
+Derived calculations use expressions in `columns`, such as `bill_amount * 2 as double_amount`. Nonempty derived `calculatedFields` and `having` are rejected with a parameter path and corrective guidance; `null` and `[]` are no-ops. Add another `.query({slice: [...]})` stage to filter newly created aliases. Base-model calculation and window capabilities do not automatically apply to derived plans.
 
 ```fsscript
 const grouped = dsl({

@@ -10,6 +10,7 @@ import com.foggyframework.dataset.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.model.semantic.port.PivotRollupExecutionPort;
 import com.foggyframework.dataset.model.semantic.port.SemanticSqlGeneration;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -155,6 +156,7 @@ public class NonAdditiveRollupExecutor {
             RollupCache cache) {
 
         if (grains.isEmpty()) return true;
+        if (!pivotRollupExecutionPort.supportsProcessedRollupBatch()) return false;
 
         try {
             // 计算所有可能涉及的列的超集（用于 UNION ALL 列对齐）
@@ -176,8 +178,14 @@ public class NonAdditiveRollupExecutor {
             long elapsed = System.currentTimeMillis() - batchStart;
             logger.info("[Pivot] UNION ALL batch completed: {} grains in {} batches, {}ms",
                     grains.size(), batches.size(), elapsed);
-            PivotTelemetry.auxQueryCompleted(logger, model, "union_all", grains.size(), batches.size(),
-                    auxMetrics.size(), elapsed);
+            PivotTelemetry.auxQueryCompleted(
+                    logger,
+                    model,
+                    "union_all",
+                    grains.size(),
+                    batches.size(),
+                    auxMetrics.size(),
+                    elapsed);
             return true;
 
         } catch (Exception e) {
@@ -227,8 +235,11 @@ public class NonAdditiveRollupExecutor {
                 unionSql.append("\nUNION ALL\n");
             }
             // 修复 P0: UNION ALL 必须对齐所有分支的列
-            unionSql.append("SELECT ").append(part.grainIndex).append(" AS ").append(GRAIN_IDX_COLUMN);
-            
+            unionSql.append("SELECT ")
+                    .append(part.grainIndex)
+                    .append(" AS ")
+                    .append(GRAIN_IDX_COLUMN);
+
             for (String dim : allDimFields) {
                 if (part.grain.getGroupByFields().contains(dim)) {
                     unionSql.append(", _pivot_sub.").append(quoted(dim));
@@ -278,7 +289,8 @@ public class NonAdditiveRollupExecutor {
                 cache.put(grain.getGrainKey(), coordinates, metricValues);
             }
 
-            logger.debug("[Pivot] UNION ALL grain={}: {} rows", grain.getGrainKey(), grainRows.size());
+            logger.debug(
+                    "[Pivot] UNION ALL grain={}: {} rows", grain.getGrainKey(), grainRows.size());
         }
     }
 
@@ -401,10 +413,17 @@ public class NonAdditiveRollupExecutor {
                 survivingRowDomain, survivingColDomain, domainTransportPlans);
         logDomainTransportPlans(model, domainTransportPlans);
 
-        logger.debug("[Pivot] Serial aux query: grain={}, fields={}", grain.getGrainKey(), grain.getGroupByFields());
+        logger.debug(
+                "[Pivot] Serial aux query: grain={}, fields={}",
+                grain.getGrainKey(),
+                grain.getGroupByFields());
 
-        SemanticQueryResponse response = pivotRollupExecutionPort.queryModel(
-                model, auxRequest, "execute", withDomainTransportPlans(context, domainTransportPlans));
+        SemanticQueryResponse response =
+                pivotRollupExecutionPort.queryModel(
+                        model,
+                        auxRequest,
+                        "execute",
+                        withDomainTransportPlans(context, domainTransportPlans));
 
         List<Map<String, Object>> rows = com.foggyframework.dataset.model.impl.query.QueryFieldBindings.logicalRows(
                 response.getItems(), queryModel, auxRequest.getColumns(), auxRequest.getCalculatedFields());
@@ -420,7 +439,10 @@ public class NonAdditiveRollupExecutor {
             cache.put(grain.getGrainKey(), coordinates, metricValues);
         }
 
-        logger.debug("[Pivot] Serial aux query result: grain={}, rows={}", grain.getGrainKey(), rows.size());
+        logger.debug(
+                "[Pivot] Serial aux query result: grain={}, rows={}",
+                grain.getGrainKey(),
+                rows.size());
     }
 
     // ========== 坐标构建 ==========

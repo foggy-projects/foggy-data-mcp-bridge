@@ -6,15 +6,16 @@ import com.foggyframework.dataset.model.semantic.member.permission.SyntheticMemb
 import com.foggyframework.dataset.model.spi.QueryModel;
 import com.foggyframework.fsscript.DefaultExpEvaluator;
 import com.foggyframework.fsscript.exp.FsscriptFunction;
+
+import jakarta.annotation.Resource;
+
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.context.ApplicationContext;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
-import jakarta.annotation.Resource;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 在 SQL 构建阶段执行 synthetic member-QM 的内部 queryBuilder 脚本。
@@ -28,6 +29,11 @@ import java.util.Map;
 @Order(100)
 @Slf4j
 public class SyntheticMemberQueryBuilderStep implements DataSetResultStep {
+
+    @Override
+    public java.util.Optional<String> pivotCacheScope(ModelResultContext context) {
+        return java.util.Optional.of("engine-governed-v1");
+    }
 
     @Resource
     private ApplicationContext applicationContext;

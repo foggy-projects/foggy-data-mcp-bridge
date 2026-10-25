@@ -941,6 +941,10 @@ class ModelLifecycleRealQueryIT {
     }
 
     static final class IdentityCaptureStep implements DataSetResultStep {
+        @Override
+        public java.util.Optional<String> pivotCacheScope(ModelResultContext context) {
+            return java.util.Optional.of("identity-observer-v1");
+        }
 
         private final ConcurrentLinkedQueue<CapturedIdentity> captured =
                 new ConcurrentLinkedQueue<>();

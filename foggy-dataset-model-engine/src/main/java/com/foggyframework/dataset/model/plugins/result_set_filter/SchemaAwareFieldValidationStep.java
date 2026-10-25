@@ -13,12 +13,14 @@ import com.foggyframework.dataset.model.spi.DbDimension;
 import com.foggyframework.dataset.model.spi.DbDimensionType;
 import com.foggyframework.dataset.model.spi.DbQueryColumn;
 import com.foggyframework.dataset.model.spi.QueryModel;
+
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
 /**
  * 基于当前 QueryModel schema 的字段存在性校验。
  *
@@ -28,6 +30,11 @@ import java.util.regex.Pattern;
 @Component
 @Order(8)
 public class SchemaAwareFieldValidationStep implements DataSetResultStep {
+
+    @Override
+    public java.util.Optional<String> pivotCacheScope(ModelResultContext context) {
+        return java.util.Optional.of("engine-governed-v1");
+    }
 
     private static final String ERROR_CODE = "INVALID_QUERY_FIELD";
 

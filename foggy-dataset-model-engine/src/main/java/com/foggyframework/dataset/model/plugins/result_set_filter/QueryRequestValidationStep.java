@@ -14,8 +14,11 @@ import com.foggyframework.dataset.model.engine.formula.SqlFormulaService;
 import com.foggyframework.dataset.model.engine.postagg.PostAggregateRatioToTotalSupport;
 import com.foggyframework.dataset.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.model.spi.DbAggregation;
+
 import jakarta.annotation.Resource;
+
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
@@ -47,6 +50,11 @@ import java.util.stream.Collectors;
 @Component
 @Order(0)  // 最先执行，确保后续步骤接收的是合法参数
 public class QueryRequestValidationStep implements DataSetResultStep {
+
+    @Override
+    public java.util.Optional<String> pivotCacheScope(ModelResultContext context) {
+        return java.util.Optional.of("engine-governed-v1");
+    }
 
     @Resource
     private SqlFormulaService sqlFormulaService;
@@ -110,18 +118,47 @@ public class QueryRequestValidationStep implements DataSetResultStep {
             "isnullandempty", "isnotnullandempty"
     );
 
-    private static final Pattern INLINE_AGG_ALIAS_PATTERN = Pattern.compile(
-            "(?i)\\b(?:sum|avg|count|countd|count_distinct|min|max|stddev_pop|stddev_samp|var_pop|var_samp)\\s*\\([^)]*\\)\\s+(?:as\\s+)?([A-Za-z_][A-Za-z0-9_]*)\\b");
+    private static final Pattern INLINE_AGG_ALIAS_PATTERN =
+            Pattern.compile(
+                    "(?i)\\b(?:sum|avg|count|countd|count_distinct|min|max|stddev_pop|stddev_samp|var_pop|var_samp)\\s*\\([^)]*\\)\\s+(?:as\\s+)?([A-Za-z_][A-Za-z0-9_]*)\\b");
 
     private static final Pattern IDENT_PATTERN = Pattern.compile("[A-Za-z_][A-Za-z0-9_$]*");
 
-    private static final Set<String> FORMULA_KEYWORDS = Set.of(
-            "and", "or", "not", "null", "true", "false", "case", "when", "then", "else", "end",
-            "sum", "avg", "count", "countd", "count_distinct", "min", "max", "round", "nullif",
-            "coalesce", "calculate", "remove", "rank", "dense_rank", "row_number", "over", "partition", "by",
-            "ratio_to_total", "ratiototal"
-    );
-    private static final String CALCULATED_FIELD_EXPRESSION_INVALID = "CALCULATED_FIELD_EXPRESSION_INVALID";
+    private static final Set<String> FORMULA_KEYWORDS =
+            Set.of(
+                    "and",
+                    "or",
+                    "not",
+                    "null",
+                    "true",
+                    "false",
+                    "case",
+                    "when",
+                    "then",
+                    "else",
+                    "end",
+                    "sum",
+                    "avg",
+                    "count",
+                    "countd",
+                    "count_distinct",
+                    "min",
+                    "max",
+                    "round",
+                    "nullif",
+                    "coalesce",
+                    "calculate",
+                    "remove",
+                    "rank",
+                    "dense_rank",
+                    "row_number",
+                    "over",
+                    "partition",
+                    "by",
+                    "ratio_to_total",
+                    "ratiototal");
+    private static final String CALCULATED_FIELD_EXPRESSION_INVALID =
+            "CALCULATED_FIELD_EXPRESSION_INVALID";
 
     @Override
     public int beforeQuery(ModelResultContext ctx) {
@@ -371,8 +408,10 @@ public class QueryRequestValidationStep implements DataSetResultStep {
                         + ": calculatedFields[" + i + "].name is required.");
             }
             if (!seen.add(name)) {
-                throw RX.throwAUserTip("CALCULATED_FIELD_NAME_COLLISION: duplicate calculatedFields.name '"
-                        + name + "'.");
+                throw RX.throwAUserTip(
+                        "CALCULATED_FIELD_NAME_COLLISION: duplicate calculatedFields.name '"
+                                + name
+                                + "'.");
             }
             if (StringUtils.isEmpty(cf.getExpression())) {
                 throw RX.throwAUserTip(CALCULATED_FIELD_EXPRESSION_INVALID
@@ -414,13 +453,20 @@ public class QueryRequestValidationStep implements DataSetResultStep {
             matchedAliases.retainAll(selectedAggregateAliases);
             if (!matchedAliases.isEmpty()) {
                 throw RX.throwAUserTip(
-                        "POST_AGGREGATE_CALCULATED_FIELD_UNSUPPORTED: query_model calculatedFields entry '"
-                                + alias + "' references selected aggregate alias " + matchedAliases
-                                + " from the same grouped query. Free-form post-aggregate expressions are "
-                                + "not supported in v1.6. Use postAggregateCalculations kind="
-                                + SUPPORTED_POST_AGGREGATE_KINDS + " or calculatedFields sugar such as "
-                                + "ratio_to_total(<aggregateAlias>), cumulative_sum(<aggregateAlias>), "
-                                + "cumulative_ratio_to_total(<aggregateAlias>), rank_by(<aggregateAlias>).");
+                        "POST_AGGREGATE_CALCULATED_FIELD_UNSUPPORTED: query_model calculatedFields"
+                                + " entry '"
+                                + alias
+                                + "' references selected aggregate alias "
+                                + matchedAliases
+                                + " from the same grouped query. Free-form post-aggregate"
+                                + " expressions are not supported in v1.6. Use"
+                                + " postAggregateCalculations kind="
+                                + SUPPORTED_POST_AGGREGATE_KINDS
+                                + " or calculatedFields sugar such as"
+                                + " ratio_to_total(<aggregateAlias>),"
+                                + " cumulative_sum(<aggregateAlias>),"
+                                + " cumulative_ratio_to_total(<aggregateAlias>),"
+                                + " rank_by(<aggregateAlias>).");
             }
         }
     }
@@ -435,35 +481,72 @@ public class QueryRequestValidationStep implements DataSetResultStep {
         for (PostAggregateCalculationDef item : items) {
             String name = item.getName();
             if (StringUtils.isEmpty(name)) {
-                throw RX.throwAUserTip("POST_AGGREGATE_CALCULATION_INVALID: postAggregateCalculations entries require a non-empty name.");
+                throw RX.throwAUserTip(
+                        "POST_AGGREGATE_CALCULATION_INVALID: postAggregateCalculations entries"
+                                + " require a non-empty name.");
             }
             if (!seen.add(name)) {
-                throw RX.throwAUserTip("POST_AGGREGATE_CALCULATION_DUPLICATE: duplicate postAggregateCalculations name '" + name + "'.");
+                throw RX.throwAUserTip(
+                        "POST_AGGREGATE_CALCULATION_DUPLICATE: duplicate postAggregateCalculations"
+                                + " name '"
+                                + name
+                                + "'.");
             }
             String kind = StringUtils.isEmpty(item.getKind()) ? "" : item.getKind();
             if (!SUPPORTED_POST_AGGREGATE_KINDS.contains(kind)) {
-                throw RX.throwAUserTip("POST_AGGREGATE_CALCULATION_UNSUPPORTED: supported kinds are "
-                        + SUPPORTED_POST_AGGREGATE_KINDS + "; got '" + kind + "' for '" + name + "'.");
+                throw RX.throwAUserTip(
+                        "POST_AGGREGATE_CALCULATION_UNSUPPORTED: supported kinds are "
+                                + SUPPORTED_POST_AGGREGATE_KINDS
+                                + "; got '"
+                                + kind
+                                + "' for '"
+                                + name
+                                + "'.");
             }
             String scope = StringUtils.isEmpty(item.getScope()) ? "grandTotal" : item.getScope();
             if (!"grandTotal".equals(scope)) {
-                throw RX.throwAUserTip("POST_AGGREGATE_CALCULATION_UNSUPPORTED: only scope='grandTotal' is supported in v1.6; got '" + scope + "' for '" + name + "'.");
+                throw RX.throwAUserTip(
+                        "POST_AGGREGATE_CALCULATION_UNSUPPORTED: only scope='grandTotal' is"
+                                + " supported in v1.6; got '"
+                                + scope
+                                + "' for '"
+                                + name
+                                + "'.");
             }
             String defaultFormat = RATIO_POST_AGGREGATE_KINDS.contains(kind) ? "ratio" : "value";
             String format = StringUtils.isEmpty(item.getFormat()) ? defaultFormat : item.getFormat();
             if (RATIO_POST_AGGREGATE_KINDS.contains(kind) && !"ratio".equals(format) && !"percent".equals(format)) {
-                throw RX.throwAUserTip("POST_AGGREGATE_CALCULATION_UNSUPPORTED: format must be 'ratio' or 'percent'; got '" + format + "' for '" + name + "'.");
+                throw RX.throwAUserTip(
+                        "POST_AGGREGATE_CALCULATION_UNSUPPORTED: format must be 'ratio' or"
+                                + " 'percent'; got '"
+                                + format
+                                + "' for '"
+                                + name
+                                + "'.");
             }
             if (VALUE_POST_AGGREGATE_KINDS.contains(kind) && !"value".equals(format)) {
-                throw RX.throwAUserTip("POST_AGGREGATE_CALCULATION_UNSUPPORTED: format must be 'value' for kind '"
-                        + kind + "'; got '" + format + "' for '" + name + "'.");
+                throw RX.throwAUserTip(
+                        "POST_AGGREGATE_CALCULATION_UNSUPPORTED: format must be 'value' for kind '"
+                                + kind
+                                + "'; got '"
+                                + format
+                                + "' for '"
+                                + name
+                                + "'.");
             }
             if (StringUtils.isEmpty(item.getMeasure())) {
-                throw RX.throwAUserTip("POST_AGGREGATE_MEASURE_REQUIRED: postAggregateCalculations '" + name + "' requires measure.");
+                throw RX.throwAUserTip(
+                        "POST_AGGREGATE_MEASURE_REQUIRED: postAggregateCalculations '"
+                                + name
+                                + "' requires measure.");
             }
             if (!selectedAggregateAliases.contains(item.getMeasure())) {
-                throw RX.throwAUserTip("POST_AGGREGATE_MEASURE_NOT_FOUND: postAggregateCalculations '" + name
-                        + "' measure '" + item.getMeasure() + "' must reference a selected aggregate alias from columns[].");
+                throw RX.throwAUserTip(
+                        "POST_AGGREGATE_MEASURE_NOT_FOUND: postAggregateCalculations '"
+                                + name
+                                + "' measure '"
+                                + item.getMeasure()
+                                + "' must reference a selected aggregate alias from columns[].");
             }
         }
     }
@@ -536,9 +619,9 @@ public class QueryRequestValidationStep implements DataSetResultStep {
      * 获取所有支持的操作符列表（用于错误提示）
      */
     private String getSupportedOperators() {
-        return "=, !=, >, >=, <, <=, in, not in, like, left_like, right_like, " +
-               "is null, is not null, [], [), (], (), " +
-               "childrenOf, descendantsOf, selfAndDescendantsOf, ancestorsOf, selfAndAncestorsOf, similar, hybrid";
+        return "=, !=, >, >=, <, <=, in, not in, like, left_like, right_like, is null, is not null,"
+                + " [], [), (], (), childrenOf, descendantsOf, selfAndDescendantsOf,"
+                + " ancestorsOf, selfAndAncestorsOf, similar, hybrid";
     }
 
     /**

@@ -1,7 +1,9 @@
 package com.foggyframework.dataset.model.plugins.result_set_filter;
 
 import com.foggyframework.dataset.model.semantic.permission.AuthorizationSignatureService;
+
 import jakarta.annotation.Resource;
+
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
@@ -11,6 +13,11 @@ import org.springframework.stereotype.Component;
 @Component
 @Order(110)
 public class AuthorizationSignatureStep implements DataSetResultStep {
+
+    @Override
+    public java.util.Optional<String> pivotCacheScope(ModelResultContext context) {
+        return java.util.Optional.of("engine-governed-v1");
+    }
 
     @Resource
     private AuthorizationSignatureService authorizationSignatureService;

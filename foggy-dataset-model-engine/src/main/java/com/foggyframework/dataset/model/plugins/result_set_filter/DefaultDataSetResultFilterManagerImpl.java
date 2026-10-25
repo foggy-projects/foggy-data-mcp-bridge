@@ -1,8 +1,9 @@
 package com.foggyframework.dataset.model.plugins.result_set_filter;
 
 import com.foggyframework.dataset.client.domain.PagingRequest;
-import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.model.PagingResultImpl;
+import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
+
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Collections;
@@ -22,7 +23,8 @@ public class DefaultDataSetResultFilterManagerImpl implements DataSetResultFilte
     private final DataSetResultStepExecutor stepExecutor;
 
     public DefaultDataSetResultFilterManagerImpl(List<DataSetResultStep> steps) {
-        this.stepExecutor = new DataSetResultStepExecutor(steps != null ? steps : Collections.emptyList());
+        this.stepExecutor =
+                new DataSetResultStepExecutor(steps != null ? steps : Collections.emptyList());
 
         if (log.isDebugEnabled()) {
             log.debug("DataSetResultFilterManager initialized with {} steps", stepExecutor.size());
@@ -30,7 +32,8 @@ public class DefaultDataSetResultFilterManagerImpl implements DataSetResultFilte
     }
 
     @Override
-    public PagingResultImpl process(PagingRequest<DbQueryRequestDef> form, PagingResultImpl pagingResult) {
+    public PagingResultImpl process(
+            PagingRequest<DbQueryRequestDef> form, PagingResultImpl pagingResult) {
         ModelResultContext ctx = new ModelResultContext(form, pagingResult);
         process(ctx);
         return ctx.getPagingResult();
@@ -63,10 +66,29 @@ public class DefaultDataSetResultFilterManagerImpl implements DataSetResultFilte
         }
     }
 
-    /**
-     * 获取步骤执行器
-     */
+    /** 获取步骤执行器 */
     public DataSetResultStepExecutor getStepExecutor() {
         return stepExecutor;
+    }
+
+    @Override
+    public java.util.Optional<String> pivotCacheScope(ModelResultContext context) {
+        if (!declaresPivotContract("pivotCacheScope")) return java.util.Optional.empty();
+        return stepExecutor.pivotCacheScope(context);
+    }
+
+    @Override
+    public boolean pivotResultProcessingIsIdentity(ModelResultContext context) {
+        if (!declaresPivotContract("pivotResultProcessingIsIdentity")) return false;
+        return stepExecutor.pivotResultProcessingIsIdentity(context);
+    }
+
+    private boolean declaresPivotContract(String method) {
+        Class<?> type = org.springframework.aop.support.AopUtils.getTargetClass(this);
+        try {
+            return type.getMethod(method, ModelResultContext.class).getDeclaringClass() == type;
+        } catch (ReflectiveOperationException | RuntimeException unproven) {
+            return false;
+        }
     }
 }

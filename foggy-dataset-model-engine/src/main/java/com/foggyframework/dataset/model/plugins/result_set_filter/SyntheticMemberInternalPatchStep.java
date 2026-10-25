@@ -5,14 +5,16 @@ import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
-import com.foggyframework.dataset.model.engine.query_model.QueryModelSupport;
 import com.foggyframework.dataset.model.impl.dimension.DbDimensionSupport;
-import com.foggyframework.dataset.model.semantic.member.SyntheticMemberQueryModelResolver;
 import com.foggyframework.dataset.model.semantic.member.MemberFieldBinding;
+import com.foggyframework.dataset.model.semantic.member.SyntheticMemberQueryModelResolver;
 import com.foggyframework.dataset.model.semantic.member.permission.*;
 import com.foggyframework.dataset.model.spi.*;
+
 import jakarta.annotation.Resource;
+
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
@@ -29,6 +31,11 @@ import java.util.*;
 @Order(-20)
 @Slf4j
 public class SyntheticMemberInternalPatchStep implements DataSetResultStep {
+
+    @Override
+    public java.util.Optional<String> pivotCacheScope(ModelResultContext context) {
+        return java.util.Optional.of("engine-governed-v1");
+    }
 
     public static final String EFFECTIVE_PERMISSION_KEY = "syntheticMemberInternalPermission";
 
@@ -83,7 +90,8 @@ public class SyntheticMemberInternalPatchStep implements DataSetResultStep {
     // ==================== 权限解析 ====================
 
     SyntheticMemberEffectivePermission resolveEffectivePermission(QueryModel sourceModel, String dimFieldBase) {
-        if (sourceModel == null) throw new IllegalArgumentException("member source model unavailable");
+        if (sourceModel == null)
+            throw new IllegalArgumentException("member source model unavailable");
 
         // TM 维度级权限
         MemberPermissionDef tmPermission = resolveTmPermission(sourceModel, dimFieldBase);
@@ -119,7 +127,9 @@ public class SyntheticMemberInternalPatchStep implements DataSetResultStep {
         // 与 schema 求交
         LinkedHashSet<String> effectiveVisible = new LinkedHashSet<>();
         for (String col : visibleColumns) {
-            if (!schemaFields.contains(col)) throw RX.throwAUserTip("member permission visibleColumns contains unknown field: " + col);
+            if (!schemaFields.contains(col))
+                throw RX.throwAUserTip(
+                        "member permission visibleColumns contains unknown field: " + col);
             effectiveVisible.add(col);
         }
         if (effectiveVisible.isEmpty()) {
@@ -161,9 +171,15 @@ public class SyntheticMemberInternalPatchStep implements DataSetResultStep {
         for (MemberPermissionSliceDef sliceDef : forcedSlice) {
             String field = sliceDef.getField();
             if (StringUtils.isEmpty(field) || !schemaFields.contains(field)) {
-                throw RX.throwAUserTip("synthetic member-QM 内部权限字段不存在: field=" + field
-                        + ", qmModel=" + sourceModelName
-                        + ", memberField=" + dimFieldBase + SyntheticMemberQueryModelResolver.FIELD_SEPARATOR + "caption");
+                throw RX.throwAUserTip(
+                        "synthetic member-QM 内部权限字段不存在: field="
+                                + field
+                                + ", qmModel="
+                                + sourceModelName
+                                + ", memberField="
+                                + dimFieldBase
+                                + SyntheticMemberQueryModelResolver.FIELD_SEPARATOR
+                                + "caption");
             }
 
             Object resolvedValue = sliceDef.resolveValue(valueContext);

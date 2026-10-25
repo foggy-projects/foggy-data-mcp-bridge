@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.model.plugins.result_set_filter;
 
 import com.foggyframework.core.filter.FoggyStep;
+
 import org.springframework.aop.support.AopUtils;
 import org.springframework.core.annotation.OrderUtils;
 
@@ -42,6 +43,28 @@ import org.springframework.core.annotation.OrderUtils;
  * @since 8.0.0
  */
 public interface DataSetResultStep extends FoggyStep<ModelResultContext> {
+
+    /**
+     * Opt in to sharing a fully processed Pivot response. Empty means ordinary execution only.
+     *
+     * <p>The opaque identity must cover the extension's effective policy, caller scope, result
+     * masking/filtering and configuration version. It must be deterministic for this request,
+     * available without querying business data, and safe to evaluate before and after process.
+     * SQL-only governance may use a constant version when all effective conditions are represented
+     * in the final request or permission context. Never return a raw bearer token. Subclasses that
+     * override a query/result phase must explicitly renew this contract.
+     */
+    default java.util.Optional<String> pivotCacheScope(ModelResultContext context) {
+        return java.util.Optional.empty();
+    }
+
+    /**
+     * True only when process preserves Pivot values/membership; null requires an unconditional
+     * proof.
+     */
+    default boolean pivotResultProcessingIsIdentity(ModelResultContext context) {
+        return false;
+    }
 
     /**
      * 默认顺序。DataSetResultStep 统一采用 Spring {@code @Order} 语义：

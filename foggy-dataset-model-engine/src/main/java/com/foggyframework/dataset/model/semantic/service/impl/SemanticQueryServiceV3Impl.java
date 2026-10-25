@@ -4,13 +4,14 @@ import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.JsonUtils;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.client.domain.PagingRequest;
+import com.foggyframework.dataset.model.PagingResultImpl;
+import com.foggyframework.dataset.model.config.DatasetProperties;
+import com.foggyframework.dataset.model.def.query.request.CalculatedFieldDef;
+import com.foggyframework.dataset.model.def.query.request.CondRequestDef;
 import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.model.def.query.request.GroupRequestDef;
 import com.foggyframework.dataset.model.def.query.request.OrderRequestDef;
-import com.foggyframework.dataset.model.def.query.request.CondRequestDef;
 import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
-import com.foggyframework.dataset.model.def.query.request.CalculatedFieldDef;
-import com.foggyframework.dataset.model.config.DatasetProperties;
 import com.foggyframework.dataset.model.engine.JdbcModelQueryEngine;
 import com.foggyframework.dataset.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.model.engine.compose.runtime.ComposeRuntimeBundle;
@@ -26,11 +27,11 @@ import com.foggyframework.dataset.model.impl.model.AggregateRelationDiagnostic;
 import com.foggyframework.dataset.model.impl.model.AggregateRelationQueryObject;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogResolution;
 import com.foggyframework.dataset.model.lifecycle.identity.CatalogIdentity;
-import com.foggyframework.dataset.model.port.AdvancedQueryExecutionPort;
-import com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.model.plugins.query_execution.ManagedRelationOptions;
 import com.foggyframework.dataset.model.plugins.query_execution.ManagedSqlRelation;
 import com.foggyframework.dataset.model.plugins.query_execution.QueryExecutionContext;
+import com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext;
+import com.foggyframework.dataset.model.port.AdvancedQueryExecutionPort;
 import com.foggyframework.dataset.model.semantic.domain.DomainTransportPlanSpec;
 import com.foggyframework.dataset.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.model.semantic.domain.SemanticQueryResponse;
@@ -51,32 +52,33 @@ import com.foggyframework.dataset.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.model.semantic.support.DslCteDslRequestMapper;
 import com.foggyframework.dataset.model.semantic.support.DslCtePlanningService;
 import com.foggyframework.dataset.model.semantic.support.QueryInputWarnings;
+import com.foggyframework.dataset.model.semantic.support.SemanticRequestNormalizer;
 import com.foggyframework.dataset.model.semantic.support.SemanticSqlDslRequestMapper;
 import com.foggyframework.dataset.model.semantic.support.SemanticSqlToDslMapper;
 import com.foggyframework.dataset.model.semantic.support.SemanticSqlWhitelistValidator;
-import com.foggyframework.dataset.model.semantic.support.SemanticRequestNormalizer;
+import com.foggyframework.dataset.model.semantic.util.CaseInsensitiveFieldResolver;
 import com.foggyframework.dataset.model.spi.DbAggregation;
 import com.foggyframework.dataset.model.spi.DbColumn;
-import com.foggyframework.dataset.model.spi.DbQueryCondition;
 import com.foggyframework.dataset.model.spi.DbQueryColumn;
-import com.foggyframework.dataset.model.spi.QueryObject;
+import com.foggyframework.dataset.model.spi.DbQueryCondition;
 import com.foggyframework.dataset.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.model.spi.QueryModel;
 import com.foggyframework.dataset.model.spi.QueryModelLoader;
+import com.foggyframework.dataset.model.spi.QueryObject;
 import com.foggyframework.dataset.model.spi.TableModel;
-import com.foggyframework.dataset.model.semantic.util.CaseInsensitiveFieldResolver;
-import com.foggyframework.dataset.model.PagingResultImpl;
 import com.foggyframework.dataset.utils.DataSourceQueryUtils;
+
 import jakarta.annotation.Resource;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import javax.sql.DataSource;
-
 import java.util.*;
 import java.util.stream.Collectors;
+
+import javax.sql.DataSource;
 
 /**
  * V3版本语义查询服务实现
@@ -98,6 +100,16 @@ import java.util.stream.Collectors;
  */
 @Service
 public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
+
+    @Autowired(required = false)
+    private com.foggyframework.dataset.model.plugins.result_set_filter.DataSetResultFilterManager
+            pivotResultFilterManager;
+
+    @Override
+    public boolean supportsProcessedRollupBatch() {
+        return pivotResultFilterManager != null
+                && pivotResultFilterManager.pivotResultProcessingIsIdentity(null);
+    }
 
     private static final Logger logger = LoggerFactory.getLogger(SemanticQueryServiceV3Impl.class);
     private static final String RAW_MEASURE_SELECTION_WARNING_CODE = "RAW_MEASURE_SELECTION";
@@ -329,7 +341,9 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
     public SqlGenerationResult generateSql(String model, SemanticQueryRequest request,
                                            SemanticRequestContext context) {
         if (isTerminalPlan(request)) {
-            throw RX.throwB("TERMINAL_PLAN_NOT_EXECUTABLE: CLARIFY/REJECT terminal plans must not enter SQL generation.");
+            throw RX.throwB(
+                    "TERMINAL_PLAN_NOT_EXECUTABLE: CLARIFY/REJECT terminal plans must not enter SQL"
+                            + " generation.");
         }
         if (isSemanticSqlPlan(request)) {
             QueryModel queryModel = resolveQueryModel(
@@ -344,18 +358,24 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                 dslRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
                 return generateSql(model, dslRequest, context);
             }
-            throw RX.throwB("SEMANTIC_SQL_EXECUTION_NOT_IMPLEMENTED: Semantic SQL AST whitelist passed, but SQL-to-DSL compilation is not part of P0.");
+            throw RX.throwB(
+                    "SEMANTIC_SQL_EXECUTION_NOT_IMPLEMENTED: Semantic SQL AST whitelist passed, but"
+                            + " SQL-to-DSL compilation is not part of P0.");
         }
         if (isMemoryGridRequest(request)) {
             memoryGridValidation(request, context);
-            throw RX.throwB("MEMORY_GRID_EXECUTION_NOT_IMPLEMENTED: Memory Grid guardrail passed, but in-memory execution is not part of P0.");
+            throw RX.throwB(
+                    "MEMORY_GRID_EXECUTION_NOT_IMPLEMENTED: Memory Grid guardrail passed, but"
+                            + " in-memory execution is not part of P0.");
         }
         if (isDslCtePlan(request)) {
             DslCtePlanningService.DslCtePlan dslCtePlan = DslCtePlanningService.plan(model, request);
             if (dslCteCompileToDslEnabled(request)) {
                 return generateDslCteSqlFromPlan(dslCtePlan, request, context);
             }
-            throw RX.throwB("DSL_CTE_EXECUTION_NOT_IMPLEMENTED: DSL_CTE stage contract passed, but staged SQL execution is not part of P0.");
+            throw RX.throwB(
+                    "DSL_CTE_EXECUTION_NOT_IMPLEMENTED: DSL_CTE stage contract passed, but staged"
+                            + " SQL execution is not part of P0.");
         }
         if (request.getColumns() == null || request.getColumns().isEmpty()) {
             throw RX.throwB("请指定查询字段");
@@ -530,12 +550,15 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                     SemanticExplainResponse.Confidence.OBSERVED,
                     Map.of(
                             "parameterCount",
-                            executionContext.getParams() == null ? 0 : executionContext.getParams().size(),
-                            "preAggApplied", relation.isPreAggApplied(),
-                            "sqlChanged", !java.util.Objects.equals(logicalSql, executionContext.getSql()),
-                            "sourceOfTruth", "QueryExecutionContext.sql"
-                    )
-            );
+                            executionContext.getParams() == null
+                                    ? 0
+                                    : executionContext.getParams().size(),
+                            "preAggApplied",
+                            relation.isPreAggApplied(),
+                            "sqlChanged",
+                            !java.util.Objects.equals(logicalSql, executionContext.getSql()),
+                            "sourceOfTruth",
+                            "QueryExecutionContext.sql"));
         }
         return new SemanticExplainCompilation(
                 jdbcRequest.getParam(),
@@ -625,6 +648,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             resultContext.setSecurityContext(context.getSecurityContext());
             resultContext.setRequestIdentity(context.getRequestIdentity());
             resultContext.setPermissionSession(context.getPermissionSession());
+            resultContext.setPivotCacheProofSession(context.getPivotCacheProofSession());
             if (context.getPermissionAction() != null) {
                 resultContext.setPermissionAction(context.getPermissionAction());
             }
@@ -682,7 +706,9 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             return null;
         }
         if (request.getExecutablePlan() != null) {
-            throw RX.throwB("TERMINAL_PLAN_MUST_NOT_HAVE_EXECUTABLE_PLAN: CLARIFY/REJECT terminal plans must not carry executable_plan.");
+            throw RX.throwB(
+                    "TERMINAL_PLAN_MUST_NOT_HAVE_EXECUTABLE_PLAN: CLARIFY/REJECT terminal plans"
+                            + " must not carry executable_plan.");
         }
         String terminal = normalizeTerminal(request.getStatus());
         if (terminal == null) {
@@ -756,7 +782,9 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
     private Map<String, Object> semanticSqlAstValidation(String model, SemanticQueryRequest request,
                                                           SemanticRequestContext context) {
         if (request == null || StringUtils.isEmpty(request.getSemanticSql())) {
-            throw RX.throwB("SEMANTIC_SQL_FIELD_NOT_DECLARED: semantic_sql must be provided for SEMANTIC_SQL route.");
+            throw RX.throwB(
+                    "SEMANTIC_SQL_FIELD_NOT_DECLARED: semantic_sql must be provided for"
+                            + " SEMANTIC_SQL route.");
         }
         QueryModel queryModel = queryModelLoader.getJdbcQueryModel(model, context.getNamespace());
         return SemanticSqlWhitelistValidator.validate(model, request.getSemanticSql(), queryModel, context);
@@ -774,7 +802,9 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                                                           QueryModel queryModel,
                                                           SemanticRequestContext context) {
         if (request == null || StringUtils.isEmpty(request.getSemanticSql())) {
-            throw RX.throwB("SEMANTIC_SQL_FIELD_NOT_DECLARED: semantic_sql must be provided for SEMANTIC_SQL route.");
+            throw RX.throwB(
+                    "SEMANTIC_SQL_FIELD_NOT_DECLARED: semantic_sql must be provided for"
+                            + " SEMANTIC_SQL route.");
         }
         return SemanticSqlWhitelistValidator.validate(model, request.getSemanticSql(), queryModel, context);
     }
@@ -855,13 +885,18 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
 
         if (hasGridSql(request)) {
             if (dialect == null || !dialect.gridSqlSupported()) {
-                throw RX.throwB("MEMORY_GRID_GRID_SQL_NOT_SUPPORTED: "
-                        + firstNonBlank(dialect == null ? null : dialect.engineId(), "configured MemoryGridEngine")
-                        + " does not support grid_sql.");
+                throw RX.throwB(
+                        "MEMORY_GRID_GRID_SQL_NOT_SUPPORTED: "
+                                + firstNonBlank(
+                                        dialect == null ? null : dialect.engineId(),
+                                        "configured MemoryGridEngine")
+                                + " does not support grid_sql.");
             }
             validationEvidence.putAll(GridSqlContractValidator.validate(memoryGridRequest));
         } else if (!hasMemoryGridPlan(request)) {
-            throw RX.throwB("MEMORY_GRID_UNBOUNDED_INPUT: memory_grid_plan or grid_sql must be provided for MEMORY_GRID route.");
+            throw RX.throwB(
+                    "MEMORY_GRID_UNBOUNDED_INPUT: memory_grid_plan or grid_sql must be provided for"
+                            + " MEMORY_GRID route.");
         }
 
         MemoryGridValidation validation = engine.validate(memoryGridRequest, context);
@@ -872,7 +907,8 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
 
     private MemoryGridEngine memoryGridEngine() {
         if (memoryGridEngine == null) {
-            throw RX.throwB("MEMORY_GRID_ENGINE_NOT_CONFIGURED: no MemoryGridEngine is configured.");
+            throw RX.throwB(
+                    "MEMORY_GRID_ENGINE_NOT_CONFIGURED: no MemoryGridEngine is configured.");
         }
         return memoryGridEngine;
     }
@@ -1005,17 +1041,23 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                                                           SemanticRequestContext context) {
         return switch (plan.kind()) {
             case SIMPLE_DSL -> generateSimpleDslCteSql(plan.simpleBridge(), request, context);
-            case RESULT_STAGE_WINDOW -> generateResultStageWindowDslCteSql(plan.resultStageBridge(), request, context);
-            case RESULT_STAGE_METRIC_RATIO -> generateResultStageMetricRatioDslCteSql(
-                    plan.metricRatioBridge(), request, context);
-            case CROSS_MODEL_FUNNEL_MONEY_ATTRIBUTION -> generateMoneyAttributionDslCteSql(
-                    plan.moneyAttributionBridge(), request, context);
-            case CROSS_MODEL_FUNNEL_TIME_ATTRIBUTION -> generateTimeAttributionDslCteSql(
-                    plan.timeAttributionBridge(), request, context);
-            case CROSS_MODEL_FUNNEL_SOURCE_RATE -> generateSourceRateDslCteSql(
-                    plan.funnelSourceRateBridge(), request, context);
-            case CROSS_MODEL_JOIN_ALIGN -> generateJoinAlignDslCteSql(plan.joinAlignBridge(), request, context);
-            case UNSUPPORTED -> throw RX.throwB("DSL_CTE_DSL_BRIDGE_NOT_SUPPORTED: " + plan.unsupported());
+            case RESULT_STAGE_WINDOW ->
+                    generateResultStageWindowDslCteSql(plan.resultStageBridge(), request, context);
+            case RESULT_STAGE_METRIC_RATIO ->
+                    generateResultStageMetricRatioDslCteSql(
+                            plan.metricRatioBridge(), request, context);
+            case CROSS_MODEL_FUNNEL_MONEY_ATTRIBUTION ->
+                    generateMoneyAttributionDslCteSql(
+                            plan.moneyAttributionBridge(), request, context);
+            case CROSS_MODEL_FUNNEL_TIME_ATTRIBUTION ->
+                    generateTimeAttributionDslCteSql(
+                            plan.timeAttributionBridge(), request, context);
+            case CROSS_MODEL_FUNNEL_SOURCE_RATE ->
+                    generateSourceRateDslCteSql(plan.funnelSourceRateBridge(), request, context);
+            case CROSS_MODEL_JOIN_ALIGN ->
+                    generateJoinAlignDslCteSql(plan.joinAlignBridge(), request, context);
+            case UNSUPPORTED ->
+                    throw RX.throwB("DSL_CTE_DSL_BRIDGE_NOT_SUPPORTED: " + plan.unsupported());
         };
     }
 
@@ -1176,9 +1218,13 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
     private DbQueryResult executeTimeWindow(ModelResultContext result, SemanticRequestContext requestContext,
                                            SemanticQueryRequest request, String model) {
         if (Boolean.TRUE.equals(request.getWithSubtotals())) {
-            throw new IllegalArgumentException("TIMEWINDOW_SUBTOTAL_UNSUPPORTED: comparison-derived values have no additive subtotal contract");
+            throw new IllegalArgumentException(
+                    "TIMEWINDOW_SUBTOTAL_UNSUPPORTED: comparison-derived values have no additive"
+                            + " subtotal contract");
         }
-        var plan = (com.foggyframework.dataset.model.engine.compose.plan.QueryPlan) result.getExtData().get("timeWindowPlan");
+        var plan =
+                (com.foggyframework.dataset.model.engine.compose.plan.QueryPlan)
+                        result.getExtData().get("timeWindowPlan");
         if (plan == null) throw new IllegalStateException("Deferred timeWindow has no plan");
         var pinned = pinnedTimeWindowContext(requestContext, result);
         var sql = compileTimeWindowPlan(plan, pinned, result.getExtData());
@@ -1186,7 +1232,8 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         com.foggyframework.dataset.model.engine.compose.ComposedSql countSql = null;
         if (Boolean.TRUE.equals(request.getReturnTotal())) {
             if (!(plan instanceof com.foggyframework.dataset.model.engine.compose.plan.DerivedQueryPlan finalPlan)) {
-                throw new IllegalStateException("timeWindow final controls must be a derived relation");
+                throw new IllegalStateException(
+                        "timeWindow final controls must be a derived relation");
             }
             var unpaged = com.foggyframework.dataset.model.engine.compose.plan.DerivedQueryPlan.builder()
                     .source(finalPlan.source()).columns(finalPlan.columns()).slice(finalPlan.slice())
@@ -1197,7 +1244,8 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         }
         if (!(result.getQueryModel() instanceof JdbcQueryModel pinnedModel)
                 || pinnedModel.getDataSource() == null) {
-            throw new IllegalStateException("timeWindow execution requires the request-pinned JDBC datasource");
+            throw new IllegalStateException(
+                    "timeWindow execution requires the request-pinned JDBC datasource");
         }
         DataSource executionDataSource = pinnedModel.getDataSource();
         var rows = executeSqlOnDataSource(sql.getSql(), sql.getParams(), executionDataSource);
@@ -1222,7 +1270,10 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         ModelResultContext.SecurityContext securityContext = requestContext.getSecurityContext();
         com.foggyframework.dataset.model.engine.compose.context.Principal principal =
                 com.foggyframework.dataset.model.engine.compose.context.Principal.builder()
-                        .userId(securityContext != null && securityContext.getUserId() != null ? securityContext.getUserId() : "system")
+                        .userId(
+                                securityContext != null && securityContext.getUserId() != null
+                                        ? securityContext.getUserId()
+                                        : "system")
                         .deptId(securityContext != null ? securityContext.getDeptId() : null)
                         .tenantId(securityContext != null ? securityContext.getTenantId() : null)
                         .roles(securityContext != null ? securityContext.getRoles() : null)
@@ -1273,15 +1324,25 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         var jdbcRequest = buildJdbcRequest(model, request, queryContext, context.getNamespace(), context);
         var result = buildSemanticResultContext(jdbcRequest, request, context);
         result.setCacheConfig(ModelResultContext.QueryCacheConfig.disabled());
-        var relation = queryFacade.prepareManagedRelation(result, ManagedRelationOptions.builder()
-                .purpose("time-window-leaf").disableInnerCacheShortCircuit(true).requireStableAliases(true).build());
+        var relation =
+                queryFacade.prepareManagedRelation(
+                        result,
+                        ManagedRelationOptions.builder()
+                                .purpose("time-window-leaf")
+                                .disableInnerCacheShortCircuit(true)
+                                .requireStableAliases(true)
+                                .build());
         if (!relation.isPermissionValidated() || (!relation.isWrappable() && !relation.isDerivedWrappable())) {
-            throw new IllegalArgumentException("TIMEWINDOW_BASE_PREPARATION_UNSUPPORTED: governed relation required");
+            throw new IllegalArgumentException(
+                    "TIMEWINDOW_BASE_PREPARATION_UNSUPPORTED: governed relation required");
         }
         var engine = relation.getQueryEngine();
         if (!engine.getCteStages().isEmpty()) {
-            if (!Objects.equals(engine.getSql(), relation.getSql()) || !Objects.equals(engine.getValues(), relation.getParams()))
-                throw new IllegalArgumentException("TIMEWINDOW_CTE_REWRITE_UNSUPPORTED: prepared SQL differs from structured stages");
+            if (!Objects.equals(engine.getSql(), relation.getSql())
+                    || !Objects.equals(engine.getValues(), relation.getParams()))
+                throw new IllegalArgumentException(
+                        "TIMEWINDOW_CTE_REWRITE_UNSUPPORTED: prepared SQL differs from structured"
+                                + " stages");
             var generated = engine.toSqlGenerationResult(result.getExtData());
             var stages = generated.getCteStages().stream()
                     .map(stage -> new com.foggyframework.dataset.model.semantic.port.ComposeSqlGeneration.CteStage(
@@ -1329,13 +1390,16 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                 com.foggyframework.dataset.model.semantic.permission.PermissionAction.VALIDATE);
         queryFacade.buildSqlOnly(resultContext);
 
-        if (resultContext.getExtData().get("timeWindowPlan") instanceof com.foggyframework.dataset.model.engine.compose.plan.QueryPlan plan) {
+        if (resultContext.getExtData().get("timeWindowPlan")
+                instanceof com.foggyframework.dataset.model.engine.compose.plan.QueryPlan plan) {
             compileTimeWindowPlan(plan, pinnedTimeWindowContext(requestContext, resultContext), resultContext.getExtData());
         }
 
-        if (resultContext.getExtData() != null && resultContext.getExtData().containsKey("engineWarnings")) {
+        if (resultContext.getExtData() != null
+                && resultContext.getExtData().containsKey("engineWarnings")) {
             @SuppressWarnings("unchecked")
-            List<String> engineWarnings = (List<String>) resultContext.getExtData().get("engineWarnings");
+            List<String> engineWarnings =
+                    (List<String>) resultContext.getExtData().get("engineWarnings");
             context.warnings.addAll(engineWarnings);
         }
 
@@ -1421,22 +1485,25 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             return;
         }
         if (Boolean.TRUE.equals(request.getWithSubtotals())) {
-            throw new IllegalArgumentException("TIMEWINDOW_SUBTOTAL_UNSUPPORTED: derived values have no additive subtotal contract");
+            throw new IllegalArgumentException(
+                    "TIMEWINDOW_SUBTOTAL_UNSUPPORTED: derived values have no additive subtotal"
+                            + " contract");
         }
         if (request.getHaving() != null && !request.getHaving().isEmpty()) {
             throw RX.throwB(
-                    "TIME_WINDOW_HAVING_UNSUPPORTED: timeWindow 模式不支持顶层 having。"
-                            + "having 在 timeWindow 中存在基础聚合过滤与最终结果过滤的语义歧义；请使用普通 query_model having，或拆分为受治理的二阶段分析请求");
+                    "TIME_WINDOW_HAVING_UNSUPPORTED: timeWindow 模式不支持顶层 having。having 在 timeWindow"
+                            + " 中存在基础聚合过滤与最终结果过滤的语义歧义；请使用普通 query_model having，或拆分为受治理的二阶段分析请求");
         }
         if (request.getPostAggregateCalculations() != null && !request.getPostAggregateCalculations().isEmpty()) {
             throw RX.throwB(
-                    "TIME_WINDOW_RESULT_STAGE_UNSUPPORTED: timeWindow 模式不支持顶层 postAggregateCalculations。"
-                            + "timeWindow 已生成独立时间分析结果阶段；请使用 timeWindow 支持的 calculatedFields 后置投影，或拆分为普通 query_model result-stage 请求");
+                    "TIME_WINDOW_RESULT_STAGE_UNSUPPORTED: timeWindow 模式不支持顶层"
+                        + " postAggregateCalculations。timeWindow 已生成独立时间分析结果阶段；请使用 timeWindow 支持的"
+                        + " calculatedFields 后置投影，或拆分为普通 query_model result-stage 请求");
         }
         if (request.getPostSlice() != null && !request.getPostSlice().isEmpty()) {
             throw RX.throwB(
-                    "TIME_WINDOW_RESULT_STAGE_UNSUPPORTED: timeWindow 模式不支持顶层 postSlice。"
-                            + "请先返回 timeWindow 结果，再使用受治理的二阶段分析过滤，或拆分为普通 query_model result-stage 请求");
+                    "TIME_WINDOW_RESULT_STAGE_UNSUPPORTED: timeWindow 模式不支持顶层 postSlice。请先返回"
+                            + " timeWindow 结果，再使用受治理的二阶段分析过滤，或拆分为普通 query_model result-stage 请求");
         }
     }
 
@@ -1483,15 +1550,27 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                 .map(RawMeasureColumn::field)
                 .distinct()
                 .collect(Collectors.joining(", "));
-        String examples = rawMeasures.stream()
-                .map(measure -> measure.aggregation() + "(" + measure.field() + ") as " + measure.field())
-                .distinct()
-                .limit(3)
-                .collect(Collectors.joining(", "));
-        warnings.add(RAW_MEASURE_SELECTION_WARNING_CODE
-                + ": columns [" + rawFields + "] are measure fields selected without groupBy or explicit aggregate expressions. "
-                + "Raw measure columns run as a detail query; use explicit aggregate expressions such as "
-                + examples + ", or include a detail dimension/id column.");
+        String examples =
+                rawMeasures.stream()
+                        .map(
+                                measure ->
+                                        measure.aggregation()
+                                                + "("
+                                                + measure.field()
+                                                + ") as "
+                                                + measure.field())
+                        .distinct()
+                        .limit(3)
+                        .collect(Collectors.joining(", "));
+        warnings.add(
+                RAW_MEASURE_SELECTION_WARNING_CODE
+                        + ": columns ["
+                        + rawFields
+                        + "] are measure fields selected without groupBy or explicit aggregate"
+                        + " expressions. Raw measure columns run as a detail query; use explicit"
+                        + " aggregate expressions such as "
+                        + examples
+                        + ", or include a detail dimension/id column.");
     }
 
     private boolean isAggregateExpression(String expression) {
@@ -1789,13 +1868,23 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         response.setWarnings(context.warnings.isEmpty() ? null : context.warnings);
 
         // 构建 Schema 信息（包含 summary）
-        response.setSchema(buildSchemaInfo(queryModel, request, queryResult, context.outputFormattingByField, context.boundGroups, context.boundAggregate,
-                context.extData == null ? null : (String) context.extData.get("timeWindowDateAxis")));
+        response.setSchema(
+                buildSchemaInfo(
+                        queryModel,
+                        request,
+                        queryResult,
+                        context.outputFormattingByField,
+                        context.boundGroups,
+                        context.boundAggregate,
+                        context.extData == null
+                                ? null
+                                : (String) context.extData.get("timeWindowDateAxis")));
 
         // 设置数据截断信息（如果存在）
         if (context.extData != null && context.extData.containsKey("truncationInfo")) {
             @SuppressWarnings("unchecked")
-            Map<String, Object> truncationInfo = (Map<String, Object>) context.extData.get("truncationInfo");
+            Map<String, Object> truncationInfo =
+                    (Map<String, Object>) context.extData.get("truncationInfo");
             response.setTruncationInfo(truncationInfo);
         }
 
@@ -1843,11 +1932,13 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         Map<String, SemanticQueryResponse.SchemaInfo.DisplayFormat> result = new LinkedHashMap<>();
         for (SemanticQueryRequest.OutputFormattingItem item : outputFormatting) {
             if (item == null) {
-                throw RX.throwB("OUTPUT_FORMATTING_INVALID: outputFormatting item must not be null");
+                throw RX.throwB(
+                        "OUTPUT_FORMATTING_INVALID: outputFormatting item must not be null");
             }
             String field = item.getField() == null ? null : item.getField().trim();
             if (StringUtils.isEmpty(field)) {
-                throw RX.throwB("OUTPUT_FORMATTING_INVALID: outputFormatting.field must be provided");
+                throw RX.throwB(
+                        "OUTPUT_FORMATTING_INVALID: outputFormatting.field must be provided");
             }
             if (!outputNames.contains(field)) {
                 throw RX.throwB("OUTPUT_FORMATTING_FIELD_NOT_IN_OUTPUT_SCHEMA: field '" + field
@@ -1855,19 +1946,27 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             }
             String scope = item.getScope() == null ? null : item.getScope().trim().toLowerCase(Locale.ROOT);
             if (!"display_only".equals(scope)) {
-                throw RX.throwB("OUTPUT_FORMATTING_SCOPE_UNSUPPORTED: outputFormatting.scope must be display_only");
+                throw RX.throwB(
+                        "OUTPUT_FORMATTING_SCOPE_UNSUPPORTED: outputFormatting.scope must be"
+                                + " display_only");
             }
             String kind = item.getKind() == null ? null : item.getKind().trim().toLowerCase(Locale.ROOT);
             if (!"decimal".equals(kind)) {
-                throw RX.throwB("OUTPUT_FORMATTING_KIND_UNSUPPORTED: outputFormatting.kind must be decimal");
+                throw RX.throwB(
+                        "OUTPUT_FORMATTING_KIND_UNSUPPORTED: outputFormatting.kind must be"
+                                + " decimal");
             }
             Integer scale = item.getScale();
             if (scale == null || scale < 0 || scale > 6) {
-                throw RX.throwB("OUTPUT_FORMATTING_SCALE_INVALID: decimal scale must be between 0 and 6");
+                throw RX.throwB(
+                        "OUTPUT_FORMATTING_SCALE_INVALID: decimal scale must be between 0 and 6");
             }
             String mode = normalizeDisplayRoundingMode(item.getMode());
             if (result.containsKey(field)) {
-                throw RX.throwB("OUTPUT_FORMATTING_DUPLICATE_FIELD: duplicate display format for field '" + field + "'");
+                throw RX.throwB(
+                        "OUTPUT_FORMATTING_DUPLICATE_FIELD: duplicate display format for field '"
+                                + field
+                                + "'");
             }
             SemanticQueryResponse.SchemaInfo.DisplayFormat displayFormat =
                     new SemanticQueryResponse.SchemaInfo.DisplayFormat();
@@ -1904,7 +2003,8 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             java.math.RoundingMode.valueOf(normalized);
             return normalized;
         } catch (IllegalArgumentException ex) {
-            throw RX.throwB("OUTPUT_FORMATTING_MODE_UNSUPPORTED: unsupported rounding mode '" + mode + "'");
+            throw RX.throwB(
+                    "OUTPUT_FORMATTING_MODE_UNSUPPORTED: unsupported rounding mode '" + mode + "'");
         }
     }
 
@@ -2248,7 +2348,9 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             Set<String> grpSuffixes = groupByDimensions.getOrDefault(baseName, Collections.emptySet());
 
             // columns 有 caption，检查是否需要补充 id 到 columns
-            if (colSuffixes.contains("caption") && grpSuffixes.contains("id") && !colSuffixes.contains("id")) {
+            if (colSuffixes.contains("caption")
+                    && grpSuffixes.contains("id")
+                    && !colSuffixes.contains("id")) {
                 String fieldToAdd = baseName + "$id";
                 if (!columnsSet.contains(fieldToAdd) && queryModel.findJdbcQueryColumnByName(fieldToAdd, false) != null) {
                     columns.add(fieldToAdd);
@@ -2258,7 +2360,9 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             }
 
             // columns 有 id，检查是否需要补充 caption 到 columns
-            if (colSuffixes.contains("id") && grpSuffixes.contains("caption") && !colSuffixes.contains("caption")) {
+            if (colSuffixes.contains("id")
+                    && grpSuffixes.contains("caption")
+                    && !colSuffixes.contains("caption")) {
                 String fieldToAdd = baseName + "$caption";
                 if (!columnsSet.contains(fieldToAdd) && queryModel.findJdbcQueryColumnByName(fieldToAdd, false) != null) {
                     columns.add(fieldToAdd);
@@ -2268,7 +2372,9 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             }
 
             // groupBy 有 id，检查是否需要补充 caption 到 groupBy
-            if (grpSuffixes.contains("id") && colSuffixes.contains("caption") && !grpSuffixes.contains("caption")) {
+            if (grpSuffixes.contains("id")
+                    && colSuffixes.contains("caption")
+                    && !grpSuffixes.contains("caption")) {
                 String fieldToAdd = baseName + "$caption";
                 if (!groupByFieldSet.contains(fieldToAdd) && queryModel.findJdbcQueryColumnByName(fieldToAdd, false) != null) {
                     SemanticQueryRequest.GroupByItem newItem = new SemanticQueryRequest.GroupByItem();
@@ -2280,7 +2386,9 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             }
 
             // groupBy 有 caption，检查是否需要补充 id 到 groupBy
-            if (grpSuffixes.contains("caption") && colSuffixes.contains("id") && !grpSuffixes.contains("id")) {
+            if (grpSuffixes.contains("caption")
+                    && colSuffixes.contains("id")
+                    && !grpSuffixes.contains("id")) {
                 String fieldToAdd = baseName + "$id";
                 if (!groupByFieldSet.contains(fieldToAdd) && queryModel.findJdbcQueryColumnByName(fieldToAdd, false) != null) {
                     SemanticQueryRequest.GroupByItem newItem = new SemanticQueryRequest.GroupByItem();
@@ -2344,7 +2452,8 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                 if (field.contains("$")) {
                     String baseName = field.substring(0, field.lastIndexOf('$'));
                     if (!columnBases.contains(baseName)) {
-                        throw RX.throwB("groupBy 字段 " + field + " 必须出现在 columns 中（或 columns 中有其对应的维度字段）");
+                        throw RX.throwB(
+                                "groupBy 字段 " + field + " 必须出现在 columns 中（或 columns 中有其对应的维度字段）");
                     }
                 } else {
                     // 非维度字段必须完全匹配
@@ -2457,8 +2566,11 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         String effectiveNamespace = namespace == null ? "" : namespace.trim();
         if (routeModel == null || routeModel.isBlank()) {
             if (!effectiveNamespace.isEmpty()) {
-                throw new IllegalArgumentException("executeSql route resolution failed: routeModel is required"
-                        + " for namespace='" + effectiveNamespace + "'");
+                throw new IllegalArgumentException(
+                        "executeSql route resolution failed: routeModel is required"
+                                + " for namespace='"
+                                + effectiveNamespace
+                                + "'");
             }
             return dataSource;
         }
@@ -2473,8 +2585,14 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             }
             throw new IllegalStateException("Model did not resolve to a JDBC datasource");
         } catch (Exception e) {
-            throw new IllegalStateException("executeSql route resolution failed: model='" + routeModel
-                    + "', namespace='" + effectiveNamespace + "': " + e.getMessage(), e);
+            throw new IllegalStateException(
+                    "executeSql route resolution failed: model='"
+                            + routeModel
+                            + "', namespace='"
+                            + effectiveNamespace
+                            + "': "
+                            + e.getMessage(),
+                    e);
         }
     }
 
@@ -2494,8 +2612,10 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
      */
     private static final java.util.regex.Pattern BARE_FIELD_RE =
             java.util.regex.Pattern.compile("^[A-Za-z_]\\w*(?:\\$\\w+)?$");
+
     private static final java.util.regex.Pattern BARE_ALIAS_RE =
-            java.util.regex.Pattern.compile("^\\s*([A-Za-z_]\\w*(?:\\$\\w+)?)\\s+as\\s+([A-Za-z_]\\w*)\\s*$",
+            java.util.regex.Pattern.compile(
+                    "^\\s*([A-Za-z_]\\w*(?:\\$\\w+)?)\\s+as\\s+([A-Za-z_]\\w*)\\s*$",
                     java.util.regex.Pattern.CASE_INSENSITIVE);
 
     private void resolveRequestFieldsCaseInsensitive(SemanticQueryRequest request,
@@ -2513,7 +2633,8 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                 if (BARE_FIELD_RE.matcher(trimmed).matches()) {
                     resolved.add(resolver.resolve(trimmed));
                 } else if (aliasMatch.matches()) {
-                    resolved.add(resolver.resolve(aliasMatch.group(1)) + " AS " + aliasMatch.group(2));
+                    resolved.add(
+                            resolver.resolve(aliasMatch.group(1)) + " AS " + aliasMatch.group(2));
                 } else {
                     resolved.add(col);
                 }

@@ -10,9 +10,11 @@ import com.foggyframework.dataset.model.engine.compose.capability.ObjectFacadeDe
 import com.foggyframework.dataset.model.engine.compose.capability.ObjectFacadeProxy;
 import com.foggyframework.dataset.model.engine.compose.context.ComposeQueryContext;
 import com.foggyframework.dataset.model.engine.compose.plan.Dsl;
+import com.foggyframework.dataset.model.engine.compose.plan.ComposeOptionValidator;
 import com.foggyframework.dataset.model.engine.compose.plan.PlanAliasSupport;
 import com.foggyframework.dataset.model.engine.compose.plan.QueryFactory;
 import com.foggyframework.dataset.model.engine.compose.plan.QueryPlan;
+import com.foggyframework.dataset.model.engine.compose.schema.ComposeParameterException;
 import com.foggyframework.dataset.model.engine.compose.sandbox.ExpressionWhitelistValidator;
 import com.foggyframework.dataset.model.engine.compose.sandbox.ScriptSourceScanner;
 import com.foggyframework.dataset.model.engine.compose.sandbox.SecurityParamGuard;
@@ -261,9 +263,10 @@ public final class ScriptRuntime {
             //    where evalArgs is the Object[] of evaluated argument expressions.
             //    For from({model:'X', columns:['id']}), evalArgs = [ Map{model=X, columns=[id]} ]
             Function<Object[], Object> fromFunction = rawArgs -> {
-                if (rawArgs == null || rawArgs.length == 0) {
-                    throw new IllegalArgumentException(
-                            "from() / dsl() requires exactly 1 argument (options map)");
+                if (rawArgs == null || rawArgs.length != 1 || !(rawArgs[0] instanceof Map<?, ?>)) {
+                    throw ComposeParameterException.invalidType("COMPOSE_PARAMETER_TYPE_INVALID",
+                            "dsl", "options", "exactly one options object",
+                            rawArgs != null && rawArgs.length == 1 ? rawArgs[0] : rawArgs);
                 }
                 @SuppressWarnings("unchecked")
                 Map<String, Object> args = (Map<String, Object>) rawArgs[0];
@@ -272,11 +275,31 @@ public final class ScriptRuntime {
                 SecurityParamGuard.validate(args, "script-eval");
 
                 Dsl.FromOptions.Builder builder = Dsl.FromOptions.builder();
-                if (args.containsKey("model")) {
-                    builder.model((String) args.get("model"));
+                Object model = args.get("model");
+                Object source = args.get("source");
+                if (model != null && source != null) {
+                    throw ComposeParameterException.conflictingSources();
                 }
-                if (args.containsKey("source")) {
-                    builder.source((QueryPlan) args.get("source"));
+                boolean derived;
+                if (model instanceof QueryPlan plan) {
+                    builder.source(plan);
+                    derived = true;
+                } else if (model instanceof String name && !name.isBlank()) {
+                    builder.model(name);
+                    derived = false;
+                } else if (model != null || source == null) {
+                    throw ComposeParameterException.invalidType("MODEL_TYPE_INVALID",
+                            "dsl.model", "model", "a non-blank QM name or QueryPlan", model);
+                } else if (source instanceof QueryPlan plan) {
+                    builder.source(plan);
+                    derived = true;
+                } else {
+                    throw ComposeParameterException.invalidType("SOURCE_TYPE_INVALID",
+                            "dsl.source", "source", "a QueryPlan", source);
+                }
+                if (derived) {
+                    ComposeOptionValidator.validateDerived(
+                            args.get("calculatedFields"), args.get("having"), "dsl");
                 }
                 if (args.containsKey("columns")) {
                     @SuppressWarnings("unchecked")
@@ -309,9 +332,13 @@ public final class ScriptRuntime {
                     builder.groupBy(groupBy);
                 }
                 if (args.containsKey("orderBy")) {
-                    @SuppressWarnings("unchecked")
-                    List<String> orderBy = (List<String>) args.get("orderBy");
-                    builder.orderBy(orderBy);
+                    Object orderBy = args.get("orderBy");
+                    if (orderBy instanceof List<?> list) {
+                        builder.orderBy(ComposeOptionValidator.orderBy(list, "dsl.orderBy"));
+                    } else if (orderBy != null) {
+                        throw ComposeParameterException.invalidType("COMPOSE_PARAMETER_TYPE_INVALID",
+                                "dsl.orderBy", "orderBy", "an array or null", orderBy);
+                    }
                 }
                 if (args.containsKey("calculatedFields")) {
                     @SuppressWarnings("unchecked")
@@ -323,6 +350,8 @@ public final class ScriptRuntime {
                 }
                 if (args.containsKey("start")) {
                     builder.start(((Number) args.get("start")).intValue());
+                } else if (args.get("offset") instanceof Number offset) {
+                    builder.start(offset.intValue());
                 }
                 if (args.containsKey("distinct")) {
                     builder.distinct(Boolean.TRUE.equals(args.get("distinct")));

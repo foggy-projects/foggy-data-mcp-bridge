@@ -3,7 +3,9 @@ package com.foggyframework.dataset.model.plugins.result_set_filter;
 import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.model.def.query.request.GroupRequestDef;
 import com.foggyframework.dataset.model.i18n.DatasetMessages;
+
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -29,6 +31,16 @@ import java.util.*;
 @Slf4j
 @Component
 public class SubtotalStep implements DataSetResultStep {
+
+    @Override
+    public boolean pivotResultProcessingIsIdentity(ModelResultContext context) {
+        return true;
+    }
+
+    @Override
+    public java.util.Optional<String> pivotCacheScope(ModelResultContext context) {
+        return java.util.Optional.of("engine-governed-v1");
+    }
 
     private static final String ROW_TYPE_FIELD = "_rowType";
     private static final String ROW_TYPE_DATA = "data";
@@ -116,7 +128,8 @@ public class SubtotalStep implements DataSetResultStep {
         Map<String, Object> grandTotal = buildAggregateRow(items, dimensionFields, measureAggs, ROW_TYPE_GRAND_TOTAL);
         // 总计行维度列显示标签
         if (!dimensionFields.isEmpty()) {
-            grandTotal.put(dimensionFields.get(0), DatasetMessages.getMessage("subtotal.grand.total"));
+            grandTotal.put(
+                    dimensionFields.get(0), DatasetMessages.getMessage("subtotal.grand.total"));
             for (int i = 1; i < dimensionFields.size(); i++) {
                 grandTotal.put(dimensionFields.get(i), "");
             }

@@ -2,33 +2,33 @@ package com.foggyframework.dataset.model.plugins.result_set_filter;
 
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.dataset.client.domain.PagingRequest;
+import com.foggyframework.dataset.model.PagingResultImpl;
 import com.foggyframework.dataset.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.model.engine.expression.InlineExpressionParser;
 import com.foggyframework.dataset.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.model.engine.query.JdbcQuery;
+import com.foggyframework.dataset.model.lifecycle.catalog.CatalogResolution;
 import com.foggyframework.dataset.model.lifecycle.identity.CatalogIdentity;
 import com.foggyframework.dataset.model.lifecycle.identity.DatasourceBindingIdentity;
-import com.foggyframework.dataset.model.lifecycle.catalog.CatalogResolution;
+import com.foggyframework.dataset.model.semantic.domain.DeniedPhysicalColumn;
+import com.foggyframework.dataset.model.semantic.explain.ExplainTraceCollector;
+import com.foggyframework.dataset.model.semantic.permission.AuthorizationSignature;
+import com.foggyframework.dataset.model.semantic.permission.PermissionAction;
+import com.foggyframework.dataset.model.semantic.permission.PermissionDecision;
+import com.foggyframework.dataset.model.semantic.permission.PermissionEvaluationSession;
+import com.foggyframework.dataset.model.semantic.permission.RequestIdentity;
 import com.foggyframework.dataset.model.spi.QueryCacheProvider;
 import com.foggyframework.dataset.model.spi.QueryModel;
 import com.foggyframework.dataset.model.spi.support.CalculatedDbColumn;
-import com.foggyframework.dataset.model.PagingResultImpl;
-import lombok.AllArgsConstructor;
+
 import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-
-import com.foggyframework.dataset.model.semantic.domain.DeniedPhysicalColumn;
-import com.foggyframework.dataset.model.semantic.explain.ExplainTraceCollector;
-import com.foggyframework.dataset.model.semantic.permission.PermissionDecision;
-import com.foggyframework.dataset.model.semantic.permission.PermissionEvaluationSession;
-import com.foggyframework.dataset.model.semantic.permission.PermissionAction;
-import com.foggyframework.dataset.model.semantic.permission.RequestIdentity;
-import com.foggyframework.dataset.model.semantic.permission.AuthorizationSignature;
 
 import java.util.HashMap;
 import java.util.List;
@@ -40,6 +40,109 @@ import java.util.Set;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ModelResultContext {
+
+    /** Retains the pre-proof public constructor descriptor for existing SPI consumers. */
+    public ModelResultContext(
+            com.foggyframework.dataset.client.domain.PagingRequest<
+                            com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef>
+                    request,
+            com.foggyframework.dataset.model.PagingResultImpl pagingResult,
+            com.foggyframework.dataset.model.spi.QueryModel queryModel,
+            java.lang.String canonicalModelName,
+            com.foggyframework.dataset.model.lifecycle.identity.CatalogIdentity catalogIdentity,
+            java.util.Map<
+                            java.lang.String,
+                            com.foggyframework.dataset.model.lifecycle.identity
+                                    .DatasourceBindingIdentity>
+                    datasourceBindingIdentities,
+            boolean bindingIdentityComplete,
+            com.foggyframework.dataset.model.engine.query.JdbcQuery query,
+            com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext.QueryType
+                    queryType,
+            java.util.Map<java.lang.String, java.lang.Object> extData,
+            com.foggyframework.dataset.model.semantic.explain.ExplainTraceCollector
+                    explainTraceCollector,
+            com.foggyframework.dataset.model.lifecycle.catalog.CatalogResolution<
+                            com.foggyframework.dataset.model.spi.QueryModel>
+                    catalogResolution,
+            com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext
+                            .SecurityContext
+                    securityContext,
+            com.foggyframework.dataset.model.semantic.permission.RequestIdentity requestIdentity,
+            com.foggyframework.dataset.model.semantic.permission.PermissionEvaluationSession
+                    permissionSession,
+            com.foggyframework.dataset.model.semantic.permission.PermissionDecision
+                    permissionDecision,
+            com.foggyframework.dataset.model.semantic.permission.PermissionAction permissionAction,
+            com.foggyframework.dataset.model.semantic.permission.AuthorizationSignature
+                    authorizationSignature,
+            java.lang.String namespace,
+            java.util.Set<java.lang.String> fieldAccess,
+            java.util.List<com.foggyframework.dataset.model.semantic.domain.DeniedPhysicalColumn>
+                    deniedColumns,
+            java.util.List<com.foggyframework.dataset.model.def.query.request.SliceRequestDef>
+                    systemSlice,
+            com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext
+                            .QueryCacheConfig
+                    cacheConfig,
+            com.foggyframework.bundle.SystemBundlesContext executionBundlesContext,
+            com.foggyframework.dataset.model.engine.query.DbQueryResult queryResult,
+            com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext
+                            .ExecutionDisposition
+                    executionDisposition,
+            java.util.function.Supplier<com.foggyframework.dataset.model.engine.query.DbQueryResult>
+                    deferredQuery,
+            boolean skipQuery,
+            com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext
+                            .ParsedInlineExpressions
+                    parsedInlineExpressions,
+            java.util.List<com.foggyframework.dataset.model.spi.support.CalculatedDbColumn>
+                    calculatedColumns) {
+        this(
+                null,
+                null,
+                null,
+                false,
+                request,
+                pagingResult,
+                queryModel,
+                canonicalModelName,
+                catalogIdentity,
+                datasourceBindingIdentities,
+                bindingIdentityComplete,
+                query,
+                queryType,
+                extData,
+                explainTraceCollector,
+                catalogResolution,
+                securityContext,
+                requestIdentity,
+                permissionSession,
+                permissionDecision,
+                permissionAction,
+                authorizationSignature,
+                namespace,
+                fieldAccess,
+                deniedColumns,
+                systemSlice,
+                cacheConfig,
+                executionBundlesContext,
+                queryResult,
+                executionDisposition,
+                deferredQuery,
+                skipQuery,
+                parsedInlineExpressions,
+                calculatedColumns);
+    }
+
+    /** Internal Pivot admission proof; never populated from request extData. */
+    private com.foggyframework.dataset.model.semantic.permission.PivotCacheProofSession
+            pivotCacheProofSession;
+
+    private java.util.List<String> pivotCacheOriginalConditions;
+    private String pivotCacheScope;
+    private boolean pivotCacheProofRequested;
+
     PagingRequest<DbQueryRequestDef> request;
 
     PagingResultImpl pagingResult;

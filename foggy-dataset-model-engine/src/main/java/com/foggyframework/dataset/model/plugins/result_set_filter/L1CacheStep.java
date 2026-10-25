@@ -1,11 +1,13 @@
 package com.foggyframework.dataset.model.plugins.result_set_filter;
 
+import com.foggyframework.dataset.model.PagingResultImpl;
 import com.foggyframework.dataset.model.engine.query.DbQueryResult;
+import com.foggyframework.dataset.model.plugins.cache.CacheResultSnapshot;
 import com.foggyframework.dataset.model.spi.NoOpQueryCacheProvider;
 import com.foggyframework.dataset.model.spi.QueryCacheProvider;
-import com.foggyframework.dataset.model.plugins.cache.CacheResultSnapshot;
-import com.foggyframework.dataset.model.PagingResultImpl;
+
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -26,6 +28,16 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 public class L1CacheStep implements DataSetResultStep {
+
+    @Override
+    public boolean pivotResultProcessingIsIdentity(ModelResultContext context) {
+        return true;
+    }
+
+    @Override
+    public java.util.Optional<String> pivotCacheScope(ModelResultContext context) {
+        return java.util.Optional.of("engine-governed-v1");
+    }
 
     /**
      * 查询缓存提供者

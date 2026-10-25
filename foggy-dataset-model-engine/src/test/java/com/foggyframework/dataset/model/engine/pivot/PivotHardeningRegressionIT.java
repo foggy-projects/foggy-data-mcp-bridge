@@ -1112,6 +1112,10 @@ class PivotHardeningRegressionIT extends EcommerceTestSupport {
                 auditScopeStep() {
             return new com.foggyframework.dataset.model.plugins.result_set_filter
                     .DataSetResultStep() {
+                public java.util.Optional<String> pivotCacheScope(ModelResultContext context) {
+                    return java.util.Optional.of("hardening-sql-governance-v1");
+                }
+
                 public int beforeQueryOrder() {
                     return -17;
                 }

@@ -11,6 +11,7 @@ import com.foggyframework.dataset.model.semantic.member.SyntheticMemberExternalP
 import com.foggyframework.dataset.model.semantic.member.SyntheticMemberQueryModelResolver;
 import com.foggyframework.dataset.model.spi.DbQueryColumn;
 import com.foggyframework.dataset.model.spi.QueryModel;
+
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
@@ -18,7 +19,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -27,6 +27,11 @@ import java.util.Set;
 @Component
 @Order(-10)
 public class SyntheticMemberExternalPatchStep implements DataSetResultStep {
+
+    @Override
+    public java.util.Optional<String> pivotCacheScope(ModelResultContext context) {
+        return java.util.Optional.of("engine-governed-v1");
+    }
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -111,7 +116,9 @@ public class SyntheticMemberExternalPatchStep implements DataSetResultStep {
             return normalized;
         }
         for (String field : visibleColumns) {
-            if (!schemaFields.contains(field)) throw RX.throwAUserTip("member external visibleColumns contains unknown field: " + field);
+            if (!schemaFields.contains(field))
+                throw RX.throwAUserTip(
+                        "member external visibleColumns contains unknown field: " + field);
             normalized.add(field);
         }
         if (normalized.isEmpty()) {
@@ -249,7 +256,8 @@ public class SyntheticMemberExternalPatchStep implements DataSetResultStep {
                 continue;
             }
             if (!schemaFields.contains(item.getField())) {
-                throw RX.throwAUserTip("synthetic member-QM forcedOrderBy 包含非法字段: " + item.getField());
+                throw RX.throwAUserTip(
+                        "synthetic member-QM forcedOrderBy 包含非法字段: " + item.getField());
             }
             sanitized.add(cloneOrder(item));
         }

@@ -1,0 +1,1492 @@
+package com.foggyframework.dataset.model.engine.pivot;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import com.foggyframework.bundle.SystemBundlesContext;
+import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
+import com.foggyframework.dataset.model.ecommerce.EcommerceTestSupport;
+import com.foggyframework.dataset.model.engine.query_model.JdbcQueryModelImpl;
+import com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext;
+import com.foggyframework.dataset.model.semantic.domain.*;
+import com.foggyframework.dataset.model.semantic.service.SemanticQueryServiceV3;
+import com.foggyframework.dataset.model.semantic.support.SemanticQueryPayloadMapper;
+
+import jakarta.annotation.Resource;
+
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.io.TempDir;
+import org.springframework.jdbc.datasource.DelegatingDataSource;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.TestPropertySource;
+
+import java.lang.reflect.*;
+import java.math.BigDecimal;
+import java.nio.file.*;
+import java.sql.*;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import javax.sql.DataSource;
+
+/**
+ * Unified Pivot contracts: exact member grains, bound auxiliary execution and collision-free
+ * coordinates.
+ */
+@TestPropertySource(
+        properties = {
+            "pivot.hardening.regression=true",
+            "foggy.dataset.pivot.outer-cache.enabled=true"
+        })
+@org.springframework.context.annotation.Import(PivotCacheGovernanceRegressionIT.AuditBindings.class)
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+class PivotCacheGovernanceRegressionIT extends EcommerceTestSupport {
+    @Resource SemanticQueryServiceV3 service;
+
+    @Resource
+    com.foggyframework.dataset.model.lifecycle.refresh.CatalogRefreshCoordinator coordinator;
+
+    @Resource SemanticQueryPayloadMapper mapper;
+    @Resource SystemBundlesContext bundles;
+    @Resource com.fasterxml.jackson.databind.ObjectMapper json;
+    final AtomicInteger evidenceSequence = new AtomicInteger();
+    @TempDir static Path root;
+    static final String TABLE = "pivot_unified_facts",
+            NODES = "pivot_unified_nodes",
+            BUNDLE = "pivot-hardening-regression";
+
+    @BeforeAll
+    void setup() throws Exception {
+        jdbcTemplate.execute(
+                "CREATE TABLE "
+                        + NODES
+                        + " (id INTEGER PRIMARY KEY,parent_id INTEGER,caption VARCHAR(30),title"
+                        + " VARCHAR(30))");
+        jdbcTemplate.execute(
+                "INSERT INTO "
+                        + NODES
+                        + " VALUES(1,NULL,'Root','root-title'),(2,1,'Left','left-title'),(3,1,'Right','right-title'),(4,2,'Leaf','leaf-title'),(10,11,'CycleA','cycle-a'),(11,10,'CycleB','cycle-b')");
+        jdbcTemplate.execute(
+                "CREATE TABLE "
+                        + TABLE
+                        + " (id INTEGER PRIMARY KEY,scenario VARCHAR(30),category VARCHAR(30),leaf"
+                        + " VARCHAR(30),ym VARCHAR(30),node_id INTEGER,amount DECIMAL(18,2))");
+        jdbcTemplate.update(
+                "INSERT INTO " + TABLE + " VALUES(?,?,?,?,?,?,?)",
+                1,
+                "topn",
+                "A",
+                "x",
+                "01",
+                1,
+                100);
+        jdbcTemplate.update(
+                "INSERT INTO " + TABLE + " VALUES(?,?,?,?,?,?,?)",
+                2,
+                "topn",
+                "A",
+                "x",
+                "02",
+                1,
+                10);
+        jdbcTemplate.update(
+                "INSERT INTO " + TABLE + " VALUES(?,?,?,?,?,?,?)",
+                3,
+                "topn",
+                "B",
+                "x",
+                "01",
+                1,
+                60);
+        jdbcTemplate.update(
+                "INSERT INTO " + TABLE + " VALUES(?,?,?,?,?,?,?)",
+                4,
+                "topn",
+                "B",
+                "x",
+                "02",
+                1,
+                60);
+        jdbcTemplate.update(
+                "INSERT INTO " + TABLE + " VALUES(?,?,?,?,?,?,?)",
+                5,
+                "having",
+                "A",
+                "x",
+                "01",
+                1,
+                10);
+        jdbcTemplate.update(
+                "INSERT INTO " + TABLE + " VALUES(?,?,?,?,?,?,?)",
+                6,
+                "having",
+                "A",
+                "x",
+                "02",
+                1,
+                20);
+        jdbcTemplate.update(
+                "INSERT INTO " + TABLE + " VALUES(?,?,?,?,?,?,?)",
+                7,
+                "having",
+                "B",
+                "x",
+                "01",
+                1,
+                15);
+        jdbcTemplate.update(
+                "INSERT INTO " + TABLE + " VALUES(?,?,?,?,?,?,?)",
+                8,
+                "having",
+                "B",
+                "x",
+                "02",
+                1,
+                15);
+        jdbcTemplate.update(
+                "INSERT INTO " + TABLE + " VALUES(?,?,?,?,?,?,?)",
+                9,
+                "share",
+                "P",
+                "a",
+                "01",
+                1,
+                10);
+        jdbcTemplate.update(
+                "INSERT INTO " + TABLE + " VALUES(?,?,?,?,?,?,?)",
+                10,
+                "share",
+                "P",
+                "b",
+                "01",
+                1,
+                20);
+        jdbcTemplate.update(
+                "INSERT INTO " + TABLE + " VALUES(?,?,?,?,?,?,?)",
+                11,
+                "missing-base",
+                "P",
+                "x",
+                "02",
+                1,
+                50);
+        jdbcTemplate.update(
+                "INSERT INTO " + TABLE + " VALUES(?,?,?,?,?,?,?)",
+                12,
+                "missing-base",
+                "Q",
+                "x",
+                "01",
+                1,
+                30);
+        jdbcTemplate.update(
+                "INSERT INTO " + TABLE + " VALUES(?,?,?,?,?,?,?)",
+                13,
+                "missing-base",
+                "Q",
+                "x",
+                "02",
+                1,
+                60);
+        jdbcTemplate.update(
+                "INSERT INTO " + TABLE + " VALUES(?,?,?,?,?,?,?)",
+                14,
+                "ordered-base",
+                "P",
+                "x",
+                "01",
+                1,
+                40);
+        jdbcTemplate.update(
+                "INSERT INTO " + TABLE + " VALUES(?,?,?,?,?,?,?)",
+                15,
+                "ordered-base",
+                "P",
+                "x",
+                "02",
+                1,
+                50);
+        jdbcTemplate.update(
+                "INSERT INTO " + TABLE + " VALUES(?,?,?,?,?,?,?)",
+                16,
+                "tree",
+                "P",
+                "x",
+                "01",
+                1,
+                10);
+        jdbcTemplate.update(
+                "INSERT INTO " + TABLE + " VALUES(?,?,?,?,?,?,?)",
+                17,
+                "tree",
+                "P",
+                "x",
+                "01",
+                2,
+                40);
+        jdbcTemplate.update(
+                "INSERT INTO " + TABLE + " VALUES(?,?,?,?,?,?,?)",
+                18,
+                "tree",
+                "P",
+                "x",
+                "01",
+                3,
+                130);
+        jdbcTemplate.update(
+                "INSERT INTO " + TABLE + " VALUES(?,?,?,?,?,?,?)",
+                19,
+                "tree",
+                "P",
+                "x",
+                "01",
+                4,
+                0);
+        jdbcTemplate.update(
+                "INSERT INTO " + TABLE + " VALUES(?,?,?,?,?,?,?)",
+                20,
+                "tree-mixed",
+                "P",
+                "x",
+                "01",
+                1,
+                10);
+        jdbcTemplate.update(
+                "INSERT INTO " + TABLE + " VALUES(?,?,?,?,?,?,?)",
+                21,
+                "tree-mixed",
+                "Q",
+                "x",
+                "01",
+                1,
+                20);
+        jdbcTemplate.update(
+                "INSERT INTO " + TABLE + " VALUES(?,?,?,?,?,?,?)",
+                22,
+                "cycle",
+                "P",
+                "x",
+                "01",
+                10,
+                10);
+        jdbcTemplate.update(
+                "INSERT INTO " + TABLE + " VALUES(?,?,?,?,?,?,?)",
+                23,
+                "cycle",
+                "P",
+                "x",
+                "01",
+                11,
+                20);
+        jdbcTemplate.update(
+                "INSERT INTO " + TABLE + " VALUES(?,?,?,?,?,?,?)",
+                24,
+                "null-key",
+                null,
+                "x",
+                "01",
+                1,
+                10);
+        jdbcTemplate.update(
+                "INSERT INTO " + TABLE + " VALUES(?,?,?,?,?,?,?)",
+                25,
+                "null-key",
+                null,
+                "x",
+                "02",
+                1,
+                20);
+        jdbcTemplate.update(
+                "INSERT INTO " + TABLE + " VALUES(?,?,?,?,?,?,?)",
+                26,
+                "null-key",
+                "null",
+                "x",
+                "01",
+                1,
+                100);
+        jdbcTemplate.update(
+                "INSERT INTO " + TABLE + " VALUES(?,?,?,?,?,?,?)",
+                27,
+                "null-key",
+                "null",
+                "x",
+                "02",
+                1,
+                300);
+        jdbcTemplate.update(
+                "INSERT INTO " + TABLE + " VALUES(?,?,?,?,?,?,?)",
+                28,
+                "null-share",
+                null,
+                "a",
+                "01",
+                1,
+                10);
+        jdbcTemplate.update(
+                "INSERT INTO " + TABLE + " VALUES(?,?,?,?,?,?,?)",
+                29,
+                "null-share",
+                null,
+                "b",
+                "01",
+                1,
+                30);
+        jdbcTemplate.update(
+                "INSERT INTO " + TABLE + " VALUES(?,?,?,?,?,?,?)",
+                30,
+                "null-share",
+                "null",
+                "a",
+                "01",
+                1,
+                20);
+        jdbcTemplate.update(
+                "INSERT INTO " + TABLE + " VALUES(?,?,?,?,?,?,?)",
+                31,
+                "null-share",
+                "null",
+                "b",
+                "01",
+                1,
+                20);
+        jdbcTemplate.update(
+                "INSERT INTO " + TABLE + " VALUES(?,?,?,?,?,?,?)",
+                32,
+                "tree-key",
+                "P",
+                "c",
+                "a|b",
+                1,
+                10);
+        jdbcTemplate.update(
+                "INSERT INTO " + TABLE + " VALUES(?,?,?,?,?,?,?)",
+                33,
+                "tree-key",
+                "P",
+                "b|c",
+                "a",
+                1,
+                20);
+        jdbcTemplate.update(
+                "INSERT INTO "
+                        + TABLE
+                        + " VALUES(101,'tree-columns','P','x','01',1,10),(102,'tree-columns','P','x','02',1,20),(103,'tree-columns','P','x','01',2,5),(104,'tree-columns','P','x','02',2,6)");
+        jdbcTemplate.update(
+                "INSERT INTO "
+                        + TABLE
+                        + " VALUES(201,'independent-tree','P','x','02',1,0),(202,'independent-tree','P','x','01',2,1000),(203,'independent-tree','P','x','02',3,600),(204,'independent-tree','P','x','03',3,600)");
+        int uniqueId = 300;
+        for (String month : List.of("01", "02")) {
+            for (String leaf :
+                    (month.equals("01") ? List.of("a", "b", "c") : List.of("d", "e", "f")))
+                jdbcTemplate.update(
+                        "INSERT INTO " + TABLE + " VALUES(?,?,?,?,?,?,?)",
+                        uniqueId++,
+                        "distinct",
+                        "A",
+                        leaf,
+                        month,
+                        1,
+                        1);
+            for (String leaf : List.of("u", "v", "w", "x"))
+                jdbcTemplate.update(
+                        "INSERT INTO " + TABLE + " VALUES(?,?,?,?,?,?,?)",
+                        uniqueId++,
+                        "distinct",
+                        "B",
+                        leaf,
+                        month,
+                        1,
+                        1);
+        }
+        jdbcTemplate.execute(
+                "CREATE TABLE pivot_unified_branches(id INTEGER PRIMARY KEY,node_id INTEGER,title"
+                        + " VARCHAR(30))");
+        jdbcTemplate.update(
+                "INSERT INTO pivot_unified_branches"
+                    + " VALUES(1,1,'outer-root'),(2,2,'outer-left'),(3,3,'outer-right'),(4,4,'outer-leaf')");
+        Files.createDirectories(root);
+        Files.writeString(
+                root.resolve("PivotUnified.tm"),
+                "export const"
+                    + " model={name:'PivotUnified',dataSourceName:'audit-fixed',tableName:'pivot_unified_facts',idColumn:'id',properties:[{name:'id',column:'id',type:'INTEGER'},{name:'scenario',column:'scenario',type:'STRING'},{name:'category',column:'category',type:'STRING'},{name:'leaf',column:'leaf',type:'STRING'},{name:'yearMonth',column:'ym',type:'STRING'}],dimensions:[{name:'node',tableName:'pivot_unified_nodes',foreignKey:'node_id',primaryKey:'id',captionColumn:'caption',properties:[{name:'parentId',column:'parent_id',type:'INTEGER'},{name:'title',column:'title',type:'STRING'}]}],measures:[{name:'amount',column:'amount',type:'NUMBER',aggregation:'sum'},{name:'avgAmount',column:'amount',type:'NUMBER',aggregation:'avg'},{name:'minAmount',column:'amount',type:'NUMBER',aggregation:'min'},{name:'maxAmount',column:'amount',type:'NUMBER',aggregation:'max'},{name:'uniqueLeaf',column:'leaf',type:'NUMBER',aggregation:'count_distinct'}]};");
+        Files.writeString(
+                root.resolve("PivotUnifiedBase.qm"),
+                "const m=loadTableModel('PivotUnified');export const"
+                    + " queryModel={name:'PivotUnifiedBase',model:m,loader:'v2',columnGroups:[{caption:'Fields',items:[{ref:m.id},{ref:m.scenario},{ref:m.category},{ref:m.leaf},{ref:m.yearMonth},{ref:m.node},{ref:m.amount},{ref:m.avgAmount},{ref:m.minAmount},{ref:m.maxAmount},{ref:m.uniqueLeaf},{name:'doubleValue',type:'NUMBER',formula:'sum(amount)*2'},{name:'averageCalc',type:'NUMBER',formula:'sum(amount)*1.0/count(id)'}]}],accesses:[]};");
+        Files.writeString(
+                root.resolve("PivotUnifiedRenamed.qm"),
+                "const m=loadTableModel('PivotUnified');export const"
+                    + " queryModel={name:'PivotUnifiedRenamed',model:m,loader:'v2',columnGroups:[{caption:'Fields',items:[{ref:m.id},{ref:m.scenario},{ref:m.category},{ref:m.yearMonth},{ref:m.amount},{ref:m.node$id,name:'nodeKey',alias:'nodeKeyOut'},{ref:m.node$caption,name:'nodeName',alias:'nodeNameOut'},{ref:m.node$title,name:'nodeTitle',alias:'nodeTitleOut'},{ref:m.node$parentId,name:'parentKey',alias:'parentKeyOut'}]}],accesses:[]};");
+        Files.writeString(
+                root.resolve("PivotNested.tm"),
+                """
+            export const model={name:'PivotNested',tableName:'pivot_unified_facts',idColumn:'id',properties:[{name:'id',column:'id',type:'INTEGER'},{name:'scenario',column:'scenario',type:'STRING'}],dimensions:[{name:'branch',tableName:'pivot_unified_branches',foreignKey:'node_id',primaryKey:'id',captionColumn:'title',properties:[{name:'title',column:'title',type:'STRING'}],dimensions:[{name:'child',tableName:'pivot_unified_nodes',foreignKey:'node_id',primaryKey:'id',captionColumn:'caption',properties:[{name:'title',column:'title',type:'STRING'}]}]}],measures:[{name:'amount',column:'amount',type:'NUMBER',aggregation:'sum'}]};
+            """);
+        Files.writeString(
+                root.resolve("PivotUnifiedNested.qm"),
+                """
+            const m=loadTableModel('PivotNested');export const queryModel={name:'PivotUnifiedNested',model:m,loader:'v2',columnGroups:[{caption:'Fields',items:[{ref:m.id},{ref:m.scenario},{ref:m.amount},{ref:m.branch.child$id,name:'nestedKey',alias:'nestedKeyOut'},{ref:m.branch.child$title,name:'nestedTitle',alias:'nestedTitleOut'}]}],accesses:[]};
+            """);
+
+        String prefix = "const m=loadTableModel('PivotUnified');export const queryModel={name:'";
+        Files.writeString(
+                root.resolve("PivotUnifiedDynamic.qm"),
+                prefix
+                        + "PivotUnifiedDynamic',model:m,loader:'v2',columnGroups:[{caption:'Fields',items:[{ref:m.scenario},{ref:m.category},{ref:m.yearMonth},{ref:m.amount}]}],fieldPermissions:{defaultVisible:false,visibleFields:[{fields:['scenario','category','yearMonth']},{when:{hasAnyRole:['finance']},fields:['amount']}]},accesses:[]};");
+        Files.writeString(
+                root.resolve("PivotUnifiedMultiKey.qm"),
+                prefix
+                        + "PivotUnifiedMultiKey',model:m,loader:'v2',columnGroups:[{caption:'Fields',items:[{ref:m.scenario},{ref:m.amount},{ref:m.node$id,name:'keyOne',alias:'oneOut'},{ref:m.node$id,name:'keyTwo',alias:'twoOut'},{ref:m.node$title,name:'titleName',alias:'titleOut'}]}],accesses:[]};");
+
+        Files.writeString(
+                root.resolve("PivotTmPermission.tm"),
+                "export const"
+                    + " model={name:'PivotTmPermission',dataSourceName:'audit-fixed',tableName:'pivot_unified_facts',idColumn:'id',properties:[{name:'scenario',column:'scenario',type:'STRING'},{name:'category',column:'category',type:'STRING'},{name:'yearMonth',column:'ym',type:'STRING'}],measures:[{name:'amount',column:'amount',type:'NUMBER',aggregation:'sum'}],fieldPermissions:{hiddenFields:[{when:{hasAnyRole:['guest']},fields:['amount']}]}};");
+        Files.writeString(
+                root.resolve("PivotUnifiedTmDynamic.qm"),
+                "const m=loadTableModel('PivotTmPermission');export const"
+                    + " queryModel={name:'PivotUnifiedTmDynamic',model:m,loader:'v2',columnGroups:[{caption:'Fields',items:[{ref:m.scenario},{ref:m.category},{ref:m.yearMonth},{ref:m.amount}]}],accesses:[]};");
+        Files.writeString(
+                root.resolve("PivotUnifiedContextual.qm"),
+                Files.readString(root.resolve("PivotUnifiedBase.qm"))
+                        .replace("PivotUnifiedBase", "PivotUnifiedContextual"));
+        Path multi = root.resolve("PivotUnifiedMultiKey.qm");
+        Files.writeString(
+                multi,
+                Files.readString(multi)
+                        .replace(
+                                "accesses:[]",
+                                "fieldPermissions:{hiddenFields:[{when:{hasAnyRole:['guest']},fields:['titleName']}]},accesses:[]"));
+
+        Files.writeString(
+                root.resolve("PivotRefresh.tm"),
+                "export const"
+                    + " model={name:'PivotRefresh',dataSourceName:'audit-fixed',tableName:'pivot_unified_facts',idColumn:'id',properties:[{name:'scenario',column:'scenario',type:'STRING'},{name:'category',column:'category',type:'STRING'}],measures:[{name:'amount',column:'amount',type:'NUMBER',aggregation:'sum'}]};");
+        Files.writeString(
+                root.resolve("PivotUnifiedRefreshProbe.qm"),
+                "const m=loadTableModel('PivotRefresh');export const"
+                    + " queryModel={name:'PivotUnifiedRefreshProbe',model:m,loader:'v2',columnGroups:[{caption:'Fields',items:[{ref:m.scenario},{ref:m.category},{ref:m.amount,name:'amount',alias:'beforeOut'}]}],accesses:[]};");
+        for (String suffix : List.of("DomainGoverned", "RaceGoverned", "Masked", "MaskedScoped"))
+            Files.writeString(
+                    root.resolve("PivotUnified" + suffix + ".qm"),
+                    Files.readString(root.resolve("PivotUnifiedBase.qm"))
+                            .replace("PivotUnifiedBase", "PivotUnified" + suffix));
+        Files.writeString(
+                root.resolve("PivotUnifiedMaskedAlias.qm"),
+                Files.readString(root.resolve("PivotUnifiedBase.qm"))
+                        .replace("PivotUnifiedBase", "PivotUnifiedMaskedAlias")
+                        .replace("{ref:m.category}", "{ref:m.category,alias:'categoryOut'}")
+                        .replace("{ref:m.yearMonth}", "{ref:m.yearMonth,alias:'monthOut'}")
+                        .replace("{ref:m.amount}", "{ref:m.amount,alias:'amountOut'}")
+                        .replace("{ref:m.avgAmount}", "{ref:m.avgAmount,alias:'avgOut'}")
+                        .replace(
+                                "name:'doubleValue',type:",
+                                "name:'doubleValue',alias:'doubleOut',type:"));
+        Files.writeString(
+                root.resolve("PivotUnifiedObservedAlias.qm"),
+                Files.readString(root.resolve("PivotUnifiedMaskedAlias.qm"))
+                        .replace("PivotUnifiedMaskedAlias", "PivotUnifiedObservedAlias"));
+        Files.writeString(
+                root.resolve("PivotUnifiedDomainHidden.qm"),
+                Files.readString(root.resolve("PivotUnifiedBase.qm"))
+                        .replace("PivotUnifiedBase", "PivotUnifiedDomainHidden")
+                        .replace(
+                                "accesses:[]",
+                                "fieldPermissions:{hiddenFields:[{when:{hasAnyRole:['guest']},fields:['leaf']}]},accesses:[]"));
+        assertTrue(bundles.addExternalBundle(BUNDLE, "pivot-hardening", root.toString(), false));
+    }
+
+    @AfterAll
+    void cleanup() {
+        bundles.removeBundle(BUNDLE);
+        queryModelLoader.clearByNamespace("pivot-hardening");
+        jdbcTemplate.execute("DROP TABLE pivot_unified_branches");
+        jdbcTemplate.execute("DROP TABLE " + TABLE);
+        jdbcTemplate.execute("DROP TABLE " + NODES);
+    }
+
+    Map<String, Object> request(List<?> rows, List<?> columns, List<?> metrics, String format) {
+        Map<String, Object> pivot = new LinkedHashMap<>();
+        pivot.put("rows", rows);
+        if (columns != null) pivot.put("columns", columns);
+        pivot.put("metrics", metrics);
+        pivot.put("outputFormat", format);
+        pivot.put("options", Map.of("grandTotal", false));
+        return new LinkedHashMap<>(Map.of("pivot", pivot));
+    }
+
+    Map<String, Object> basic(String format) {
+        return request(List.of("category"), List.of("month"), List.of("amount"), format);
+    }
+
+    @SuppressWarnings("unchecked")
+    Map<String, Object> pivot(Map<String, Object> request) {
+        return (Map<String, Object>) request.get("pivot");
+    }
+
+    SemanticQueryResponse call(
+            String model,
+            Map<String, Object> request,
+            String mode,
+            SemanticRequestContext context) {
+        var response =
+                service.queryModel(
+                        "PivotUnified" + model, mapper.toQueryRequest(request), mode, context);
+        String evidence = System.getenv("FOGGY_TIMEAXIS_EVIDENCE");
+        if (evidence != null) {
+            try {
+                Path directory =
+                        Files.createDirectories(
+                                Path.of(evidence).resolve("pivot-cache-contract-calls"));
+                Files.writeString(
+                        directory.resolve(
+                                evidenceSequence.incrementAndGet()
+                                        + "-"
+                                        + model
+                                        + "-"
+                                        + mode
+                                        + ".json"),
+                        json.writerWithDefaultPrettyPrinter()
+                                .writeValueAsString(
+                                        Map.of(
+                                                "model",
+                                                model,
+                                                "mode",
+                                                mode,
+                                                "request",
+                                                request,
+                                                "response",
+                                                response)));
+            } catch (java.io.IOException error) {
+                throw new java.io.UncheckedIOException(error);
+            }
+        }
+        return response;
+    }
+
+    SemanticQueryResponse checked(
+            String model, Map<String, Object> request, SemanticRequestContext context) {
+        assertNotNull(call(model, request, "validate", context));
+        assertNotNull(
+                service.validateQuery(
+                        "PivotUnified" + model, mapper.toQueryRequest(request), context));
+        return call(model, request, "execute", context);
+    }
+
+    SemanticQueryResponse checked(Map<String, Object> request) {
+        return checked("Base", request, SemanticRequestContext.ofNamespace("pivot-hardening"));
+    }
+
+    void rejected(String model, Map<String, Object> request, SemanticRequestContext context) {
+        for (String mode : List.of("validate", "execute"))
+            assertThrows(
+                    RuntimeException.class,
+                    () -> call(model, request, mode, context),
+                    mode + ": " + request);
+        assertThrows(
+                RuntimeException.class,
+                () ->
+                        service.validateQuery(
+                                "PivotUnified" + model, mapper.toQueryRequest(request), context));
+    }
+
+    void rejected(Map<String, Object> request) {
+        rejected("Base", request, SemanticRequestContext.ofNamespace("pivot-hardening"));
+    }
+
+    SemanticRequestContext deny(String table, String column) {
+        return SemanticRequestContext.ofDeniedColumns(
+                "pivot-hardening", null, List.of(new DeniedPhysicalColumn(null, table, column)));
+    }
+
+    void number(String expected, Object actual) {
+        assertNotNull(actual);
+        assertEquals(
+                0,
+                new BigDecimal(expected).compareTo(new BigDecimal(actual.toString())),
+                String.valueOf(actual));
+    }
+
+    Map<String, Map<String, Object>> index(List<Map<String, Object>> rows, String... fields) {
+        Map<String, Map<String, Object>> result = new LinkedHashMap<>();
+        for (var row : rows) {
+            String key =
+                    String.join(
+                            "/",
+                            Arrays.stream(fields).map(f -> String.valueOf(row.get(f))).toList());
+            assertNull(result.put(key, row), "duplicate cell: " + key);
+        }
+        return result;
+    }
+
+    Map<String, Object> p(
+            String scenario, List<?> rows, List<?> cols, List<?> metrics, String format) {
+        var request = request(rows, cols, metrics, format);
+        request.put("slice", List.of(Map.of("field", "scenario", "op", "=", "value", scenario)));
+        return request;
+    }
+
+    Map<String, Object> ratio(String name, String base) {
+        return Map.of(
+                "name",
+                name,
+                "type",
+                "baselineRatio",
+                "of",
+                base,
+                "axis",
+                "columns",
+                "baseline",
+                "first");
+    }
+
+    Map<String, Object> share(String base) {
+        return Map.of(
+                "name",
+                "share",
+                "type",
+                "parentShare",
+                "of",
+                base,
+                "axis",
+                "rows",
+                "level",
+                "leaf",
+                "parentLevel",
+                "category");
+    }
+
+    Map<String, Object> tree(String scenario, Object axis) {
+        return p(scenario, List.of(axis), null, List.of("amount"), "tree");
+    }
+
+    @SuppressWarnings("unchecked")
+    List<PivotResult.TreeNode> treeNodes(SemanticQueryResponse response) {
+        return (List<PivotResult.TreeNode>) response.getItems().get(0).get("data");
+    }
+
+    SemanticRequestContext role(String name) {
+        return SemanticRequestContext.of(
+                "pivot-hardening",
+                ModelResultContext.SecurityContext.builder().roles(List.of(name)).build());
+    }
+
+    void record(String label, Object value) throws Exception {
+        String folder = System.getenv("FOGGY_TIMEAXIS_EVIDENCE");
+        if (folder != null) {
+            Path directory =
+                    Files.createDirectories(
+                            Path.of(folder).resolve("pivot-cache-contract-results"));
+            Files.writeString(
+                    directory.resolve(label + ".json"),
+                    json.writerWithDefaultPrettyPrinter().writeValueAsString(value));
+        }
+    }
+
+    boolean event(SemanticQueryResponse response, String event) {
+        return response.getDebug() != null
+                && String.valueOf(response.getDebug().getExtra()).contains(event);
+    }
+
+    Connection observe(Connection connection, AtomicInteger prepared, AtomicInteger executed) {
+        return (Connection)
+                Proxy.newProxyInstance(
+                        getClass().getClassLoader(),
+                        new Class<?>[] {Connection.class},
+                        (proxy, method, args) -> {
+                            try {
+                                Object result = method.invoke(connection, args);
+                                if (result instanceof Statement statement) {
+                                    String sql =
+                                            args != null
+                                                            && args.length > 0
+                                                            && args[0] instanceof String text
+                                                    ? text
+                                                    : "";
+                                    if (businessSql(sql)) prepared.incrementAndGet();
+                                    Class<?> type =
+                                            result instanceof PreparedStatement
+                                                    ? PreparedStatement.class
+                                                    : Statement.class;
+                                    return Proxy.newProxyInstance(
+                                            getClass().getClassLoader(),
+                                            new Class<?>[] {type},
+                                            (p, m, a) -> {
+                                                String statementSql =
+                                                        a != null
+                                                                        && a.length > 0
+                                                                        && a[0]
+                                                                                instanceof
+                                                                                String text
+                                                                ? text
+                                                                : sql;
+                                                if (m.getName().startsWith("execute")
+                                                        && businessSql(statementSql))
+                                                    executed.incrementAndGet();
+                                                try {
+                                                    return m.invoke(statement, a);
+                                                } catch (InvocationTargetException error) {
+                                                    throw error.getCause();
+                                                }
+                                            });
+                                }
+                                return result;
+                            } catch (InvocationTargetException error) {
+                                throw error.getCause();
+                            }
+                        });
+    }
+
+    boolean businessSql(String sql) {
+        return sql.toLowerCase(Locale.ROOT).contains(TABLE)
+                || sql.toLowerCase(Locale.ROOT).contains(NODES);
+    }
+
+    String lookupKey(SemanticQueryResponse response) {
+        var events =
+                (List<Map<String, Object>>) response.getDebug().getExtra().get("pivotDiagnostics");
+        return events.stream()
+                .filter(e -> "pivot.cache.lookup".equals(e.get("event")))
+                .map(e -> e.get("keyHash").toString())
+                .findFirst()
+                .orElse("refused");
+    }
+
+    @Test
+    @Order(108)
+    void optedInMaskingHasSeparateVersionedScopesAndSafeHits() throws Exception {
+        var req = p("topn", List.of("category"), null, List.of("amount"), "flat");
+        var raw = call("MaskedScoped", req, "execute", auditScope("privileged"));
+        var masked = call("MaskedScoped", req, "execute", auditScope("masked"));
+        var hit = call("MaskedScoped", req, "execute", auditScope("masked"));
+        assertTrue(event(hit, "pivot.cache.hit"));
+        assertEquals(masked.getItems(), hit.getItems());
+        assertTrue(
+                hit.getItems().stream()
+                        .allMatch(r -> new BigDecimal(r.get("amount").toString()).signum() == 0));
+        assertNotEquals(lookupKey(raw), lookupKey(hit));
+        record("scoped-masking", Map.of("raw", raw, "masked", masked, "hit", hit));
+    }
+
+    @Test
+    @Order(109)
+    void zeroDomainValidationAndExecutionPrepareNoBusinessSql() throws Exception {
+        var model =
+                (JdbcQueryModelImpl)
+                        queryModelLoader.getJdbcQueryModel(
+                                "PivotUnifiedDomainHidden", "pivot-hardening");
+        DataSource original = model.getDataSource();
+        AtomicInteger prepared = new AtomicInteger(), executed = new AtomicInteger();
+        model.setDataSource(
+                new DelegatingDataSource(original) {
+                    @Override
+                    public Connection getConnection() throws SQLException {
+                        return observe(super.getConnection(), prepared, executed);
+                    }
+                });
+        try {
+            var req =
+                    p(
+                            "topn",
+                            List.of(
+                                    Map.of(
+                                            "field",
+                                            "category",
+                                            "limit",
+                                            0,
+                                            "domainSlice",
+                                            List.of(
+                                                    Map.of(
+                                                            "field", "leaf", "op", "=", "value",
+                                                            "x")))),
+                            null,
+                            List.of("amount"),
+                            "flat");
+            assertEquals(0L, checked("DomainHidden", req, role("finance")).getTotal());
+            rejected("DomainHidden", req, role("guest"));
+            assertEquals(0, prepared.get());
+            assertEquals(0, executed.get());
+            record(
+                    "zero-domain-sql-observer",
+                    Map.of("prepared", prepared.get(), "executed", executed.get()));
+        } finally {
+            model.setDataSource(original);
+        }
+    }
+
+    @Test
+    @Order(110)
+    void maskingFallsBackFromUnsafePushdownAndProcessesNonAdditiveTotals() throws Exception {
+        for (String model : List.of("Masked", "MaskedScoped")) {
+            var top =
+                    p(
+                            "topn",
+                            List.of(
+                                    Map.of(
+                                            "field",
+                                            "category",
+                                            "limit",
+                                            1,
+                                            "orderBy",
+                                            List.of("-amount"))),
+                            List.of("yearMonth"),
+                            List.of("amount"),
+                            "flat");
+            var ranked = checked(model, top, auditScope("masked"));
+            assertFalse(ranked.getItems().isEmpty());
+            assertTrue(
+                    ranked.getItems().stream()
+                            .allMatch(
+                                    r -> new BigDecimal(r.get("amount").toString()).signum() == 0));
+            var req = p("topn", List.of("category"), null, List.of("avgAmount"), "flat");
+            pivot(req).put("options", Map.of("grandTotal", true));
+            var result = checked(model, req, auditScope("masked"));
+            assertEquals(3, result.getItems().size());
+            assertTrue(
+                    result.getItems().stream()
+                            .allMatch(
+                                    r ->
+                                            new BigDecimal(r.get("avgAmount").toString()).signum()
+                                                    == 0));
+            record("masked-pushdown-and-total-" + model, Map.of("ranked", ranked, "total", result));
+        }
+    }
+
+    @Test
+    @Order(111)
+    void managedResultProcessorsUseQmOutputAliasesBeforePivotLogicalBinding() throws Exception {
+        var top =
+                p(
+                        "topn",
+                        List.of(
+                                Map.of(
+                                        "field",
+                                        "category",
+                                        "limit",
+                                        1,
+                                        "orderBy",
+                                        List.of("-amount"))),
+                        List.of("yearMonth"),
+                        List.of("amount"),
+                        "flat");
+        var raw = checked("MaskedAlias", top, auditScope("privileged"));
+        var masked = checked("MaskedAlias", top, auditScope("masked"));
+        var hit = call("MaskedAlias", top, "execute", auditScope("masked"));
+        assertTrue(event(hit, "pivot.cache.hit"));
+        assertEquals(masked.getItems(), hit.getItems());
+        assertTrue(
+                masked.getItems().stream()
+                        .allMatch(
+                                r ->
+                                        r.get("category") != null
+                                                && new BigDecimal(r.get("amount").toString())
+                                                                .signum()
+                                                        == 0));
+        assertEquals(
+                false,
+                ((Map<?, ?>)
+                                ((Map<?, ?>) raw.getDebug().getExtra().get("pivotEngineContract"))
+                                        .get("execution_path"))
+                        .get("sql_pushdown_used"));
+        assertTrue(masked.getItems().stream().allMatch(r -> "A".equals(r.get("category"))));
+        var total = p("topn", List.of("category"), null, List.of("avgAmount"), "flat");
+        pivot(total).put("options", Map.of("grandTotal", true));
+        var summary = checked("MaskedAlias", total, auditScope("masked"));
+        assertEquals(3, summary.getItems().size());
+        assertTrue(
+                summary.getItems().stream()
+                        .allMatch(
+                                r -> new BigDecimal(r.get("avgAmount").toString()).signum() == 0));
+        var calc = p("topn", List.of("category"), null, List.of("doubleValue"), "flat");
+        var calculated = checked("MaskedAlias", calc, auditScope("masked"));
+        assertTrue(
+                calculated.getItems().stream()
+                        .allMatch(
+                                r ->
+                                        new BigDecimal(r.get("doubleValue").toString()).signum()
+                                                == 0));
+        record(
+                "masked-alias-binding",
+                Map.of(
+                        "raw",
+                        raw,
+                        "masked",
+                        masked,
+                        "hit",
+                        hit,
+                        "total",
+                        summary,
+                        "calculated",
+                        calculated));
+    }
+
+    static final java.util.Queue<List<String>> observedOutputKeys =
+            new java.util.concurrent.ConcurrentLinkedQueue<>();
+
+    @Test
+    @Order(112)
+    void identityResultObserversKeepSqlPushdownAndOrdinaryAliasLayout() throws Exception {
+        observedOutputKeys.clear();
+        var top =
+                p(
+                        "topn",
+                        List.of(
+                                Map.of(
+                                        "field",
+                                        "category",
+                                        "limit",
+                                        1,
+                                        "orderBy",
+                                        List.of("-amount"))),
+                        List.of("yearMonth"),
+                        List.of("amount"),
+                        "flat");
+        var result = checked("ObservedAlias", top, auditScope("privileged"));
+        assertFalse(observedOutputKeys.isEmpty());
+        assertTrue(
+                observedOutputKeys.stream()
+                        .allMatch(keys -> keys.contains("amountOut") && !keys.contains("amount")));
+        assertTrue(result.getItems().stream().allMatch(r -> "B".equals(r.get("category"))));
+        if (supportsWindowFunctions())
+            assertEquals(
+                    true,
+                    ((Map<?, ?>)
+                                    ((Map<?, ?>)
+                                                    result.getDebug()
+                                                            .getExtra()
+                                                            .get("pivotEngineContract"))
+                                            .get("execution_path"))
+                            .get("sql_pushdown_used"));
+        record("identity-result-alias-layout", result);
+    }
+
+    static final AtomicInteger raceCalls = new AtomicInteger();
+    static volatile String raceStable;
+
+    SemanticRequestContext auditScope(String category) {
+        return SemanticRequestContext.of(
+                "pivot-hardening",
+                ModelResultContext.SecurityContext.builder()
+                        .attributes(Map.of("auditCategory", category))
+                        .build());
+    }
+
+    Map<String, Object> outcome(
+            String suffix, Map<String, Object> payload, String mode, SemanticRequestContext ctx) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        try {
+            result.put("status", "SUCCESS");
+            result.put("response", call(suffix, payload, mode, ctx));
+        } catch (Exception failure) {
+            result.put("status", "REJECTED");
+            result.put("exception", failure.getClass().getName());
+            result.put("message", String.valueOf(failure.getMessage()));
+        }
+        return result;
+    }
+
+    @Test
+    @Order(100)
+    void auditDomainOnlyGovernanceWarmVersusCold() throws Exception {
+        var req =
+                p(
+                        "topn",
+                        List.of(
+                                Map.of(
+                                        "field",
+                                        "category",
+                                        "domainSlice",
+                                        List.of(Map.of("field", "leaf", "op", "=", "value", "x")))),
+                        null,
+                        List.of("amount"),
+                        "flat");
+        var allowed = call("DomainGoverned", req, "execute", auditScope("A"));
+        var warm = call("DomainGoverned", req, "execute", auditScope("B"));
+        var impl = service;
+        var pipeline =
+                (PivotPipeline)
+                        org.springframework.test.util.ReflectionTestUtils.invokeMethod(
+                                impl, "getPivotPipeline");
+        pipeline.evictOuterCache("pivot-hardening", "PivotUnifiedDomainGoverned");
+        var cold = call("DomainGoverned", req, "execute", auditScope("B"));
+        assertEquals("A", allowed.getItems().get(0).get("category"));
+        assertEquals("B", cold.getItems().get(0).get("category"));
+        assertEquals(warm.getItems(), cold.getItems());
+        assertNotEquals(lookupKey(allowed), lookupKey(warm));
+        record(
+                "audit-domain-governance",
+                Map.of(
+                        "request",
+                        req,
+                        "firstA",
+                        allowed,
+                        "warmB",
+                        warm,
+                        "coldB",
+                        cold,
+                        "violation",
+                        !warm.getItems().equals(cold.getItems())));
+    }
+
+    @Test
+    @Order(101)
+    void auditZeroWindowDomainDependencies() throws Exception {
+        Map<String, Object> evidence = new LinkedHashMap<>();
+        for (String field : List.of("missingDomainField", "leaf")) {
+            var req =
+                    p(
+                            "topn",
+                            List.of(
+                                    Map.of(
+                                            "field",
+                                            "category",
+                                            "limit",
+                                            0,
+                                            "domainSlice",
+                                            List.of(
+                                                    Map.of(
+                                                            "field", field, "op", "=", "value",
+                                                            "x")))),
+                            null,
+                            List.of("amount"),
+                            "flat");
+            assertEquals(
+                    "REJECTED",
+                    outcome("DomainHidden", req, "validate", role("guest")).get("status"));
+            assertEquals(
+                    "REJECTED",
+                    outcome("DomainHidden", req, "execute", role("guest")).get("status"));
+            evidence.put(
+                    field,
+                    Map.of(
+                            "request",
+                            req,
+                            "validate",
+                            outcome("DomainHidden", req, "validate", role("guest")),
+                            "execute",
+                            outcome("DomainHidden", req, "execute", role("guest"))));
+        }
+        record("audit-zero-domain", evidence);
+    }
+
+    @Test
+    @Order(102)
+    void auditCacheStoredSnapshotVersusExecutionSnapshot() throws Exception {
+        raceCalls.set(0);
+        raceStable = null;
+        var req = p("topn", List.of("category"), null, List.of("amount"), "flat");
+        var first = call("RaceGoverned", req, "execute", auditScope("unused"));
+        int calls = raceCalls.get();
+        raceStable = "A";
+        var warm = call("RaceGoverned", req, "execute", auditScope("unused"));
+        var pipeline =
+                (PivotPipeline)
+                        org.springframework.test.util.ReflectionTestUtils.invokeMethod(
+                                service, "getPivotPipeline");
+        pipeline.evictOuterCache("pivot-hardening", "PivotUnifiedRaceGoverned");
+        var cold = call("RaceGoverned", req, "execute", auditScope("unused"));
+        assertEquals(warm.getItems(), cold.getItems());
+        assertTrue(event(first, "pivot.cache.store_skipped"));
+        assertTrue(
+                String.valueOf(first.getDebug().getExtra())
+                        .contains("execution_governance_unproven_or_changed"));
+        record(
+                "audit-execution-snapshot",
+                Map.of(
+                        "request",
+                        req,
+                        "first",
+                        first,
+                        "governanceCalls",
+                        calls,
+                        "warmA",
+                        warm,
+                        "coldA",
+                        cold,
+                        "violation",
+                        !warm.getItems().equals(cold.getItems())));
+        raceStable = null;
+    }
+
+    @Test
+    @Order(103)
+    void auditResultProcessMaskingAndCacheIdentity() throws Exception {
+        var req = p("topn", List.of("category"), null, List.of("amount"), "flat");
+        var first = call("Masked", req, "execute", auditScope("privileged"));
+        var warm = call("Masked", req, "execute", auditScope("masked"));
+        var pipeline =
+                (PivotPipeline)
+                        org.springframework.test.util.ReflectionTestUtils.invokeMethod(
+                                service, "getPivotPipeline");
+        pipeline.evictOuterCache("pivot-hardening", "PivotUnifiedMasked");
+        var cold = call("Masked", req, "execute", auditScope("masked"));
+        assertTrue(
+                cold.getItems().stream()
+                        .allMatch(r -> new BigDecimal(r.get("amount").toString()).signum() == 0));
+        assertEquals(warm.getItems(), cold.getItems());
+        assertFalse(event(warm, "pivot.cache.hit"));
+        record(
+                "audit-process-masking",
+                Map.of(
+                        "request",
+                        req,
+                        "first",
+                        first,
+                        "warmMasked",
+                        warm,
+                        "coldMasked",
+                        cold,
+                        "violation",
+                        !warm.getItems().equals(cold.getItems())));
+    }
+
+    @Test
+    @Order(104)
+    @SuppressWarnings("unchecked")
+    void auditSparseGridColumnOrderAndNullLast() throws Exception {
+        jdbcTemplate.update(
+                "INSERT INTO "
+                        + TABLE
+                        + " VALUES(15000,'sparse-null','A','x',NULL,1,20),(15001,'sparse-null','B','x','01',1,10)");
+        var req =
+                p(
+                        "sparse-null",
+                        List.of(
+                                Map.of(
+                                        "field",
+                                        "category",
+                                        "start",
+                                        0,
+                                        "limit",
+                                        2,
+                                        "orderBy",
+                                        List.of("category"))),
+                        List.of(
+                                Map.of(
+                                        "field",
+                                        "yearMonth",
+                                        "start",
+                                        0,
+                                        "limit",
+                                        2,
+                                        "orderBy",
+                                        List.of("yearMonth"))),
+                        List.of("amount"),
+                        "grid");
+        var response = checked(req);
+        var headers = (List<Map<String, Object>>) response.getItems().get(0).get("columnHeaders");
+        assertEquals("01", headers.get(0).get("yearMonth"));
+        assertNull(headers.get(1).get("yearMonth"));
+        record(
+                "audit-sparse-grid",
+                Map.of(
+                        "request",
+                        req,
+                        "response",
+                        response,
+                        "expected",
+                        List.of("01", "<NULL>"),
+                        "violation",
+                        headers.get(0).get("yearMonth") == null));
+    }
+
+    @Test
+    @Order(105)
+    void auditExplicitDeniedDomainControlsAndNamespacePins() throws Exception {
+        var req =
+                p(
+                        "topn",
+                        List.of(
+                                Map.of(
+                                        "field",
+                                        "category",
+                                        "domainSlice",
+                                        List.of(Map.of("field", "leaf", "op", "=", "value", "x")))),
+                        null,
+                        List.of("amount"),
+                        "flat");
+        var context =
+                SemanticRequestContext.of(
+                        "pivot-hardening",
+                        (ModelResultContext.SecurityContext) null,
+                        Set.of("scenario", "category", "amount"));
+        Map<String, Object> results = new LinkedHashMap<>();
+        for (String mode : List.of("validate", "execute"))
+            results.put(mode, outcome("Base", req, mode, context));
+        var resolution =
+                queryModelLoader.resolveJdbcQueryModel("PivotUnifiedBase", "pivot-hardening");
+        try {
+            var wrong =
+                    SemanticRequestContext.ofNamespace("other-namespace")
+                            .withCatalogResolution(resolution);
+            results.put("conflictingNamespacePin", outcome("Base", req, "execute", wrong));
+        } catch (IllegalArgumentException denied) {
+            results.put(
+                    "conflictingNamespacePin",
+                    Map.of("status", "REJECTED", "message", denied.getMessage()));
+        }
+        record("audit-denied-domain-and-pin", results);
+    }
+
+    @Test
+    @Order(106)
+    void auditPublicRefreshChangesAggregationAndAliasWithoutServingOldCache() throws Exception {
+        var req = p("topn", List.of("category"), null, List.of("amount"), "flat");
+        var first =
+                call(
+                        "RefreshProbe",
+                        req,
+                        "execute",
+                        SemanticRequestContext.ofNamespace("pivot-hardening"));
+        var oldHit =
+                call(
+                        "RefreshProbe",
+                        req,
+                        "execute",
+                        SemanticRequestContext.ofNamespace("pivot-hardening"));
+        assertTrue(event(oldHit, "pivot.cache.hit"));
+        Files.writeString(
+                root.resolve("PivotRefresh.tm"),
+                Files.readString(root.resolve("PivotRefresh.tm"))
+                        .replace("aggregation:'sum'", "aggregation:'max'"));
+        Files.writeString(
+                root.resolve("PivotUnifiedRefreshProbe.qm"),
+                Files.readString(root.resolve("PivotUnifiedRefreshProbe.qm"))
+                        .replace("beforeOut", "afterOut"));
+        coordinator.refresh(
+                com.foggyframework.dataset.model.lifecycle.refresh.CatalogRefreshRequest.namespace(
+                        "pivot-hardening",
+                        com.foggyframework.dataset.model.lifecycle.refresh.CatalogRefreshTrigger
+                                .RUNTIME_API));
+        var fresh =
+                call(
+                        "RefreshProbe",
+                        req,
+                        "execute",
+                        SemanticRequestContext.ofNamespace("pivot-hardening"));
+        var freshHit =
+                call(
+                        "RefreshProbe",
+                        req,
+                        "execute",
+                        SemanticRequestContext.ofNamespace("pivot-hardening"));
+        var values = index(fresh.getItems(), "category");
+        number("100", values.get("A").get("amount"));
+        number("60", values.get("B").get("amount"));
+        assertFalse(event(fresh, "pivot.cache.hit"));
+        assertEquals(fresh.getItems(), freshHit.getItems());
+        record(
+                "audit-public-refresh",
+                Map.of(
+                        "first",
+                        first,
+                        "oldHit",
+                        oldHit,
+                        "fresh",
+                        fresh,
+                        "freshHit",
+                        freshHit,
+                        "violation",
+                        false));
+    }
+
+    @Test
+    @Order(107)
+    void auditNullCoordinateTopNParity() throws Exception {
+        jdbcTemplate.update(
+                "INSERT INTO "
+                        + TABLE
+                        + " VALUES(15100,'null-coordinate',NULL,'x','01',1,30),(15101,'null-coordinate','null','x','01',1,20),(15102,'null-coordinate','A','x','01',1,10)");
+        Map<String, Object> evidence = new LinkedHashMap<>();
+        for (boolean memory : List.of(false, true)) {
+            var req =
+                    p(
+                            "null-coordinate",
+                            List.of(
+                                    Map.of(
+                                            "field",
+                                            "category",
+                                            "limit",
+                                            2,
+                                            "orderBy",
+                                            List.of("-amount"))),
+                            List.of("yearMonth"),
+                            memory
+                                    ? List.of("amount", ratio("index", "amount"))
+                                    : List.of("amount"),
+                            "flat");
+            var result = checked(req);
+            assertEquals(2, result.getItems().size());
+            assertNull(result.getItems().get(0).get("category"));
+            assertEquals("null", result.getItems().get(1).get("category"));
+            evidence.put(memory ? "memory" : "sql", result);
+        }
+        evidence.put("violation", false);
+        record("audit-null-coordinate", evidence);
+    }
+
+    @org.springframework.boot.test.context.TestConfiguration(proxyBeanMethods = false)
+    static class AuditBindings {
+        @org.springframework.context.annotation.Bean
+        com.foggyframework.dataset.model.plugins.result_set_filter.DataSetResultStep
+                auditScopeStep() {
+            return new com.foggyframework.dataset.model.plugins.result_set_filter
+                    .DataSetResultStep() {
+                public java.util.Optional<String> pivotCacheScope(ModelResultContext context) {
+                    if ("PivotUnifiedMasked".equals(context.getCanonicalModelName()))
+                        return java.util.Optional.empty();
+                    if ("PivotUnifiedMaskedScoped".equals(context.getCanonicalModelName())
+                            || "PivotUnifiedMaskedAlias".equals(context.getCanonicalModelName()))
+                        return java.util.Optional.of(
+                                "mask-v1:"
+                                        + context.getSecurityContext()
+                                                .getAttributes()
+                                                .get("auditCategory"));
+                    return java.util.Optional.of("governed-regression-v1");
+                }
+
+                public int beforeQueryOrder() {
+                    return -17;
+                }
+
+                public int beforeQuery(ModelResultContext context) {
+                    if ("PivotUnifiedContextual".equals(context.getCanonicalModelName())
+                            && context.getSecurityContext() != null) {
+                        Object category =
+                                context.getSecurityContext().getAttributes() == null
+                                        ? null
+                                        : context.getSecurityContext()
+                                                .getAttributes()
+                                                .get("auditCategory");
+                        if (category != null)
+                            context.setSystemSlice(
+                                    List.of(new SliceRequestDef("category", "=", category)));
+                    }
+
+                    if ("PivotUnifiedDomainGoverned".equals(context.getCanonicalModelName())
+                            && context.getRequest().getParam().getSlice() != null
+                            && context.getRequest().getParam().getSlice().stream()
+                                    .anyMatch(s -> "leaf".equals(s.getField()))) {
+                        Object scope =
+                                context.getSecurityContext().getAttributes().get("auditCategory");
+                        context.setSystemSlice(
+                                List.of(new SliceRequestDef("category", "=", scope)));
+                    }
+                    if ("PivotUnifiedRaceGoverned".equals(context.getCanonicalModelName())) {
+                        String scope =
+                                raceStable != null
+                                        ? raceStable
+                                        : (raceCalls.incrementAndGet() == 1 ? "A" : "B");
+                        context.setSystemSlice(
+                                List.of(new SliceRequestDef("category", "=", scope)));
+                    }
+                    return CONTINUE;
+                }
+
+                public boolean pivotResultProcessingIsIdentity(ModelResultContext context) {
+                    return context != null
+                            && !Set.of(
+                                            "PivotUnifiedMasked",
+                                            "PivotUnifiedMaskedScoped",
+                                            "PivotUnifiedMaskedAlias")
+                                    .contains(context.getCanonicalModelName());
+                }
+
+                @SuppressWarnings("unchecked")
+                public int process(ModelResultContext context) {
+                    if ("PivotUnifiedObservedAlias".equals(context.getCanonicalModelName()))
+                        for (Object row : context.getPagingResult().getItems())
+                            observedOutputKeys.add(
+                                    new ArrayList<>(((Map<String, Object>) row).keySet()));
+
+                    if (("PivotUnifiedMasked".equals(context.getCanonicalModelName())
+                                    || "PivotUnifiedMaskedScoped"
+                                            .equals(context.getCanonicalModelName())
+                                    || "PivotUnifiedMaskedAlias"
+                                            .equals(context.getCanonicalModelName()))
+                            && context.getSecurityContext() != null
+                            && "masked"
+                                    .equals(
+                                            context.getSecurityContext()
+                                                    .getAttributes()
+                                                    .get("auditCategory")))
+                        for (Object item : context.getPagingResult().getItems()) {
+                            var row = (Map<String, Object>) item;
+                            for (String metric :
+                                    List.of(
+                                            "amount",
+                                            "avgAmount",
+                                            "amountOut",
+                                            "avgOut",
+                                            "doubleOut"))
+                                if (row.containsKey(metric)) row.put(metric, 0);
+                        }
+                    return CONTINUE;
+                }
+            };
+        }
+
+        @org.springframework.context.annotation.Bean
+        @org.springframework.context.annotation.Primary
+        com.foggyframework.dataset.model.spi.NamedDataSourceResolver auditBinding(DataSource ds) {
+            return new com.foggyframework.dataset.model.spi.NamedDataSourceResolver() {
+                final com.foggyframework.dataset.model.lifecycle.identity.DatasourceBindingIdentity
+                        identity =
+                                new com.foggyframework.dataset.model.lifecycle.identity
+                                        .DatasourceBindingIdentity(
+                                        "audit-fixed",
+                                        "audit-sqlite",
+                                        new com.foggyframework.dataset.model.lifecycle.identity
+                                                .DatasourceBindingGeneration("audit-generation-1"));
+
+                public DataSource resolve(String name) {
+                    return ds;
+                }
+
+                public DataSource resolveDefault(String ns) {
+                    return ds;
+                }
+
+                public boolean isConfigured(String name) {
+                    return true;
+                }
+
+                public com.foggyframework.dataset.model.lifecycle.port.ResolvedDatasourceBinding
+                        resolveBinding(String name) {
+                    return com.foggyframework.dataset.model.lifecycle.port.ResolvedDatasourceBinding
+                            .tracked(ds, identity);
+                }
+
+                public com.foggyframework.dataset.model.lifecycle.port.ResolvedDatasourceBinding
+                        resolveDefaultBinding(String ns) {
+                    return resolveBinding("audit-fixed");
+                }
+
+                public com.foggyframework.dataset.model.lifecycle.port.BindingCurrentness
+                        currentness(
+                                com.foggyframework.dataset.model.lifecycle.identity
+                                                .DatasourceBindingIdentity
+                                        captured) {
+                    return identity.equals(captured)
+                            ? com.foggyframework.dataset.model.lifecycle.port.BindingCurrentness
+                                    .CURRENT
+                            : com.foggyframework.dataset.model.lifecycle.port.BindingCurrentness
+                                    .UNKNOWN;
+                }
+
+                public synchronized <T> T publishIfCurrent(
+                        Collection<
+                                        com.foggyframework.dataset.model.lifecycle.identity
+                                                .DatasourceBindingIdentity>
+                                captured,
+                        java.util.function.Supplier<T> publication) {
+                    assertTrue(captured.stream().allMatch(identity::equals));
+                    return publication.get();
+                }
+            };
+        }
+    }
+}

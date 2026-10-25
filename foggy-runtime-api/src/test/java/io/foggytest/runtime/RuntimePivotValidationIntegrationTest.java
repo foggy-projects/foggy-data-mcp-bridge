@@ -127,6 +127,23 @@ class RuntimePivotValidationIntegrationTest {
                                                             .asBoolean())
                                             .isFalse();
                                 }
+                                for (String field :
+                                        new String[] {"missingDomainField", "regionOut"}) {
+                                    String zeroDomain =
+                                            "{\"pivot\":{\"rows\":[{\"field\":\"region\",\"limit\":0,\"domainSlice\":[{\"field\":\""
+                                                    + field
+                                                    + "\",\"op\":\"=\",\"value\":\"x\"}]}],\"metrics\":[\"revenue\"],\"outputFormat\":\"flat\"}}";
+                                    for (String mode : new String[] {"validate", "execute"})
+                                        assertThat(
+                                                        query(
+                                                                        mvc,
+                                                                        "RuntimePivotQM",
+                                                                        zeroDomain,
+                                                                        mode)
+                                                                .path("success")
+                                                                .asBoolean())
+                                                .isFalse();
+                                }
                                 String total =
                                         "{\"calculatedFields\":[{\"name\":\"doubleRevenue\",\"expression\":\"sum(revenue)*2\"}],\"pivot\":{\"rows\":[\"region\"],\"metrics\":[\"doubleRevenue\"],\"outputFormat\":\"flat\",\"options\":{\"grandTotal\":true}}}";
                                 assertThat(
@@ -148,6 +165,28 @@ class RuntimePivotValidationIntegrationTest {
                                                                                         .BigDecimal(
                                                                                         "140"))
                                                                 == 0);
+                                jdbc.update(
+                                        "INSERT INTO runtime_pivot"
+                                                + " VALUES(10,NULL,20),(11,'01',10)");
+                                String sparse =
+                                        "{\"slice\":[{\"field\":\"id\",\"op\":\">=\",\"value\":10}],\"pivot\":{\"rows\":[{\"field\":\"id\",\"start\":0,\"limit\":2,\"orderBy\":[\"id\"]}],\"columns\":[{\"field\":\"region\",\"start\":0,\"limit\":2,\"orderBy\":[\"region\"]}],\"metrics\":[\"revenue\"],\"outputFormat\":\"grid\"}}";
+                                assertThat(
+                                                query(mvc, "RuntimePivotQM", sparse, "validate")
+                                                        .path("success")
+                                                        .asBoolean())
+                                        .isTrue();
+                                var grid = query(mvc, "RuntimePivotQM", sparse, "execute");
+                                assertThat(grid.path("success").asBoolean()).isTrue();
+                                var headers =
+                                        grid.path("data")
+                                                .path("items")
+                                                .get(0)
+                                                .path("columnHeaders");
+                                assertThat(headers.get(0).path("region").asText()).isEqualTo("01");
+                                assertThat(
+                                                headers.get(1).path("region").isMissingNode()
+                                                        || headers.get(1).path("region").isNull())
+                                        .isTrue();
                                 for (String mode : new String[] {"validate", "execute"}) {
                                     assertThat(
                                                     query(

@@ -1,17 +1,16 @@
 package com.foggyframework.dataset.model.semantic.domain;
 
 import com.foggyframework.bundle.SystemBundlesContext;
-import com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext;
-
 import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.model.engine.pivot.transport.DomainTransportPlan;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogResolution;
 import com.foggyframework.dataset.model.lifecycle.identity.CatalogIdentity;
+import com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.model.semantic.explain.ExplainTraceCollector;
-import com.foggyframework.dataset.model.spi.QueryModel;
-import com.foggyframework.dataset.model.semantic.permission.PermissionEvaluationSession;
 import com.foggyframework.dataset.model.semantic.permission.PermissionAction;
+import com.foggyframework.dataset.model.semantic.permission.PermissionEvaluationSession;
 import com.foggyframework.dataset.model.semantic.permission.RequestIdentity;
+import com.foggyframework.dataset.model.spi.QueryModel;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -56,6 +55,8 @@ public class SemanticRequestContext {
     private final SystemBundlesContext executionBundlesContext;
     private final ExplainTraceCollector explainTraceCollector;
     private PermissionAction permissionAction;
+    private com.foggyframework.dataset.model.semantic.permission.PivotCacheProofSession
+            pivotCacheProofSession;
 
     private SemanticRequestContext(String namespace, ModelResultContext.SecurityContext securityContext,
                                    Set<String> fieldAccess, List<DeniedPhysicalColumn> deniedColumns,
@@ -231,6 +232,7 @@ public class SemanticRequestContext {
                 domainTransportPlans, catalogResolution, requestIdentity, permissionSession,
                 executionBundlesContext, explainTraceCollector);
         copy.permissionAction = permissionAction;
+        copy.pivotCacheProofSession = pivotCacheProofSession;
         return copy;
     }
 
@@ -257,6 +259,7 @@ public class SemanticRequestContext {
                 explainTraceCollector
         );
         copy.permissionAction = permissionAction;
+        copy.pivotCacheProofSession = pivotCacheProofSession;
         return copy;
     }
 
@@ -354,6 +357,7 @@ public class SemanticRequestContext {
                 domainTransportPlans, catalogResolution, requestIdentity, permissionSession,
                 executionBundlesContext, collector);
         copy.permissionAction = permissionAction;
+        copy.pivotCacheProofSession = pivotCacheProofSession;
         return copy;
     }
 
@@ -377,6 +381,7 @@ public class SemanticRequestContext {
                 systemSlice, domainTransportPlans, resolution, requestIdentity, permissionSession,
                 executionBundlesContext, explainTraceCollector);
         copy.permissionAction = permissionAction;
+        copy.pivotCacheProofSession = pivotCacheProofSession;
         return copy;
     }
 
@@ -412,6 +417,7 @@ public class SemanticRequestContext {
                 pinned.explainTraceCollector
         );
         copy.permissionAction = pinned.permissionAction;
+        copy.pivotCacheProofSession = pinned.pivotCacheProofSession;
         return copy;
     }
 
@@ -430,7 +436,21 @@ public class SemanticRequestContext {
                 systemSlice, plans, catalogResolution, requestIdentity, permissionSession,
                 executionBundlesContext, explainTraceCollector);
         copy.permissionAction = permissionAction;
+        copy.pivotCacheProofSession = pivotCacheProofSession;
         return copy;
+    }
+
+    /** One internal admission ledger shared by all downstream Pivot dependencies. */
+    public com.foggyframework.dataset.model.semantic.permission.PivotCacheProofSession
+            getPivotCacheProofSession() {
+        return pivotCacheProofSession;
+    }
+
+    public SemanticRequestContext withPivotCacheProofSession(
+            com.foggyframework.dataset.model.semantic.permission.PivotCacheProofSession proof) {
+        SemanticRequestContext next = copy();
+        next.pivotCacheProofSession = proof;
+        return next;
     }
 
     private SemanticRequestContext copy() {
@@ -439,6 +459,7 @@ public class SemanticRequestContext {
                 domainTransportPlans, catalogResolution, requestIdentity, permissionSession,
                 executionBundlesContext, explainTraceCollector);
         copy.permissionAction = permissionAction;
+        copy.pivotCacheProofSession = pivotCacheProofSession;
         return copy;
     }
 
@@ -458,12 +479,17 @@ public class SemanticRequestContext {
 
     @Override
     public String toString() {
-        return "SemanticRequestContext{namespace='" + namespace + "'" +
-                (fieldAccess != null ? ", fieldAccess=" + fieldAccess.size() + " fields" : "") +
-                (deniedColumns != null ? ", deniedColumns=" + deniedColumns.size() + " cols" : "") +
-                (domainTransportPlans != null ? ", domainTransportPlans=" + domainTransportPlans.size() : "") +
-                (catalogResolution != null ? ", catalogPinned=true" : "") +
-                (explainTraceCollector != null ? ", explainTrace=true" : "") +
-                (executionBundlesContext != null ? ", candidateExecution=true" : "") + "}";
+        return "SemanticRequestContext{namespace='"
+                + namespace
+                + "'"
+                + (fieldAccess != null ? ", fieldAccess=" + fieldAccess.size() + " fields" : "")
+                + (deniedColumns != null ? ", deniedColumns=" + deniedColumns.size() + " cols" : "")
+                + (domainTransportPlans != null
+                        ? ", domainTransportPlans=" + domainTransportPlans.size()
+                        : "")
+                + (catalogResolution != null ? ", catalogPinned=true" : "")
+                + (explainTraceCollector != null ? ", explainTrace=true" : "")
+                + (executionBundlesContext != null ? ", candidateExecution=true" : "")
+                + "}";
     }
 }

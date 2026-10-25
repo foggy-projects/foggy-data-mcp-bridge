@@ -950,6 +950,7 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
                     "QueryPlan.query(opts): opts must be an object");
         }
         Map<String, Object> map = (Map<String, Object>) raw;
+        ComposeOptionValidator.validateDerived(map.get("calculatedFields"), map.get("having"), "query");
         QueryOptions.Builder builder = QueryOptions.builder();
         Object columns = map.get("columns");
         builder.columns(columns instanceof List<?> list ? list : List.of());
@@ -982,21 +983,7 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
     }
 
     private static List<String> coerceOrderByList(List<?> raw, String path) {
-        List<String> out = new ArrayList<>(raw.size());
-        for (int i = 0; i < raw.size(); i++) {
-            Object entry = raw.get(i);
-            try {
-                ComposeOrderByNormalizer.OrderSpec spec = ComposeOrderByNormalizer.parse(entry);
-                if (spec.field() == null || spec.field().isBlank()) {
-                    throw new IllegalArgumentException("orderBy field must be non-empty");
-                }
-                out.add("desc".equalsIgnoreCase(spec.dir()) ? "-" + spec.field() : spec.field());
-            } catch (IllegalArgumentException ex) {
-                throw new IllegalArgumentException(
-                        path + "[" + i + "]: " + ex.getMessage(), ex);
-            }
-        }
-        return out;
+        return ComposeOptionValidator.orderBy(raw, path);
     }
 
     // ------------------------------------------------------------------

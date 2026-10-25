@@ -196,8 +196,8 @@ public class PivotPipeline {
         boolean cascadeRequest = PivotCascadeRules.isCascadeRequest(pivot);
         long startTime = System.currentTimeMillis();
         PivotDiagnosticCollector diagnostics = new PivotDiagnosticCollector(model);
-        AuthorizationSignature authorizationSignature =
-                authorizeForOuterCache(model, request, prepared);
+        CacheAuthorization cacheAuthorization = authorizeForOuterCache(model, request, prepared);
+        AuthorizationSignature authorizationSignature = cacheAuthorization.signature();
 
         boolean outerCacheEnabled = outerResponseCache.isEnabled();
         Optional<PivotOuterCacheSafeProvider.UnavailableEvent> cacheEnabledUnavailable =
@@ -211,6 +211,8 @@ public class PivotPipeline {
                         context, model, queryModel, strongIdentityAssessment),
                 authorizationSignature);
         diagnostics.cacheIdentity(cacheEvaluation);
+        if (!cacheEvaluation.refused() && outerCacheEnabled && cacheAuthorization.proof() != null)
+            context = context.withPivotCacheProofSession(cacheAuthorization.proof());
         if (!cacheEvaluation.refused()) {
             diagnostics.cacheLookup(cacheEvaluation.keyHash(), cacheEligibilityStage, cacheEvaluation.shapeClass());
         }
@@ -286,6 +288,8 @@ public class PivotPipeline {
         // 检测是否可以使用 SQL pushdown（CTE + Window Function + 有 having/limit）
         boolean sqlPushdownUsed = false;
         boolean axisDomainSelectionUsed = false;
+        Map<List<Object>, Integer> gridRowOrder = Collections.emptyMap();
+        Map<List<Object>, Integer> gridColumnOrder = Collections.emptyMap();
         boolean axisDomainSelectionRequest = hasAxisDomainSelectionRequest(pivot);
         List<Map<String, Object>> resultSet;
         Map<String, Map<String, Number>> baselineRatioExternalValues = Collections.emptyMap();
@@ -308,6 +312,8 @@ public class PivotPipeline {
             logger.debug("[Pivot] Phase 1: Axis domain selection path for model={}", model);
             AxisDomainSelectionResult axisDomainResult = executePhase1WithAxisDomainSelection(model, request, context,
                     rowFields, colFields, metrics, pivot, queryModel, diagnostics);
+            gridRowOrder = scalarDomainOrder(axisDomainResult.rowOrder());
+            gridColumnOrder = scalarDomainOrder(axisDomainResult.columnOrder());
             resultSet = axisDomainResult.rows();
             baselineRatioExternalValues = axisDomainResult.baselineRatioExternalValues();
             baselineRatioEvidence = axisDomainResult.baselineRatioEvidence();
@@ -572,7 +578,33 @@ public class PivotPipeline {
             pivotResult.setTreeData(treeData);
         } else {
             logger.debug("[Pivot] Phase 3: Result shaping to format={}", pivot.getOutputFormat());
-            pivotResult = ResultShaper.shape(resultSet, pivot, rowFields, colFields, outputMetrics);
+            if ("grid".equals(pivot.getOutputFormat()) && !axisDomainSelectionUsed) {
+                List<Map<List<Object>, Integer>> orders = new ArrayList<>();
+                applyMemberControls(
+                        model,
+                        request,
+                        context,
+                        rowFields,
+                        colFields,
+                        metrics,
+                        queryModel,
+                        resultSet,
+                        true,
+                        orders);
+                if (orders.size() == 2) {
+                    gridRowOrder = orders.get(0);
+                    gridColumnOrder = orders.get(1);
+                }
+            }
+            pivotResult =
+                    ResultShaper.shape(
+                            resultSet,
+                            pivot,
+                            rowFields,
+                            colFields,
+                            outputMetrics,
+                            gridRowOrder,
+                            gridColumnOrder);
         }
 
         // ===== 构建响应 =====
@@ -607,13 +639,6 @@ public class PivotPipeline {
                 throw PivotCascadeException.sqlRequired(
                         "SQL pushdown is unavailable: axisDomainSelectionRequiresTwoPhaseQuery.");
             }
-            for (List<AxisField> axis : List.of(pivot.getRows(),
-                    pivot.getColumns() == null ? List.<AxisField>of() : pivot.getColumns())) {
-                if (!axis.isEmpty() && hasAxisDomainSelectionRequest(axis.get(0))) {
-                    validateFlatRequest(model, buildAxisDomainRequest(request, axis.get(0), prepared.metrics(),
-                            prepared.queryModel(), true), context, warnings);
-                }
-            }
         } else if (skip == null) {
             try {
                 planPhase1WithSqlPushdown(model, request, context, prepared.rowFields(), prepared.colFields(),
@@ -637,6 +662,31 @@ public class PivotPipeline {
             SemanticQueryRequest request, PreparedPivot prepared) {
         List<SemanticQueryRequest> requests = new ArrayList<>();
         PivotRequest pivot = request.getPivot();
+        for (List<AxisField> axis :
+                List.of(
+                        pivot.getRows(),
+                        pivot.getColumns() == null ? List.<AxisField>of() : pivot.getColumns())) {
+            if (!axis.isEmpty()
+                    && (hasAxisDomainSelectionRequest(axis.get(0))
+                            || (hasAxisDomainSelectionRequest(pivot)
+                                    && hasMemberControl(axis.get(0))))) {
+                requests.add(
+                        buildAxisDomainRequest(
+                                request,
+                                axis.get(0),
+                                prepared.metrics(),
+                                prepared.queryModel(),
+                                true));
+                if (axis == pivot.getColumns() && requiresPrePageAxisDomainBaseline(pivot))
+                    requests.add(
+                            buildAxisDomainRequest(
+                                    request,
+                                    axis.get(0),
+                                    prepared.metrics(),
+                                    prepared.queryModel(),
+                                    false));
+            }
+        }
         {
             for (var axis :
                     List.of(
@@ -865,12 +915,23 @@ public class PivotPipeline {
             List<PropertyResolver.ResolvedProperty> properties,
             List<RollupMetricPlan> rollupPlans) {}
 
-    private AuthorizationSignature authorizeForOuterCache(
+    private record CacheAuthorization(
+            AuthorizationSignature signature,
+            com.foggyframework.dataset.model.semantic.permission.PivotCacheProofSession proof) {
+        static CacheAuthorization unavailable() {
+            return new CacheAuthorization(null, null);
+        }
+    }
+
+    private CacheAuthorization authorizeForOuterCache(
             String model, SemanticQueryRequest request, PreparedPivot prepared) {
         if (!outerCacheOptions.enabled()
                 || !prepared.strongIdentityAssessment().pinnable()
                 || queryFacade == null
-                || authorizationSignatureService == null) return null;
+                || authorizationSignatureService == null) return CacheAuthorization.unavailable();
+        var proof =
+                new com.foggyframework.dataset.model.semantic.permission.PivotCacheProofSession(
+                        authorizationSignatureService);
         List<SemanticQueryRequest> requests = new ArrayList<>();
         requests.add(
                 buildPhase1FlatRequest(
@@ -886,6 +947,7 @@ public class PivotPipeline {
         for (SemanticQueryRequest flat : requests) {
             ModelResultContext permissionContext =
                     buildManagedRelationContext(model, flat, prepared.context());
+            permissionContext.setPivotCacheProofRequested(true);
             try {
                 ManagedSqlRelation relation =
                         queryFacade.prepareManagedRelation(
@@ -894,9 +956,20 @@ public class PivotPipeline {
                                         .purpose("PivotCacheAuthorization")
                                         .disableInnerCacheShortCircuit(true)
                                         .build());
-                if (!relation.isPermissionValidated()) return null;
+                if (!relation.isPermissionValidated()) return CacheAuthorization.unavailable();
+                AuthorizationSignature signature =
+                        authorizationSignatureService.compute(permissionContext).orElse(null);
+                if (signature == null) return CacheAuthorization.unavailable();
+                if (!signature.publicIdentity()) return new CacheAuthorization(signature, null);
+                var admitted =
+                        proof.admit(
+                                permissionContext,
+                                permissionContext.getPivotCacheOriginalConditions(),
+                                permissionContext.getPivotCacheScope());
+                if (admitted.isEmpty()) return CacheAuthorization.unavailable();
                 signatures.add(
-                        authorizationSignatureService.compute(permissionContext).orElse(null));
+                        new AuthorizationSignature(
+                                "PUBLIC:PIVOT-PROOF:" + admitted.get(), true, null));
                 plans.add(
                         new com.foggyframework.dataset.model.semantic.port.SemanticSqlGeneration(
                                 relation.getSql(), relation.getParams()));
@@ -904,10 +977,11 @@ public class PivotPipeline {
                     | UnsupportedOperationException unsupported) {
                 // An adapter unable to expose a complete governed plan is deliberately
                 // non-cacheable.
-                return null;
+                return CacheAuthorization.unavailable();
             }
         }
-        return PivotOuterCacheTelemetry.authorizationSnapshot(signatures, plans);
+        return new CacheAuthorization(
+                PivotOuterCacheTelemetry.authorizationSnapshot(signatures, plans), proof);
     }
 
     private ModelResultContext.SecurityContext copySecurityContext(
@@ -1157,7 +1231,11 @@ public class PivotPipeline {
         Set<Object> columnDomain = executeAxisDomainSelection(model, originalRequest, context,
                 pivot.getColumns(), metrics, queryModel);
         Set<Object> prePageColumnDomain = null;
-        if (requiresPrePageAxisDomainBaseline(pivot) && hasAxisDomainSelectionRequestOnAxis(pivot.getColumns())) {
+        if (requiresPrePageAxisDomainBaseline(pivot)
+                && pivot.getColumns() != null
+                && !pivot.getColumns().isEmpty()
+                && (hasAxisDomainSelectionRequestOnAxis(pivot.getColumns())
+                        || hasMemberControl(pivot.getColumns().get(0)))) {
             prePageColumnDomain = executeAxisDomainSelection(model, originalRequest, context,
                     pivot.getColumns(), metrics, queryModel, false);
         }
@@ -1201,8 +1279,12 @@ public class PivotPipeline {
                 executeBaselineRatioPrePageAxisDomain(model, originalRequest, context,
                         rowFields, colFields, metrics, pivot, queryModel,
                         rowDomain, columnDomain, prePageColumnDomain, diagnostics);
-        return new AxisDomainSelectionResult(filtered, baselineRatioPrePageResult.values(),
-                baselineRatioPrePageResult.evidence());
+        return new AxisDomainSelectionResult(
+                filtered,
+                baselineRatioPrePageResult.values(),
+                baselineRatioPrePageResult.evidence(),
+                rowDomain,
+                columnDomain);
     }
 
     private DomainConstrainedCellRequest buildAxisDomainConstrainedCellRequest(
@@ -1363,7 +1445,7 @@ public class PivotPipeline {
         }
 
         AxisField axisField = axisFields.get(0);
-        if (!hasAxisDomainSelectionRequest(axisField)) {
+        if (!hasAxisDomainSelectionRequest(axisField) && !hasMemberControl(axisField)) {
             return null;
         }
 
@@ -1606,6 +1688,21 @@ public class PivotPipeline {
             QueryModel queryModel,
             List<Map<String, Object>> cells,
             boolean window) {
+        return applyMemberControls(
+                model, original, context, rows, columns, metrics, queryModel, cells, window, null);
+    }
+
+    private List<Map<String, Object>> applyMemberControls(
+            String model,
+            SemanticQueryRequest original,
+            SemanticRequestContext context,
+            List<String> rows,
+            List<String> columns,
+            List<String> metrics,
+            QueryModel queryModel,
+            List<Map<String, Object>> cells,
+            boolean window,
+            List<Map<List<Object>, Integer>> capturedOrders) {
         if (queryModel == null) {
             var filtered = AxisHavingFilter.apply(cells, original.getPivot().getRows(), metrics);
             filtered = AxisHavingFilter.apply(filtered, original.getPivot().getColumns(), metrics);
@@ -1727,6 +1824,7 @@ public class PivotPipeline {
                             .filter(r -> axisDomain.contains(PivotCoordinates.tuple(r, axisKeys)))
                             .toList();
         }
+        if (capturedOrders != null) capturedOrders.addAll(outputOrders);
         List<Map<String, Object>> ordered = new ArrayList<>(filtered);
         List<String> displayRows = extractFieldNames(original.getPivot().getRows());
         List<String> displayColumns = extractFieldNames(original.getPivot().getColumns());
@@ -2015,6 +2113,11 @@ public class PivotPipeline {
         SemanticQueryRequest flatRequest = buildPhase1FlatRequest(originalRequest, rowFields, colFields, metrics, queryModel);
 
         // 2. 构建 ModelResultContext（复用 SemanticQueryServiceV3 的模式）
+        var resultProjection =
+                QueryFieldBindings.compile(
+                        queryModel,
+                        new ArrayList<>(flatRequest.getColumns()),
+                        flatRequest.getCalculatedFields());
         com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext resultContext =
                 buildManagedRelationContext(model, flatRequest, context);
 
@@ -2029,6 +2132,10 @@ public class PivotPipeline {
                 .build();
 
         ManagedSqlRelation baseRelation = queryFacade.prepareManagedRelation(resultContext, options);
+        if (baseRelation.getExecutionContext() != null)
+            baseRelation
+                    .getExecutionContext()
+                    .setExtData(QueryFieldBindings.Projection.class.getName(), resultProjection);
 
         String logicalSql = QueryFieldBindings.logicalSql(baseRelation.getSql(), baseRelation.getDialect(), queryModel,
                 flatRequest.getColumns(), flatRequest.getCalculatedFields());
@@ -2096,6 +2203,25 @@ public class PivotPipeline {
         queryDef.setReturnTotal(false);
         queryDef.setStrictColumns(true);
         queryDef.setColumns(flatRequest.getColumns());
+        if (flatRequest.getHaving() != null)
+            queryDef.setHaving(flatRequest.getHaving().stream().map(this::toJdbcSlice).toList());
+        if (flatRequest.getOrderBy() != null)
+            queryDef.setOrderBy(
+                    flatRequest.getOrderBy().stream()
+                            .map(
+                                    order -> {
+                                        var item =
+                                                new com.foggyframework.dataset.model.def.query
+                                                        .request.OrderRequestDef();
+                                        item.setField(order.getField());
+                                        item.setDir(order.getDir());
+                                        item.setNullLast(Boolean.TRUE.equals(order.getNullLast()));
+                                        item.setNullFirst(
+                                                Boolean.TRUE.equals(order.getNullFirst()));
+                                        return item;
+                                    })
+                            .toList());
+        queryDef.setExtData(flatRequest.getExtData());
 
         // groupBy
         if (flatRequest.getGroupBy() != null) {
@@ -2126,7 +2252,7 @@ public class PivotPipeline {
         com.foggyframework.dataset.client.domain.PagingRequest<com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef> pagingRequest =
                 new com.foggyframework.dataset.client.domain.PagingRequest<>();
         pagingRequest.setParam(queryDef);
-        pagingRequest.setStart(0);
+        pagingRequest.setStart(flatRequest.getStart() == null ? 0 : flatRequest.getStart());
         pagingRequest.setPageSize(flatRequest.getLimit());
 
         com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext resultContext =
@@ -2138,6 +2264,7 @@ public class PivotPipeline {
         resultContext.setSecurityContext(copySecurityContext(reqContext.getSecurityContext()));
         resultContext.setRequestIdentity(reqContext.getRequestIdentity());
         resultContext.setPermissionSession(reqContext.getPermissionSession());
+        resultContext.setPivotCacheProofSession(reqContext.getPivotCacheProofSession());
         resultContext.setPermissionAction(
                 reqContext.getPermissionAction() != null
                         ? reqContext.getPermissionAction()
@@ -2837,9 +2964,26 @@ public class PivotPipeline {
 
     private record DomainConstrainedCellRequest(SemanticQueryRequest request, SemanticRequestContext context) {}
 
-    private record AxisDomainSelectionResult(List<Map<String, Object>> rows,
-                                             Map<String, Map<String, Number>> baselineRatioExternalValues,
-                                             List<Map<String, Object>> baselineRatioEvidence) {}
+    private static Map<List<Object>, Integer> scalarDomainOrder(Set<Object> values) {
+        Map<List<Object>, Integer> order = new LinkedHashMap<>();
+        if (values != null)
+            for (Object value : values) order.put(Collections.singletonList(value), order.size());
+        return order;
+    }
+
+    private record AxisDomainSelectionResult(
+            List<Map<String, Object>> rows,
+            Map<String, Map<String, Number>> baselineRatioExternalValues,
+            List<Map<String, Object>> baselineRatioEvidence,
+            Set<Object> rowOrder,
+            Set<Object> columnOrder) {
+        AxisDomainSelectionResult(
+                List<Map<String, Object>> rows,
+                Map<String, Map<String, Number>> baselines,
+                List<Map<String, Object>> evidence) {
+            this(rows, baselines, evidence, null, null);
+        }
+    }
 
     private record BaselineRatioPrePageAxisDomainResult(Map<String, Map<String, Number>> values,
                                                         List<Map<String, Object>> evidence) {
@@ -2908,6 +3052,17 @@ public class PivotPipeline {
         if (hasWarnings(response)) {
             diagnostics.cacheStoreSkipped(cacheEvaluation.keyHash(), cacheEligibilityStage,
                     PivotOuterCacheTelemetry.CACHE_STORE_SKIPPED_WARNING_REASON, cacheEvaluation.shapeClass());
+            replacePivotDiagnostics(response, diagnostics.snapshot());
+            return response;
+        }
+        if (context != null
+                && (context.getPivotCacheProofSession() == null
+                        || !context.getPivotCacheProofSession().canStore())) {
+            diagnostics.cacheStoreSkipped(
+                    cacheEvaluation.keyHash(),
+                    cacheEligibilityStage,
+                    "execution_governance_unproven_or_changed",
+                    cacheEvaluation.shapeClass());
             replacePivotDiagnostics(response, diagnostics.snapshot());
             return response;
         }

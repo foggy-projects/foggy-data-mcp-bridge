@@ -4,6 +4,7 @@ import com.foggyframework.dataset.model.def.query.request.CondRequestDef;
 import com.foggyframework.dataset.model.lifecycle.identity.CatalogIdentity;
 import com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.model.semantic.domain.DeniedPhysicalColumn;
+
 import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Array;
@@ -207,6 +208,15 @@ public class AuthorizationSignatureService {
         } catch (NoSuchAlgorithmException ex) {
             throw new IllegalStateException("SHA-256 is unavailable", ex);
         }
+    }
+
+    /**
+     * Typed, fail-closed fingerprint for internal cache proofs; never exposes the source material.
+     */
+    public static Optional<String> canonicalFingerprint(Object item) {
+        CanonicalEncoder encoder = new CanonicalEncoder();
+        encoder.add("cache-proof-v1", item);
+        return encoder.cacheable() ? Optional.of(sha256(encoder.value())) : Optional.empty();
     }
 
     private static final class CanonicalEncoder {

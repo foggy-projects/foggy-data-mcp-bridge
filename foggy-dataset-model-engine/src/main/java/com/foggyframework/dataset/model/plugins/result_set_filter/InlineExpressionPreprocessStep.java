@@ -1,11 +1,10 @@
 package com.foggyframework.dataset.model.plugins.result_set_filter;
 
+import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.model.engine.compose.schema.AliasExtractor;
 import com.foggyframework.dataset.model.engine.compose.schema.ColumnAliasParts;
-import com.foggyframework.dataset.model.engine.query_model.PredefinedCalculatedFieldInjector;
-import com.foggyframework.dataset.model.engine.query_model.QueryModelSupport;
 import com.foggyframework.dataset.model.engine.expression.AllowedFunctions;
 import com.foggyframework.dataset.model.engine.expression.CalculatedFieldService;
 import com.foggyframework.dataset.model.engine.expression.InlineExpressionParser;
@@ -13,13 +12,16 @@ import com.foggyframework.dataset.model.engine.expression.SqlExpHolder;
 import com.foggyframework.dataset.model.engine.expression.sql.SqlBinaryExp;
 import com.foggyframework.dataset.model.engine.expression.sql.SqlFunctionExp;
 import com.foggyframework.dataset.model.engine.expression.sql.SqlUnaryExp;
-import com.foggyframework.core.utils.StringUtils;
+import com.foggyframework.dataset.model.engine.query_model.PredefinedCalculatedFieldInjector;
+import com.foggyframework.dataset.model.engine.query_model.QueryModelSupport;
 import com.foggyframework.dataset.model.spi.DbDimension;
 import com.foggyframework.dataset.model.spi.DbQueryColumn;
 import com.foggyframework.dataset.model.spi.QueryModel;
 import com.foggyframework.dataset.model.spi.TableModel;
 import com.foggyframework.fsscript.parser.spi.Exp;
+
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
@@ -54,6 +56,11 @@ import java.util.*;
 @Component
 @Order(5)  // 在 AutoGroupByStep(10) 之前执行
 public class InlineExpressionPreprocessStep implements DataSetResultStep {
+
+    @Override
+    public java.util.Optional<String> pivotCacheScope(ModelResultContext context) {
+        return java.util.Optional.of("engine-governed-v1");
+    }
 
     @Override
     public int beforeQuery(ModelResultContext ctx) {
@@ -153,7 +160,11 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
                         for (String dep : deps) {
                             CalculatedFieldDef predefined = predefinedFormulaByName.get(dep);
                             if (isAggregateUnsafePredefinedCalculatedField(predefined)) {
-                                throw new IllegalArgumentException("ILLEGAL_DOUBLE_AGGREGATION: Cannot wrap predefined calculated field '" + dep + "' in an aggregate function.");
+                                throw new IllegalArgumentException(
+                                        "ILLEGAL_DOUBLE_AGGREGATION: Cannot wrap predefined"
+                                                + " calculated field '"
+                                                + dep
+                                                + "' in an aggregate function.");
                             }
                         }
                     } catch (IllegalArgumentException e) {
@@ -177,8 +188,13 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
                 result.getColumns().add(alias);
 
                 if (log.isDebugEnabled()) {
-                    log.debug("Inline expression converted: '{}' -> alias='{}', expression='{}', agg='{}', origin=INLINE_EXPRESSION, compiledExp={}",
-                            columnDef, alias, calcFieldDef.getExpression(), calcFieldDef.getAgg(),
+                    log.debug(
+                            "Inline expression converted: '{}' -> alias='{}', expression='{}',"
+                                    + " agg='{}', origin=INLINE_EXPRESSION, compiledExp={}",
+                            columnDef,
+                            alias,
+                            calcFieldDef.getExpression(),
+                            calcFieldDef.getAgg(),
                             calcFieldDef.getCompiledExp() != null ? "已编译" : "未编译");
                 }
             } else {
@@ -203,7 +219,10 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
                     if (inferredAgg != null) {
                         calcFieldDef.setAgg(inferredAgg);
                         if (log.isDebugEnabled()) {
-                            log.debug("自动推断聚合类型: '{}' -> agg='{}'", calcFieldDef.getName(), inferredAgg);
+                            log.debug(
+                                    "自动推断聚合类型: '{}' -> agg='{}'",
+                                    calcFieldDef.getName(),
+                                    inferredAgg);
                         }
                     }
                 }
@@ -647,10 +666,12 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
                 for (CalculatedFieldDef pd : predefined) {
                     if (aliasName.equals(pd.getName())) {
                         throw new IllegalArgumentException(
-                                "COLUMN_ALIAS_COLLIDES_WITH_CALCULATED_FIELD: column '" + columnDef
-                                        + "' alias '" + aliasName
-                                        + "' collides with a predefined calculated field in QueryModel. "
-                                        + "Use a different alias.");
+                                "COLUMN_ALIAS_COLLIDES_WITH_CALCULATED_FIELD: column '"
+                                        + columnDef
+                                        + "' alias '"
+                                        + aliasName
+                                        + "' collides with a predefined calculated field in"
+                                        + " QueryModel. Use a different alias.");
                     }
                 }
             }
@@ -757,8 +778,12 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
         }
 
         if (log.isDebugEnabled()) {
-            log.debug("Plain field alias rewritten: '{}' -> alias='{}', base='{}', origin=PLAIN_ALIAS",
-                    columnDef, aliasName, baseField);
+            log.debug(
+                    "Plain field alias rewritten: '{}' -> alias='{}', base='{}',"
+                            + " origin=PLAIN_ALIAS",
+                    columnDef,
+                    aliasName,
+                    baseField);
         }
 
         return synth;

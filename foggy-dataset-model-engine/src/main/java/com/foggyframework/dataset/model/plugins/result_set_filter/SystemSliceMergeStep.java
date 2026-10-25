@@ -1,11 +1,13 @@
 package com.foggyframework.dataset.model.plugins.result_set_filter;
 
-import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.model.def.query.request.CondRequestDef;
+import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.model.semantic.explain.ExplainTraceCollector;
 import com.foggyframework.dataset.model.semantic.explain.SemanticExplainResponse;
+
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
@@ -32,6 +34,11 @@ import java.util.List;
 @Component
 @Order(-15)
 public class SystemSliceMergeStep implements DataSetResultStep {
+
+    @Override
+    public java.util.Optional<String> pivotCacheScope(ModelResultContext context) {
+        return java.util.Optional.of("engine-governed-v1");
+    }
 
     @Override
     public int beforeQuery(ModelResultContext ctx) {

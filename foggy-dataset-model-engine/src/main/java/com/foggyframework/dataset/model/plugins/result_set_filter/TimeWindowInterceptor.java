@@ -9,6 +9,7 @@ import com.foggyframework.dataset.model.spi.DbColumn;
 import com.foggyframework.dataset.model.spi.DbDimension;
 import com.foggyframework.dataset.model.spi.DbMeasure;
 import com.foggyframework.dataset.model.spi.QueryModel;
+
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
@@ -18,10 +19,19 @@ import java.util.stream.Collectors;
 @Component
 @Order(-22)
 public class TimeWindowInterceptor implements DataSetResultStep {
+
+    @Override
+    public java.util.Optional<String> pivotCacheScope(ModelResultContext context) {
+        return java.util.Optional.of("engine-governed-v1");
+    }
+
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private org.springframework.context.ApplicationContext applicationContext;
-    @org.springframework.beans.factory.annotation.Value("${foggy.dataset.query.calendar-range-enabled:true}")
+
+    @org.springframework.beans.factory.annotation.Value(
+            "${foggy.dataset.query.calendar-range-enabled:true}")
     private boolean calendarRangeEnabled = true;
+
     private java.time.Clock clock;
     @org.springframework.beans.factory.annotation.Value("${foggy.dataset.query.time-zone:UTC}")
     private String timeZone = "UTC";
@@ -106,8 +116,11 @@ public class TimeWindowInterceptor implements DataSetResultStep {
             } catch (IllegalArgumentException failure) {
                 // Existing observed windows can sort declared textual bucket keys without a
                 // calendar. Preserve that contract only when no date arithmetic is requested.
-                if (!(twDef.isRolling() && !twDef.isCalendarRolling() && twDef.value().isEmpty()
-                        && failure.getMessage().startsWith("TIMEWINDOW_FIELD_NOT_TIME"))) throw failure;
+                if (!(twDef.isRolling()
+                        && !twDef.isCalendarRolling()
+                        && twDef.value().isEmpty()
+                        && failure.getMessage().startsWith("TIMEWINDOW_FIELD_NOT_TIME")))
+                    throw failure;
             }
             // The requested surrogate is accepted only after resolving a typed date mapping.
             if (axis != null) {
@@ -119,17 +132,28 @@ public class TimeWindowInterceptor implements DataSetResultStep {
         // Validate
         String errorCode = TimeWindowValidator.validate(twDef, availableFields, timeFields, measureFields);
         if (errorCode != null) {
-            throw new com.foggyframework.dataset.model.engine.expression.QueryCalculationException(errorCode, twDef.field(),
-                    errorCode.equals("TIMEWINDOW_ROLLING_MODE_INVALID") ? "timeWindow.rollingMode" : "timeWindow",
-                    "Invalid time window", "Check the timeWindow field, grain and rollingMode contract.", Map.of());
+            throw new com.foggyframework.dataset.model.engine.expression.QueryCalculationException(
+                    errorCode,
+                    twDef.field(),
+                    errorCode.equals("TIMEWINDOW_ROLLING_MODE_INVALID")
+                            ? "timeWindow.rollingMode"
+                            : "timeWindow",
+                    "Invalid time window",
+                    "Check the timeWindow field, grain and rollingMode contract.",
+                    Map.of());
         }
         if ((twDef.isCumulative() || (twDef.isRolling() && !twDef.isCalendarRolling()))
                 && queryModel instanceof com.foggyframework.dataset.model.spi.JdbcQueryModel jdbc
                 && !jdbc.getDialect().supportsWindowFunctions()) {
             throw new com.foggyframework.dataset.model.engine.expression.QueryCalculationException(
-                    "TIMEWINDOW_WINDOW_UNSUPPORTED", twDef.field(), "timeWindow.comparison",
-                    "This database does not support SQL window functions required by cumulative/observed windows.",
-                    "Use a database with window support; calendar rolling is available separately and has different semantics.", Map.of());
+                    "TIMEWINDOW_WINDOW_UNSUPPORTED",
+                    twDef.field(),
+                    "timeWindow.comparison",
+                    "This database does not support SQL window functions required by"
+                            + " cumulative/observed windows.",
+                    "Use a database with window support; calendar rolling is available separately"
+                            + " and has different semantics.",
+                    Map.of());
         }
 
         // Get group by fields from DbQueryRequestDef
@@ -169,8 +193,17 @@ public class TimeWindowInterceptor implements DataSetResultStep {
                 for (CalculatedFieldDef cf : ctx.getRequest().getParam().getCalculatedFields())
                     requested.addAll(com.foggyframework.dataset.model.engine.expression.CalculatedFieldService.extractColumnReferences(cf.getExpression()));
             }
-            measureFields.removeIf(metric -> requested.stream().noneMatch(name -> name.equals(metric) || name.startsWith(metric + "__")));
-            if (measureFields.isEmpty()) throw new IllegalArgumentException("TIMEWINDOW_TARGET_REQUIRED: select an aggregate measure or provide targetMetrics");
+            measureFields.removeIf(
+                    metric ->
+                            requested.stream()
+                                    .noneMatch(
+                                            name ->
+                                                    name.equals(metric)
+                                                            || name.startsWith(metric + "__")));
+            if (measureFields.isEmpty())
+                throw new IllegalArgumentException(
+                        "TIMEWINDOW_TARGET_REQUIRED: select an aggregate measure or provide"
+                                + " targetMetrics");
         }
         for (String metric : targetMetrics(twDef, measureFields)) {
             if (!originalColumns.contains(metric)) {
@@ -184,14 +217,18 @@ public class TimeWindowInterceptor implements DataSetResultStep {
                     .filter(cf -> cf.getOrigin() != CalculatedFieldDef.Origin.USER_DECLARED && !axisFieldNames.contains(cf.getName()))
                     .forEach(baseFields::add);
         if (axisBinding != null) baseFields.addAll(axisBinding.fields());
-        BaseModelPlan basePlan = BaseModelPlan.builder()
-                .model(ctx.getRequest() != null && ctx.getRequest().getParam() != null ? ctx.getRequest().getParam().getQueryModel() : "unknown")
-                .columns(originalColumns)
-                .groupBy(groupByFields)
-                .calculatedFields(baseFields)
-                .slice(planConditions(ctx.getRequest().getParam().getSlice()))
-                .having(planConditions(ctx.getRequest().getParam().getHaving()))
-                .build();
+        BaseModelPlan basePlan =
+                BaseModelPlan.builder()
+                        .model(
+                                ctx.getRequest() != null && ctx.getRequest().getParam() != null
+                                        ? ctx.getRequest().getParam().getQueryModel()
+                                        : "unknown")
+                        .columns(originalColumns)
+                        .groupBy(groupByFields)
+                        .calculatedFields(baseFields)
+                        .slice(planConditions(ctx.getRequest().getParam().getSlice()))
+                        .having(planConditions(ctx.getRequest().getParam().getHaving()))
+                        .build();
 
         Set<String> actualOutputs = null;
         if (twDef.isRolling() || twDef.isCumulative()) {
@@ -201,12 +238,17 @@ public class TimeWindowInterceptor implements DataSetResultStep {
             actualOutputs = built.outputs();
             if (!built.warnings().isEmpty()) {
                 List<String> warnings = new ArrayList<>();
-                if (extData.get("engineWarnings") instanceof List<?> existing) existing.forEach(w -> warnings.add(String.valueOf(w)));
+                if (extData.get("engineWarnings") instanceof List<?> existing)
+                    existing.forEach(w -> warnings.add(String.valueOf(w)));
                 warnings.addAll(built.warnings());
                 extData.put("engineWarnings", warnings);
             }
             extData.put("timeWindowPlan", built.plan());
-            extData.put("timeWindowDesc", twDef.comparison() + " " + (twDef.isCalendarRolling() ? "calendar" : "observed"));
+            extData.put(
+                    "timeWindowDesc",
+                    twDef.comparison()
+                            + " "
+                            + (twDef.isCalendarRolling() ? "calendar" : "observed"));
             ctx.setSkipQuery(true);
 
         } else if (twDef.isComparative()) {
@@ -215,7 +257,8 @@ public class TimeWindowInterceptor implements DataSetResultStep {
             actualOutputs = built.outputs();
             if (!built.warnings().isEmpty()) {
                 List<String> warnings = new ArrayList<>();
-                if (extData.get("engineWarnings") instanceof List<?> existing) existing.forEach(w -> warnings.add(String.valueOf(w)));
+                if (extData.get("engineWarnings") instanceof List<?> existing)
+                    existing.forEach(w -> warnings.add(String.valueOf(w)));
                 warnings.addAll(built.warnings());
                 extData.put("engineWarnings", warnings);
             }
@@ -323,8 +366,10 @@ public class TimeWindowInterceptor implements DataSetResultStep {
                 String pn = fd.getProductName().toLowerCase(java.util.Locale.ROOT);
                 if (pn.contains("postgres")) resolvedDialect = "postgres";
                 else if (pn.contains("sqlite")) resolvedDialect = "sqlite";
-                else if (pn.contains("sqlserver") || pn.contains("microsoft")) resolvedDialect = "mssql";
-                else if (pn.contains("mysql")) resolvedDialect = fd.supportsCte() ? "mysql8" : "mysql57";
+                else if (pn.contains("sqlserver") || pn.contains("microsoft"))
+                    resolvedDialect = "mssql";
+                else if (pn.contains("mysql"))
+                    resolvedDialect = fd.supportsCte() ? "mysql8" : "mysql57";
             }
         }
         extData.put("timeWindowDialect", resolvedDialect);
@@ -387,7 +432,8 @@ public class TimeWindowInterceptor implements DataSetResultStep {
             if (item == null || item.getField() == null || item.getField().isBlank()) {
                 continue;
             }
-            String dir = item.getDir() == null ? "asc" : item.getDir().trim().toLowerCase(Locale.ROOT);
+            String dir =
+                    item.getDir() == null ? "asc" : item.getDir().trim().toLowerCase(Locale.ROOT);
             result.add("desc".equals(dir) ? "-" + item.getField() : item.getField());
         }
         return result;
@@ -398,7 +444,10 @@ public class TimeWindowInterceptor implements DataSetResultStep {
         List<Object> result = new ArrayList<>();
         for (var condition : conditions) {
             Map<String, Object> item = new LinkedHashMap<>();
-            if (condition._isLogicalGroup()) item.put(condition._isOrGroup() ? "$or" : "$and", planConditions(condition._getGroupChildren()));
+            if (condition._isLogicalGroup())
+                item.put(
+                        condition._isOrGroup() ? "$or" : "$and",
+                        planConditions(condition._getGroupChildren()));
             else if (condition.getExpr() != null) item.put("$expr", condition.getExpr());
             else {
                 item.put("field", condition.getField());

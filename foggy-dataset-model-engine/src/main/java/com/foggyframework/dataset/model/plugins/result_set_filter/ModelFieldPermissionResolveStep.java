@@ -1,17 +1,20 @@
 package com.foggyframework.dataset.model.plugins.result_set_filter;
 
+import com.foggyframework.dataset.model.semantic.member.MemberFieldBinding;
+import com.foggyframework.dataset.model.semantic.member.SyntheticMemberQueryModelResolver;
 import com.foggyframework.dataset.model.semantic.permission.FieldPermissionResolution;
 import com.foggyframework.dataset.model.semantic.permission.FieldPermissionResolver;
-import com.foggyframework.dataset.model.semantic.member.SyntheticMemberQueryModelResolver;
 import com.foggyframework.dataset.model.semantic.permission.ModelPermissionException;
 import com.foggyframework.dataset.model.spi.QueryModel;
 import com.foggyframework.dataset.model.spi.QueryModelLoader;
+
 import jakarta.annotation.Resource;
-import com.foggyframework.dataset.model.semantic.member.MemberFieldBinding;
-import java.util.Set;
-import java.util.stream.Collectors;
+
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
+
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Resolves TM/QM declarative field permissions before the existing request
@@ -20,6 +23,11 @@ import org.springframework.stereotype.Component;
 @Component
 @Order(-30)
 public class ModelFieldPermissionResolveStep implements DataSetResultStep {
+
+    @Override
+    public java.util.Optional<String> pivotCacheScope(ModelResultContext context) {
+        return java.util.Optional.of("engine-governed-v1");
+    }
 
     @Resource
     private FieldPermissionResolver fieldPermissionResolver;
