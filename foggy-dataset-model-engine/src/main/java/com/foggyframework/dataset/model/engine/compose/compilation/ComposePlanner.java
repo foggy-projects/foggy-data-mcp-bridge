@@ -1309,6 +1309,9 @@ public final class ComposePlanner {
             List<Object> structuralKey = PlanHash.planHash(plan);
             CteUnit hashHit = state.hashCache.get(structuralKey);
             if (hashHit != null) {
+                if (plan instanceof DerivedQueryPlan derived) {
+                    validateReusedDerivedInput(derived, state);
+                }
                 state.idCache.put(plan, hashHit);
                 return hashHit;
             }
@@ -1344,6 +1347,18 @@ public final class ComposePlanner {
     // ------------------------------------------------------------------
     // Per-shape compilers
     // ------------------------------------------------------------------
+
+    /** SQL shape reuse does not prove typed fields belong to this node's input occurrence. */
+    private static void validateReusedDerivedInput(DerivedQueryPlan plan, CompileState state) {
+        List<PlanColumnRef> refs = new ArrayList<>(plan.columns().stream()
+                .flatMap(column -> ComposePlanAwarePermissionValidator.collectPlanRefs(column).stream()).toList());
+        refs.addAll(plan.groupByReferences().values());
+        ScopedSource source = compileScopedSource(plan.source(), refs, state);
+        CteUnit input = source.compiled() instanceof CteUnit unit ? unit
+                : wrapComposedAsUnit((ComposedSql) source.compiled(), state);
+        validateDerivedSliceNotSameStageAlias(plan, input.getSelectColumns());
+        validateDerivedOutputRefs(plan, sourceOutputColumnsForDerived(plan.source(), input, state), source.fields());
+    }
 
     private static CteUnit compileBase(BaseModelPlan plan, CompileState state) {
         OutputSchema.validateOutputNames(extractStringCols(plan.columns()).stream()

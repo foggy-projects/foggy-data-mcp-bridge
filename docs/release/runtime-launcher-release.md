@@ -182,3 +182,36 @@ six-asset release directory under `.foggy-runtime/field-binding-smoke/`.
 
 The `Field Binding Contracts` workflow additionally covers SQLite and four SQL databases and can
 replay the runtime gate against a published release downloaded and checked against SHA256SUMS.
+
+## Compose stability artifact gate
+
+The standard publisher also runs `scripts/release/compose_stability_gate.py` before preparing
+release notes or publishing. It checks native time-window execution governance, renamed group
+and window keys, shared typed references reused across UNION inputs in both orders, method
+arguments, and supported result shapes. Every Compose validate/preview case must report explicit
+zero business-SQL preparation and execution counters. A native time-window execution control
+must report positive counters, so missing instrumentation cannot pass as zero SQL.
+
+The gate requires Python 3 and the release build's Java 17 JDK (`java` and `javac`). It compiles
+a small test-only auto-configuration fixture against libraries extracted from the candidate JAR,
+then starts that unchanged JAR through its packaged PropertiesLauncher on an isolated loopback
+port with SQLite. Production engine classes come from the candidate; the fixture supplies
+execution-policy probes and counters only. The fixture is never added to the distribution.
+The runtime's working directory, JVM user home, MCP datasource config directory, and Runtime
+bundle/datasource registries are all fresh directories inside its evidence directory.
+Counter checks exclude PRAGMA, SHOW, and schema lookups and count SELECT/WITH reads of the
+fixture fact table.
+
+To run it directly against an existing candidate or downloaded artifact:
+
+```bash
+python3 scripts/release/compose_stability_gate.py \
+  --jar /absolute/path/to/foggy-runtime-launcher-<version>.jar \
+  --output /absolute/path/to/new-compose-stability-evidence
+```
+
+The output directory must be new. It retains source/fixture snapshots, responses, SQL counters,
+logs, and `summary.json`; the owned runtime is stopped after the check. The publisher uses fresh
+directories under `.foggy-runtime/compose-stability-smoke/`, validates the artifact SHA-256,
+required case/mode matrix, typed counters and cleanup status, and rejects failed or incomplete
+evidence. These checks supplement the engine regression and multi-database suites.

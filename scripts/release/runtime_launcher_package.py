@@ -112,6 +112,8 @@ CANDIDATE_PYTHON_TESTS = (
     "scripts/release/tests/test_fap_question_delivery.py",
     "scripts/release/tests/test_fap_question_publication_gate.py",
     "scripts/release/tests/test_runtime_launcher_package.py",
+    "scripts/release/tests/test_runtime_launcher_publish.py",
+    "scripts/release/tests/test_compose_stability_gate.py",
 )
 
 

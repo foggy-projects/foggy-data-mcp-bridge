@@ -81,6 +81,12 @@ public class L1CacheStep implements DataSetResultStep {
         // 2. 注入缓存提供者到配置中（供 QueryModel 使用 L2 缓存）
         ctx.getCacheConfig().setProvider(queryCacheProvider);
 
+        // Deferred plans need their own complete request identity and terminal admission proof.
+        // An ordinary L1 hit must not replace that execution (for example a time-window plan).
+        if (ctx.getExecutionDisposition() != ModelResultContext.ExecutionDisposition.NORMAL) {
+            return CONTINUE;
+        }
+
         // 3. 检查是否启用 L1 缓存
         boolean l1Enabled = QueryCacheProvider.isL1Enabled(ctx);
         if (!l1Enabled) {
@@ -130,6 +136,11 @@ public class L1CacheStep implements DataSetResultStep {
 
     @Override
     public int process(ModelResultContext ctx) {
+        // Materializing a deferred plan does not make it an ordinary-request cache entry.
+        if (ctx.getExecutionDisposition() != ModelResultContext.ExecutionDisposition.NORMAL) {
+            return CONTINUE;
+        }
+
         // 检查是否需要写入 L1 缓存
         // 条件：L1 启用 + 有授权 + 未命中 + 有结果
         boolean l1Enabled = QueryCacheProvider.isL1Enabled(ctx);

@@ -303,6 +303,65 @@ class RuntimeLauncherPublishTest(unittest.TestCase):
                 with self.assertRaises(release.subprocess.CalledProcessError):
                     release.run_compose_binding_smoke(root, "0.1.32")
 
+    def test_stability_failure_prevents_notes_and_publication(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(
+            release.sys, "argv", ["publish", "--release-version", "0.1.45", "--reuse-package", "--output-dir", temporary]
+        ), mock.patch.object(release, "command_output", return_value="a" * 40), \
+                mock.patch.object(release, "verify_package", return_value={}), \
+                mock.patch.object(release, "run_smoke", return_value=[]), \
+                mock.patch.object(release, "run_field_binding_smoke", return_value={}), \
+                mock.patch.object(release, "run_compose_binding_smoke", return_value={}), \
+                mock.patch.object(release, "run_compose_stability_smoke", side_effect=release.ReleaseError("SQL counters missing")), \
+                mock.patch.object(release, "release_notes") as notes, \
+                mock.patch.object(release, "publish_release") as publish:
+            self.assertEqual(1, release.main())
+            notes.assert_not_called()
+            publish.assert_not_called()
+
+    def test_stability_publisher_requires_complete_counters_and_artifact_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = root / "package"
+            package.mkdir()
+            jar = package / "foggy-runtime-launcher-0.1.45.jar"
+            jar.write_bytes(b"immutable artifact")
+            contract = release.COMPOSE_STABILITY_GATE
+            valid = {"status": "passed", "processStopped": True, "modes": contract.MODES, "g10": False,
+                     "counterFilterSelfTest": True, "launcherSha256": release.sha256_file(jar),
+                     "checks": sorted(contract.REQUIRED_CHECKS),
+                     "readonlySql": [{"case": case, "mode": mode, "prepared": 0, "executed": 0}
+                                     for case in sorted(contract.READONLY_CASES) for mode in contract.MODES[:2]],
+                     "positiveSql": [{"case": "native-plain-window", "mode": "execute", "prepared": 1, "executed": 1}]}
+            def write_summary(command):
+                evidence = Path(command[-1])
+                evidence.mkdir(parents=True)
+                (evidence / "summary.json").write_text(json.dumps(summary), encoding="utf-8")
+            with mock.patch.object(release, "REPOSITORY_ROOT", root), mock.patch.object(release, "run", side_effect=write_summary):
+                for summary in [{**valid, "status": "failed"}, {**valid, "readonlySql": []},
+                                {**valid, "readonlySql": [{"case": "missing", "mode": "preview"}]},
+                                {**valid, "positiveSql": []}, {**valid, "launcherSha256": "wrong"}]:
+                    with self.subTest(summary=summary), self.assertRaises(release.ReleaseError):
+                        release.run_compose_stability_smoke(package, "0.1.45")
+                summary = valid
+                self.assertEqual("compose-stability", release.run_compose_stability_smoke(package, "0.1.45")["profile"])
+                self.assertEqual([jar], list(package.iterdir()))
+
+    def test_stability_gate_requires_fresh_output_and_successful_process(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with mock.patch.object(release, "REPOSITORY_ROOT", root), mock.patch.object(release, "run") as run:
+                with self.assertRaises(FileNotFoundError):
+                    release.run_compose_stability_smoke(root, "0.1.45")
+                first = Path(run.call_args.args[0][-1])
+                first.mkdir(parents=True)
+                (first / "summary.json").write_text('{"status":"passed"}', encoding="utf-8")
+                with self.assertRaises(FileNotFoundError):
+                    release.run_compose_stability_smoke(root, "0.1.45")
+                self.assertNotEqual(first, Path(run.call_args.args[0][-1]))
+                run.side_effect = release.subprocess.CalledProcessError(1, ["gate"])
+                with self.assertRaises(release.subprocess.CalledProcessError):
+                    release.run_compose_stability_smoke(root, "0.1.45")
+
     @staticmethod
     def _write_package(
         package_dir: Path,

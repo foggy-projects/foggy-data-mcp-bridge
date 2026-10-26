@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import ctypes
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -41,6 +42,13 @@ COMPOSE_REQUIRED_CHECKS = frozenset({
     "nested-mixed-union", "derived-offset-only", "passthrough-subquery",
     "ordered-union", "union-arity",
 })
+_STABILITY_SPEC = importlib.util.spec_from_file_location(
+    "compose_stability_gate", Path(__file__).with_name("compose_stability_gate.py")
+)
+if _STABILITY_SPEC is None or _STABILITY_SPEC.loader is None:
+    raise RuntimeError("Cannot load Compose artifact gate contract")
+COMPOSE_STABILITY_GATE = importlib.util.module_from_spec(_STABILITY_SPEC)
+_STABILITY_SPEC.loader.exec_module(COMPOSE_STABILITY_GATE)
 
 
 class ReleaseError(RuntimeError):
@@ -565,6 +573,24 @@ def run_compose_binding_smoke(package_dir: Path, version: str) -> dict[str, Any]
     return {"profile": "compose-binding", "evidence": str(evidence), **summary}
 
 
+def run_compose_stability_smoke(package_dir: Path, version: str) -> dict[str, Any]:
+    evidence_root = REPOSITORY_ROOT / ".foggy-runtime" / "compose-stability-smoke"
+    evidence_root.mkdir(parents=True, exist_ok=True)
+    evidence = Path(tempfile.mkdtemp(prefix=f"{version}-", dir=evidence_root)) / "checks"
+    jar = package_dir / f"foggy-runtime-launcher-{version}.jar"
+    log("smoke: time-plan governance, owner propagation, method/result contracts and SQL-free planning")
+    run([
+        sys.executable, str(REPOSITORY_ROOT / "scripts" / "release" / "compose_stability_gate.py"),
+        "--jar", str(jar), "--output", str(evidence),
+    ])
+    summary = json.loads((evidence / "summary.json").read_text(encoding="utf-8"))
+    try:
+        COMPOSE_STABILITY_GATE.validate_summary(summary, sha256_file(jar))
+    except COMPOSE_STABILITY_GATE.GateError as failure:
+        raise ReleaseError("Compose stability artifact smoke: " + str(failure)) from failure
+    return {"profile": "compose-stability", "evidence": str(evidence), **summary}
+
+
 def release_notes(
     version: str, commit: str, manifest: dict[str, Any], checksums: dict[str, str]
 ) -> str:
@@ -957,6 +983,7 @@ def main() -> int:
             smokes = run_smoke(package_dir, args.port)
             smokes.append(run_field_binding_smoke(package_dir, version))
             smokes.append(run_compose_binding_smoke(package_dir, version))
+            smokes.append(run_compose_stability_smoke(package_dir, version))
         checksums = parse_checksums(package_dir / "SHA256SUMS")
         notes = release_notes(version, commit, manifest, checksums)
 
