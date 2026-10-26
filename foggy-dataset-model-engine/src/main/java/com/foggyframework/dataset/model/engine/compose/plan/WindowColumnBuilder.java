@@ -31,13 +31,7 @@ public final class WindowColumnBuilder implements PropertyFunction {
     @SuppressWarnings("unchecked")
     public Object invoke(ExpEvaluator evaluator, String methodName, Object[] methodArgs) {
         if ("over".equals(methodName)) {
-            if (methodArgs == null || methodArgs.length == 0) {
-                return over(null);
-            }
-            if (methodArgs[0] instanceof Map<?, ?> map) {
-                return over((Map<String, Object>) map);
-            }
-            throw new IllegalArgumentException("over() requires a Map configuration object");
+            return over(ComposeOptionValidator.windowArguments(methodArgs));
         }
         throw new IllegalArgumentException(
                 "WindowColumnBuilder only supports .over(config) method, got: " + methodName);

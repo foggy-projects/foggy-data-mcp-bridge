@@ -33,6 +33,12 @@ public final class ComposeOptionValidator {
     /** Strict known options, without rejecting unrelated extension keys. Null means omitted. */
     public static void validateOptions(java.util.Map<String, Object> options, String path, boolean derived) {
         com.foggyframework.dataset.model.engine.compose.sandbox.SecurityParamGuard.validate(options, "script-eval");
+        Object timeWindow = options.get("timeWindow");
+        if (timeWindow != null) {
+            if (!(timeWindow instanceof java.util.Map<?, ?> window)) throw ComposeParameterException.invalidType(
+                    "COMPOSE_PARAMETER_TYPE_INVALID", path + ".timeWindow", "timeWindow", "an object or null", timeWindow);
+            if (!window.isEmpty()) throw ComposeParameterException.unsupportedTimeWindow(path + ".timeWindow");
+        }
         if ("query".equals(path)) {
             for (String selector : List.of("model", "source")) {
                 if (options.get(selector) != null) throw ComposeParameterException.invalidType(
@@ -47,6 +53,33 @@ public final class ComposeOptionValidator {
         strings(options.get("groupBy"), path + ".groupBy", "groupBy");
         for (String key : List.of("limit", "start", "offset")) integer(options.get(key), path + "." + key, key);
         bool(options.get("distinct"), path + ".distinct", "distinct");
+    }
+
+    /** Script call signatures are checked before dispatch; typed Java overloads remain unchanged. */
+    public static Object[] arguments(Object[] args, int minimum, int maximum, String method) {
+        int count = args == null ? 0 : args.length;
+        if (count < minimum || count > maximum) throw ComposeParameterException.argumentCount(method, minimum, maximum, count);
+        return args == null ? new Object[0] : args;
+    }
+
+    public static String requiredString(Object value, String path, String parameter) {
+        if (value instanceof String text && !text.isBlank()) return text;
+        throw ComposeParameterException.invalidType("COMPOSE_PARAMETER_TYPE_INVALID", path, parameter, "a non-blank string", value);
+    }
+
+    public static Object[] aliasArguments(Object[] args) {
+        Object[] checked = arguments(args, 1, 2, "as");
+        requiredString(checked[0], "as.alias", "alias");
+        if (checked.length == 2) string(checked[1], "as.caption", "caption");
+        return checked;
+    }
+
+    @SuppressWarnings("unchecked")
+    public static java.util.Map<String, Object> windowArguments(Object[] args) {
+        Object[] checked = arguments(args, 0, 1, "over");
+        if (checked.length == 0 || checked[0] == null) return null;
+        if (checked[0] instanceof java.util.Map<?, ?> map) return (java.util.Map<String, Object>) map;
+        throw ComposeParameterException.invalidType("COMPOSE_PARAMETER_TYPE_INVALID", "over", "options", "an object or null", checked[0]);
     }
 
     public static List<?> array(Object value, String path, String parameter) {

@@ -289,7 +289,9 @@ public final class ComposePlanner {
                 sb.append("PARTITION BY ");
                 for (int i = 0; i < over.getPartitionBy().size(); i++) {
                     if (i > 0) sb.append(", ");
-                    sb.append(quoteColumnExpr(over.getPartitionBy().get(i), dialect));
+                    PlanColumnRef reference = over.partitionReferences().get(i);
+                    sb.append(reference == null ? quoteColumnExpr(over.getPartitionBy().get(i), dialect)
+                            : compilePlanColumnRef(reference, dialect, planAliasMap));
                 }
             }
 
@@ -299,9 +301,11 @@ public final class ComposePlanner {
                 for (int i = 0; i < over.getOrderBy().size(); i++) {
                     if (i > 0) sb.append(", ");
                     String orderCol = over.getOrderBy().get(i);
+                    PlanColumnRef reference = over.orderReferences().get(i);
                     boolean isDesc = orderCol.startsWith("-");
                     String baseCol = isDesc ? orderCol.substring(1) : orderCol;
-                    sb.append(quoteColumnExpr(baseCol, dialect));
+                    sb.append(reference == null ? quoteColumnExpr(baseCol, dialect)
+                            : compilePlanColumnRef(reference, dialect, planAliasMap));
                     if (isDesc) {
                         sb.append(" DESC");
                     } else {
@@ -512,15 +516,13 @@ public final class ComposePlanner {
                     "Duplicate derived output: " + output, ComposeSchemaErrorCodes.PHASE_SCHEMA_DERIVE, "DerivedQueryPlan", output);
         }
         for (Object col : plan.columns()) {
-            Set<String> qualifiedNames = new LinkedHashSet<>();
             for (PlanColumnRef ref : ComposePlanAwarePermissionValidator.collectPlanRefs(col)) {
                 String bound = fields.get(ref);
                 if (bound == null || !sourceNames.contains(bound)) throw unknownDerivedField(ref.name());
-                qualifiedNames.add(ref.name());
             }
             for (String ident : columnInputRefs(col)) {
                 String unquoted = unquoteIdentifier(ident);
-                if (!qualifiedNames.contains(unquoted) && !sourceNames.contains(unquoted)) {
+                if (!sourceNames.contains(unquoted)) {
                     throw new ComposeSchemaException(
                             ComposeSchemaErrorCodes.DERIVED_QUERY_UNKNOWN_FIELD,
                             "derived query references unknown field '" + unquoted
@@ -535,7 +537,10 @@ public final class ComposePlanner {
         for (Object col : plan.columns()) {
             orderByNames.add(extractOutputColName(String.valueOf(col)));
         }
-        for (String key : plan.groupBy()) {
+        for (int groupIndex = 0; groupIndex < plan.groupBy().size(); groupIndex++) {
+            PlanColumnRef typedKey = plan.groupByReferences().get(groupIndex);
+            String key = typedKey == null ? plan.groupBy().get(groupIndex) : fields.get(typedKey);
+            if (key == null) throw unknownDerivedField(typedKey.name());
             for (String ref : ComposeScalarExpression.references(key)) {
                 if (!orderByNames.contains(ref)) throw unknownDerivedField(ref);
             }
@@ -605,6 +610,11 @@ public final class ComposePlanner {
         return extractUnquotedIdentifiers(extractBaseColName(String.valueOf(col)));
     }
 
+    /** Bare expression dependencies are validated independently of typed references with the same name. */
+    public static List<String> bareInputReferences(Object column) {
+        return List.copyOf(columnInputRefs(column));
+    }
+
     private static void collectExpressionInputRefs(PlanExpression expr, List<String> out) {
         if (expr == null) {
             return;
@@ -614,7 +624,6 @@ public final class ComposePlanner {
             return;
         }
         if (expr instanceof PlanColumnRef ref) {
-            out.add(ref.name());
             return;
         }
         if (expr instanceof ProjectedColumn projected) {
@@ -659,12 +668,14 @@ public final class ComposePlanner {
             return;
         }
         if (over.getPartitionBy() != null) {
-            for (String entry : over.getPartitionBy()) {
-                out.addAll(extractUnquotedIdentifiers(entry));
+            for (int i = 0; i < over.getPartitionBy().size(); i++) {
+                if (!over.partitionReferences().containsKey(i)) out.addAll(extractUnquotedIdentifiers(over.getPartitionBy().get(i)));
             }
         }
         if (over.getOrderBy() != null) {
-            for (String entry : over.getOrderBy()) {
+            for (int i = 0; i < over.getOrderBy().size(); i++) {
+                if (over.orderReferences().containsKey(i)) continue;
+                String entry = over.getOrderBy().get(i);
                 String normalized = entry != null && entry.startsWith("-")
                         ? entry.substring(1)
                         : entry;
@@ -1594,8 +1605,16 @@ public final class ComposePlanner {
     }
 
     private static Object compileDerived(DerivedQueryPlan plan, CompileState state) {
-        List<PlanColumnRef> refs = plan.columns().stream()
-                .flatMap(column -> ComposePlanAwarePermissionValidator.collectPlanRefs(column).stream()).toList();
+        if (!com.foggyframework.dataset.model.engine.compose.relation.RelationCapabilities
+                .forDialect(state.dialect, false).supportsOuterWindow()
+                && plan.columns().stream().anyMatch(ComposePlanner::containsTypedWindow)) {
+            throw new ComposeCompileException(ComposeCompileErrorCodes.RELATION_OUTER_WINDOW_NOT_SUPPORTED,
+                    ComposeCompileErrorCodes.PHASE_RELATION_COMPILE,
+                    "Outer window is not supported by dialect '" + state.dialect + "'");
+        }
+        List<PlanColumnRef> refs = new ArrayList<>(plan.columns().stream()
+                .flatMap(column -> ComposePlanAwarePermissionValidator.collectPlanRefs(column).stream()).toList());
+        refs.addAll(plan.groupByReferences().values());
         ScopedSource scoped = compileScopedSource(plan.source(), refs, state);
         Object inner = scoped.compiled();
         boolean innerWasJoin = inner instanceof ComposedSql;
@@ -1633,6 +1652,17 @@ public final class ComposePlanner {
                 outerSql,
                 merged,
                 derivedOutputColumns(plan, sourceColumns));
+    }
+
+    private static boolean containsTypedWindow(Object expression) {
+        if (expression instanceof WindowColumn) return true;
+        if (expression instanceof ProjectedColumn projected) return containsTypedWindow(projected.expr());
+        if (expression instanceof BinaryExpr binary) return containsTypedWindow(binary.left()) || containsTypedWindow(binary.right());
+        if (expression instanceof CaseWhenExpr conditional) {
+            return containsTypedWindow(conditional.elseExpr()) || conditional.whens().stream()
+                    .anyMatch(branch -> containsTypedWindow(branch.condition()) || containsTypedWindow(branch.result()));
+        }
+        return false;
     }
 
     private static ComposedSql compileJoin(JoinPlan plan, CompileState state) {
@@ -2233,8 +2263,11 @@ public final class ComposePlanner {
 
         if (!plan.groupBy().isEmpty()) {
             List<String> quotedGroupBy = new ArrayList<>(plan.groupBy().size());
-            for (String g : plan.groupBy()) {
-                quotedGroupBy.add(renderDerivedGroupKey(g, plan, sourceColumns, state, scopedAliases));
+            for (int i = 0; i < plan.groupBy().size(); i++) {
+                PlanColumnRef reference = plan.groupByReferences().get(i);
+                quotedGroupBy.add(reference == null
+                        ? renderDerivedGroupKey(plan.groupBy().get(i), plan, sourceColumns, state, scopedAliases)
+                        : compilePlanColumnRef(reference, dialect, scopedAliases));
             }
             sb.append("\nGROUP BY ").append(String.join(", ", quotedGroupBy));
         }

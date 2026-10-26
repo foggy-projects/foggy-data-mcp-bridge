@@ -53,6 +53,26 @@ public final class ComposeParameterException extends IllegalArgumentException {
                 "Return a QueryPlan or use toSql(); only execute mode may read data.", Map.of());
     }
 
+    public static ComposeParameterException argumentCount(String method, int minimum, int maximum, int actual) {
+        String expected = minimum == maximum ? "exactly " + minimum : minimum + " to " + maximum;
+        return new ComposeParameterException("COMPOSE_ARGUMENT_COUNT_INVALID", method, "arguments",
+                "requires " + expected + " arguments; got " + actual,
+                "Use the documented " + method + " signature.",
+                Map.of("minimumArguments", minimum, "maximumArguments", maximum, "actualArguments", actual));
+    }
+
+    public static ComposeParameterException unsupportedTimeWindow(String path) {
+        return new ComposeParameterException("COMPOSE_PARAMETER_UNSUPPORTED", path, "timeWindow",
+                "is not supported in Compose DSL; only null or an empty object is accepted",
+                "Use timeWindow on an ordinary queryModel request, or omit it from Compose options.", Map.of());
+    }
+
+    public static ComposeParameterException unsupportedResult(String path) {
+        return new ComposeParameterException("COMPOSE_RESULT_SHAPE_UNSUPPORTED", path, "result",
+                "contains an unevaluated Compose planning descriptor outside a supported automatic-planning position",
+                "Return a QueryPlan directly or use a top-level plans value containing a plan, a map of plans, or a list of plans.", Map.of());
+    }
+
     public ComposeParameterException atPath(String path) {
         return new ComposeParameterException(code, path, parameter,
                 "requires " + details.getOrDefault("expectedType", "a valid value"),

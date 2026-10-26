@@ -64,6 +64,8 @@ public final class ScriptRuntime {
      * Tests hard-assert this equals the evaluator's actual visible surface.
      */
     public static final Set<String> ALLOWED_SCRIPT_GLOBALS = Set.of("from", "dsl", "Query", "subquery");
+    private static final java.util.regex.Pattern RESULT_IDENTIFIER =
+            java.util.regex.Pattern.compile("[A-Za-z_$][A-Za-z0-9_$]*");
 
     /**
      * Execute a Compose Query fsscript.
@@ -359,12 +361,11 @@ public final class ScriptRuntime {
             evaluator.setVar("from", fromFunction);
             evaluator.setVar("dsl", fromFunction);  // dsl is an alias for from
             evaluator.setVar("subquery", (Function<Object[], Object>) rawArgs -> {
-                if (rawArgs == null || rawArgs.length == 0 || rawArgs.length > 2) {
-                    throw new IllegalArgumentException("subquery(plan[, field]) requires 1 or 2 arguments");
-                }
-                QueryPlan plan = (QueryPlan) rawArgs[0];
-                String field = rawArgs.length == 2 && rawArgs[1] != null
-                        ? String.valueOf(rawArgs[1])
+                Object[] checked = ComposeOptionValidator.arguments(rawArgs, 1, 2, "subquery");
+                if (!(checked[0] instanceof QueryPlan plan)) throw ComposeParameterException.invalidType(
+                        "COMPOSE_PARAMETER_TYPE_INVALID", "subquery.plan", "plan", "a QueryPlan", checked[0]);
+                String field = checked.length == 2 && checked[1] != null
+                        ? ComposeOptionValidator.requiredString(checked[1], "subquery.field", "field")
                         : null;
                 return Dsl.subquery(plan, field);
             });
@@ -411,6 +412,12 @@ public final class ScriptRuntime {
 
             // 5. Execute
             Object result = fsscript.evalResult(evaluator);
+
+            // Prove the complete returned shape before any automatic plan execution.
+            // QueryPlans outside the documented root/top-level plans positions must
+            // never reach HTTP serialization or trigger recursive implicit execution.
+            validateResultShape(result, "result", true, true,
+                    Collections.newSetFromMap(new IdentityHashMap<>()));
 
             // 5.5 If result is a Map containing 'plans', auto-execute them
             if (result instanceof Map) {
@@ -468,6 +475,73 @@ public final class ScriptRuntime {
         } finally {
             ComposeRuntimeHolder.popBundle(token);
         }
+    }
+
+    private static void validateResultShape(Object value, String path, boolean planAllowed,
+                                            boolean root, Set<Object> active) {
+        if (value instanceof QueryPlan) {
+            if (!planAllowed) throw ComposeParameterException.unsupportedResult(path);
+            return;
+        }
+        if (isPlanningDescriptor(value)) throw ComposeParameterException.unsupportedResult(path);
+        if (value == null || !(value instanceof Map<?, ?> || value instanceof Iterable<?> || value.getClass().isArray())) return;
+        if (!active.add(value)) return;
+        try {
+            if (value instanceof Map<?, ?> map) {
+                for (Map.Entry<?, ?> entry : map.entrySet()) {
+                    String child = resultPath(path, entry.getKey());
+                    if (entry.getKey() instanceof QueryPlan || isPlanningDescriptor(entry.getKey()))
+                        throw ComposeParameterException.unsupportedResult(path + "[key]");
+                    if (root && "plans".equals(entry.getKey())) {
+                        validatePlansResult(entry.getValue(), child, active);
+                    } else {
+                        validateResultShape(entry.getValue(), child, false, false, active);
+                    }
+                }
+            } else if (value instanceof Iterable<?> items) {
+                int index = 0;
+                for (Object item : items) validateResultShape(item, path + "[" + index++ + "]", false, false, active);
+            } else if (value.getClass().isArray()) {
+                for (int i = 0; i < java.lang.reflect.Array.getLength(value); i++) {
+                    validateResultShape(java.lang.reflect.Array.get(value, i), path + "[" + i + "]", false, false, active);
+                }
+            }
+        } finally {
+            active.remove(value);
+        }
+    }
+
+    private static void validatePlansResult(Object value, String path, Set<Object> active) {
+        if (value instanceof Map<?, ?> map) {
+            if (!active.add(value)) return;
+            try {
+                for (Map.Entry<?, ?> entry : map.entrySet()) {
+                    if (entry.getKey() instanceof QueryPlan || isPlanningDescriptor(entry.getKey()))
+                        throw ComposeParameterException.unsupportedResult(path + "[key]");
+                    validateResultShape(entry.getValue(), resultPath(path, entry.getKey()), true, false, active);
+                }
+            } finally { active.remove(value); }
+        } else if (value instanceof List<?> list) {
+            if (!active.add(value)) return;
+            try {
+                for (int i = 0; i < list.size(); i++) validateResultShape(list.get(i), path + "[" + i + "]", true, false, active);
+            } finally { active.remove(value); }
+        } else {
+            validateResultShape(value, path, true, false, active);
+        }
+    }
+
+    private static String resultPath(String parent, Object key) {
+        if (key instanceof String text && RESULT_IDENTIFIER.matcher(text).matches()) return parent + "." + text;
+        return parent + "['" + String.valueOf(key).replace("\\", "\\\\").replace("'", "\\'") + "']";
+    }
+
+    private static boolean isPlanningDescriptor(Object value) {
+        return value instanceof com.foggyframework.dataset.model.engine.compose.plan.expr.PlanExpression
+                || value instanceof com.foggyframework.dataset.model.engine.compose.plan.ComposeJoinBuilder
+                || value instanceof com.foggyframework.dataset.model.engine.compose.plan.WindowColumnBuilder
+                || value instanceof com.foggyframework.dataset.model.engine.compose.plan.PlanSubquery
+                || value instanceof QueryFactory;
     }
 
     private static final class AliasBindingExpEvaluator extends DefaultExpEvaluator {

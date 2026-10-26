@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.model.engine.compose.plan;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -23,6 +24,7 @@ public final class DerivedQueryPlan extends QueryPlan {
     private final List<Object> columns;
     private final List<Object> slice;
     private final List<String> groupBy;
+    private final Map<Integer, PlanColumnRef> groupByReferences;
     private final List<String> orderBy;
     private final Integer limit;
     private final Integer start;
@@ -50,6 +52,13 @@ public final class DerivedQueryPlan extends QueryPlan {
         this.columns = normalized.columns() == null ? List.of() : List.copyOf(normalized.columns());
         this.slice = normalized.slice() == null ? List.of() : List.copyOf(normalized.slice());
         this.groupBy = normalized.groupBy() == null ? List.of() : List.copyOf(normalized.groupBy());
+        this.groupByReferences = b.groupByReferences == null ? Map.of()
+                : java.util.Collections.unmodifiableMap(new java.util.TreeMap<>(b.groupByReferences));
+        for (var entry : groupByReferences.entrySet()) {
+            if (entry.getKey() < 0 || entry.getKey() >= groupBy.size()) {
+                throw new IllegalArgumentException("Group reference index is outside groupBy");
+            }
+        }
         this.orderBy = normalized.orderBy() == null ? List.of() : List.copyOf(normalized.orderBy());
         this.limit = b.limit;
         this.start = b.start;
@@ -60,6 +69,23 @@ public final class DerivedQueryPlan extends QueryPlan {
     public List<Object> columns() { return columns; }
     public List<Object> slice() { return slice; }
     public List<String> groupBy() { return groupBy; }
+    /** Typed group keys retain their producer until authoritative relation binding. */
+    public Map<Integer, PlanColumnRef> groupByReferences() { return groupByReferences; }
+    public List<String> resolvedGroupBy(java.util.function.Function<QueryPlan, List<String>> outputs) {
+        List<String> resolved = new java.util.ArrayList<>(groupBy);
+        for (var entry : groupByReferences.entrySet()) {
+            PlanColumnRef ref = entry.getValue();
+            String bound = PlanFieldOwnership.visibleFieldForReference(source, ref.plan(), ref.name(), outputs);
+            if (bound == null) throw new com.foggyframework.dataset.model.engine.compose.schema.ComposeSchemaException(
+                    com.foggyframework.dataset.model.engine.compose.schema.ComposeSchemaErrorCodes.DERIVED_QUERY_UNKNOWN_FIELD,
+                    "Group field '" + ref.name() + "' is not visible from its plan owner",
+                    com.foggyframework.dataset.model.engine.compose.schema.ComposeSchemaErrorCodes.PHASE_SCHEMA_DERIVE,
+                    "DerivedQueryPlan", ref.name()).withDetails(Map.of("path", "groupBy[" + entry.getKey() + "]",
+                    "candidates", outputs.apply(source)));
+            resolved.set(entry.getKey(), bound);
+        }
+        return List.copyOf(resolved);
+    }
     public List<String> orderBy() { return orderBy; }
     public Integer limit() { return limit; }
     public Integer start() { return start; }
@@ -88,6 +114,7 @@ public final class DerivedQueryPlan extends QueryPlan {
         private List<Object> columns;
         private List<Object> slice;
         private List<String> groupBy;
+        private Map<Integer, PlanColumnRef> groupByReferences;
         private List<String> orderBy;
         private Integer limit;
         private Integer start;
@@ -106,6 +133,7 @@ public final class DerivedQueryPlan extends QueryPlan {
 
         public Builder slice(List<Object> v) { this.slice = v; return this; }
         public Builder groupBy(List<String> v) { this.groupBy = v; return this; }
+        public Builder groupByReferences(Map<Integer, PlanColumnRef> v) { this.groupByReferences = v; return this; }
         public Builder orderBy(List<String> v) { this.orderBy = v; return this; }
         public Builder limit(Integer v) { this.limit = v; return this; }
         public Builder start(Integer v) { this.start = v; return this; }
@@ -124,6 +152,7 @@ public final class DerivedQueryPlan extends QueryPlan {
                 && Objects.equals(columns, p.columns)
                 && Objects.equals(slice, p.slice)
                 && Objects.equals(groupBy, p.groupBy)
+                && Objects.equals(groupByReferences, p.groupByReferences)
                 && Objects.equals(orderBy, p.orderBy)
                 && Objects.equals(limit, p.limit)
                 && Objects.equals(start, p.start);
@@ -131,7 +160,7 @@ public final class DerivedQueryPlan extends QueryPlan {
 
     @Override
     public int hashCode() {
-        return Objects.hash(source, columns, slice, groupBy, orderBy,
+        return Objects.hash(source, columns, slice, groupBy, groupByReferences, orderBy,
                 limit, start, distinct);
     }
 

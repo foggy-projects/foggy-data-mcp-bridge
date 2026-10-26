@@ -28,27 +28,13 @@ public final class QueryFactory implements PropertyFunction {
     @Override
     public Object invoke(ExpEvaluator evaluator, String methodName, Object[] args) {
         if ("from".equals(methodName)) {
-            if (args == null || args.length == 0) {
-                throw new IllegalArgumentException(
-                        "Query.from() requires exactly 1 argument: the model name string");
-            }
-            String modelName = (String) args[0];
-            if (modelName == null || modelName.isEmpty()) {
-                throw new IllegalArgumentException(
-                        "Query.from(modelName): modelName must be a non-empty string");
-            }
+            Object[] checked = ComposeOptionValidator.arguments(args, 1, 1, "Query.from");
+            String modelName = ComposeOptionValidator.requiredString(checked[0], "Query.from.model", "model");
             return BaseModelPlan.builder().model(modelName).build();
         }
         if ("col".equals(methodName)) {
-            if (args == null || args.length == 0) {
-                throw new IllegalArgumentException(
-                        "Query.col() requires exactly 1 argument: the column name string");
-            }
-            String columnName = (String) args[0];
-            if (columnName == null || columnName.isEmpty()) {
-                throw new IllegalArgumentException(
-                        "Query.col(columnName): columnName must be a non-empty string");
-            }
+            Object[] checked = ComposeOptionValidator.arguments(args, 1, 1, "Query.col");
+            String columnName = ComposeOptionValidator.requiredString(checked[0], "Query.col.field", "field");
             return new PlanColumnRef(null, columnName);
         }
         throw new IllegalArgumentException(

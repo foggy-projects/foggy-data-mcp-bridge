@@ -134,7 +134,6 @@ public final class SchemaDerivation {
         // but we can catch the common "bare identifier" miss.
         for (int columnIndex = 0; columnIndex < partsList.size(); columnIndex++) {
             ColumnAliasParts parts = partsList.get(columnIndex);
-            Set<String> qualifiedNames = new LinkedHashSet<>();
             for (PlanColumnRef ref : com.foggyframework.dataset.model.engine.compose.security
                     .ComposePlanAwarePermissionValidator.collectPlanRefs(plan.columns().get(columnIndex))) {
                 String bound = com.foggyframework.dataset.model.engine.compose.plan.PlanFieldOwnership.visibleFieldForReference(
@@ -143,14 +142,16 @@ public final class SchemaDerivation {
                         ComposeSchemaErrorCodes.DERIVED_QUERY_UNKNOWN_FIELD,
                         "derived query references unknown field '" + ref.name() + "' for its plan owner",
                         ComposeSchemaErrorCodes.PHASE_SCHEMA_DERIVE, currentPath, ref.name());
-                qualifiedNames.add(ref.name());
             }
-            List<String> referenced = com.foggyframework.dataset.model.engine.compose.compilation.ComposeScalarExpression.references(parts.expression());
+            Object column = plan.columns().get(columnIndex);
+            List<String> referenced = column instanceof com.foggyframework.dataset.model.engine.compose.plan.expr.PlanExpression
+                    ? ComposePlanner.bareInputReferences(column)
+                    : com.foggyframework.dataset.model.engine.compose.compilation.ComposeScalarExpression.references(parts.expression());
             for (String ident : referenced) {
                 if (isReservedToken(ident)) {
                     continue;
                 }
-                if (!qualifiedNames.contains(ident) && !sourceNames.contains(ident)) {
+                if (!sourceNames.contains(ident)) {
                     throw new ComposeSchemaException(
                             ComposeSchemaErrorCodes.DERIVED_QUERY_UNKNOWN_FIELD,
                             "derived query references unknown field '"
@@ -168,7 +169,8 @@ public final class SchemaDerivation {
         OutputSchema output = partsList.isEmpty() ? sourceSchema : OutputSchema.of(specs);
         Set<String> visible = new LinkedHashSet<>(sourceNames);
         visible.addAll(output.nameSet());
-        for (String key : plan.groupBy()) assertReferenceVisible(key, visible, "source or output columns", currentPath, "group_by");
+        for (String key : plan.resolvedGroupBy(producer -> deriveInternal(producer, sourcePath, bases).names()))
+            assertReferenceVisible(key, visible, "source or output columns", currentPath, "group_by");
         for (String key : plan.orderBy()) assertReferenceVisible(ComposeOrderByNormalizer.fieldName(key), visible, "source or output columns", currentPath, "order_by");
         validateSliceNotSameStageAlias(plan.slice(), partsList, sourceNames, currentPath);
         return output;

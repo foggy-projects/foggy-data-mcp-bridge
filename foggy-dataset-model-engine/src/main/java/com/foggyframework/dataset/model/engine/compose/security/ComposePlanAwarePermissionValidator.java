@@ -347,6 +347,10 @@ public final class ComposePlanAwarePermissionValidator {
         }
         if (expr instanceof WindowColumn win) {
             collectPlanRefs(win.ref(), out);
+            if (win.over() != null) {
+                out.addAll(win.over().partitionReferences().values());
+                out.addAll(win.over().orderReferences().values());
+            }
             return;
         }
         if (expr instanceof BinaryExpr bin) {
@@ -433,10 +437,12 @@ public final class ComposePlanAwarePermissionValidator {
         if (over == null) {
             return;
         }
-        for (String entry : over.getPartitionBy()) {
-            collectBareIdentifiers(entry, out);
+        for (int i = 0; i < over.getPartitionBy().size(); i++) {
+            if (!over.partitionReferences().containsKey(i)) collectBareIdentifiers(over.getPartitionBy().get(i), out);
         }
-        for (String entry : over.getOrderBy()) {
+        for (int i = 0; i < over.getOrderBy().size(); i++) {
+            if (over.orderReferences().containsKey(i)) continue;
+            String entry = over.getOrderBy().get(i);
             String normalized = entry != null && entry.startsWith("-")
                     ? entry.substring(1)
                     : entry;
@@ -473,7 +479,11 @@ public final class ComposePlanAwarePermissionValidator {
      *  them in a wrapping derived plan); base / derived plans expose
      *  their own {@code columns()}. */
     private static List<Object> topLevelColumns(QueryPlan plan) {
-        if (plan instanceof DerivedQueryPlan d) return d.columns();
+        if (plan instanceof DerivedQueryPlan d) {
+            List<Object> dependencies = new ArrayList<>(d.columns());
+            dependencies.addAll(d.groupByReferences().values());
+            return dependencies;
+        }
         if (plan instanceof BaseModelPlan b) return b.columns();
         if (plan instanceof JoinPlan || plan instanceof UnionPlan) {
             // Their outputs are merged from sides — the derived/base plan

@@ -190,6 +190,28 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
         return generateSql(systemBundlesContext, context, true);
     }
 
+    /**
+     * Admit a composed terminal SQL relation using its original request and the
+     * already governed leaf engine. Context-dependent extensions must see the
+     * requested generated columns as well as the final SQL before it can run.
+     */
+    public void prepareComposedSql(SystemBundlesContext systemBundlesContext,
+                                   ModelResultContext context, JdbcModelQueryEngine leafEngine,
+                                   String sql, List<Object> params) {
+        if (context == null || context.getQueryModel() != this || leafEngine == null
+                || leafEngine.getJdbcQueryModel() != this || sql == null || sql.isBlank()) {
+            throw new IllegalArgumentException("COMPOSE_EXECUTION_GOVERNANCE_UNPROVEN: composed relation requires its pinned model and governed leaf engine");
+        }
+        QueryExecutionContext execCtx = createExecutionContext(systemBundlesContext, context, leafEngine);
+        execCtx.setSql(sql);
+        execCtx.setParams(params);
+        // Final composed SQL already contains its requested pagination.
+        execCtx.setPagingSql(sql);
+        if (queryExecutionStepExecutor != null) {
+            queryExecutionStepExecutor.prepareComposeSql(execCtx);
+        }
+    }
+
     private SqlGenerationResult generateSql(SystemBundlesContext systemBundlesContext, ModelResultContext context, boolean compose) {
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(this, sqlFormulaService);
         queryEngine.analysisQueryRequest(systemBundlesContext, context);

@@ -53,21 +53,11 @@ public final class AggregateColumn implements PropertyFunction, PlanExpression {
     @SuppressWarnings("unchecked")
     public Object invoke(ExpEvaluator evaluator, String methodName, Object[] args) {
         if ("as".equals(methodName)) {
-            if (args == null || args.length == 0) {
-                throw new IllegalArgumentException("as() requires at least 1 argument (alias)");
-            }
-            return args.length >= 2
-                    ? as((String) args[0], (String) args[1])
-                    : as((String) args[0]);
+            Object[] checked = ComposeOptionValidator.aliasArguments(args);
+            return checked.length == 2 ? as((String) checked[0], (String) checked[1]) : as((String) checked[0]);
         }
         if ("over".equals(methodName)) {
-            if (args == null || args.length == 0) {
-                return over(null);
-            }
-            if (args[0] instanceof java.util.Map<?, ?> map) {
-                return over((java.util.Map<String, Object>) map);
-            }
-            throw new IllegalArgumentException("over() requires a Map configuration object");
+            return over(ComposeOptionValidator.windowArguments(args));
         }
         throw new IllegalArgumentException(
                 "AggregateColumn does not support method: " + methodName

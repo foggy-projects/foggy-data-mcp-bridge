@@ -65,31 +65,29 @@ public final class PlanColumnRef implements PropertyFunction, PlanExpression {
 
     @Override
     public Object invoke(ExpEvaluator evaluator, String methodName, Object[] args) {
+        if (java.util.Set.of("sum", "count", "avg", "max", "min").contains(methodName)) {
+            ComposeOptionValidator.arguments(args, 0, 0, methodName);
+        }
         return switch (methodName) {
             case "sum" -> sum();
             case "count" -> count();
             case "avg" -> avg();
             case "max" -> max();
             case "min" -> min();
-            case "lag" -> {
-                if (args != null && args.length > 0 && args[0] instanceof Number n) {
-                    yield lag(n.intValue());
+            case "lag", "lead" -> {
+                Object[] checked = ComposeOptionValidator.arguments(args, 0, 1, methodName);
+                int offset = 1;
+                if (checked.length == 1) {
+                    Integer exact = ComposeOptionValidator.integer(checked[0], methodName + ".offset", "offset");
+                    if (exact == null) throw com.foggyframework.dataset.model.engine.compose.schema.ComposeParameterException.invalidType(
+                            "COMPOSE_PARAMETER_TYPE_INVALID", methodName + ".offset", "offset", "an integer from 0 to 2147483647", null);
+                    offset = exact;
                 }
-                yield lag();
-            }
-            case "lead" -> {
-                if (args != null && args.length > 0 && args[0] instanceof Number n) {
-                    yield lead(n.intValue());
-                }
-                yield lead();
+                yield "lag".equals(methodName) ? lag(offset) : lead(offset);
             }
             case "as" -> {
-                if (args == null || args.length == 0) {
-                    throw new IllegalArgumentException("as() requires at least 1 argument (alias)");
-                }
-                yield args.length >= 2
-                        ? as((String) args[0], (String) args[1])
-                        : as((String) args[0]);
+                Object[] checked = ComposeOptionValidator.aliasArguments(args);
+                yield checked.length == 2 ? as((String) checked[0], (String) checked[1]) : as((String) checked[0]);
             }
             default -> throw new IllegalArgumentException(
                     "PlanColumnRef does not support method: " + methodName

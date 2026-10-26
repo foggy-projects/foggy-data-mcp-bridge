@@ -96,12 +96,8 @@ public final class WindowColumn implements PropertyFunction, PlanExpression {
     @Override
     public Object invoke(ExpEvaluator evaluator, String methodName, Object[] methodArgs) {
         if ("as".equals(methodName)) {
-            if (methodArgs == null || methodArgs.length == 0) {
-                throw new IllegalArgumentException("as() requires at least 1 argument (alias)");
-            }
-            return methodArgs.length >= 2
-                    ? as((String) methodArgs[0], (String) methodArgs[1])
-                    : as((String) methodArgs[0]);
+            Object[] checked = ComposeOptionValidator.aliasArguments(methodArgs);
+            return checked.length == 2 ? as((String) checked[0], (String) checked[1]) : as((String) checked[0]);
         }
         throw new IllegalArgumentException(
                 "WindowColumn does not support method: " + methodName + ". Available: as(alias, caption?)");

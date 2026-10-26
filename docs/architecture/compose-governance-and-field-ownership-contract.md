@@ -55,3 +55,21 @@ validate/preview 只允许规划。脚本显式 `execute()` 统一以 `COMPOSE_E
 新增能力方法使用默认值保持 SPI 源码/二进制兼容；未知结果处理器的 Compose 请求由不安全执行改为明确拒绝，需扩展方审查后声明。被忽略的错误参数、无效所有者及大小写冲突由接受改拒绝；合法查询、普通查询治理及权限不变。基础窗口定义恢复会改变之前错误的数值，属于修复。
 
 验证包含参数矩阵、两态 G10、脱敏与权限拒绝、窗口/默认值独立验算、嵌套 JOIN/UNION/重命名、Runtime 三态一致性及无业务 SQL 计数；回归通过后全量、独立 IT、MySQL 5.7/8、PostgreSQL 15、SQL Server 2022，并补 Linux 平台测试。所有尝试日志及测试报告留在独立证据目录。
+
+### 时间计划、分组/窗口键及脚本边界（2026-10-25）
+
+统一修复在现有规划和脚本边界内推进三组缺陷与两项合同边界，不扩大为全引擎重构。优先顺序是时间计划治理、字段所有者、方法参数，随后明确已知不支持的参数及计划返回形状。
+
+原生 `timeWindow` 通过内部 Compose 生成 SQL，同样必须证明省略普通执行/结果钩子的安全性。基础叶关系复用纯 `prepareComposeSql` 准入，规划阶段不执行旧的普通执行钩子，不读缓存或业务数据，不改写 SQL 或提供结果短路；声明未知、非恒等脱敏和纯检查拒绝均在业务 SQL 前失败关闭。普通查询继续使用原生命周期。不能为兼容而无条件声明安全，也不能把首模型结果处理器套在组合结果上。累计、滚动及同比环比共享此准入；Pivot 等其他托管关系的现有合同不因本轮被任意扩大。
+
+fluent `groupBy` 及窗口 `partitionBy/orderBy` 中的 `PlanColumnRef` 必须保留 owner 到权威输出绑定阶段。分组、窗口键、schema、权限依赖、归一化和计划哈希遵循同一可见性边界：合法祖先引用跟随透传和重命名；外部计划、隐藏字段及不透明 UNION 分支拒绝。保留既有字符串 getter、builder 和公开 Java 签名，通过内部来源信息保留引用，不把 typed 引用提前降为裸字符串。
+
+脚本 `execute()`、`toSql()` 不接收实参；Java 已有上下文重载保持兼容。固定签名的脚本方法拒绝多余或错误类型实参，合法可变参数方法仍保留原合同。`lag()/lead()` 无参默认偏移 1；显式偏移仅接受 0..2147483647 的整数，禁止分数、溢出或字符串回退。合法偏移 0 保持“当前行”语义。窗口键只接受既有字符串/字段引用数组，null 保持省略语义，禁止把错误类型静默变为空键。
+
+Compose `dsl/query` 暂不支持非空 `timeWindow`，应带参数位置明确拒绝；null/空对象保持省略兼容。普通语义查询的 `timeWindow` 能力继续支持并执行上述治理。该限制针对已知参数，不全局拒绝未知扩展键，也不在本轮新增完整的 Compose `timeWindow` 参数下推能力。
+
+自动处理 QueryPlan 的返回合同为：直接返回 QueryPlan，或顶层 `{plans: plan}`、`{plans: {name: plan}}`、`{plans: [plan]}`；这些容器也可包含普通结果值。其他位置逸出的 QueryPlan，以及未求值的字段/聚合/窗口/子查询/JOIN builder 等规划描述对象，在自动执行和序列化前带结果路径拒绝，使用 `COMPOSE_RESULT_SHAPE_UNSUPPORTED`，不增加任意递归自动执行。返回普通数据、显式 execute 返回的行、`toSql()` 返回的 SQL 描述均保持支持。validate/preview 的显式执行门禁独立保留。
+
+影响面集中于 model-engine 的托管关系、字段绑定和脚本方法分派；Runtime 补接口回归。合法 Map/string DSL、JOIN/UNION、nullSafe 及现有 Java 签名保持兼容；错误引用、非法参数和不安全扩展由静默接受改为明确拒绝，原先错误的分组及窗口数值被修正。消费端依赖执行扩展保护的时间计划须显式证明可下推；无法证明时拒绝是有意的安全收紧。
+
+本轮独立证据目录为 `D:/workspace/foggy-data-mcp/releases/compose-time-governance-binding-fix-20261025`。验证先执行定向回归及真实 Runtime 的原生/Compose 入口对照，核对两态 G10、权限、三态诊断、独立数值和 validate/preview 的业务 SQL 准备/执行计数，再运行全量、独立 IT 和真实 MySQL 5.7/8、PostgreSQL、SQL Server 矩阵；Windows 跳过项使用 Linux 补测。保留此前源码与全部测试证据，不使用根目录 clean。

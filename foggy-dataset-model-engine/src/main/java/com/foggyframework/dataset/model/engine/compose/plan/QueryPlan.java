@@ -8,6 +8,7 @@ import com.foggyframework.dataset.model.engine.compose.plan.expr.PlanExpression;
 import com.foggyframework.dataset.model.engine.compose.runtime.ComposeRuntimeBundle;
 import com.foggyframework.dataset.model.engine.compose.runtime.ComposeRuntimeHolder;
 import com.foggyframework.dataset.model.engine.compose.runtime.PlanExecution;
+import com.foggyframework.dataset.model.engine.compose.schema.ComposeParameterException;
 import com.foggyframework.dataset.model.semantic.port.ComposeSemanticPlanningPort;
 import com.foggyframework.fsscript.exp.PropertyFunction;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
@@ -116,8 +117,9 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
     public Object invoke(ExpEvaluator evaluator, String methodName, Object[] args) {
         return switch (methodName) {
             case "where" -> {
+                Object[] checked = ComposeOptionValidator.arguments(args, 0, 1, "where");
                 @SuppressWarnings("unchecked")
-                List<Object> slice = args != null && args.length > 0 ? (List<Object>) args[0] : List.of();
+                List<Object> slice = (List<Object>) ComposeOptionValidator.array(checked.length == 0 ? null : checked[0], "where", "slice");
                 yield fluentWhere(slice);
             }
             case "groupBy" -> fluentGroupBy(args);
@@ -126,10 +128,10 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
             case "limit" -> fluentLimit(args);
             case "offset" -> fluentOffset(args);
             case "query" -> query(queryOptionsFromArgs(args));
-            case "leftJoin" -> leftJoin((QueryPlan) args[0]);
-            case "innerJoin" -> innerJoin((QueryPlan) args[0]);
-            case "rightJoin" -> rightJoin((QueryPlan) args[0]);
-            case "fullJoin" -> fullJoin((QueryPlan) args[0]);
+            case "leftJoin" -> leftJoin(joinArgument(args, "leftJoin"));
+            case "innerJoin" -> innerJoin(joinArgument(args, "innerJoin"));
+            case "rightJoin" -> rightJoin(joinArgument(args, "rightJoin"));
+            case "fullJoin" -> fullJoin(joinArgument(args, "fullJoin"));
             // Legacy union/join methods (still used)
             case "union" -> {
                 if (args == null || args.length < 1 || args.length > 2 || !(args[0] instanceof QueryPlan other)) {
@@ -163,8 +165,14 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
                 }
                 yield join(other, type, on);
             }
-            case "execute" -> execute();
-            case "toSql" -> toSql();
+            case "execute" -> {
+                ComposeOptionValidator.arguments(args, 0, 0, "execute");
+                yield execute();
+            }
+            case "toSql" -> {
+                ComposeOptionValidator.arguments(args, 0, 0, "toSql");
+                yield toSql();
+            }
             case "and" -> {
                 if (this instanceof JoinPlan jp) {
                     ComposeJoinBuilder.validateArguments(args, "and");
@@ -175,6 +183,13 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
             default -> throw new IllegalArgumentException(
                     "QueryPlan does not support method: " + methodName);
         };
+    }
+
+    private static QueryPlan joinArgument(Object[] args, String method) {
+        Object[] checked = ComposeOptionValidator.arguments(args, 1, 1, method);
+        if (checked[0] instanceof QueryPlan plan) return plan;
+        throw ComposeParameterException.invalidType("COMPOSE_PARAMETER_TYPE_INVALID", method,
+                "other", "a QueryPlan", checked[0]);
     }
 
     // ------------------------------------------------------------------
@@ -198,9 +213,11 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
     /** Group by field references. */
     public final DerivedQueryPlan fluentGroupBy(Object... fields) {
         List<String> resolved = new ArrayList<>();
+        Map<Integer, PlanColumnRef> references = new LinkedHashMap<>();
         if (fields != null) {
             for (Object f : fields) {
                 if (f instanceof PlanColumnRef ref) {
+                    references.put(resolved.size(), ref);
                     resolved.add(ref.name());
                 } else if (f instanceof ProjectedColumn pc) {
                     resolved.add(pc.alias());
@@ -214,6 +231,7 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
         return DerivedQueryPlan.builder()
                 .source(this)
                 .groupBy(resolved)
+                .groupByReferences(references)
                 .build();
     }
 
@@ -275,7 +293,8 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
 
     /** Limit result rows. */
     public final DerivedQueryPlan fluentLimit(Object... args) {
-        Integer n = ComposeOptionValidator.integer(args != null && args.length > 0 ? args[0] : 0, "limit", "limit");
+        Object[] checked = ComposeOptionValidator.arguments(args, 0, 1, "limit");
+        Integer n = ComposeOptionValidator.integer(checked.length == 0 ? 0 : checked[0], "limit", "limit");
         return DerivedQueryPlan.builder()
                 .source(this)
                 .limit(n)
@@ -284,7 +303,8 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
 
     /** Offset (skip) rows. */
     public final DerivedQueryPlan fluentOffset(Object... args) {
-        Integer n = ComposeOptionValidator.integer(args != null && args.length > 0 ? args[0] : 0, "offset", "offset");
+        Object[] checked = ComposeOptionValidator.arguments(args, 0, 1, "offset");
+        Integer n = ComposeOptionValidator.integer(checked.length == 0 ? 0 : checked[0], "offset", "offset");
         return DerivedQueryPlan.builder()
                 .source(this)
                 .start(n)

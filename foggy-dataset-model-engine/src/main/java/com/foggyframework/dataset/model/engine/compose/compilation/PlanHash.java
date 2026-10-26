@@ -154,7 +154,7 @@ public final class PlanHash {
                     planHash(p.source()),
                     canonical(p.columns()),
                     canonical(p.slice()),
-                    canonical(p.groupBy()),
+                    canonicalDerivedGroupBy(p),
                     canonical(p.orderBy()),
                     boxNull(p.limit()),
                     boxNull(p.start()),
@@ -185,6 +185,13 @@ public final class PlanHash {
                 "planHash received unsupported plan type "
                         + (plan == null ? "null" : plan.getClass().getName())
                         + "; extend PlanHash.planHash if a new QueryPlan subclass was added");
+    }
+
+    private static Object canonicalDerivedGroupBy(DerivedQueryPlan plan) {
+        if (plan.groupByReferences().isEmpty()) return canonical(plan.groupBy());
+        List<Object> keys = new ArrayList<>(plan.groupBy());
+        plan.groupByReferences().forEach((index, ref) -> keys.set(index, List.of(plan.groupBy().get(index), ref)));
+        return canonical(keys);
     }
 
     /** Canonical form of one {@link JoinOn} — {@code [left, op, right]}. */
