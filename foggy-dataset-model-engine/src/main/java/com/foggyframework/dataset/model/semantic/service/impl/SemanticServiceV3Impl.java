@@ -2229,6 +2229,10 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         fieldInfo.put("aggregatable", rowMeasure);
         fieldInfo.put("calculated", true);
         fieldInfo.put("predefined", true);
+        Map<String, Object> viewer = extractViewer(calc.getModelExtData());
+        if (viewer != null) {
+            fieldInfo.put("extData", Map.of("viewer", viewer));
+        }
 
         // G5 v2-patch-2 · §3.1.2：plain-alias 合成项的 source 标记。
         // 当前请求级合成项不进入 metadata pipeline（pipeline 仅取 QM 声明态），

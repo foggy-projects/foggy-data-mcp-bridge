@@ -15,6 +15,7 @@ recorded_at: 2026-08-01
 
 | Work item | 状态 | 目标 |
 |---|---|---|
+| [QM formula viewer 元数据](workitems/BUG-formula-viewer-metadata.md) | READY_FOR_HOST_VALIDATION | 保留模型声明的 viewer；禁止请求 JSON 注入，复用 semantic/frontend 白名单；6 类 24/24 通过并正常 thin install，等待下游固定包复验 |
 | [成员权限、Viewer 与 detached 身份](workitems/BUG-member-policy-and-detached-identity.md) | PUBLISHED | 八类修复及 Query Bean 注册验证完成；双平台全量、五数据库及 47/47 IT 类通过；[Launcher 0.1.31 / Maven 发布复验](../../release/launcher-0.1.31-member-policy-publication.md)通过 |
 | [字段绑定与权限依赖一致性](workitems/BUG-field-binding-dependencies.md) | DONE | 优先修复窗口权限与 pivot 数据错误，统一计算/聚合命名、元数据、结果 schema 和依赖注入；专项后全量及多数据库验证 |
 | [#146 QM 字段命名与维度列元数据](workitems/BUG-146-qm-field-names.md) | PUBLISHED | 命名合同、维度列注册、元数据及权限回归完成；专项、全量与五数据库验证通过，历史例外单列；Launcher 0.1.27 与私有 snapshot 已发布 |

@@ -1,0 +1,13 @@
+/** Synthetic numeric fixture: presentation metadata never changes expression semantics. */
+const stock = loadTableModel('RowFormulaMeasurementModel');
+const volume = { viewer: { format: 'number', precision: 4, privateNested: { secret: true } }, internalOnly: 'private' };
+export const queryModel = {
+    name: 'FormulaViewerMetadataQuery', model: stock,
+    columnGroups: [{ items: [{ ref: stock.id }, { ref: stock.warehouse }, { ref: stock.orderWeight },
+        { name: 'rowVolume', type: 'DOUBLE', aggregation: 'sum', formula: 'orderWeight*2', extData: volume },
+        { name: 'volumeTotal', type: 'DOUBLE', formula: 'SUM(orderWeight)', extData: volume },
+        { name: 'scalarVolume', type: 'DOUBLE', formula: 'orderWeight*3', extData: volume },
+        { name: 'windowVolume', type: 'DOUBLE', formula: 'SUM(orderWeight)', partitionBy: ['warehouse'], extData: volume },
+        { name: 'plainNumber', type: 'DOUBLE', formula: 'orderWeight+1' }
+    ] }], accesses: []
+};

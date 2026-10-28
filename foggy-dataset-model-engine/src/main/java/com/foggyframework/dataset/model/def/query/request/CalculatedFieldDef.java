@@ -9,6 +9,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 动态计算字段定义
@@ -173,6 +174,19 @@ public class CalculatedFieldDef {
     /** Original payload location, retained through normalization/topological ordering. */
     @JsonIgnore
     private transient String sourcePath;
+
+    /** Model-owned presentation metadata; request JSON cannot supply or override it. @since 9.5.5 */
+    @JsonIgnore
+    private transient Map<String, Object> modelExtData;
+
+    /** Retain the constructor predating model-owned presentation metadata. @since 9.5.5 */
+    public CalculatedFieldDef(String name, String alias, String caption, String expression, String description,
+                              String agg, String defaultAggregation, List<String> partitionBy, List<WindowOrderDef> windowOrderBy,
+                              String windowFrame, String type, Object emptyDefault, Exp compiledExp,
+                              Origin origin, String sourcePath) {
+        this(name, alias, caption, expression, description, agg, defaultAggregation, partitionBy, windowOrderBy,
+                windowFrame, type, emptyDefault, compiledExp, origin, sourcePath, null);
+    }
 
     /** Retain the pre-alias constructor for existing Java callers. */
     public CalculatedFieldDef(String name, String caption, String expression, String description,

@@ -14,6 +14,21 @@ import static org.junit.jupiter.api.Assertions.*;
 class FrontendMetaConverterTest {
 
     @Test
+    void formulaViewerRetainsPrecisionAndDropsPrivateOrNestedValues() {
+        Map<String, Object> field = new LinkedHashMap<>();
+        field.put("fieldName", "volumeTotal");
+        field.put("type", "DOUBLE");
+        field.put("calculated", true);
+        field.put("extData", Map.of("viewer", Map.of("format", "number", "precision", 4,
+                "privateNested", Map.of("secret", true)), "internalOnly", "private"));
+        var result = new FrontendMetaConverter().convert(Map.of(
+                "models", Map.of("FormulaViewerMetadataQuery", Map.of("name", "formula")),
+                "fields", Map.of("volumeTotal", field)));
+        assertEquals(Map.of("viewer", Map.of("format", "number", "precision", 4)), result.getFields().get(0).getExtData());
+        assertEquals(true, result.getFields().get(0).getCalculated());
+    }
+
+    @Test
     @DisplayName("仅透传 extData.viewer 并保持无配置字段兼容")
     void convert_whitelistsViewerExtension() {
         Map<String, Object> viewer = new LinkedHashMap<>();
