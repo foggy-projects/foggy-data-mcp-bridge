@@ -715,7 +715,11 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             }
             if (!filteredCalcs.isEmpty()) {
                 md.append("## 预定义公式字段\n");
-                md.append("> 这些是预聚合度量。直接在 `columns[]` 中引用字段名，不要在 `calculatedFields[]` 中重复定义。\n\n");
+                if (filteredCalcs.stream().anyMatch(calc -> StringUtils.isNotEmpty(calc.getDefaultAggregation()))) {
+                    md.append("> 声明默认聚合的行公式在明细中保留行值，在分组及合计中聚合整行公式。直接在 `columns[]` 中引用字段名，不要在 `calculatedFields[]` 中重复定义。\n\n");
+                } else {
+                    md.append("> 这些是预聚合度量。直接在 `columns[]` 中引用字段名，不要在 `calculatedFields[]` 中重复定义。\n\n");
+                }
                 md.append("| 字段名 | 名称 | 类型 | 说明 |\n");
                 md.append("|--------|------|------|------|\n");
                 for (CalculatedFieldDef calc : filteredCalcs) {
@@ -723,6 +727,9 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                     String calcCaption = calc.getCaption() != null ? calc.getCaption() : calcName;
                     String calcType = calc.getType() != null ? calc.getType() : "NUMBER";
                     String calcDesc = calc.getDescription() != null ? calc.getDescription() : "";
+                    if (StringUtils.isNotEmpty(calc.getDefaultAggregation())) {
+                        calcDesc = "默认聚合: " + calc.getDefaultAggregation() + "; " + calcDesc;
+                    }
                     if (calc.getAlias() != null && !calc.getAlias().equals(calcName)) {
                         calcDesc = "输出键: " + calc.getAlias() + "; " + calcDesc;
                     }
@@ -2207,14 +2214,19 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         }
 
         boolean isWindow = calc.getPartitionBy() != null || calc.getWindowOrderBy() != null;
+        boolean rowMeasure = StringUtils.isNotEmpty(calc.getDefaultAggregation());
         String typeStr = calc.getType() != null ? calc.getType() : "NUMBER";
         fieldInfo.put("meta", (isWindow ? "窗口计算字段" : "计算字段") + " | " + typeStr);
+        if (rowMeasure) {
+            fieldInfo.put("meta", fieldInfo.get("meta") + " | 默认聚合:" + calc.getDefaultAggregation());
+            fieldInfo.put("aggregation", calc.getDefaultAggregation());
+        }
 
         fieldInfo.put("type", typeStr);
         fieldInfo.put("filterType", "number");
-        fieldInfo.put("filterable", false);
-        fieldInfo.put("measure", false);
-        fieldInfo.put("aggregatable", false);
+        fieldInfo.put("filterable", rowMeasure);
+        fieldInfo.put("measure", rowMeasure);
+        fieldInfo.put("aggregatable", rowMeasure);
         fieldInfo.put("calculated", true);
         fieldInfo.put("predefined", true);
 
@@ -2907,9 +2919,18 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             String typeStr = calc.getType() != null ? calc.getType() : "NUMBER";
             this.meta = (isWindow ? "窗口计算字段" : "计算字段") + " | " + typeStr;
             this.fieldType = isWindow ? "window_calculated" : "calculated";
+            boolean rowMeasure = StringUtils.isNotEmpty(calc.getDefaultAggregation());
+            if (rowMeasure) {
+                this.meta += " | 默认聚合:" + calc.getDefaultAggregation();
+                this.fieldType = "measure";
+            }
 
             ModelUsage usage = new ModelUsage();
             usage.setDescription(this.displayName + " (公式: " + calc.getExpression() + ")");
+            if (rowMeasure) {
+                usage.setAggregation(DbAggregation.valueOf(calc.getDefaultAggregation()));
+                usage.setDescription(usage.getDescription() + "; 默认聚合: " + calc.getDefaultAggregation());
+            }
             if (calc.getAlias() != null && !calc.getAlias().equals(calc.getName())) {
                 usage.setDescription("输出键: " + calc.getAlias() + "; " + usage.getDescription());
             }

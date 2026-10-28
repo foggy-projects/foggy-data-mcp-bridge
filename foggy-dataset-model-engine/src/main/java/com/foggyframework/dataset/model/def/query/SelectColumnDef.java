@@ -49,6 +49,8 @@ public class SelectColumnDef {
 
     /** QM 计算字段公式 */
     String formula;
+    /** Default aggregation of the complete row formula in grouped/total queries. @since 9.5.5 */
+    String aggregation;
     /** 计算字段返回类型 */
     String type;
     /** 计算字段空值默认值，用于将聚合或表达式结果包裹为 COALESCE(expr, emptyDefault) */

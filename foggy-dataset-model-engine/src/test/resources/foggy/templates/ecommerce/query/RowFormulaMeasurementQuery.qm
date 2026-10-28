@@ -1,0 +1,10 @@
+const stock = loadTableModel('RowFormulaMeasurementModel');
+export const queryModel = {
+    name: 'RowFormulaMeasurementQuery', model: stock,
+    columnGroups: [{ items: [{ ref: stock.id }, { ref: stock.warehouse },
+        { ref: stock.pieces }, { ref: stock.orderPieces }, { ref: stock.orderWeight },
+        { name: 'weight', type: 'DOUBLE', aggregation: 'sum',
+            formula: 'IF(pieces>orderPieces,NULL,pieces*orderWeight/NULLIF(orderPieces,0))' },
+        { name: 'doubleWeight', type: 'DOUBLE', formula: 'weight*2' }
+    ] }], accesses: []
+};

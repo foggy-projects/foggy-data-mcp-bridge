@@ -1260,6 +1260,21 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                         calc.setAlias(item.getAlias());
                         calc.setCaption(item.getCaption());
                         calc.setExpression(item.getFormula());
+                        if (StringUtils.isNotEmpty(item.getAggregation())) {
+                            if (item.getEmptyDefault() != null || item.getPartitionBy() != null
+                                    || item.getWindowOrderBy() != null || StringUtils.isNotEmpty(item.getWindowFrame())) {
+                                throw new IllegalArgumentException("QM row formula aggregation does not support emptyDefault/window options; "
+                                        + "declare an explicit aggregate expression for aggregate defaults or window calculations");
+                            }
+                            var aggregation = com.foggyframework.dataset.model.spi.DbAggregation.valueOf(
+                                    item.getAggregation().toUpperCase(java.util.Locale.ROOT));
+                            if (aggregation == com.foggyframework.dataset.model.spi.DbAggregation.NONE
+                                    || aggregation == com.foggyframework.dataset.model.spi.DbAggregation.CUSTOM
+                                    || aggregation == com.foggyframework.dataset.model.spi.DbAggregation.WINDOW) {
+                                throw new IllegalArgumentException("QM row formula aggregation is unsupported: " + item.getAggregation());
+                            }
+                            calc.setDefaultAggregation(aggregation.name());
+                        }
                         calc.setType(item.getType());
                         calc.setDescription(item.getDescription());
                         calc.setEmptyDefault(item.getEmptyDefault());

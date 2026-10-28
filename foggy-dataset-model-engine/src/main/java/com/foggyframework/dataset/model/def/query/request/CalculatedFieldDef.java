@@ -94,6 +94,15 @@ public class CalculatedFieldDef {
     private String agg;
 
     /**
+     * Model-owned aggregation of a scalar row formula. Unlike {@link #agg}, this
+     * does not make the expression an explicit aggregate or prevent callers from
+     * choosing SUM/COUNT/AVG themselves. Not accepted from request JSON.
+     * @since 9.5.5
+     */
+    @JsonIgnore
+    private transient String defaultAggregation;
+
+    /**
      * 窗口函数 PARTITION BY 字段列表
      * <p>
      * 如果设置，表达式会被窗口函数包装：expression OVER (PARTITION BY ... ORDER BY ...)
@@ -171,6 +180,15 @@ public class CalculatedFieldDef {
                               String windowFrame, String type, Object emptyDefault, Exp compiledExp,
                               Origin origin, String sourcePath) {
         this(name, null, caption, expression, description, agg, partitionBy, windowOrderBy,
+                windowFrame, type, emptyDefault, compiledExp, origin, sourcePath);
+    }
+
+    /** Retain the constructor predating model-owned default aggregation. @since 9.5.5 */
+    public CalculatedFieldDef(String name, String alias, String caption, String expression, String description,
+                              String agg, List<String> partitionBy, List<WindowOrderDef> windowOrderBy,
+                              String windowFrame, String type, Object emptyDefault, Exp compiledExp,
+                              Origin origin, String sourcePath) {
+        this(name, alias, caption, expression, description, agg, null, partitionBy, windowOrderBy,
                 windowFrame, type, emptyDefault, compiledExp, origin, sourcePath);
     }
 

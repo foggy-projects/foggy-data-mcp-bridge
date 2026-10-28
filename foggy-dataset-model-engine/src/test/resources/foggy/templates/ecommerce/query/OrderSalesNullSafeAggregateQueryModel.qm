@@ -1,0 +1,18 @@
+/** Null-safe join keys retain aggregate validation, typed pushdown and member correlation. */
+const order = loadTableModel('FactOrderModel');
+const sales = loadTableModel('FactSalesModel');
+const relation = sales.groupBy(sales.orderId, sales.salesKey)
+    .sum(sales.salesAmount, 'salesAmount')
+    .groupConcat(sales.paymentMethod, 'paymentMethods')
+    .as('nullSafeSales');
+
+export const queryModel = {
+    name: 'OrderSalesNullSafeAggregateQueryModel',
+    caption: 'Null-safe aggregate join regression',
+    model: order,
+    joins: [order.leftJoin(relation).on(order.orderId, relation.orderId)
+        .andNullSafe(order.orderKey, relation.salesKey)],
+    columnGroups: [{ caption: 'Order', items: [{ ref: order.orderKey }, { ref: order.orderId }] },
+        { caption: 'Sales', items: [{ ref: relation.salesAmount }, { ref: relation.paymentMethods }] }],
+    accesses: []
+};

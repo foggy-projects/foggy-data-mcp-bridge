@@ -415,6 +415,10 @@ public final class CalculatedFieldService {
                             fieldDef.getName(), fieldDef.getAgg());
                 }
             }
+            if (StringUtils.isNotEmpty(fieldDef.getDefaultAggregation())
+                    && !sqlFragment.isHasAggregate() && !sqlFragment.isHasWindow()) {
+                sqlFragment.setAggregationType(fieldDef.getDefaultAggregation());
+            }
             sqlFragment = applyEmptyDefault(sqlFragment, fieldDef);
 
             // 3. 创建 CalculatedJdbcColumn
@@ -425,6 +429,9 @@ public final class CalculatedFieldService {
                     sqlFragment,
                     fieldDef.getDescription()
             );
+            if (StringUtils.isNotEmpty(fieldDef.getDefaultAggregation())) {
+                column.setAggregation(com.foggyframework.dataset.model.spi.DbAggregation.valueOf(fieldDef.getDefaultAggregation()));
+            }
 
             // 4. 注册到上下文（支持后续字段引用）
             column.setOutputAlias(fieldDef.getAlias());

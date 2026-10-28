@@ -241,6 +241,10 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
                             fieldDef.getName(), fieldDef.getAgg());
                 }
             }
+            if (StringUtils.isNotEmpty(fieldDef.getDefaultAggregation())
+                    && !sqlFragment.isHasAggregate() && !sqlFragment.isHasWindow()) {
+                sqlFragment.setAggregationType(fieldDef.getDefaultAggregation());
+            }
             sqlFragment = CalculatedFieldService.applyEmptyDefault(sqlFragment, fieldDef);
 
             // 3. 创建 CalculatedJdbcColumn
@@ -251,6 +255,9 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
                     sqlFragment,
                     fieldDef.getDescription()
             );
+            if (StringUtils.isNotEmpty(fieldDef.getDefaultAggregation()) && !resultStage) {
+                column.setAggregation(DbAggregation.valueOf(fieldDef.getDefaultAggregation()));
+            }
 
             // Mark the column as needing CTE wrapping if it went through wrapWithWindowClause
             if (stageDepth > 0) {
@@ -402,6 +409,7 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
                 && Objects.equals(left.getAlias(), right.getAlias())
                 && Objects.equals(left.getExpression(), right.getExpression())
                 && Objects.equals(left.getAgg(), right.getAgg())
+                && Objects.equals(left.getDefaultAggregation(), right.getDefaultAggregation())
                 && Objects.equals(left.getPartitionBy(), right.getPartitionBy())
                 && Objects.equals(left.getWindowOrderBy(), right.getWindowOrderBy())
                 && Objects.equals(left.getWindowFrame(), right.getWindowFrame())
@@ -561,7 +569,8 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
         if (!groupedQuery && !isSoleSelectedPredefinedCalculatedField(fieldDef)) {
             return false;
         }
-        if (fieldDef.getAgg() != null || fieldDef.getPartitionBy() != null || fieldDef.getWindowOrderBy() != null) {
+        if (fieldDef.getAgg() != null || StringUtils.isNotEmpty(fieldDef.getDefaultAggregation())
+                || fieldDef.getPartitionBy() != null || fieldDef.getWindowOrderBy() != null) {
             return false;
         }
         boolean baseAggregateMeasureRef = false;

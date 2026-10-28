@@ -1,0 +1,21 @@
+const stock = loadTableModel('JoinKeyLineageLeftModel');
+const facts = loadTableModel('JoinKeyLineageRightModel');
+const byHouse = facts.groupBy(facts.tenantId, facts.stockHouseId)
+    .sum(facts.quantity, 'houseQuantity').as('byHouse');
+const byScope = loadTableModel('JoinKeyLineageRightModel')
+    .groupBy(facts.tenantId, facts.scopeOrgId)
+    .sum(facts.quantity, 'scopeQuantity').as('byScope');
+
+export const queryModel = {
+    name: 'JoinKeyLineageQueryModel', caption: 'Aggregate key lineage regression', model: stock,
+    joins: [stock.leftJoin(byHouse).on(stock.tenantId, byHouse.tenantId)
+            .and(stock.stockHouseId, byHouse.stockHouseId),
+        stock.leftJoin(byScope).on(stock.tenantId, byScope.tenantId)
+            .andNullSafe(stock.scopeOrgId, byScope.scopeOrgId)],
+    columnGroups: [{ caption: 'Stock', items: [{ ref: stock.id }, { ref: stock.tenantId },
+            { ref: stock.tenantAlias }, { ref: stock.stockHouseId }, { ref: stock.stockHouseAlias },
+            { ref: stock.scopeOrgId }] },
+        { caption: 'Facts', items: [{ ref: byHouse.houseQuantity, name: 'houseQuantity', alias: 'houseQuantity' },
+            { ref: byScope.scopeQuantity, name: 'scopeQuantity', alias: 'scopeQuantity' }] }],
+    accesses: []
+};

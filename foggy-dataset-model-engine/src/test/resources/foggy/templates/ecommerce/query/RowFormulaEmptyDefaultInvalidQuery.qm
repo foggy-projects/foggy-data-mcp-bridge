@@ -1,0 +1,7 @@
+const stock = loadTableModel('RowFormulaMeasurementModel');
+export const queryModel = {
+    name: 'RowFormulaEmptyDefaultInvalidQuery', model: stock,
+    columnGroups: [{ items: [{ ref: stock.pieces },
+        { name: 'average', formula: 'pieces', aggregation: 'avg', emptyDefault: 0 }
+    ] }], accesses: []
+};

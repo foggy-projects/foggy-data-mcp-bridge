@@ -68,6 +68,7 @@ public class JoinBuilder implements PropertyFunction {
      * <ul>
      *   <li>{@code on(leftCol, rightCol)} - 添加 ON 条件（列=列）</li>
      *   <li>{@code and(leftCol, rightCol)} - 添加 AND 条件（列=列）</li>
+     *   <li>{@code andNullSafe(leftCol, rightCol)} - 添加允许两列同为空的等值条件</li>
      *   <li>{@code eq(leftCol, value)} - 添加等值条件（列=常量）</li>
      *   <li>{@code neq(leftCol, value)} - 添加不等条件（列<>常量）</li>
      * </ul>
@@ -84,6 +85,12 @@ public class JoinBuilder implements PropertyFunction {
                 // and(fo.customerId, fp.customerId) - 额外的 AND 条件
                 addCondition(toColumnRef(args[0]), "=", args[1]);
                 yield this;
+            }
+            case "andNullSafe" -> {
+                if (args == null || args.length != 2) {
+                    throw new IllegalArgumentException("andNullSafe requires exactly two column references");
+                }
+                yield andNullSafe(toColumnRef(args[0]), toColumnRef(args[1]));
             }
             case "eq" -> {
                 // eq(fp.status, 'ACTIVE') - 等值常量条件
@@ -133,7 +140,14 @@ public class JoinBuilder implements PropertyFunction {
         if (arg instanceof DimensionProxy dimensionProxy) {
             return dimensionProxy.toColumnRef();
         }
-        throw new IllegalArgumentException("Expected ColumnRef or DimensionProxy, got: " + arg.getClass().getName());
+        throw new IllegalArgumentException("Expected ColumnRef or DimensionProxy, got: "
+                + (arg == null ? "null" : arg.getClass().getName()));
+    }
+
+    /** Adds portable null-safe equality between two columns. @since 9.3.0 */
+    public JoinBuilder andNullSafe(ColumnRef left, ColumnRef right) {
+        conditions.add(JoinCondition.nullSafeEquals(left, right));
+        return this;
     }
 
     /**

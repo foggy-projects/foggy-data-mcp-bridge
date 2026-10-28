@@ -50,6 +50,14 @@ public class CalculatedDbColumn extends AbstractDecorate implements DbQueryColum
      */
     private String description;
 
+    /** Model-owned aggregation for scalar row formulas and ungrouped totalData. @since 9.5.5 */
+    private DbAggregation aggregation;
+
+    @Override
+    public boolean isMeasure() {
+        return aggregation != null && aggregation != DbAggregation.NONE;
+    }
+
     /**
      * 数据类型
      * <p>

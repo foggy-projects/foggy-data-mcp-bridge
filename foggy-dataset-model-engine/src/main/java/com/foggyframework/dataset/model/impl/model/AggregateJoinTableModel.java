@@ -6,6 +6,8 @@ import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.model.engine.join.JoinEdge;
 import com.foggyframework.dataset.model.engine.join.JoinGraph;
 import com.foggyframework.dataset.model.impl.AiObject;
+import com.foggyframework.dataset.model.impl.FormulaSqlSupport;
+import com.foggyframework.dataset.model.impl.property.DbPropertyImpl;
 import com.foggyframework.dataset.model.impl.utils.ViewSqlQueryObject;
 import com.foggyframework.dataset.model.proxy.AggregateJoinBuilder;
 import com.foggyframework.dataset.model.proxy.AggregateRelationProxy;
@@ -22,6 +24,7 @@ import com.foggyframework.dataset.model.spi.DbMeasure;
 import com.foggyframework.dataset.model.spi.DbMeasureColumn;
 import com.foggyframework.dataset.model.spi.DbModelType;
 import com.foggyframework.dataset.model.spi.DbProperty;
+import com.foggyframework.dataset.model.spi.DbPropertyColumn;
 import com.foggyframework.dataset.model.spi.QueryObject;
 import com.foggyframework.dataset.model.spi.TableModel;
 import com.foggyframework.dataset.model.spi.support.SimpleSqlJdbcColumn;
@@ -168,7 +171,7 @@ public class AggregateJoinTableModel extends TableModelSupport {
                 .collect(Collectors.toSet());
 
         for (JoinCondition condition : input.conditions()) {
-            if (!"=".equals(condition.getOperator())) {
+            if (!condition.isEqualityComparison()) {
                 throw RX.throwAUserTip("aggregate relation on 条件仅支持等值 join key");
             }
             ColumnRef leftRef = condition.getLeft();
@@ -547,7 +550,8 @@ public class AggregateJoinTableModel extends TableModelSupport {
             mappings.add(new JoinKeyPushdownMapping(
                     leftJoinKeyPushdownKeys(condition.getLeft(), input),
                     resolveVisibleLeftColumn(condition.getLeft(), input),
-                    sourceColumnSql(rightColumn, sourceSqlContext)));
+                    sourceColumnSql(rightColumn, sourceSqlContext),
+                    condition.isNullSafe()));
         }
         return mappings;
     }
@@ -555,16 +559,19 @@ public class AggregateJoinTableModel extends TableModelSupport {
     private Set<String> leftJoinKeyPushdownKeys(ColumnRef leftRef, AggregateRelationInput input) {
         Set<String> keys = new LinkedHashSet<>(columnRefKeys(leftRef));
         DbColumn leftColumn = resolveVisibleLeftColumn(leftRef, input);
-        if (leftColumn == null || leftColumn.getSqlColumnName() == null) {
+        if (!isPhysicalJoinKeyColumn(leftColumn)) {
             return keys;
         }
         String sqlColumnName = leftColumn.getSqlColumnName();
+        String expression = leftColumn.getDeclare();
         for (TableModel model : input.visibleLeftModels()) {
             if (!matchesLeftRefModel(model, leftRef)) {
                 continue;
             }
             for (DbColumn candidate : allModelColumns(model)) {
-                if (candidate == null || !sqlColumnName.equals(candidate.getSqlColumnName())) {
+                if (!isPhysicalJoinKeyColumn(candidate)
+                        || !sqlColumnName.equals(candidate.getSqlColumnName())
+                        || !expression.equals(candidate.getDeclare())) {
                     continue;
                 }
                 keys.add(candidate.getName());
@@ -572,6 +579,24 @@ public class AggregateJoinTableModel extends TableModelSupport {
         }
         keys.add(sqlColumnName);
         return keys;
+    }
+
+    /** Carrier columns do not establish lineage for formulas or transformed values. @since 9.3.0 */
+    private boolean isPhysicalJoinKeyColumn(DbColumn column) {
+        if (column == null || column.getSqlColumnName() == null || column.isCalculatedField()) {
+            return false;
+        }
+        DbPropertyColumn propertyColumn = column.getDecorate(DbPropertyColumn.class);
+        if (propertyColumn != null && propertyColumn.getProperty() instanceof DbPropertyImpl property
+                && (property.getFormulaBuilder() != null || FormulaSqlSupport.hasSql(property.getFormulaSql()))) {
+            return false;
+        }
+        DbMeasureColumn measureColumn = column.getDecorate(DbMeasureColumn.class);
+        if (measureColumn != null && measureColumn.getFormulaDef() != null) {
+            return false;
+        }
+        return column.getQualifiedSqlColumnName("join_key_lineage", null)
+                .equals(column.getDeclare(null, "join_key_lineage"));
     }
 
     private DbColumn resolveVisibleLeftColumn(ColumnRef leftRef, AggregateRelationInput input) {
@@ -836,7 +861,8 @@ public class AggregateJoinTableModel extends TableModelSupport {
     private record JoinKeyPushdownMapping(
             Set<String> leftFieldNames,
             DbColumn leftColumn,
-            String rightExpression) {
+            String rightExpression,
+            boolean nullSafe) {
     }
 
     private record SqlFragment(String sql, List<Object> values) {
@@ -1114,7 +1140,9 @@ public class AggregateJoinTableModel extends TableModelSupport {
                             fieldName, op, REASON_NO_JOIN_KEY_MAPPING));
                     return Optional.empty();
                 }
-                whereParts.add(mapping.rightExpression() + " = " + outerExpression);
+                whereParts.add(mapping.nullSafe()
+                        ? JoinCondition.renderNullSafeEquality(mapping.rightExpression(), outerExpression)
+                        : mapping.rightExpression() + " = " + outerExpression);
             }
 
             if ("=".equals(normalizedOp)) {

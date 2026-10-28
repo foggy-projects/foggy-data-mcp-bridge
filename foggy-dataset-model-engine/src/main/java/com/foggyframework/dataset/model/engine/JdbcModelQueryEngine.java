@@ -1818,7 +1818,9 @@ public class JdbcModelQueryEngine implements QueryEngine {
             // 聚合条件需要添加到HAVING，否则添加到WHERE
             if (isAggregateCondition) {
                 JdbcQuery.JdbcListCond target = forceCurrentListCondForAggregate ? listCond : jdbcQuery.getHaving();
-                sqlFormulaService.buildAndAddToJdbcCond(target, sliceDef.getOp(), jdbcColumn, null,
+                DbColumn conditionColumn = explicitModelMeasureHaving
+                        ? buildModelMeasureHavingColumn(jdbcColumn, null) : jdbcColumn;
+                sqlFormulaService.buildAndAddToJdbcCond(target, sliceDef.getOp(), conditionColumn, null,
                         sliceDef.getValue(), parentLink, jdbcQueryModel.getDialect());
             } else {
                 sqlFormulaService.buildAndAddToJdbcCond(listCond, sliceDef.getOp(), jdbcColumn, null,
@@ -1913,26 +1915,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
             DbColumn conditionColumn = jdbcColumn;
             String conditionAlias = alias;
             if (explicitModelMeasureHaving) {
-                String declare = jdbcColumn.getDeclare(null, alias, jdbcQueryModel.getDialect());
-                AggregationDbColumn aggregateColumn = buildAggColumn1(
-                        jdbcColumn.getQueryObject(), declare, jdbcColumn, jdbcColumn.getAggregation());
-                DbColumn measureColumn = jdbcColumn;
-                conditionColumn = new AggregationDbColumn(
-                        aggregateColumn.getQueryObject(),
-                        aggregateColumn.getAlias(),
-                        aggregateColumn.getDeclare(null, alias, jdbcQueryModel.getDialect()),
-                        aggregateColumn.getType(),
-                        aggregateColumn.getAggregation()) {
-                    @Override
-                    public ObjectTransFormatter<?> getFormatter() {
-                        return measureColumn.getFormatter();
-                    }
-
-                    @Override
-                    public ObjectTransFormatter<?> getFormatter(boolean errorIfNull) {
-                        return measureColumn.getFormatter(errorIfNull);
-                    }
-                };
+                conditionColumn = buildModelMeasureHavingColumn(jdbcColumn, alias);
                 conditionAlias = null;
             }
             sqlFormulaService.buildAndAddToJdbcCond(target, sliceDef.getOp(), conditionColumn, conditionAlias,
@@ -1941,6 +1924,29 @@ public class JdbcModelQueryEngine implements QueryEngine {
             sqlFormulaService.buildAndAddToJdbcCond(listCond, sliceDef.getOp(), jdbcColumn, alias,
                     sliceDef.getValue(), parentLink, jdbcQueryModel.getDialect());
         }
+    }
+
+    /** Apply the same model aggregation to selected values and explicit HAVING predicates. @since 9.5.5 */
+    private DbColumn buildModelMeasureHavingColumn(DbColumn measureColumn, String alias) {
+        String declare = measureColumn.getDeclare(null, alias, jdbcQueryModel.getDialect());
+        AggregationDbColumn aggregateColumn = buildAggColumn1(
+                measureColumn.getQueryObject(), declare, measureColumn, measureColumn.getAggregation());
+        return new AggregationDbColumn(
+                aggregateColumn.getQueryObject(),
+                aggregateColumn.getAlias(),
+                aggregateColumn.getDeclare(null, alias, jdbcQueryModel.getDialect()),
+                aggregateColumn.getType(),
+                aggregateColumn.getAggregation()) {
+            @Override
+            public ObjectTransFormatter<?> getFormatter() {
+                return measureColumn.getFormatter();
+            }
+
+            @Override
+            public ObjectTransFormatter<?> getFormatter(boolean errorIfNull) {
+                return measureColumn.getFormatter(errorIfNull);
+            }
+        };
     }
 
     private boolean isSelfInclusiveHierarchyOperator(HierarchyOperator hierarchyOp) {
@@ -2524,11 +2530,15 @@ public class JdbcModelQueryEngine implements QueryEngine {
         if (fieldName == null) {
             return false;
         }
-        return isModelMeasureColumn(jdbcQueryModel.findJdbcColumnForCond(fieldName, false, true));
+        DbColumn column = jdbcQueryModel.findJdbcColumnForCond(fieldName, false, true);
+        return isModelMeasureColumn(column == null ? findCalculatedColumn(fieldName) : column);
     }
 
     private boolean isModelMeasureColumn(DbColumn column) {
         if (column == null || !column.isMeasure()) {
+            return false;
+        }
+        if (column instanceof CalculatedDbColumn calculated && (calculated.hasAggregate() || calculated.hasWindow())) {
             return false;
         }
         DbAggregation aggregation = column.getAggregation();

@@ -43,6 +43,9 @@ public class JoinCondition {
      */
     private final Object right;
 
+    /** Whether equality also matches two null column values. */
+    private final boolean nullSafe;
+
     /**
      * 创建 JOIN 条件
      *
@@ -51,9 +54,32 @@ public class JoinCondition {
      * @param right    右侧值（ColumnRef 或常量）
      */
     public JoinCondition(ColumnRef left, String operator, Object right) {
+        this(left, operator, right, false);
+    }
+
+    private JoinCondition(ColumnRef left, String operator, Object right, boolean nullSafe) {
         this.left = left;
         this.operator = operator;
         this.right = right;
+        this.nullSafe = nullSafe;
+    }
+
+    /** Creates column-only null-safe equality without changing ordinary equality. @since 9.3.0 */
+    public static JoinCondition nullSafeEquals(ColumnRef left, ColumnRef right) {
+        if (left == null || right == null) {
+            throw new IllegalArgumentException("Null-safe equality requires two non-null column references");
+        }
+        return new JoinCondition(left, "=", right, true);
+    }
+
+    /** Both ordinary and null-safe equality are equi-join comparisons. @since 9.3.0 */
+    public boolean isEqualityComparison() {
+        return "=".equals(operator);
+    }
+
+    /** Portable SQL shared by ON rendering and correlated aggregate member filters. @since 9.3.0 */
+    public static String renderNullSafeEquality(String left, String right) {
+        return "(" + left + " = " + right + " OR (" + left + " IS NULL AND " + right + " IS NULL))";
     }
 
     /**
@@ -117,7 +143,8 @@ public class JoinCondition {
             rightPart = "?";
         }
 
-        return leftPart + " " + operator + " " + rightPart;
+        return nullSafe ? renderNullSafeEquality(leftPart, rightPart)
+                : leftPart + " " + operator + " " + rightPart;
     }
 
     /**
