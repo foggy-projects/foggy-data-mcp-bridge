@@ -588,7 +588,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
     }
 
     private void prepareAggregateRelationProjection(JdbcQuery jdbcQuery) {
-        Set<AggregateRelationQueryObject> queryObjects = collectAggregateRelationQueryObjects(jdbcQueryModel);
+        List<AggregateRelationQueryObject> queryObjects = collectAggregateRelationQueryObjects(jdbcQueryModel);
         if (queryObjects.isEmpty()) {
             return;
         }
@@ -648,31 +648,33 @@ public class JdbcModelQueryEngine implements QueryEngine {
         return queryObject == null ? null : queryObject.getDecorate(AggregateRelationQueryObject.class);
     }
 
-    private Set<AggregateRelationQueryObject> collectAggregateRelationQueryObjects(JdbcQueryModel jdbcQueryModel) {
-        Set<AggregateRelationQueryObject> queryObjects = new LinkedHashSet<>();
+    private List<AggregateRelationQueryObject> collectAggregateRelationQueryObjects(JdbcQueryModel jdbcQueryModel) {
+        List<AggregateRelationQueryObject> queryObjects = new ArrayList<>();
+        // Generated relations inherit ViewSqlQueryObject value equality. Their
+        // initial viewSql is identical even when aliases, sources and request-
+        // local pushdown states differ. Visit each physical relation instance
+        // once, in model encounter order, rather than dropping equal siblings.
+        Map<AggregateRelationQueryObject, Boolean> seen = new IdentityHashMap<>();
         if (jdbcQueryModel == null || jdbcQueryModel.getJdbcModelList() == null) {
             return queryObjects;
         }
         for (TableModel tableModel : jdbcQueryModel.getJdbcModelList()) {
-            collectAggregateRelationQueryObject(tableModel == null ? null : tableModel.getQueryObject(), queryObjects);
+            collectAggregateRelationQueryObject(tableModel == null ? null : tableModel.getQueryObject(), queryObjects, seen);
             if (tableModel == null || tableModel.getVisibleSelectColumns() == null) {
                 continue;
             }
             for (DbColumn column : tableModel.getVisibleSelectColumns()) {
-                collectAggregateRelationQueryObject(column == null ? null : column.getQueryObject(), queryObjects);
+                collectAggregateRelationQueryObject(column == null ? null : column.getQueryObject(), queryObjects, seen);
             }
         }
         return queryObjects;
     }
 
-    private void collectAggregateRelationQueryObject(QueryObject queryObject, Set<AggregateRelationQueryObject> queryObjects) {
-        if (queryObject instanceof AggregateRelationQueryObject aggregateRelationQueryObject) {
-            queryObjects.add(aggregateRelationQueryObject);
-            return;
-        }
-        AggregateRelationQueryObject aggregateRelationQueryObject =
-                queryObject == null ? null : queryObject.getDecorate(AggregateRelationQueryObject.class);
-        if (aggregateRelationQueryObject != null) {
+    private void collectAggregateRelationQueryObject(QueryObject queryObject,
+                                                     List<AggregateRelationQueryObject> queryObjects,
+                                                     Map<AggregateRelationQueryObject, Boolean> seen) {
+        AggregateRelationQueryObject aggregateRelationQueryObject = resolveAggregateRelationQueryObject(queryObject);
+        if (aggregateRelationQueryObject != null && seen.put(aggregateRelationQueryObject, Boolean.TRUE) == null) {
             queryObjects.add(aggregateRelationQueryObject);
         }
     }

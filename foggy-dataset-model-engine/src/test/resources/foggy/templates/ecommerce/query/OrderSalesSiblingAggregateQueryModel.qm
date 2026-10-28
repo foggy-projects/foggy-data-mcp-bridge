@@ -1,0 +1,22 @@
+/** Three independent aggregate instances must not collapse by viewSql equality. */
+const order = loadTableModel('FactOrderModel');
+const a = loadTableModel('FactSalesModel');
+const b = loadTableModel('FactSalesModel');
+const c = loadTableModel('FactSalesModel');
+const first = a.filterEq(a.orderStatus, 'COMPLETED').groupBy(a.orderId)
+    .sum(a.salesAmount, 'aAmount').sum(a.quantity, 'aQuantity').count('aCount').as('firstSales');
+const second = b.filterEq(b.orderStatus, 'COMPLETED').groupBy(b.orderId)
+    .sum(b.salesAmount, 'bAmount').sum(b.quantity, 'bQuantity').count('bCount').as('secondSales');
+const third = c.filterEq(c.orderStatus, 'COMPLETED').groupBy(c.orderId)
+    .sum(c.salesAmount, 'cAmount').sum(c.quantity, 'cQuantity').count('cCount').as('thirdSales');
+export const queryModel = {
+    name: 'OrderSalesSiblingAggregateQueryModel', caption: 'Sibling aggregate identity regression', model: order,
+    joins: [order.leftJoin(first).on(order.orderId, first.orderId),
+        order.leftJoin(second).on(order.orderId, second.orderId),
+        order.leftJoin(third).on(order.orderId, third.orderId)],
+    columnGroups: [{ caption: 'Order', items: [{ ref: order.orderId }] },
+        { caption: 'First', items: [{ ref: first.aAmount, name: 'aAmount', alias: 'aAmount' }, { ref: first.aQuantity, name: 'aQuantity', alias: 'aQuantity' }, { ref: first.aCount, name: 'aCount', alias: 'aCount' }] },
+        { caption: 'Second', items: [{ ref: second.bAmount, name: 'bAmount', alias: 'bAmount' }, { ref: second.bQuantity, name: 'bQuantity', alias: 'bQuantity' }, { ref: second.bCount, name: 'bCount', alias: 'bCount' }] },
+        { caption: 'Third', items: [{ ref: third.cAmount, name: 'cAmount', alias: 'cAmount' }, { ref: third.cQuantity, name: 'cQuantity', alias: 'cQuantity' }, { ref: third.cCount, name: 'cCount', alias: 'cCount' }] }],
+    accesses: []
+};
