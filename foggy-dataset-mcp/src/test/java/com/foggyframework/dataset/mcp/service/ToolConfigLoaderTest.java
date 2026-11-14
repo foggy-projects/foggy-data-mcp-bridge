@@ -23,11 +23,11 @@ class ToolConfigLoaderTest {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Test
-    @DisplayName("getBuiltinDefaults 应返回 14 个内置工具")
-    void testBuiltinDefaults_ShouldReturn14Tools() {
+    @DisplayName("getBuiltinDefaults 应返回 15 个内置工具")
+    void testBuiltinDefaults_ShouldReturn15Tools() {
         List<McpProperties.ToolConfigItem> defaults = ToolConfigLoader.getBuiltinDefaults();
 
-        assertEquals(14, defaults.size());
+        assertEquals(15, defaults.size());
 
         // 验证每个工具都有完整配置
         for (McpProperties.ToolConfigItem tool : defaults) {
@@ -50,6 +50,7 @@ class ToolConfigLoaderTest {
         assertTrue(names.contains("dataset.describe_model_internal"), "Should contain describe_model_internal");
         assertTrue(names.contains("dataset.export_with_xchart"));
         assertTrue(names.contains("dataset.export_with_echarts"));
+        assertTrue(names.contains("dataset.export_image"));
         assertFalse(names.contains("dataset.export_with_chart"));
         assertTrue(names.contains("dataset.inspect_table"), "Should contain inspect_table");
         assertTrue(names.contains("dataset.open_in_viewer"), "Should contain open_in_viewer");
@@ -202,7 +203,7 @@ class ToolConfigLoaderTest {
         simulateMerge(props);
 
         // 验证结果
-        assertEquals(14, props.getTools().size(), "Should still have 14 tools after merge");
+        assertEquals(15, props.getTools().size(), "Should retain every builtin tool after merge");
 
         // open_in_viewer 应该被禁用
         McpProperties.ToolConfigItem viewer = findTool(props, "dataset.open_in_viewer");
@@ -232,7 +233,7 @@ class ToolConfigLoaderTest {
 
         simulateMerge(props);
 
-        assertEquals(14, props.getTools().size());
+        assertEquals(15, props.getTools().size());
         for (McpProperties.ToolConfigItem tool : props.getTools()) {
             assertNotNull(tool.getDescriptionFile(), "Should have descriptionFile for " + tool.getName());
             assertNotNull(tool.getSchemaFile(), "Should have schemaFile for " + tool.getName());
@@ -271,8 +272,8 @@ class ToolConfigLoaderTest {
 
         simulateMerge(props);
 
-        assertEquals(15, props.getTools().size(), "14 defaults + 1 custom");
-        McpProperties.ToolConfigItem last = props.getTools().get(14);
+        assertEquals(16, props.getTools().size(), "15 defaults + 1 custom");
+        McpProperties.ToolConfigItem last = props.getTools().get(15);
         assertEquals("custom.my_tool", last.getName());
         assertEquals("classpath:/custom/tool.md", last.getDescriptionFile());
     }
